@@ -1,0 +1,55 @@
+# ===== 의존성 =====
+node_modules/
+.pnp/
+.pnp.js
+.yarn/
+jspm_packages/
+
+# ===== 빌드 / 배포 산출물 =====
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.svelte-kit/
+.vercel/
+.turbo/
+
+# ===== 환경 변수 =====
+.env
+.env.*
+!.env.example
+*.local
+
+# ===== 로그 =====
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== 캐시 / 커버리지 =====
+.cache/
+coverage/
+.eslintcache
+*.tsbuildinfo
+
+# ===== OS 생성 파일 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 에디터 / IDE =====
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== 기타 =====
+tmp/
+temp/
