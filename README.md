@@ -1,3 +1,3 @@
 # Visual Spec Builder
 
-<!-- 내용은 추후 작성 -->
+(https://app.clickup.com/90182912883/v/o/s/901812110763)
