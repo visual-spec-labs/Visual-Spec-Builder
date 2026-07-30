@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VisualSpec",
+  "description": "Visual Spec Schema v0.1 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "screen"],
+  "properties": {
+    "version": { "const": "0.1" },
+    "screen": { "$ref": "#/$defs/Screen" }
+  },
+  "$defs": {
+    "VisualSpec": {
+      "type": "object",
+      "description": "최상위 문서 타입. 루트 스키마와 같은 정의다. json-schema-to-typescript가 루트 레벨 $ref를 해석하지 못해(#/$defs를 #/%24defs로 망가뜨린다) 루트에 같은 내용을 인라인했다. 한쪽을 고치면 반드시 다른 쪽도 고친다.",
+      "additionalProperties": false,
+      "required": ["version", "screen"],
+      "properties": {
+        "version": { "const": "0.1" },
+        "screen": { "$ref": "#/$defs/Screen" }
+      }
+    },
+    "Screen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "size", "root", "nodes"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "size": {
+          "type": "object",
+          "description": "Screen 크기. width/height 모두 exclusiveMinimum 0.",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "root": { "$ref": "#/$defs/NodeId" },
+        "nodes": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[A-Za-z0-9_-]+$" },
+          "additionalProperties": { "$ref": "#/$defs/Node" }
+        }
+      }
+    },
+    "Size": {
+      "description": "number | \"auto\" | \"fill\". number는 minimum 0, px로 해석.",
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        { "type": "string", "enum": ["auto", "fill"] }
+      ]
+    },
+    "NodeId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "Node": {
+      "oneOf": [{ "$ref": "#/$defs/FrameNode" }, { "$ref": "#/$defs/TextNode" }]
+    },
+    "FrameNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name", "box", "layout", "children"],
+      "properties": {
+        "type": { "const": "frame" },
+        "name": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean", "default": true },
+        "box": { "$ref": "#/$defs/Box" },
+        "layout": { "$ref": "#/$defs/Layout" },
+        "background": { "$ref": "#/$defs/Background" },
+        "border": { "$ref": "#/$defs/Border" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ChildReference" }
+        }
+      }
+    },
+    "TextNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name", "box", "content", "typography", "color"],
+      "properties": {
+        "type": { "const": "text" },
+        "name": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean", "default": true },
+        "box": { "$ref": "#/$defs/Box" },
+        "content": { "type": "string" },
+        "typography": { "$ref": "#/$defs/Typography" },
+        "color": { "$ref": "#/$defs/Color" }
+      }
+    },
+    "ChildReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node"],
+      "properties": {
+        "node": { "$ref": "#/$defs/NodeId" }
+      }
+    },
+    "Box": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "$ref": "#/$defs/Size" },
+        "height": { "$ref": "#/$defs/Size" }
+      }
+    },
+    "Color": {
+      "type": "string",
+      "description": "#RRGGBB 또는 #RRGGBBAA",
+      "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+    },
+    "Padding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["top", "right", "bottom", "left"],
+      "properties": {
+        "top": { "type": "number", "minimum": 0 },
+        "right": { "type": "number", "minimum": 0 },
+        "bottom": { "type": "number", "minimum": 0 },
+        "left": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["direction", "gap", "padding", "mainAxis", "crossAxis"],
+      "properties": {
+        "direction": { "type": "string", "enum": ["row", "column"] },
+        "gap": { "type": "number", "minimum": 0 },
+        "padding": { "$ref": "#/$defs/Padding" },
+        "mainAxis": {
+          "type": "string",
+          "enum": ["start", "center", "end", "space-between"]
+        },
+        "crossAxis": {
+          "type": "string",
+          "enum": ["start", "center", "end", "stretch"]
+        }
+      }
+    },
+    "Background": {
+      "type": "object",
+      "description": "MVP는 단색만",
+      "additionalProperties": false,
+      "required": ["color"],
+      "properties": {
+        "color": { "$ref": "#/$defs/Color" }
+      }
+    },
+    "Border": {
+      "type": "object",
+      "description": "MVP는 solid 고정, 네 모서리 균일",
+      "additionalProperties": false,
+      "required": ["width", "color", "radius"],
+      "properties": {
+        "width": { "type": "number", "minimum": 0 },
+        "color": { "$ref": "#/$defs/Color" },
+        "radius": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Typography": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fontFamily",
+        "fontSize",
+        "fontWeight",
+        "lineHeight",
+        "letterSpacing",
+        "textAlign"
+      ],
+      "properties": {
+        "fontFamily": { "type": "string", "minLength": 1 },
+        "fontSize": { "type": "number", "exclusiveMinimum": 0 },
+        "fontWeight": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 900,
+          "multipleOf": 100
+        },
+        "lineHeight": { "type": "number", "exclusiveMinimum": 0 },
+        "letterSpacing": { "type": "number" },
+        "textAlign": { "type": "string", "enum": ["left", "center", "right"] }
+      }
+    }
+  }
+}

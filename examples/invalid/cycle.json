@@ -1,0 +1,36 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "Cycle",
+    "size": { "width": 390, "height": 844 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Root",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 0,
+          "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "children": [{ "node": "child" }]
+      },
+      "child": {
+        "type": "frame",
+        "name": "Child",
+        "box": { "width": "fill", "height": "auto" },
+        "layout": {
+          "direction": "column",
+          "gap": 0,
+          "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "children": [{ "node": "root" }]
+      }
+    }
+  }
+}

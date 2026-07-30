@@ -1,0 +1,70 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "Login",
+    "size": { "width": 390, "height": 844 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Screen",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 16,
+          "padding": { "top": 24, "right": 20, "bottom": 24, "left": 20 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "background": { "color": "#FFFFFF" },
+        "children": [{ "node": "title" }, { "node": "card" }]
+      },
+      "title": {
+        "type": "text",
+        "name": "Title",
+        "box": { "width": "fill", "height": "auto" },
+        "content": "로그인",
+        "color": "#111111",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 24,
+          "fontWeight": 700,
+          "lineHeight": 32,
+          "letterSpacing": -0.5,
+          "textAlign": "left"
+        }
+      },
+      "card": {
+        "type": "frame",
+        "name": "Card",
+        "visible": true,
+        "box": { "width": "fill", "height": "auto" },
+        "layout": {
+          "direction": "column",
+          "gap": 12,
+          "padding": { "top": 16, "right": 16, "bottom": 16, "left": 16 },
+          "mainAxis": "center",
+          "crossAxis": "stretch"
+        },
+        "background": { "color": "#F5F5F5FF" },
+        "border": { "width": 1, "color": "#00000020", "radius": 8 },
+        "children": [{ "node": "hint" }]
+      },
+      "hint": {
+        "type": "text",
+        "name": "Hint",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "계정 정보를 입력하세요",
+        "color": "#666666",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "center"
+        }
+      }
+    }
+  }
+}

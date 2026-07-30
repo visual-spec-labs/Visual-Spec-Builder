@@ -1,0 +1,64 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "Multiple Parents",
+    "size": { "width": 390, "height": 844 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Root",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "row",
+          "gap": 8,
+          "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "children": [{ "node": "left" }, { "node": "right" }]
+      },
+      "left": {
+        "type": "frame",
+        "name": "Left Parent",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 0,
+          "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "children": [{ "node": "shared" }]
+      },
+      "right": {
+        "type": "frame",
+        "name": "Right Parent",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 0,
+          "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "children": [{ "node": "shared" }]
+      },
+      "shared": {
+        "type": "text",
+        "name": "Shared Child",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "공유 자식",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "center"
+        },
+        "color": "#111111"
+      }
+    }
+  }
+}
