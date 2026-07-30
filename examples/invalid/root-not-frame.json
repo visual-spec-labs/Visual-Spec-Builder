@@ -1,0 +1,25 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "Root Not Frame",
+    "size": { "width": 390, "height": 844 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "text",
+        "name": "Text Root",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "루트는 프레임이어야 합니다",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 16,
+          "fontWeight": 400,
+          "lineHeight": 24,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        },
+        "color": "#111111"
+      }
+    }
+  }
+}

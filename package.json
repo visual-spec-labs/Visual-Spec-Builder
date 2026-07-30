@@ -1,0 +1,22 @@
+{
+  "name": "visual-spec",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Visual Spec Schema v0.1 — JSON Schema 정본과 TypeScript 타입, 검증기",
+  "license": "MIT",
+  "main": "src/index.ts",
+  "scripts": {
+    "generate:types": "node scripts/generate-types.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "json-schema-to-typescript": "^15.0.4",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
