@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import loginScreen from "../examples/login-screen.json";
-import { validateVisualSpec } from "../src/index";
+import { validateVisualSpec } from "@/features/editor/schema";
 
 function expectSchemaIssue(input: unknown): void {
   const result = validateVisualSpec(input);

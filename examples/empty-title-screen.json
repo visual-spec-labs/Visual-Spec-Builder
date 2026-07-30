@@ -1,0 +1,39 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "EmptyTitle",
+    "size": { "width": 1440, "height": 900 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Screen",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 0,
+          "padding": { "top": 48, "right": 48, "bottom": 48, "left": 48 },
+          "mainAxis": "center",
+          "crossAxis": "center"
+        },
+        "background": { "color": "#FFFFFF" },
+        "children": [{ "node": "title" }]
+      },
+      "title": {
+        "type": "text",
+        "name": "Title",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "제목만 있는 빈 화면",
+        "color": "#111111",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 32,
+          "fontWeight": 700,
+          "lineHeight": 40,
+          "letterSpacing": -0.8,
+          "textAlign": "center"
+        }
+      }
+    }
+  }
+}

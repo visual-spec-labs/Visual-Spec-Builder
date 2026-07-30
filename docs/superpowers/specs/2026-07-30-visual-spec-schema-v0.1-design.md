@@ -10,11 +10,16 @@
 
 ## 1. 범위
 
+> **구현 후 변경 사항.** 팀 피드백에 따라 스키마 모듈을 `src/features/editor/schema/`로 옮기고
+> `Screen` 타입을 `ScreenSpec`으로 바꿨다. JSON 문서 구조는 그대로다.
+> 아래 본문의 `schema/`, `src/types.ts` 같은 경로는 설계 당시 기준이며,
+> 현재 위치와 확정된 계약은 `docs/SCHEMA_V0.1_FREEZE.md`를 본다.
+
 구현한다.
 
-- `schema/visual-spec.schema.json` (JSON Schema draft 2020-12) — **정본**
-- `src/types.ts` — 위 스키마에서 생성한 TypeScript 타입
-- `src/validate.ts` — 구조 검증 + JSON Schema로 표현 불가능한 참조 무결성 검증
+- `visual-spec.schema.json` (JSON Schema draft 2020-12) — **정본**
+- `types.ts` — 위 스키마에서 생성한 TypeScript 타입
+- `validate.ts` — 구조 검증 + JSON Schema로 표현 불가능한 참조 무결성 검증
 - 테스트와 예제 JSON
 
 구현하지 않는다. (`docs/VISUAL_SPEC_SCHEMA_V0.1.md`의 MVP 제외 범위)
@@ -45,10 +50,10 @@ variants, states, slots, 반응형, Tailwind 클래스 변환, React 코드 생�
 ```ts
 interface VisualSpec {
   version: "0.1";
-  screen: Screen;
+  screen: ScreenSpec;
 }
 
-interface Screen {
+interface ScreenSpec {
   name: string;                              // minLength 1
   size: { width: number; height: number };   // 둘 다 exclusiveMinimum 0
   root: NodeId;                              // nodes에 존재하는 key
@@ -240,14 +245,16 @@ export { default as visualSpecJsonSchema } from "../schema/visual-spec.schema.js
 
 ```
 package.json
-tsconfig.json
-vitest.config.ts
-schema/visual-spec.schema.json
+tsconfig.json          ← "@/*" → "src/*" 경로 별칭
+vitest.config.ts       ← 같은 별칭을 resolve.alias 로 재선언
 scripts/generate-types.mjs
-src/types.ts          ← 생성물이지만 커밋한다
-src/validate.ts
-src/index.ts
+src/features/editor/schema/
+  visual-spec.schema.json   ← 정본
+  types.ts                  ← 생성물이지만 커밋한다
+  validate.ts
+  index.ts                  ← 팀이 import 하는 유일한 진입점
 examples/*.json
+examples/invalid/*.json
 test/*.test.ts
 ```
 

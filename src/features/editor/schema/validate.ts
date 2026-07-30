@@ -1,6 +1,6 @@
 import Ajv2020 from "ajv/dist/2020";
 
-import visualSpecJsonSchema from "../schema/visual-spec.schema.json";
+import visualSpecJsonSchema from "./visual-spec.schema.json";
 import type { VisualSpec } from "./types";
 
 export type IssueCode =

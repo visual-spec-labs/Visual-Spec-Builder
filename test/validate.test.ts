@@ -1,20 +1,27 @@
 import { describe, expect, it } from "vitest";
 
+import dashboardCards from "../examples/dashboard-cards.json";
+import emptyTitleScreen from "../examples/empty-title-screen.json";
+import headerContent from "../examples/header-content.json";
 import childMissing from "../examples/invalid/child-missing.json";
 import cycle from "../examples/invalid/cycle.json";
 import multipleParents from "../examples/invalid/multiple-parents.json";
 import orphanNode from "../examples/invalid/orphan-node.json";
 import rootMissing from "../examples/invalid/root-missing.json";
 import rootNotFrame from "../examples/invalid/root-not-frame.json";
+import textWithoutContent from "../examples/invalid/text-without-content.json";
+import unsupportedNodeType from "../examples/invalid/unsupported-node-type.json";
 import loginScreen from "../examples/login-screen.json";
-import { validateVisualSpec } from "../src/index";
+import { validateVisualSpec } from "@/features/editor/schema";
 
 describe("validateVisualSpec", () => {
-  it("유효한 로그인 화면 예제를 통과시킨다", () => {
-    expect(validateVisualSpec(loginScreen)).toEqual({
-      valid: true,
-      issues: [],
-    });
+  it.each([
+    ["login-screen", loginScreen],
+    ["empty-title-screen", emptyTitleScreen],
+    ["dashboard-cards", dashboardCards],
+    ["header-content", headerContent],
+  ] as const)("%s 예제를 통과시킨다", (_name, input) => {
+    expect(validateVisualSpec(input)).toEqual({ valid: true, issues: [] });
   });
 
   it.each([
@@ -30,6 +37,20 @@ describe("validateVisualSpec", () => {
     expect(result.valid).toBe(false);
     // 무효 예제는 원인이 하나뿐이어야 한다. 잡음이 섞이면 예제나 검증기가 잘못된 것이다.
     expect(result.issues.map((issue) => issue.code)).toEqual([code]);
+  });
+
+  it("content가 없는 text 노드를 거부한다", () => {
+    const result = validateVisualSpec(textWithoutContent);
+
+    expect(result.valid).toBe(false);
+    expect(result.issues.map((issue) => issue.code)).toContain("schema");
+  });
+
+  it("지원하지 않는 노드 type을 거부한다", () => {
+    const result = validateVisualSpec(unsupportedNodeType);
+
+    expect(result.valid).toBe(false);
+    expect(result.issues.map((issue) => issue.code)).toContain("schema");
   });
 
   it.each([null, "invalid", [], {}])(

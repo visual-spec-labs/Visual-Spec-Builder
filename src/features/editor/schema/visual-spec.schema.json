@@ -7,20 +7,10 @@
   "required": ["version", "screen"],
   "properties": {
     "version": { "const": "0.1" },
-    "screen": { "$ref": "#/$defs/Screen" }
+    "screen": { "$ref": "#/$defs/ScreenSpec" }
   },
   "$defs": {
-    "VisualSpec": {
-      "type": "object",
-      "description": "최상위 문서 타입. 루트 스키마와 같은 정의다. json-schema-to-typescript가 루트 레벨 $ref를 해석하지 못해(#/$defs를 #/%24defs로 망가뜨린다) 루트에 같은 내용을 인라인했다. 한쪽을 고치면 반드시 다른 쪽도 고친다.",
-      "additionalProperties": false,
-      "required": ["version", "screen"],
-      "properties": {
-        "version": { "const": "0.1" },
-        "screen": { "$ref": "#/$defs/Screen" }
-      }
-    },
-    "Screen": {
+    "ScreenSpec": {
       "type": "object",
       "additionalProperties": false,
       "required": ["name", "size", "root", "nodes"],

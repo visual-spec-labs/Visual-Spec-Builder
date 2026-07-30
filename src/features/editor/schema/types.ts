@@ -1,4 +1,4 @@
-/* 이 파일은 schema/visual-spec.schema.json 에서 자동 생성됩니다. */
+/* 이 파일은 visual-spec.schema.json 에서 자동 생성됩니다. */
 /* 손으로 수정하지 마세요. 재생성: npm run generate:types */
 
 export type NodeId = string;
@@ -17,9 +17,9 @@ export type Color = string;
  */
 export interface VisualSpec {
   version: "0.1";
-  screen: Screen;
+  screen: ScreenSpec;
 }
-export interface Screen {
+export interface ScreenSpec {
   name: string;
   /**
    * Screen 크기. width/height 모두 exclusiveMinimum 0.

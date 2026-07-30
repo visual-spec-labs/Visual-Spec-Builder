@@ -1,0 +1,37 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "TextWithoutContent",
+    "size": { "width": 390, "height": 844 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Screen",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 0,
+          "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "children": [{ "node": "title" }]
+      },
+      "title": {
+        "type": "text",
+        "name": "Title",
+        "box": { "width": "auto", "height": "auto" },
+        "color": "#111111",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      }
+    }
+  }
+}

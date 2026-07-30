@@ -1,0 +1,132 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "HeaderContentPage",
+    "size": { "width": 1280, "height": 800 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Page",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 0,
+          "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "background": { "color": "#FFFFFF" },
+        "children": [{ "node": "header" }, { "node": "body" }]
+      },
+      "header": {
+        "type": "frame",
+        "name": "Header",
+        "box": { "width": "fill", "height": 64 },
+        "layout": {
+          "direction": "row",
+          "gap": 16,
+          "padding": { "top": 0, "right": 24, "bottom": 0, "left": 24 },
+          "mainAxis": "space-between",
+          "crossAxis": "center"
+        },
+        "background": { "color": "#111827" },
+        "border": { "width": 0, "color": "#00000000", "radius": 0 },
+        "children": [{ "node": "brand" }, { "node": "nav" }]
+      },
+      "brand": {
+        "type": "text",
+        "name": "Brand",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "Visual Spec Builder",
+        "color": "#FFFFFF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 16,
+          "fontWeight": 700,
+          "lineHeight": 24,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "nav": {
+        "type": "text",
+        "name": "Nav",
+        "box": { "width": 240, "height": "auto" },
+        "content": "문서   설정   도움말",
+        "color": "#D1D5DB",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0.2,
+          "textAlign": "right"
+        }
+      },
+      "body": {
+        "type": "frame",
+        "name": "Body",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 12,
+          "padding": { "top": 40, "right": 24, "bottom": 40, "left": 24 },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "children": [
+          { "node": "heading" },
+          { "node": "paragraph" },
+          { "node": "draftNotice" }
+        ]
+      },
+      "heading": {
+        "type": "text",
+        "name": "Heading",
+        "box": { "width": "fill", "height": "auto" },
+        "content": "헤더와 본문",
+        "color": "#111827",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 24,
+          "fontWeight": 600,
+          "lineHeight": 32,
+          "letterSpacing": -0.4,
+          "textAlign": "left"
+        }
+      },
+      "paragraph": {
+        "type": "text",
+        "name": "Paragraph",
+        "box": { "width": 720, "height": "auto" },
+        "content": "고정 높이 헤더와 남은 공간을 채우는 본문으로 이루어진 구조다.",
+        "color": "#374151",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 15,
+          "fontWeight": 400,
+          "lineHeight": 24,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "draftNotice": {
+        "type": "text",
+        "name": "DraftNotice",
+        "visible": false,
+        "box": { "width": "auto", "height": "auto" },
+        "content": "작성 중 메모 — 캔버스에서 숨김 처리된 노드",
+        "color": "#9CA3AF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 12,
+          "fontWeight": 400,
+          "lineHeight": 16,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      }
+    }
+  }
+}

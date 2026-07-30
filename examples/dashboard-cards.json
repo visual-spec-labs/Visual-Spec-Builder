@@ -1,0 +1,155 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "DashboardPage",
+    "size": { "width": 1440, "height": 900 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "DashboardPage",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 24,
+          "padding": { "top": 32, "right": 32, "bottom": 32, "left": 32 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "background": { "color": "#F7F8FA" },
+        "children": [{ "node": "header" }, { "node": "content" }]
+      },
+      "header": {
+        "type": "frame",
+        "name": "Header",
+        "box": { "width": "fill", "height": "auto" },
+        "layout": {
+          "direction": "column",
+          "gap": 0,
+          "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "children": [{ "node": "headerTitle" }]
+      },
+      "headerTitle": {
+        "type": "text",
+        "name": "Title",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "대시보드",
+        "color": "#111111",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 28,
+          "fontWeight": 700,
+          "lineHeight": 36,
+          "letterSpacing": -0.6,
+          "textAlign": "left"
+        }
+      },
+      "content": {
+        "type": "frame",
+        "name": "Content",
+        "box": { "width": "fill", "height": "auto" },
+        "layout": {
+          "direction": "row",
+          "gap": 16,
+          "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "children": [{ "node": "cardA" }, { "node": "cardB" }]
+      },
+      "cardA": {
+        "type": "frame",
+        "name": "Card",
+        "box": { "width": "fill", "height": "auto" },
+        "layout": {
+          "direction": "column",
+          "gap": 8,
+          "padding": { "top": 20, "right": 20, "bottom": 20, "left": 20 },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "background": { "color": "#FFFFFF" },
+        "border": { "width": 1, "color": "#E5E7EB", "radius": 12 },
+        "children": [{ "node": "cardALabel" }, { "node": "cardAValue" }]
+      },
+      "cardALabel": {
+        "type": "text",
+        "name": "Label",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "총 방문자",
+        "color": "#6B7280",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 13,
+          "fontWeight": 500,
+          "lineHeight": 18,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "cardAValue": {
+        "type": "text",
+        "name": "Value",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "12,480",
+        "color": "#111111",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 28,
+          "fontWeight": 700,
+          "lineHeight": 36,
+          "letterSpacing": -0.4,
+          "textAlign": "left"
+        }
+      },
+      "cardB": {
+        "type": "frame",
+        "name": "Card",
+        "box": { "width": "fill", "height": "auto" },
+        "layout": {
+          "direction": "column",
+          "gap": 8,
+          "padding": { "top": 20, "right": 20, "bottom": 20, "left": 20 },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "background": { "color": "#FFFFFF" },
+        "border": { "width": 1, "color": "#E5E7EB", "radius": 12 },
+        "children": [{ "node": "cardBLabel" }, { "node": "cardBValue" }]
+      },
+      "cardBLabel": {
+        "type": "text",
+        "name": "Label",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "전환율",
+        "color": "#6B7280",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 13,
+          "fontWeight": 500,
+          "lineHeight": 18,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "cardBValue": {
+        "type": "text",
+        "name": "Value",
+        "box": { "width": "auto", "height": "auto" },
+        "content": "3.7%",
+        "color": "#111111",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 28,
+          "fontWeight": 700,
+          "lineHeight": 36,
+          "letterSpacing": -0.4,
+          "textAlign": "left"
+        }
+      }
+    }
+  }
+}
