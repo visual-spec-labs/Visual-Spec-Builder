@@ -173,7 +173,17 @@ JSON Schema는 문서 내 상호 참조를 검사하지 못한다. `validateVisu
 | `schema` | JSON Schema 위반 (Ajv가 낸 오류) |
 
 순환이 있으면 도달성 계산이 무한 루프에 빠질 수 있다. 방문 집합으로 막는다.
-`cycle`이 검출되면 `orphan-node` 검사는 건너뛴다 (결과가 무의미하다).
+
+`orphan-node` 검사는 도달성 계산의 출발점이 성립할 때만 의미가 있다.
+따라서 `cycle` 또는 `root-missing`이 검출되면 `orphan-node` 검사를 건너뛴다.
+
+`root-missing`을 건너뛰기 대상에 넣는 이유는 이렇다. `nodes`는 `minProperties: 1`이라 비어 있을 수 없는데
+`root`가 그중 어느 key도 가리키지 않으면 모든 노드가 자동으로 도달 불가가 된다.
+건너뛰지 않으면 `root-missing` 하나만 내는 문서를 만들 수 없고, 실제 원인 하나가 노드 수만큼의
+`orphan-node` 잡음에 묻힌다.
+
+`root-not-frame`은 건너뛰기 대상이 아니다. root 노드 자체는 존재하므로 도달성 계산이 성립한다.
+(root가 `text`면 자식이 없어 다른 노드가 전부 orphan이 되지만, 그건 문서의 실제 결함이다.)
 
 ---
 
