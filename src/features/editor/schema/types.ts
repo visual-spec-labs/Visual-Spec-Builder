@@ -1,5 +1,5 @@
 /* 이 파일은 visual-spec.schema.json 에서 자동 생성됩니다. */
-/* 손으로 수정하지 마세요. 재생성: npm run generate:types */
+/* 손으로 수정하지 마세요. 재생성: pnpm generate:types */
 
 export type NodeId = string;
 export type Node = FrameNode | TextNode;

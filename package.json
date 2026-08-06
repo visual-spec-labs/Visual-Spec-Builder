@@ -5,6 +5,10 @@
   "description": "Visual Spec Schema v0.1 — JSON Schema 정본과 TypeScript 타입, 검증기",
   "license": "MIT",
   "main": "src/index.ts",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "generate:types": "node scripts/generate-types.mjs",
     "typecheck": "tsc --noEmit",
@@ -18,5 +22,10 @@
     "json-schema-to-typescript": "^15.0.4",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }
