@@ -1,8 +1,9 @@
 # visual-spec-to-react — 설명
 
 `.claude/skills/visual-spec-to-react/SKILL.md`는 에이전트가 실행 시 참조하는 지시문이다.
-사람이 이 스킬이 뭘 하는지 파악하려면 이 문서를 본다. (`SKILL.md`는 `.gitignore`의
-`.claude/` 규칙 이전부터 추적되던 예외 파일이라, 사람이 보는 설명 문서는 이 위치에 따로 둔다.)
+사람이 이 스킬이 뭘 하는지 파악하려면 이 문서를 본다. (`.gitignore`가 `.claude/*`를 무시하되
+`!.claude/skills/`로 예외를 둬서 `SKILL.md`는 추적된다. 사람이 보는 설명 문서는 스킬 폴더가
+아니라 `docs/skills/`에 따로 둔다.)
 
 ## 이 스킬이 하는 일
 
