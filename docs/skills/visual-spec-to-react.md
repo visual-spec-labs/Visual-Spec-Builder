@@ -39,4 +39,4 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 세부 매핑 규칙과 실행 순서는 `.claude/skills/visual-spec-to-react/SKILL.md` 본문을 본다.
 설계 배경은 `docs/superpowers/specs/2026-08-11-visual-spec-to-react-codegen-design.md`에 있다.
 
-앞으로 만들 스킬 전체 목록은 [스킬 카탈로그](./README.md)를 본다.
+앞으로 만들 스킬 체크리스트는 [analyze-target-project 문서](./analyze-target-project.md)에 있다.
