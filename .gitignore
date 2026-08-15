@@ -50,6 +50,10 @@ desktop.ini
 *.swo
 *~
 
+# ===== 도구 작업 디렉터리 =====
+.superpowers/
+.playwright-mcp/
+
 # ===== 기타 =====
 tmp/
 temp/

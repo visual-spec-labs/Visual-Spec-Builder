@@ -1,4 +1,7 @@
-# Visual Spec Schema v0.1
+# 05. Visual Spec Schema v0.1
+
+> 출처: ClickUp 팀 문서 `json 초안`
+> 정본은 [`schema/visual-spec.schema.json`](../schema/visual-spec.schema.json)이다. 타입은 [`src/types.ts`](../src/types.ts), 검증기는 [`src/validate.ts`](../src/validate.ts), 예시는 [`examples/`](../examples/)에 있다.
 
 ## 목적
 

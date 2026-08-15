@@ -1,60 +1,45 @@
 # Visual Spec Builder
 
-(https://app.clickup.com/90182912883/v/o/s/901812110763)
-
 React 프로젝트에 설치해 localhost에서 실행하는 GUI 도구다.
-사용자가 화면을 구성하면 JSON Visual Spec으로 저장하고, AI Agent가 그 JSON을 읽어 React 코드를 만든다.
+사용자는 자연어 또는 직접 조작으로 화면을 구성하고, 도구는 이를 JSON Visual Spec으로 저장한다.
+Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현한다.
 
-자세한 배경은 `docs/PROJECT_OVERVIEW.md`를 본다.
+## 문서
 
-## 현재 상태
+위에서부터 순서대로 읽으면 전체가 파악된다.
 
-Visual Spec Schema v0.1이 확정·동결됐다. GUI는 아직 없다.
+| 문서 | 내용 |
+|---|---|
+| [01-overview.md](docs/01-overview.md) | 제품 정의, 전체 흐름, 핵심 원칙 |
+| [02-mvp-scope.md](docs/02-mvp-scope.md) | 무엇을 만들고 무엇을 만들지 않는가 — **범위 판단의 기준** |
+| [03-user-flow.md](docs/03-user-flow.md) | 사용자 경로, Command Engine 구조, 대표 플로우 3가지 |
+| [04-gui-spec.md](docs/04-gui-spec.md) | 홈 화면과 에디터 화면 명세 |
+| [05-schema.md](docs/05-schema.md) | JSON 스키마 v0.1 |
+| [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
+| [open-questions.md](docs/open-questions.md) | 미확정 항목 |
 
-- 지원: `screen`, `frame`, `text`, `layout`, `box`, `background`, `border`, `typography`
-- 제외: `image`, `component`, `event`, `token`, `responsive`
+설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 있다.
 
-변경 규칙과 계약의 전문은 **`docs/SCHEMA_V0.1_FREEZE.md`** 에 있다. 스키마를 건드리기 전에 반드시 읽는다.
+## 현재 구현 상태
 
-## 팀원이 알아야 할 것
+스키마와 검증기만 구현되어 있다. GUI는 아직 없다.
 
-타입은 아래 한 경로에서만 가져온다.
-
-```ts
-import type {
-  VisualSpec,
-  ScreenSpec,
-  Node,
-  FrameNode,
-  TextNode,
-} from "@/features/editor/schema";
-
-import { validateVisualSpec } from "@/features/editor/schema";
 ```
-
-`src/features/editor/schema/` 안의 개별 파일(`types.ts`, `validate.ts`, `visual-spec.schema.json`)을
-직접 import하지 않는다. 항상 디렉터리 index를 거친다.
-
-`types.ts`는 `visual-spec.schema.json`에서 생성한 파일이다. 손으로 고치지 않는다.
-
-## 개발
+schema/visual-spec.schema.json   JSON Schema 정본
+src/types.ts                     스키마에서 생성한 TypeScript 타입
+src/validate.ts                  검증기
+examples/                        유효/무효 예시
+```
 
 ```bash
-npm ci
-npm run generate:types   # 스키마 → src/features/editor/schema/types.ts
-npm run typecheck        # tsc --noEmit
-npm test                 # vitest
+npm test              # vitest
+npm run typecheck     # tsc --noEmit
+npm run generate:types
 ```
 
-스키마를 고쳤다면 `generate:types`를 돌려 `types.ts`를 함께 커밋한다.
-`generate:types` 후 `git diff`가 비어 있지 않으면 `types.ts`가 정본과 어긋난 것이다.
+## 기획 원본
 
-## 예제
+ClickUp 팀 문서가 원본이고 이 저장소 문서는 작업 기준이다.
+각 문서 상단에 대응하는 ClickUp 페이지를 표기했다.
 
-| 파일 | 내용 |
-|---|---|
-| `examples/empty-title-screen.json` | 노드 2개짜리 최소 화면 |
-| `examples/login-screen.json` | 중첩 프레임, border, 부분 투명 색상 |
-| `examples/dashboard-cards.json` | `Header > Title` + `Content > Card, Card` 2단 트리 |
-| `examples/header-content.json` | 고정 높이 헤더 + `space-between` + `fill` 본문 |
-| `examples/invalid/` | 검증기가 잡아야 하는 잘못된 문서들 |
+https://app.clickup.com/90182912883/v/o/s/901812110763
