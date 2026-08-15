@@ -1,7 +1,7 @@
 name: Bug Report
 description: 버그를 제보합니다.
 title: "bug: "
-labels: ["bug"]
+labels: ["fix"]
 body:
   - type: markdown
     attributes:
