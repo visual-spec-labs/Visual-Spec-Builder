@@ -5,6 +5,8 @@ description: 대상 React 프로젝트의 폴더 구조, 라우팅 방식, Tailw
 
 # 대상 프로젝트 컨벤션 분석
 
+이 스킬이 지금 상황에 맞지 않으면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)를 대신 연다.
+
 Visual Spec을 React 코드로 바꿀 때(`visual-spec-to-react`) 파일을 어디에 둘지, 어떤 스타일
 관례를 따를지 매번 사용자에게 묻지 않아도 되도록, 대상 프로젝트를 먼저 읽고 요약한다.
 분석 결과를 별도 파일로 저장하지 않는다 — 이번 대화 세션 안에서만 참고한다 (MVP는 영속화하지 않음).

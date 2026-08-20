@@ -5,6 +5,8 @@ description: Visual Spec JSON(version, screen.root, screen.nodes 구조)을 Reac
 
 # Visual Spec → React 코드 생성
 
+이 스킬이 지금 상황에 맞지 않으면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)를 대신 연다.
+
 Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. JSON을 코드로 바꿔주는
 별도의 변환 함수는 없다 — 이 Skill의 지시문과 아래 매핑 규칙을 참고해 매번 새로 코드를 쓴다.
 
@@ -73,3 +75,7 @@ export default function Login() {
 ```
 
 결과가 이 예제와 크게 다르면 위 매핑표가 불충분한 것이니 표를 먼저 의심한다.
+
+---
+
+코드 생성이 끝나면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)로 돌아가 다음 요청을 받는다.
