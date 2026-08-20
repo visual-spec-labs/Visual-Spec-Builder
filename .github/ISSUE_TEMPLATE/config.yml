@@ -1,0 +1,14 @@
+# 빈 이슈를 허용한다.
+# 템플릿 3종(bug_report / feature_request / refactor)은 버그·기능·리팩토링만 덮는다.
+# 이 저장소는 GitHub Discussions 가 꺼져 있어서 질문이나 설계 논의를 보낼 곳이 따로 없다.
+# 그래서 그런 글은 빈 이슈로 받는다. Discussions 를 켜면 이 값을 다시 판단한다.
+blank_issues_enabled: true
+
+# 실재하는 링크만 적는다. Discussions 는 꺼져 있으므로 넣지 않는다.
+contact_links:
+  - name: 문서 먼저 읽기
+    url: https://github.com/visual-spec-labs/Visual-Spec-Builder/blob/develop/README.md
+    about: 제품 정의·문서 목차·개발 명령은 README 에 있다. 이슈를 열기 전에 확인한다.
+  - name: 미확정 항목 목록
+    url: https://github.com/visual-spec-labs/Visual-Spec-Builder/blob/develop/docs/open-questions.md
+    about: 아직 정해지지 않은 것으로 이미 기록된 항목인지 먼저 확인한다.
