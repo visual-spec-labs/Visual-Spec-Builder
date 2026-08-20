@@ -1,6 +1,6 @@
 ---
 name: visual-spec-validate
-description: Visual Spec 검증이 실패했을 때 issues 를 해석하고 고치는 데 쓴다. "검증 실패했는데 뭐가 문제야", "valid 가 false 로 나와", "JSON 스키마의 구조 규칙을 위반했습니다", "루트에서 도달할 수 없습니다", "자식 노드가 nodes에 없습니다", "이 스펙 왜 안 되지", "VisualSpecValidationError 떴어"처럼 validateVisualSpec 의 실패 결과나 code/path/message 를 들고 오는 요청, 또는 스펙을 저장·변환하려다 검증에서 막혔을 때 실행한다. 특히 message 가 모두 똑같이 나와 어느 필드가 문제인지 안 보일 때 쓴다.
+description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해석하고 고쳐야 할 때 실행한다. "검증 실패했는데 뭐가 문제야", "valid 가 false 로 나와", "JSON 스키마의 구조 규칙을 위반했습니다", "루트에서 도달할 수 없습니다", "자식 노드가 nodes에 없습니다", "이 스펙 왜 안 되지", "VisualSpecValidationError 떴어"처럼 validateVisualSpec 의 실패 결과나 code/path/message 를 들고 오는 요청에서 쓴다. 아직 실패하지 않았어도 "스펙 검증해줘", "이 JSON 맞게 쓴 건지 확인해줘", "스펙 다 썼는데 이제 어떻게 해", "이슈가 9개 나왔는데 다 고쳐야 해"처럼 검증을 돌려달라거나 결과를 판단해달라는 요청, 스펙을 저장·변환하려다 검증에서 막혔을 때도 대상이다. 특히 message 가 모두 똑같이 나와 어느 필드가 문제인지 안 보일 때 쓴다.
 ---
 
 # 검증 실패 해석과 수정
