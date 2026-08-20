@@ -1,6 +1,6 @@
 # analyze-target-project — 설명
 
-`.claude/skills/analyze-target-project/SKILL.md`는 에이전트가 실행 시 참조하는 지시문이다.
+`skills/analyze-target-project/SKILL.md`는 에이전트가 실행 시 참조하는 지시문이다.
 사람이 이 스킬이 뭘 하는지 파악하려면 이 문서를 본다.
 
 ## 이 스킬이 하는 일
@@ -35,7 +35,7 @@
 - 파일 위치 자동 확정
 - 프로젝트 코드/설정 자동 수정
 
-세부 실행 순서는 `.claude/skills/analyze-target-project/SKILL.md` 본문을 본다.
+세부 실행 순서는 `skills/analyze-target-project/SKILL.md` 본문을 본다.
 
 ---
 
