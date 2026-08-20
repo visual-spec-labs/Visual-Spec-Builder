@@ -41,7 +41,7 @@
 
 ## 스킬 로드맵 — 앞으로 만들어야 할 스킬 체크리스트
 
-**초안이다.** `docs/PROJECT_OVERVIEW.md`의 전체 흐름을 기준으로 아직 스킬이 없는 구간을
+**초안이다.** `docs/01-overview.md`의 전체 흐름을 기준으로 아직 스킬이 없는 구간을
 뽑아본 것이지 팀이 합의한 목록이 아니다. 순서·우선순위·포함 여부는 팀이 정한다.
 
 - [x] **[visual-spec-to-react](./visual-spec-to-react.md)** — Visual Spec JSON을
