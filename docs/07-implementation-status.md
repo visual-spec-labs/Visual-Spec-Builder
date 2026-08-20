@@ -29,7 +29,7 @@
 | IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 3파일 24케이스 통과 |
 | Command Engine | **미착수** | `command.schema.ts` 없음, history manager 없음. `src/` 전체에 Command 관련 코드 0줄 |
 | 자연어 변환 | **미착수** | 관련 코드 없음 |
-| Ticket Compiler · Agent | **부분** | 코드 생성만 `.claude/skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다. IR을 작업 단위로 쪼개는 **티켓 개념, 실행 순서 결정, 티켓 상태 관리는 없다**. 티켓 스키마도 없다 |
+| Ticket Compiler · Agent | **부분** | 코드 생성만 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다. IR을 작업 단위로 쪼개는 **티켓 개념, 실행 순서 결정, 티켓 상태 관리는 없다**. 티켓 스키마도 없다 |
 | localhost GUI · Canvas | **부분(골격만)** | `src/features/editor/ui/` 에 5개 영역이 CSS Grid로 배치돼 있다. **전부 정적 플레이스홀더다** — 상태도 클릭 핸들러도 없고 스키마와 연결돼 있지 않다. 캔버스에 화면을 그려볼 수 없다 |
 | Export · 검증 | **미착수** | Export 관련 코드 없음. (단, 스펙 문서 검증기 `validateVisualSpec`은 별개로 존재하며 위 IR·스키마 항목에 포함된다) |
 
@@ -114,7 +114,7 @@
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
 | 테스트 | `test/schema.test.ts`(4) · `test/public-api.test.ts`(4) · `test/validate.test.ts`(16) | **3파일 24케이스 전부 통과** (2026-08-20 확인) |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
-| 스킬 2종 | `.claude/skills/visual-spec-to-react/`, `.claude/skills/analyze-target-project/` | 사람이 읽는 설명은 `docs/skills/` |
+| 스킬 6종 | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` · `analyze-target-project` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 6개 |
 
 검증기가 잡아내는 구조 오류는 코드 7종이다 — `schema`, `root-missing`, `root-not-frame`, `child-missing`, `cycle`, `multiple-parents`, `orphan-node`.
 
