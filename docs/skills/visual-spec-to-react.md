@@ -33,10 +33,12 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 - 결정론적 변환(항상 같은 입력 → 같은 출력이 코드 레벨로 보장되지는 않는다. 에이전트가
   매번 판단해서 쓴다)
 - 대상 프로젝트 폴더 구조 자동 추론 → [analyze-target-project](./analyze-target-project.md)가 맡는다
-- 검증 실패 시 자동 수정
+- 검증 실패 시 자동 수정 → [visual-spec-validate](./visual-spec-validate.md)가 `issues` 해석을 맡는다
+- Spec JSON 자체를 쓰거나 고치기 → [visual-spec-authoring](./visual-spec-authoring.md)이 맡는다
 - 생성 후 코드 수정 반영
 
 세부 매핑 규칙과 실행 순서는 `skills/visual-spec-to-react/SKILL.md` 본문을 본다.
 설계 배경은 `docs/superpowers/specs/2026-08-11-visual-spec-to-react-codegen-design.md`에 있다.
 
+어느 스킬로 가야 할지 모르겠으면 [visual-spec](./visual-spec.md) 허브로 돌아간다.
 앞으로 만들 스킬 체크리스트는 [analyze-target-project 문서](./analyze-target-project.md)에 있다.
