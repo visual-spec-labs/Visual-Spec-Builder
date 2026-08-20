@@ -53,4 +53,5 @@ desktop.ini
 # ===== 기타 =====
 tmp/
 temp/
-.claude/
+.claude/*
+!.claude/skills/
