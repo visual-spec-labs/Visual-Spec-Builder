@@ -1,8 +1,7 @@
 # visual-spec-to-react — 설명
 
-`.claude/skills/visual-spec-to-react/SKILL.md`는 에이전트가 실행 시 참조하는 지시문이다.
-사람이 이 스킬이 뭘 하는지 파악하려면 이 문서를 본다. (`.gitignore`가 `.claude/*`를 무시하되
-`!.claude/skills/`로 예외를 둬서 `SKILL.md`는 추적된다. 사람이 보는 설명 문서는 스킬 폴더가
+`skills/visual-spec-to-react/SKILL.md`는 에이전트가 실행 시 참조하는 지시문이다.
+사람이 이 스킬이 뭘 하는지 파악하려면 이 문서를 본다. (사람이 보는 설명 문서는 스킬 폴더가
 아니라 `docs/skills/`에 따로 둔다.)
 
 ## 이 스킬이 하는 일
@@ -14,7 +13,7 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 
 ## 언제 실행되는가
 
-`.claude/skills/visual-spec-to-react/SKILL.md`의 `description`에 적힌 조건과 매칭될 때
+`skills/visual-spec-to-react/SKILL.md`의 `description`에 적힌 조건과 매칭될 때
 자동으로 붙거나, 사용자가 직접 이름을 불러 실행한다.
 
 - "이 Visual Spec으로 화면 만들어줘"
@@ -34,10 +33,12 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 - 결정론적 변환(항상 같은 입력 → 같은 출력이 코드 레벨로 보장되지는 않는다. 에이전트가
   매번 판단해서 쓴다)
 - 대상 프로젝트 폴더 구조 자동 추론 → [analyze-target-project](./analyze-target-project.md)가 맡는다
-- 검증 실패 시 자동 수정
+- 검증 실패 시 자동 수정 → [visual-spec-validate](./visual-spec-validate.md)가 `issues` 해석을 맡는다
+- Spec JSON 자체를 쓰거나 고치기 → [visual-spec-authoring](./visual-spec-authoring.md)이 맡는다
 - 생성 후 코드 수정 반영
 
-세부 매핑 규칙과 실행 순서는 `.claude/skills/visual-spec-to-react/SKILL.md` 본문을 본다.
+세부 매핑 규칙과 실행 순서는 `skills/visual-spec-to-react/SKILL.md` 본문을 본다.
 설계 배경은 `docs/superpowers/specs/2026-08-11-visual-spec-to-react-codegen-design.md`에 있다.
 
+어느 스킬로 가야 할지 모르겠으면 [visual-spec](./visual-spec.md) 허브로 돌아간다.
 앞으로 만들 스킬 체크리스트는 [analyze-target-project 문서](./analyze-target-project.md)에 있다.
