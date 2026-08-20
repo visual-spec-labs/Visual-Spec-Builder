@@ -10,7 +10,7 @@
 Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 React(TSX) + Tailwind
 코드를 직접 작성한다. JSON을 코드로 바꿔주는 별도의 변환 함수는 없다 — `SKILL.md`의 매핑
 참고표를 보고 에이전트가 매번 새로 코드를 쓴다. 배경은
-`docs/PROJECT_OVERVIEW.md`의 전체 흐름 중 "AI Agent가 실제 React 코드 생성" 단계다.
+`docs/01-overview.md`의 전체 흐름 중 "AI Agent가 실제 React 코드 생성" 단계다.
 
 ## 언제 실행되는가
 
