@@ -1,4 +1,10 @@
-# Visual Spec Schema v0.1
+# 05. Visual Spec Schema v0.1
+
+> 출처: ClickUp 팀 문서 `json 초안`
+> 정본은 [`src/features/editor/schema/visual-spec.schema.json`](../src/features/editor/schema/visual-spec.schema.json)이다.
+> 타입과 검증기는 개별 파일이 아니라 디렉터리 index [`src/features/editor/schema/`](../src/features/editor/schema/)를 거쳐 가져온다.
+> 예시는 [`examples/`](../examples/)에 있다.
+> 변경 규칙과 공개 표면의 전문은 [`06-schema-freeze.md`](06-schema-freeze.md)에 있다.
 
 ## 목적
 
