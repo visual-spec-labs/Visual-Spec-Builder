@@ -97,7 +97,7 @@ pnpm run generate:types
   범위를 판단해야 할 때의 기준은 [`docs/02-mvp-scope.md`](docs/02-mvp-scope.md)다.
 - 스킬 설명 문서(사람이 읽는 것)는 [`docs/skills/`](docs/skills/)에 둔다.
 - 설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 둔다.
-- 배포용 스킬 원본은 저장소 루트 `skills/`에 둔다. (`develop`에는 아직 병합 전이다.)
+- 배포용 스킬 원본은 저장소 루트 [`skills/`](skills/)에 둔다. 스킬 하나가 디렉터리 하나이고 그 안에 `SKILL.md`가 들어간다.
 - 아직 정해지지 않은 항목은 [`docs/open-questions.md`](docs/open-questions.md)에 모은다.
 
 ## 미확정 사항
