@@ -16,6 +16,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [04-gui-spec.md](docs/04-gui-spec.md) | 홈 화면과 에디터 화면 명세 |
 | [05-schema.md](docs/05-schema.md) | JSON 스키마 v0.1 |
 | [06-schema-freeze.md](docs/06-schema-freeze.md) | v0.1 동결 계약과 변경 절차 — **스키마 수정 전 필독** |
+| [07-implementation-status.md](docs/07-implementation-status.md) | 지금 무엇이 구현됐고 무엇이 남았는가 — **다음 할 일 판단의 근거** |
 | [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
 | [open-questions.md](docs/open-questions.md) | 미확정 항목 |
 
@@ -25,25 +26,24 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 
 스키마와 검증기는 구현이 끝났고 v0.1로 동결됐다.
 GUI는 Vite + React 에디터 앱의 **레이아웃 골격까지만** 있다. 각 영역은 자리만 잡은 상태이고 편집 기능은 아직 없다.
+Command Engine, 자연어 변환, CLI, Export는 아직 없다.
 
-- 지원: `screen`, `frame`, `text`, `layout`, `box`, `background`, `border`, `typography`
-- 제외: `image`, `component`, `event`, `token`, `responsive`
+MVP 구현 단위별 상세 현황, 확인된 결함, 다음에 할 만한 것은
+**[`docs/07-implementation-status.md`](docs/07-implementation-status.md)** 에 있다.
+이 절은 요약만 두고 자세한 내용은 그 문서 한 곳에서만 갱신한다.
+
+디렉터리 구조는 아래와 같다.
 
 ```
-src/features/editor/schema/
-  visual-spec.schema.json        JSON Schema 정본
-  types.ts                       스키마에서 생성한 TypeScript 타입 (생성 파일)
-  validate.ts                    검증기
-  index.ts                       공개 표면 — 타입과 검증기는 여기서만 가져온다
-src/features/editor/ui/
-  EditorLayout.tsx               5개 영역 CSS Grid 배치
-  MenuBar / LayerTree / Canvas / PropertiesPanel / Toolbar
+src/features/editor/schema/      스키마 정본·생성 타입·검증기·공개 index
+src/features/editor/ui/          에디터 5개 영역 컴포넌트와 EditorLayout
 src/app/App.tsx                  앱 진입점이 EditorLayout을 렌더한다
+scripts/generate-types.mjs       스키마 → types.ts 생성
 examples/                        유효/무효 예시
 test/                            스키마·검증기·공개 API 테스트
 ```
 
-변경 규칙과 계약의 전문은 **[`docs/06-schema-freeze.md`](docs/06-schema-freeze.md)** 에 있다.
+스키마가 지원하는 범위와 변경 규칙의 전문은 **[`docs/06-schema-freeze.md`](docs/06-schema-freeze.md)** 에 있다.
 스키마를 건드리기 전에 반드시 읽는다.
 
 ## 팀원이 알아야 할 것
