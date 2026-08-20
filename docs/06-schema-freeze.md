@@ -1,4 +1,4 @@
-# Visual Spec Schema v0.1 확정 및 동결
+# 06. Visual Spec Schema v0.1 확정 및 동결
 
 동결 시작: 2026-07-30
 
@@ -27,7 +27,7 @@
 - `token`
 - `responsive`
 
-`docs/VISUAL_SPEC_SCHEMA_V0.1.md`의 MVP 제외 범위도 그대로 유효하다.
+[`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
 `instance`, `props`, `bindings`, `variants`, `states`, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
 
 ---
@@ -111,8 +111,8 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 1. 스키마 변경은 **별도 PR**로 올린다. 다른 기능 작업과 섞지 않는다.
 2. **팀 합의**를 거친다. 최소 1명의 승인 없이 머지하지 않는다.
 3. PR 본문에 무엇이 왜 바뀌는지, 기존 JSON 문서가 깨지는지를 적는다.
-4. `visual-spec.schema.json`을 고쳤으면 `npm run generate:types`를 돌려 `types.ts`를 함께 커밋한다.
-5. 예제와 테스트를 같이 갱신한다. `npm run typecheck`와 `npm test`가 통과해야 한다.
+4. `visual-spec.schema.json`을 고쳤으면 `pnpm run generate:types`를 돌려 `types.ts`를 함께 커밋한다.
+5. 예제와 테스트를 같이 갱신한다. `pnpm run typecheck`와 `pnpm test`가 통과해야 한다.
 
 동결 해제 시점은 팀이 정한다. 스프린트 종료일은 이 문서에 적지 않았다 — 확정되면 여기에 기입한다.
 
@@ -126,10 +126,10 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 ## 검증 방법
 
 ```bash
-npm ci
-npm run generate:types   # types.ts에 변화가 없어야 한다
-npm run typecheck
-npm test
+pnpm install
+pnpm run generate:types   # types.ts에 변화가 없어야 한다
+pnpm run typecheck
+pnpm test
 ```
 
 `generate:types` 실행 후 `git diff`가 비어 있지 않다면 `types.ts`가 정본과 어긋난 것이다.

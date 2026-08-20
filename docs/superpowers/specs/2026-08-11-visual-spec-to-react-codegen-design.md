@@ -1,13 +1,13 @@
 # Visual Spec → React 코드 생성 Skill — 설계
 
 작성일: 2026-08-11
-대상: `docs/PROJECT_OVERVIEW.md`의 전체 흐름 중 "AI Agent가 실제 React 코드 생성" 단계.
+대상: `docs/01-overview.md`의 전체 흐름 중 "AI Agent가 실제 React 코드 생성" 단계.
 
 **만드는 것은 Skill 하나다.** 사용자가 자연어로 지시하면 그 지시에 이 Skill이 매칭되어(연결)
 실행되고, Skill 지시문을 따라 Claude가 직접 Visual Spec JSON을 읽어 React/Tailwind 코드를 작성한다.
 
 별도의 결정론적 변환 함수(`renderVisualSpec` 같은 라이브러리)는 만들지 않는다.
-`docs/PROJECT_OVERVIEW.md`가 "Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현한다"고
+`docs/01-overview.md`가 "Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현한다"고
 못 박아뒀다 — 코드를 쓰는 주체는 에이전트 자신이다. Skill은 그 작업을 안정적으로 반복시키기 위한
 지시문·참고 규칙 묶음일 뿐이다.
 
