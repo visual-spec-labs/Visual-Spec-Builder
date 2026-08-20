@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  # 브랜치 보호의 필수 체크로 지정할 잡이다. 이름을 바꾸면 보호 규칙이 깨지니 주의한다.
+  build:
+    name: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      # pnpm 버전은 package.json 의 packageManager 필드를 따른다. 여기에 하드코딩하지 않는다.
+      - name: pnpm 설치
+        uses: pnpm/action-setup@v4
+
+      # setup-node 의 cache: pnpm 은 pnpm 이 먼저 설치돼 있어야 동작한다. 위 스텝 순서를 지킬 것.
+      - name: Node 20 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: 의존성 설치
+        run: pnpm install --frozen-lockfile
+
+      - name: 타입 체크
+        run: pnpm run typecheck
+
+      - name: 테스트
+        run: pnpm test
+
+      # 스키마 드리프트 검사: types.ts 는 visual-spec.schema.json 에서 생성한 파일이므로
+      # 재생성 결과가 커밋된 내용과 달라지면 정본과 어긋난 것이다. (docs/06-schema-freeze.md)
+      - name: 스키마 드리프트 검사
+        run: |
+          pnpm run generate:types
+          if ! git diff --exit-code; then
+            echo "::error::생성된 types.ts 가 커밋된 내용과 다릅니다. visual-spec.schema.json 이 정본이며 types.ts 는 손으로 고치지 않습니다. 로컬에서 'pnpm run generate:types' 를 실행한 뒤 변경된 types.ts 를 함께 커밋하세요."
+            exit 1
+          fi
