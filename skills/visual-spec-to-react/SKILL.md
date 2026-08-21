@@ -34,8 +34,8 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
   중단하지만, 배치에서는 그 파일의 실패를 기록해두고 나머지 파일은 계속 처리한다. 화면
   9개 중 1개가 틀렸다고 나머지 8개까지 막을 이유가 없다.
 - **파일 위치는 배치 전체에 같은 컨벤션이 적용되는지 먼저 확인하고, 파일마다 다시 묻지
-  않는다.** (`analyze-target-project`를 이미 돌렸으면 그 결과를 그대로 쓴다.) 컨벤션이
-  화면마다 다를 걸로 보이면 그때만 개별로 묻는다.
+  않는다.** ([analyze-target-project](../analyze-target-project/SKILL.md)를 이미 돌렸으면
+  그 결과를 그대로 쓴다.) 컨벤션이 화면마다 다를 걸로 보이면 그때만 개별로 묻는다.
 
 끝나면 파일별 결과를 표로 보고한다.
 
@@ -43,6 +43,9 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
 |---|---|---|
 | `login-screen.json` | `Login` | 작성됨 — `src/screens/Login.tsx` |
 | `dashboard-cards.json` | `DashboardPage` | 검증 실패 — `child-missing` 1건 |
+
+표는 요약일 뿐이다. 실패한 파일은 표 아래에 `issues` 전체를 그대로 붙인다 — 단일 파일
+처리 때(2번)와 마찬가지로 원인을 감추지 않는다.
 
 ## 매핑 참고표
 
