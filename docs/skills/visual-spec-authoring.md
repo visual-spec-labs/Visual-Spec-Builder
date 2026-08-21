@@ -32,6 +32,13 @@ React 코드가 아니다.
 검증이 실패하면 흐름은 [visual-spec-validate](./visual-spec-validate.md)로 넘어간다.
 `issues`를 읽는 규칙이 따로 필요할 만큼 까다로워서 스킬이 분리돼 있다.
 
+### 이미 코드로 만든 화면에 피드백이 왔을 때
+
+`visual-spec-to-react`로 코드까지 만든 화면에 "버튼 색 바꿔줘" 같은 후속 피드백이 오면
+**코드가 아니라 이 스펙 JSON을 고친다.** 코드를 직접 손대면 다음 재생성 때 그 수정이
+사라지고, JSON이 source of truth라는 전제가 깨진다. JSON을 고치고 검증한 뒤
+[visual-spec-to-react](./visual-spec-to-react.md)로 넘겨 재생성한다.
+
 ## 언제 실행되는가
 
 `skills/visual-spec-authoring/SKILL.md`의 `description`에 적힌 조건과 매칭될 때 자동으로
@@ -41,6 +48,7 @@ React 코드가 아니다.
 - "이 JSON에 카드 하나 더 넣어줘", "노드 추가해줘"
 - "이 프레임 안에 텍스트 넣어줘"
 - "examples에 있는 거 비슷하게 하나 만들어줘"
+- 이미 코드로 만든 화면에 "버튼 색 바꿔줘", "제목 좀 크게" 같은 후속 피드백이 왔을 때
 
 이미 완성된 스펙을 React 코드로 옮기는 작업은 대상이 아니다. "이 JSON 화면으로 만들어줘"는
 [visual-spec-to-react](./visual-spec-to-react.md) 쪽이다.

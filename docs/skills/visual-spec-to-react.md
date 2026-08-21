@@ -28,14 +28,21 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
    먼저 알려주고 멈춘다.
 4. 대상 프로젝트 어디에 파일을 둘지 물어보면 답한다.
 
+### 이미 생성한 파일을 다시 만들 때
+
+[visual-spec-authoring](./visual-spec-authoring.md)이 후속 피드백("버튼 색 바꿔줘" 등)을
+반영해 원본 스펙 JSON을 고치고 넘어온 경우다. 파일 위치를 다시 묻지 않고 기존 파일을
+그대로 덮어쓰며, 결과를 새 코드 전체가 아니라 무엇이 바뀌었는지 diff로 요약해 보고한다.
+
 ## 이 스킬이 하지 않는 것
 
 - 결정론적 변환(항상 같은 입력 → 같은 출력이 코드 레벨로 보장되지는 않는다. 에이전트가
   매번 판단해서 쓴다)
 - 대상 프로젝트 폴더 구조 자동 추론 → [analyze-target-project](./analyze-target-project.md)가 맡는다
 - 검증 실패 시 자동 수정 → [visual-spec-validate](./visual-spec-validate.md)가 `issues` 해석을 맡는다
-- Spec JSON 자체를 쓰거나 고치기 → [visual-spec-authoring](./visual-spec-authoring.md)이 맡는다
-- 생성 후 코드 수정 반영
+- Spec JSON 자체를 쓰거나 고치기, 피드백을 JSON 변경으로 해석하기 →
+  [visual-spec-authoring](./visual-spec-authoring.md)이 맡는다. 이 스킬은 이미 고쳐진
+  JSON을 받아 재생성만 한다
 
 세부 매핑 규칙과 실행 순서는 `skills/visual-spec-to-react/SKILL.md` 본문을 본다.
 설계 배경은 `docs/superpowers/specs/2026-08-11-visual-spec-to-react-codegen-design.md`에 있다.

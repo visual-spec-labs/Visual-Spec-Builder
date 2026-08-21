@@ -58,8 +58,10 @@
       위치를 알려준다. 지식을 복붙해두지 않고 찾는 경로만 준다.
 - [x] **[visual-spec-authoring](./visual-spec-authoring.md)** — Visual Spec JSON을 새로 쓰거나
       고친다. v0.1은 `frame`과 `text`만 지원한다.
-- [ ] **생성된 코드 수정 반영** — "결과 화면 확인" 이후 "버튼 색 바꿔줘" 같은 자연어 피드백을
-      받아 Visual Spec 또는 이미 생성된 코드를 갱신한다. 현재는 처음 변환만 다룬다.
+- [x] **생성된 코드 수정 반영** — "결과 화면 확인" 이후 "버튼 색 바꿔줘" 같은 자연어 피드백을
+      받아 갱신한다. 별도 스킬이 아니라 [visual-spec-authoring](./visual-spec-authoring.md)
+      (JSON 수정)과 [visual-spec-to-react](./visual-spec-to-react.md)(재생성)의 연결로
+      처리했다 — 코드를 직접 고치면 JSON과 어긋나므로 항상 JSON을 거친다.
 - [ ] **여러 화면 일괄 변환** — Visual Spec JSON 여러 개를 한 번에 코드로 변환한다. 지금은
       한 번에 하나씩만 처리한다.
 - [ ] **기존 컴포넌트 재사용 감지** — 대상 프로젝트에 이미 있는 컴포넌트를 찾아 새로 만들지

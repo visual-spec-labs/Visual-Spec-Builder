@@ -1,6 +1,6 @@
 ---
 name: visual-spec-to-react
-description: Visual Spec JSON(version, screen.root, screen.nodes 구조)을 React/Tailwind 컴포넌트 코드로 변환한다. "이 Visual Spec으로 화면 만들어줘", "이 JSON을 React 컴포넌트로 변환해줘", "login-screen.json 코드로 구현해줘"처럼 Visual Spec을 구현해달라는 요청, 또는 대화나 첨부 파일에 Visual Spec 형태의 JSON이 있을 때 실행한다.
+description: Visual Spec JSON(version, screen.root, screen.nodes 구조)을 React/Tailwind 컴포넌트 코드로 변환한다. "이 Visual Spec으로 화면 만들어줘", "이 JSON을 React 컴포넌트로 변환해줘", "login-screen.json 코드로 구현해줘"처럼 Visual Spec을 구현해달라는 요청, visual-spec-authoring이 후속 피드백을 반영해 스펙을 고친 뒤 넘기는 재생성 요청, 또는 대화나 첨부 파일에 Visual Spec 형태의 JSON이 있을 때 실행한다.
 ---
 
 # Visual Spec → React 코드 생성
@@ -24,6 +24,18 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
    추측하지 않고 반드시 묻는다.
 5. **파일을 쓰고 결과를 보고한다.** 대상 프로젝트의 prettier/eslint 같은 포매터는 사용자가
    요청하지 않는 한 자동으로 돌리지 않는다.
+
+## 이미 생성한 파일을 다시 만들 때
+
+[visual-spec-authoring](../visual-spec-authoring/SKILL.md)에서 후속 피드백("버튼 색
+바꿔줘" 등)을 반영해 원본 스펙 JSON을 고치고 넘어온 경우다. 새 화면을 처음 만들 때와
+다르게 동작하는 두 가지가 있다.
+
+- **4번(파일 위치 확인)을 건너뛴다.** 원래 파일을 그대로 덮어쓴다 — 어디 있는지 이미
+  안다. 위치가 불분명하면(예: 대화 맥락이 끊겼다) 그때만 다시 묻는다.
+- **결과를 새 코드 전체가 아니라 무엇이 바뀌었는지 diff로 요약해 보고한다.** 사용자가
+  요청한 건 "버튼 색 바꿔줘" 하나인데 파일 전체를 다시 붙여 넣으면 실제로 뭐가
+  바뀐 건지 찾기 어렵다.
 
 ## 매핑 참고표
 

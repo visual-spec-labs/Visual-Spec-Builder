@@ -1,6 +1,6 @@
 ---
 name: visual-spec-authoring
-description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을 고칠 때 실행한다. "로그인 화면 스펙 만들어줘", "이 JSON에 카드 하나 더 넣어줘", "spec 파일 새로 써줘", "노드 추가해줘", "이 프레임 안에 텍스트 넣어줘", "examples에 있는 거 비슷하게 하나 만들어줘"처럼 Visual Spec 형태의 JSON 자체를 산출물로 요구하는 요청에서 쓴다. 이미 완성된 스펙을 React 코드로 옮기는 작업이나 검증 실패를 해석하는 작업은 대상이 아니다.
+description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을 고칠 때 실행한다. "로그인 화면 스펙 만들어줘", "이 JSON에 카드 하나 더 넣어줘", "spec 파일 새로 써줘", "노드 추가해줘", "이 프레임 안에 텍스트 넣어줘", "examples에 있는 거 비슷하게 하나 만들어줘"처럼 Visual Spec 형태의 JSON 자체를 산출물로 요구하는 요청에서 쓴다. 이미 코드까지 만든 화면에 "버튼 색 바꿔줘", "제목 좀 크게" 처럼 후속 피드백이 오는 경우도 대상이다 — 코드가 아니라 원본 스펙 JSON을 고치고 재생성으로 넘긴다. 이미 완성된 스펙을 React 코드로 옮기는 작업이나 검증 실패를 해석하는 작업은 대상이 아니다.
 ---
 
 # Visual Spec JSON 작성
@@ -73,6 +73,19 @@ v0.1 의 노드 타입은 **`frame` 과 `text` 둘뿐이다.** `image`, `button`
 
 필드 정의가 필요하면 정본 `src/features/editor/schema/visual-spec.schema.json` 을 읽는다.
 찾는 방법은 [../visual-spec-docs/SKILL.md](../visual-spec-docs/SKILL.md) 에 있다.
+
+## 이미 코드로 만든 화면에 피드백이 왔을 때
+
+`visual-spec-to-react` 로 코드까지 만든 화면에 "버튼 색 바꿔줘", "제목 좀 크게" 같은 후속
+피드백이 오면 **코드가 아니라 이 스펙 JSON을 고친다.** 코드를 직접 손대면 다음에
+재생성할 때 그 수정이 사라지고, JSON과 코드가 서서히 어긋나기 시작한다 — JSON이
+source of truth라는 전제가 깨진다.
+
+1. 피드백이 가리키는 원본 스펙 파일을 찾는다. 대화에서 바로 안 나오면 사용자에게 묻는다.
+2. 위 뼈대·관용구·제약을 그대로 따라 그 파일의 JSON을 고친다.
+3. 검증한다 (아래 "다 쓴 뒤").
+4. [../visual-spec-to-react/SKILL.md](../visual-spec-to-react/SKILL.md) 로 넘겨 재생성한다.
+   코드는 여기서 직접 쓰지 않는다.
 
 ## 자주 틀리는 지점
 
