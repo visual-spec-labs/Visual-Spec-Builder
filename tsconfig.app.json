@@ -21,6 +21,7 @@
     "src/vite-env.d.ts",
     "src/main.tsx",
     "src/app",
-    "src/features/editor/ui"
+    "src/features/editor/ui",
+    "src/features/editor/store"
   ]
 }
