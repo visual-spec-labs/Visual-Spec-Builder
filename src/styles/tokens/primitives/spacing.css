@@ -4,6 +4,10 @@
  */
 
 @theme inline {
+  /* Tailwind 스페이싱 스케일의 기준 단위(기본 0.25rem=4px).
+     전체 UI 스케일 한 단계 확대: 5px로 조정 → p-/gap-/size-/w-/h- 등이 비례 확대. */
+  --spacing: 0.3125rem;
+
   --space-1: 4px;
   --space-2: 6px;
   --space-3: 8px;

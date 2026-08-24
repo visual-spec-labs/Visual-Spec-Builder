@@ -5,8 +5,7 @@
  */
 
 @theme inline {
-  --layout-menubar-height: var(--size-48); /* 상단 메뉴바 높이 */
-  --layout-toolbar-height: var(--size-56); /* 하단 도구 모음 높이 */
-  --layout-tree-width: var(--size-240); /* 좌측 레이어 트리 폭 */
-  --layout-props-width: var(--size-280); /* 우측 세부설정 패널 폭 */
+  --layout-menubar-height: var(--size-60); /* 상단 메뉴바 높이 */
+  --layout-tree-width: var(--size-300); /* 좌측 레이어 트리 폭 */
+  --layout-props-width: var(--size-350); /* 우측 세부설정 패널 폭 */
 }
