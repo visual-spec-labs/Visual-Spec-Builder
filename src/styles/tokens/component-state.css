@@ -1,0 +1,65 @@
+/**
+ * component-state.css — Component + State 토큰
+ * 규칙: docs/DESIGN-TOKEN-RULES.md
+ *   - Component: 기본(default) 상태. Semantic 을 var() 로 참조.
+ *   - State    : 비기본 상태. property 가 state 앞에 온다.
+ *   - :root 선언 → var(--token-name) 으로만 접근 (Tailwind 유틸리티 미노출)
+ *
+ * 참고: 아래 컴포넌트 토큰은 에디터 UI(버튼/인풋/패널/메뉴/칩/툴바)를
+ *   기준으로 구성한 예시이며 현재 컴포넌트에서 직접 쓰이진 않습니다.
+ *   컬러 참조는 테마 스위칭되는 Semantic(surface/content/line …)을 사용하므로
+ *   테마를 자동으로 따릅니다. 실제 컴포넌트 확정 시 조정하세요.
+ */
+
+:root {
+  /* ── Button (primary) ─────────────────────────────────── */
+  --button-primary-bg: var(--color-primary);
+  --button-primary-text: var(--color-text-on-accent);
+  --button-primary-radius: var(--radius-control);
+  --button-primary-bg-hover: var(--color-primary-hover);
+  --button-primary-bg-active: var(--color-primary-active);
+  --button-primary-shadow-focus: var(--shadow-ring-focus);
+
+  /* ── Button (ghost) ───────────────────────────────────── */
+  --button-ghost-bg: transparent;
+  --button-ghost-text: var(--color-content-muted);
+  --button-ghost-radius: var(--radius-control);
+  --button-ghost-bg-hover: var(--color-hover);
+  --button-ghost-text-hover: var(--color-content);
+  --button-ghost-bg-active: var(--color-active);
+
+  /* ── Input ────────────────────────────────────────────── */
+  --input-bg: var(--color-surface-inset);
+  --input-text: var(--color-content);
+  --input-placeholder: var(--color-content-subtle);
+  --input-border: var(--color-line);
+  --input-radius: var(--radius-control);
+  --input-border-focus: var(--color-border-focus);
+  --input-shadow-focus: var(--shadow-ring-focus);
+
+  /* ── Panel / Popover ──────────────────────────────────── */
+  --panel-bg: var(--color-surface);
+  --panel-border: var(--color-border-subtle);
+  --panel-radius: var(--radius-panel);
+  --panel-shadow: var(--shadow-popover);
+
+  /* ── Menu item ────────────────────────────────────────── */
+  --menu-item-text: var(--color-content-muted);
+  --menu-item-bg-hover: var(--color-hover);
+  --menu-item-text-hover: var(--color-content);
+  --menu-item-bg-selected: var(--color-primary-subtle);
+  --menu-item-text-selected: var(--color-primary);
+
+  /* ── Chip / Tab ───────────────────────────────────────── */
+  --chip-bg: var(--color-surface-raised);
+  --chip-text: var(--color-content-muted);
+  --chip-radius: var(--radius-chip);
+  --chip-bg-selected: var(--color-primary);
+  --chip-text-selected: var(--color-text-on-accent);
+
+  /* ── Toolbar ──────────────────────────────────────────── */
+  --toolbar-bg: var(--color-surface-sunken);
+  --toolbar-border: var(--color-border-subtle);
+  --toolbar-icon: var(--color-content-muted);
+  --toolbar-icon-hover: var(--color-content);
+}

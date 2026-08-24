@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Visual Spec Builder</title>
+    <!-- FOUC 방지 스크립트는 vite.config.ts의 themeFoucPlugin이 THEME_STORAGE_KEY로
+         빌드 시 <head>에 주입한다. (localStorage 키 중복 제거) -->
   </head>
   <body>
     <div id="root"></div>

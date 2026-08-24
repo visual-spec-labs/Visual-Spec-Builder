@@ -1,0 +1,15 @@
+/**
+ * semantic/spacing.css — Semantic 스페이싱 토큰
+ * 규칙: docs/DESIGN-TOKEN-RULES.md — Semantic = UI 역할, Primitive를 var()로 참조.
+ */
+
+@theme inline {
+  --gap-xs: var(--space-1);
+  --gap-sm: var(--space-2);
+  --gap-md: var(--space-3);
+  --gap-lg: var(--space-5);
+  --gap-xl: var(--space-7);
+
+  --padding-control: var(--space-3);
+  --padding-panel: var(--space-5);
+}

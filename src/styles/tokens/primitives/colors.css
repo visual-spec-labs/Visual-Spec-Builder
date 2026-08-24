@@ -1,0 +1,95 @@
+/**
+ * primitives/colors.css — Primitive 컬러 토큰
+ * 규칙: docs/DESIGN-TOKEN-RULES.md
+ *   - Primitive = 실제 값. HEX/rgba 값만 직접 선언한다.
+ *   - var() 참조를 쓰지 않는다.
+ *
+ * Primitive는 @theme이 아닌 :root 변수로 선언한다 → var()로만 참조 가능하고
+ * Tailwind가 Primitive 컬러 유틸(bg-gray-900 등)을 생성하지 않는다.
+ * 또한 아래 @theme에서 Tailwind 기본 팔레트를 비워(--color-*: initial)
+ * 기본 팔레트 유틸(bg-red-500 등) 노출도 차단한다. 컬러 유틸은 Semantic만 노출된다.
+ * 출처: "GUI Editor Standalone.html" (다크 테마 에디터)
+ */
+
+/* Tailwind 기본 컬러 팔레트를 비우고, 키워드 컬러만 유지한다. */
+@theme {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-inherit: inherit;
+}
+
+:root {
+  /* ── Base ─────────────────────────────────────────────── */
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-cream-50: #faf9f5; /* 따뜻한 페이지 배경 */
+
+  /* ── Gray (밝음 → 어두움) ─────────────────────────────── */
+  --color-gray-50: #fbfbfc;
+  --color-gray-100: #f3f3f4;
+  --color-gray-150: #f0f0f1;
+  --color-gray-200: #ececed;
+  --color-gray-250: #e0e0e2;
+  --color-gray-300: #d6d6d8;
+  --color-gray-350: #c7c7ca;
+  --color-gray-400: #a9aab0;
+  --color-gray-450: #9a9ba1;
+  --color-gray-500: #8b8c92;
+  --color-gray-550: #7c7d84;
+  --color-gray-600: #6b6c72;
+  --color-gray-700: #54555b;
+  --color-gray-750: #3b3f46;
+  --color-gray-800: #33343a;
+  --color-gray-850: #2c2d33;
+  --color-gray-900: #26272c; /* 주 에디터 서피스 */
+  --color-gray-925: #212226;
+  --color-gray-950: #1c1e22;
+  --color-gray-975: #191a1d; /* 앱 배경 */
+  --color-gray-1000: #141518;
+
+  /* ── Orange (브랜드 강조) ─────────────────────────────── */
+  --color-orange-50: #fdf1e3;
+  --color-orange-100: #ffd9b3;
+  --color-orange-200: #ffb17e;
+  --color-orange-300: #ff9a5a;
+  --color-orange-400: #ff8f52;
+  --color-orange-500: #ff7a33; /* 기본 강조색 */
+  --color-orange-700: #b9740f; /* 밝은 배경 위 강조 텍스트 */
+
+  /* ── Status ───────────────────────────────────────────── */
+  --color-green-50: #e6f6ec;
+  --color-green-500: #1f9d55;
+  --color-red-50: #fbe9e9;
+  --color-red-400: #ff5f6d;
+  --color-red-500: #c23b3b;
+  --color-violet-200: #d7d3ff;
+  --color-brown-950: #1c1204; /* 강조색 위 텍스트 */
+
+  /* ── Alpha ────────────────────────────────────────────── */
+  --color-white-a05: rgba(255, 255, 255, 0.055);
+  --color-white-a08: rgba(255, 255, 255, 0.08);
+  --color-white-a12: rgba(255, 255, 255, 0.12);
+  --color-white-a15: rgba(255, 255, 255, 0.15);
+  --color-black-a05: rgba(0, 0, 0, 0.05);
+  --color-black-a08: rgba(0, 0, 0, 0.08);
+  --color-black-a12: rgba(0, 0, 0, 0.12);
+  --color-black-a15: rgba(0, 0, 0, 0.15);
+  --color-black-a45: rgba(0, 0, 0, 0.45);
+  --color-black-a50: rgba(0, 0, 0, 0.5);
+  --color-black-a55: rgba(0, 0, 0, 0.55);
+  --color-orange-a16: rgba(255, 122, 51, 0.16);
+  --color-orange-a18: rgba(255, 122, 51, 0.18);
+  --color-orange-a55: rgba(255, 122, 51, 0.55);
+
+  /* ── Neutral (라이트 테마 스캐폴드) ────────────────────
+     Tailwind 기본 neutral 팔레트와 동일한 값. 에디터 레이아웃
+     골격(라이트 테마)이 참조한다. gray-* (다크)와는 별개 스케일. */
+  --color-neutral-100: oklch(97% 0 none);
+  --color-neutral-200: oklch(92.2% 0 none);
+  --color-neutral-300: oklch(87% 0 none);
+  --color-neutral-400: oklch(70.8% 0 none);
+  --color-neutral-500: oklch(55.6% 0 none);
+  --color-neutral-800: oklch(26.9% 0 none);
+  --color-neutral-900: oklch(20.5% 0 none);
+}

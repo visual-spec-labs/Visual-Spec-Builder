@@ -1,0 +1,126 @@
+/**
+ * semantic/colors.css — Semantic 컬러 토큰 (테마 스위칭)
+ * 규칙: docs/DESIGN-TOKEN-RULES.md
+ *   - Semantic = UI 역할. Primitive 를 var() 로 참조한다.
+ *   - Component 는 이 Semantic 토큰만 사용한다.
+ * 선행 로드 필요: primitives/colors.css
+ *
+ * 테마 스위칭 구조 (shadcn / Tailwind v4 패턴):
+ *   1) 테마별로 바뀌는 역할 값은 스위치 변수(--surface, --content …)로 선언.
+ *      :root = 라이트(기본), [data-theme="dark"] = 다크.
+ *   2) @theme inline 에서 --color-* → var(스위치 변수) 로 매핑해
+ *      Tailwind 유틸(bg-surface, text-content …)이 런타임에 테마를 따르게 한다.
+ *   3) 테마와 무관한 역할(브랜드·상태·상호작용)은 @theme inline 에서
+ *      Primitive 를 바로 참조한다.
+ *
+ * 테마 전환: <html data-theme="dark"> 를 설정하면 다크로 스위칭.
+ * 기본(속성 없음)은 라이트 = 현재 렌더링 UI.
+ */
+
+/* ══════════════════════════════════════════════════════════
+   테마별 스위치 값 — Light(기본)
+   ══════════════════════════════════════════════════════════ */
+:root {
+  color-scheme: light; /* 폼 컨트롤·스크롤바 등 UA 기본을 라이트로 */
+
+  /* Surface (배경) */
+  --surface: var(--color-white); /* 패널·툴바·메뉴바 */
+  --surface-sunken: var(--color-neutral-100); /* 앱 셸 배경 */
+  --surface-canvas: var(--color-neutral-200); /* 캔버스 영역 */
+  --surface-raised: var(--color-white); /* 떠 있는 카드/칩 */
+  --surface-inset: var(--color-neutral-100); /* 입력 필드 등 파인 면 */
+
+  /* Line (구분선/보더) */
+  --line: var(--color-neutral-300);
+
+  /* Content (텍스트) */
+  --content-strong: var(--color-neutral-900); /* 강조 텍스트 */
+  --content: var(--color-neutral-800); /* 기본 텍스트 */
+  --content-muted: var(--color-neutral-500); /* 보조 텍스트 */
+  --content-subtle: var(--color-neutral-400); /* 흐린 텍스트 */
+
+  /* Border / interaction 오버레이 (라이트 = 검정 알파) */
+  --border-subtle: var(--color-black-a08);
+  --border-faint: var(--color-black-a05);
+  --border-strong: var(--color-black-a15);
+  --overlay-hover: var(--color-black-a05);
+  --overlay-active: var(--color-black-a08);
+}
+
+/* ══════════════════════════════════════════════════════════
+   테마별 스위치 값 — Dark ([data-theme="dark"])
+   GUI Editor(다크 테마) 디자인 값. 값은 다크 세트 그대로 보존.
+   ══════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  color-scheme: dark; /* 폼 컨트롤·스크롤바 등 UA 기본을 다크로 */
+
+  --surface: var(--color-gray-900); /* #26272c */
+  --surface-sunken: var(--color-gray-975); /* #191a1d */
+  --surface-canvas: var(--color-gray-1000); /* #141518 */
+  --surface-raised: var(--color-gray-850); /* #2c2d33 */
+  --surface-inset: var(--color-gray-950); /* #1c1e22 */
+
+  --line: var(--color-gray-800); /* #33343a */
+
+  --content-strong: var(--color-white); /* #ffffff */
+  --content: var(--color-gray-250); /* #e0e0e2 */
+  --content-muted: var(--color-gray-400); /* #a9aab0 */
+  --content-subtle: var(--color-gray-600); /* #6b6c72 */
+
+  /* Border / interaction 오버레이 (다크 = 흰색 알파) */
+  --border-subtle: var(--color-white-a08);
+  --border-faint: var(--color-white-a05);
+  --border-strong: var(--color-white-a15);
+  --overlay-hover: var(--color-white-a08);
+  --overlay-active: var(--color-white-a12);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Tailwind 노출 + 테마 무관 역할
+   ══════════════════════════════════════════════════════════ */
+@theme inline {
+  /* ── Surface (테마 스위칭) ────────────────────────────── */
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-inset: var(--surface-inset);
+
+  /* ── Line (테마 스위칭) ───────────────────────────────── */
+  --color-line: var(--line);
+
+  /* ── Content (테마 스위칭) ────────────────────────────── */
+  --color-content-strong: var(--content-strong);
+  --color-content: var(--content);
+  --color-content-muted: var(--content-muted);
+  --color-content-subtle: var(--content-subtle);
+
+  /* ── Brand (테마 무관) ────────────────────────────────── */
+  --color-primary: var(--color-orange-500);
+  --color-primary-hover: var(--color-orange-400);
+  --color-primary-active: var(--color-orange-700);
+  --color-primary-subtle: var(--color-orange-a16);
+
+  /* ── Border 변형 (테마 스위칭) ────────────────────────── */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-faint: var(--border-faint);
+  --color-border-strong: var(--border-strong);
+  --color-border-focus: var(--color-primary); /* 테마 무관(브랜드) */
+
+  /* ── Interaction ──────────────────────────────────────── */
+  --color-hover: var(--overlay-hover); /* 테마 스위칭 */
+  --color-active: var(--overlay-active); /* 테마 스위칭 */
+  --color-ring: var(--color-orange-a55); /* 테마 무관(브랜드) */
+  --color-overlay: var(--color-black-a50); /* 테마 무관(모달 스크림) */
+
+  /* ── Text on accent (테마 무관) ───────────────────────── */
+  --color-text-on-accent: var(--color-brown-950);
+
+  /* ── Status (테마 무관) ───────────────────────────────── */
+  --color-success: var(--color-green-500);
+  --color-success-bg: var(--color-green-50);
+  --color-error: var(--color-red-500);
+  --color-error-bright: var(--color-red-400);
+  --color-error-bg: var(--color-red-50);
+  --color-info: var(--color-violet-200);
+}

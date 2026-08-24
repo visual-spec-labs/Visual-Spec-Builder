@@ -12,7 +12,7 @@ import { Toolbar } from "@/features/editor/ui/Toolbar";
  */
 export function EditorLayout() {
   return (
-    <div className="grid h-screen w-screen grid-cols-[240px_1fr_280px] grid-rows-[48px_1fr_56px] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'_'tool_tool_tool'] bg-neutral-100 text-neutral-800">
+    <div className="grid h-screen w-screen grid-cols-[var(--layout-tree-width)_1fr_var(--layout-props-width)] grid-rows-[var(--layout-menubar-height)_1fr_var(--layout-toolbar-height)] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'_'tool_tool_tool'] bg-surface-sunken text-content">
       <MenuBar />
       <LayerTree />
       <Canvas />

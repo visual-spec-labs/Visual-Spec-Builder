@@ -1,1 +1,7 @@
+/* Web fonts — must precede other @import rules per CSS spec */
+@import "./styles/fonts.css";
+
 @import "tailwindcss";
+
+/* Design tokens (Primitive → Semantic → Component) */
+@import "./styles/tokens/index.css";
