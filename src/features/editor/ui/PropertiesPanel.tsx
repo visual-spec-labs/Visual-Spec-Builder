@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 const inputCls =
   "rounded-control border border-line bg-surface-inset px-2 py-1 text-xs text-content";
@@ -28,20 +28,35 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** 색상 스와치(피커) + 값 입력. 값은 어디에도 반영되지 않는 표시·인터랙션용. */
-function ColorRow({ color, value }: { color: string; value: string }) {
+/**
+ * 색상 스와치(피커) + hex 표시. 피커와 표시값은 로컬 상태로 동기화된다.
+ * 값을 어디에도 저장·처리하지 않는 UI 인터랙션용. aria-label에 섹션명을 반영.
+ */
+function ColorRow({
+  label,
+  color,
+  opacity,
+}: {
+  label: string;
+  color: string;
+  opacity?: string;
+}) {
+  const [value, setValue] = useState(color);
+  const display = opacity ? `${value.toUpperCase()} ${opacity}` : value.toUpperCase();
   return (
     <div className="flex items-center gap-1.5">
       <input
         type="color"
-        defaultValue={color}
-        aria-label="색상"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        aria-label={`${label} 색상`}
         className="size-6 shrink-0 rounded-control border border-line bg-surface-inset"
       />
       <input
         type="text"
-        defaultValue={value}
-        aria-label="색상 값"
+        value={display}
+        readOnly
+        aria-label={`${label} 색상 값`}
         className={`flex-1 ${inputCls}`}
       />
     </div>
@@ -68,11 +83,11 @@ export function PropertiesPanel() {
       </Section>
 
       <Section title="Color">
-        <ColorRow color="#1c1e22" value="#1C1E22 100%" />
+        <ColorRow label="Color" color="#1c1e22" opacity="100%" />
       </Section>
 
       <Section title="Background">
-        <ColorRow color="#ffffff" value="#FFFFFF 100%" />
+        <ColorRow label="Background" color="#ffffff" opacity="100%" />
       </Section>
 
       <Section title="Font">
@@ -82,7 +97,7 @@ export function PropertiesPanel() {
       </Section>
 
       <Section title="Border">
-        <ColorRow color="#ececed" value="#ECECED" />
+        <ColorRow label="Border" color="#ececed" />
         <Row label="Width" value="1 px" />
         <Row label="Radius" value="10" />
       </Section>
@@ -90,7 +105,7 @@ export function PropertiesPanel() {
       <Section title="Shadow">
         <Row label="Blur" value="24" />
         <Row label="Spread" value="0" />
-        <ColorRow color="#000000" value="#000000 18%" />
+        <ColorRow label="Shadow" color="#000000" opacity="18%" />
       </Section>
 
       <div className="mt-auto flex gap-2 border-t border-line p-3">
