@@ -1,0 +1,12 @@
+/**
+ * primitives/layout.css — Primitive 레이아웃 치수 토큰
+ * 규칙: docs/DESIGN-TOKEN-RULES.md — Primitive = 실제 값(px).
+ * 에디터 셸의 고정 치수(사이드바 폭·바 높이) 원시 값.
+ */
+
+@theme inline {
+  --size-48: 48px;
+  --size-56: 56px;
+  --size-240: 240px;
+  --size-280: 280px;
+}

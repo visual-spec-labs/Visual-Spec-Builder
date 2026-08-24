@@ -1,0 +1,33 @@
+/**
+ * primitives/typography.css — Primitive 타이포그래피 토큰
+ * 규칙: docs/DESIGN-TOKEN-RULES.md — Primitive = 실제 값.
+ * 테마와 무관한 상수(폰트 패밀리·크기·굵기·행간·자간).
+ */
+
+@theme inline {
+  /* ── Font family ──────────────────────────────────────── */
+  --font-family-pretendard: "Pretendard", -apple-system, BlinkMacSystemFont,
+    system-ui, "Apple SD Gothic Neo", sans-serif;
+  --font-family-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* ── Font size ────────────────────────────────────────── */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 28px;
+
+  /* ── Font weight ──────────────────────────────────────── */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ── Line height / tracking ───────────────────────────── */
+  --leading-tight: 1.2;
+  --leading-normal: 1.4;
+  --tracking-wide: 0.2px;
+}
