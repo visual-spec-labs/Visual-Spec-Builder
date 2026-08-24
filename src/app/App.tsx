@@ -1,5 +1,10 @@
 import { EditorLayout } from "@/features/editor/ui/EditorLayout";
+import { ThemeProvider } from "@/features/editor/ui/ThemeProvider";
 
 export function App() {
-  return <EditorLayout />;
+  return (
+    <ThemeProvider>
+      <EditorLayout />
+    </ThemeProvider>
+  );
 }

@@ -1,3 +1,5 @@
+import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
+
 /** 상단 메뉴바 — File / View (MVP). 지금은 자리만 잡는다. */
 export function MenuBar() {
   return (
@@ -5,6 +7,7 @@ export function MenuBar() {
       <span className="font-semibold text-content-strong">Visual Spec Builder</span>
       <span className="text-content-muted">File</span>
       <span className="text-content-muted">View</span>
+      <ThemeToggle />
     </header>
   );
 }
