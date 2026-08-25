@@ -27,15 +27,16 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 2. 위 표현 중 하나로 변환을 요청한다.
 3. `validateVisualSpec` 검증을 통과하면 TSX 코드가 나온다. 실패하면 어떤 필드가 문제인지
    먼저 알려주고 멈춘다.
-4. 대상 프로젝트 어디에 파일을 둘지 물어보면 답한다.
+4. 대상 프로젝트를 분석하거나 위치를 묻지 않는다 — 항상 고정 워크스페이스 경로
+   (`.visual-spec/generated/pages/<ComponentName>.tsx`)에 쓴다. Visual Spec Builder는
+   라이브러리로 설치돼 프로젝트마다 폴더 구조가 다르므로, 도구가 정한 경로를 쓰는 게
+   유일하게 일반화되는 방식이다.
 
 ### 여러 화면을 한 번에 줬을 때
 
-파일 하나씩 처리할 때와 다르게 동작하는 두 가지가 있다.
-
-- 하나가 검증에 실패해도 나머지는 계속 변환한다. 실패한 파일만 표시로 남긴다.
-- 파일 위치는 배치 전체에 같은 컨벤션이 적용되는지 먼저 확인하고, 파일마다 다시 묻지
-  않는다.
+파일 하나씩 처리할 때와 다르게 동작하는 게 하나 있다 — 하나가 검증에 실패해도 나머지는
+계속 변환한다. 실패한 파일만 표시로 남긴다. (위치는 4번과 같이 항상 고정이라 배치라고
+따로 확인할 게 없다.)
 
 끝나면 파일별로 성공/실패를 표로 보고한다. 표는 요약일 뿐이고, 실패한 파일의 `issues`
 전체는 표 아래에 그대로 딸려 나온다 — 단일 파일 처리 때와 마찬가지로 원인을 감추지 않는다.
@@ -43,17 +44,17 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 ### 이미 생성한 파일을 다시 만들 때
 
 [visual-spec-authoring](./visual-spec-authoring.md)이 후속 피드백("버튼 색 바꿔줘" 등)을
-반영해 원본 스펙 JSON을 고치고 넘어온 경우다. 파일 위치를 다시 묻지 않고 기존 파일을
-그대로 덮어쓰며, 결과를 새 코드 전체가 아니라 무엇이 바뀌었는지 diff로 요약해 보고한다.
-
-배치로 만든 화면들에 후속 피드백이 와서 위 절과 이 절이 겹칠 때는 이 절이 앞선다 —
-배치 전체에 한 번 위치를 확인하는 것도 생략하고 각 원래 파일을 덮어쓴다.
+반영해 원본 스펙 JSON을 고치고 넘어온 경우다. 같은 스펙은 항상 같은 경로에 쓰이므로
+원래 파일을 그대로 덮어쓴다. 결과는 새 코드 전체가 아니라 무엇이 바뀌었는지 diff로
+요약해 보고한다.
 
 ## 이 스킬이 하지 않는 것
 
 - 결정론적 변환(항상 같은 입력 → 같은 출력이 코드 레벨로 보장되지는 않는다. 에이전트가
   매번 판단해서 쓴다)
-- 대상 프로젝트 폴더 구조 자동 추론 → [analyze-target-project](./analyze-target-project.md)가 맡는다
+- 대상 프로젝트 폴더 구조 분석 (독립 작업공간 원칙상 필요하지 않다 — 항상 고정 경로에 쓴다)
+- 컴포넌트별 파일 분리 생성 (지금은 화면 하나 = 파일 하나다. Ticket Compiler가 로드맵에
+  있다 — [visual-spec 허브](./visual-spec.md)의 스킬 로드맵 참고)
 - 검증 실패 시 자동 수정 → [visual-spec-validate](./visual-spec-validate.md)가 `issues` 해석을 맡는다
 - Spec JSON 자체를 쓰거나 고치기, 피드백을 JSON 변경으로 해석하기 →
   [visual-spec-authoring](./visual-spec-authoring.md)이 맡는다. 이 스킬은 이미 고쳐진
@@ -63,4 +64,4 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 설계 배경은 `docs/superpowers/specs/2026-08-11-visual-spec-to-react-codegen-design.md`에 있다.
 
 어느 스킬로 가야 할지 모르겠으면 [visual-spec](./visual-spec.md) 허브로 돌아간다.
-앞으로 만들 스킬 체크리스트는 [analyze-target-project 문서](./analyze-target-project.md)에 있다.
+앞으로 만들 스킬 체크리스트는 [visual-spec 허브 문서](./visual-spec.md)에 있다.
