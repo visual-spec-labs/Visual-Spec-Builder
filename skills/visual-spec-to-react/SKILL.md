@@ -1,6 +1,6 @@
 ---
 name: visual-spec-to-react
-description: Visual Spec JSON(version, screen.root, screen.nodes 구조)을 React/Tailwind 컴포넌트 코드로 변환한다. "이 Visual Spec으로 화면 만들어줘", "이 JSON을 React 컴포넌트로 변환해줘", "login-screen.json 코드로 구현해줘"처럼 Visual Spec을 구현해달라는 요청, visual-spec-authoring이 후속 피드백을 반영해 스펙을 고친 뒤 넘기는 재생성 요청, 또는 대화나 첨부 파일에 Visual Spec 형태의 JSON이 있을 때 실행한다.
+description: Visual Spec JSON(version, screen.root, screen.nodes 구조)을 React/Tailwind 컴포넌트 코드로 변환한다. "이 Visual Spec으로 화면 만들어줘", "이 JSON을 React 컴포넌트로 변환해줘", "login-screen.json 코드로 구현해줘"처럼 Visual Spec을 구현해달라는 요청, "이 JSON들 한번에 변환해줘", "examples 폴더에 있는 스펙 다 코드로 만들어줘"처럼 여러 개를 한 번에 요청하는 경우, visual-spec-authoring이 후속 피드백을 반영해 스펙을 고친 뒤 넘기는 재생성 요청, 또는 대화나 첨부 파일에 Visual Spec 형태의 JSON이 있을 때 실행한다.
 ---
 
 # Visual Spec → React 코드 생성
@@ -25,6 +25,28 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
 5. **파일을 쓰고 결과를 보고한다.** 대상 프로젝트의 prettier/eslint 같은 포매터는 사용자가
    요청하지 않는 한 자동으로 돌리지 않는다.
 
+## 여러 화면을 한 번에 처리한다
+
+요청에 Visual Spec JSON이 여러 개 걸리면(경로 목록, 폴더, "다 변환해줘" 같은 요청) 위
+실행 순서를 파일마다 반복하되 아래 두 가지는 다르게 한다.
+
+- **하나가 검증에 실패해도 배치를 멈추지 않는다.** 단일 파일 처리 때는 실패하면 그 자리에서
+  중단하지만, 배치에서는 그 파일의 실패를 기록해두고 나머지 파일은 계속 처리한다. 화면
+  9개 중 1개가 틀렸다고 나머지 8개까지 막을 이유가 없다.
+- **파일 위치는 배치 전체에 같은 컨벤션이 적용되는지 먼저 확인하고, 파일마다 다시 묻지
+  않는다.** ([analyze-target-project](../analyze-target-project/SKILL.md)를 이미 돌렸으면
+  그 결과를 그대로 쓴다.) 컨벤션이 화면마다 다를 걸로 보이면 그때만 개별로 묻는다.
+
+끝나면 파일별 결과를 표로 보고한다.
+
+| 파일 | 컴포넌트 | 결과 |
+|---|---|---|
+| `login-screen.json` | `Login` | 작성됨 — `src/screens/Login.tsx` |
+| `dashboard-cards.json` | `DashboardPage` | 검증 실패 — `child-missing` 1건 |
+
+표는 요약일 뿐이다. 실패한 파일은 표 아래에 `issues` 전체를 그대로 붙인다 — 단일 파일
+처리 때(2번)와 마찬가지로 원인을 감추지 않는다.
+
 ## 이미 생성한 파일을 다시 만들 때
 
 [visual-spec-authoring](../visual-spec-authoring/SKILL.md)에서 후속 피드백("버튼 색
@@ -36,6 +58,9 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
 - **결과를 새 코드 전체가 아니라 무엇이 바뀌었는지 diff로 요약해 보고한다.** 사용자가
   요청한 건 "버튼 색 바꿔줘" 하나인데 파일 전체를 다시 붙여 넣으면 실제로 뭐가
   바뀐 건지 찾기 어렵다.
+
+배치로 만든 화면들에 후속 피드백이 와서 위 절과 이 절이 겹칠 때는 이 절이 앞선다 —
+배치 전체에 한 번 위치를 확인하는 것도 생략하고 각 원래 파일을 덮어쓴다.
 
 ## 매핑 참고표
 

@@ -1,4 +1,5 @@
 import Ajv2020 from "ajv/dist/2020";
+import type { ErrorObject } from "ajv/dist/2020";
 
 import visualSpecJsonSchema from "./visual-spec.schema.json";
 import type { VisualSpec } from "./types";
@@ -50,6 +51,42 @@ function nodePath(nodeId: string): string {
 
 function isFrameNode(node: VisualSpecNode): node is FrameNode {
   return node.type === "frame";
+}
+
+function describeSchemaError(error: ErrorObject): string {
+  const params = error.params as Record<string, unknown>;
+
+  switch (error.keyword) {
+    case "required":
+      return `필수 필드 "${params.missingProperty}"가 없습니다.`;
+    case "additionalProperties":
+      return `허용되지 않는 필드 "${params.additionalProperty}"가 있습니다.`;
+    case "const":
+      return `값이 ${JSON.stringify(params.allowedValue)}이어야 합니다.`;
+    case "enum":
+      return `값이 ${JSON.stringify(params.allowedValues)} 중 하나여야 합니다.`;
+    case "type":
+      return `값의 타입이 "${params.type}"이어야 합니다.`;
+    case "pattern":
+      return `값이 패턴 ${JSON.stringify(params.pattern)}과 일치하지 않습니다.`;
+    case "propertyNames":
+      return `속성 이름 "${params.propertyName}"이 허용되지 않는 형식입니다.`;
+    case "minimum":
+    case "exclusiveMinimum":
+    case "maximum":
+    case "exclusiveMaximum":
+      return `값이 허용 범위를 벗어났습니다 (${error.keyword}: ${params.limit}).`;
+    case "minLength":
+      return `문자열이 너무 짧습니다 (최소 길이: ${params.limit}).`;
+    case "minProperties":
+      return `속성 개수가 너무 적습니다 (최소: ${params.limit}).`;
+    case "multipleOf":
+      return `값이 ${params.multipleOf}의 배수여야 합니다.`;
+    case "oneOf":
+      return "정의된 대안 스키마 중 어느 것과도 일치하지 않습니다. 같은 위치에 있는 다른 이슈가 실제 원인인 경우가 많습니다.";
+    default:
+      return `JSON 스키마 규칙(${error.keyword})을 위반했습니다.`;
+  }
 }
 
 function validateReferences(spec: VisualSpec): ValidationIssue[] {
@@ -198,7 +235,7 @@ export function validateVisualSpec(input: unknown): ValidationResult {
         (error) => ({
           code: "schema",
           path: error.instancePath || "/",
-          message: "JSON 스키마의 구조 규칙을 위반했습니다.",
+          message: describeSchemaError(error),
         }),
       );
 

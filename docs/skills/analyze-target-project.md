@@ -62,8 +62,9 @@
       받아 갱신한다. 별도 스킬이 아니라 [visual-spec-authoring](./visual-spec-authoring.md)
       (JSON 수정)과 [visual-spec-to-react](./visual-spec-to-react.md)(재생성)의 연결로
       처리했다 — 코드를 직접 고치면 JSON과 어긋나므로 항상 JSON을 거친다.
-- [ ] **여러 화면 일괄 변환** — Visual Spec JSON 여러 개를 한 번에 코드로 변환한다. 지금은
-      한 번에 하나씩만 처리한다.
+- [x] **여러 화면 일괄 변환** — Visual Spec JSON 여러 개를 한 번에 코드로 변환한다.
+      [visual-spec-to-react](./visual-spec-to-react.md)의 배치 처리 절로 흡수됐다 — 별도
+      스킬이 아니라 기존 스킬의 확장이다.
 - [ ] **기존 컴포넌트 재사용 감지** — 대상 프로젝트에 이미 있는 컴포넌트를 찾아 새로 만들지
       않고 재사용하도록 판단한다. (설계 문서 §1에서 명시적으로 범위 밖으로 뺀 항목)
 
