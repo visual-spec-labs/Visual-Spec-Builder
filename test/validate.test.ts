@@ -53,6 +53,31 @@ describe("validateVisualSpec", () => {
     expect(result.issues.map((issue) => issue.code)).toContain("schema");
   });
 
+  it("schema 이슈 메시지가 위반된 필드마다 다르게 나온다", () => {
+    const result = validateVisualSpec(textWithoutContent);
+    const messages = result.issues.map((issue) => issue.message);
+
+    // 예전에는 7개 모두 "JSON 스키마의 구조 규칙을 위반했습니다." 하나였다.
+    expect(new Set(messages).size).toBeGreaterThan(1);
+    expect(messages.some((message) => message.includes("content"))).toBe(
+      true,
+    );
+    expect(messages.some((message) => message.includes("layout"))).toBe(
+      true,
+    );
+  });
+
+  it("지원하지 않는 노드 type의 메시지에 허용 값이 나온다", () => {
+    const result = validateVisualSpec(unsupportedNodeType);
+    const messages = result.issues.map((issue) => issue.message);
+
+    expect(
+      messages.some(
+        (message) => message.includes("frame") || message.includes("text"),
+      ),
+    ).toBe(true);
+  });
+
   it.each([null, "invalid", [], {}])(
     "잘못된 입력 %#에도 예외를 던지지 않고 invalid를 반환한다",
     (input) => {
