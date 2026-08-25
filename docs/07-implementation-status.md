@@ -26,7 +26,7 @@
 
 | 단위 | 상태 | 근거 / 무엇이 되고 무엇이 안 되는가 |
 |---|---|---|
-| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 3파일 24케이스 통과 |
+| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 3파일 26케이스 통과 |
 | Command Engine | **미착수** | `command.schema.ts` 없음, history manager 없음. `src/` 전체에 Command 관련 코드 0줄 |
 | 자연어 변환 | **미착수** | 관련 코드 없음 |
 | Ticket Compiler · Agent | **부분** | 코드 생성만 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다. IR을 작업 단위로 쪼개는 **티켓 개념, 실행 순서 결정, 티켓 상태 관리는 없다**. 티켓 스키마도 없다 |
@@ -112,7 +112,7 @@
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
 | 유효 예제 4개 | `examples/*.json` | 검증 통과 |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
-| 테스트 | `test/schema.test.ts`(4) · `test/public-api.test.ts`(4) · `test/validate.test.ts`(16) | **3파일 24케이스 전부 통과** (2026-08-20 확인) |
+| 테스트 | `test/schema.test.ts`(4) · `test/public-api.test.ts`(4) · `test/validate.test.ts`(18) | **3파일 26케이스 전부 통과** (2026-08-21 확인) |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 6종 | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` · `analyze-target-project` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 6개 |
 
@@ -133,36 +133,23 @@
 `private: true` 인 Vite 앱이라 지금 당장 깨지는 것은 없다. 다만 **끊긴 참조**이고, 나중에 이 패키지를 실제로 배포하거나 `bin` 을 추가할 때 문제가 된다.
 (이 문서는 관찰 기록이므로 수정하지 않았다.)
 
-### 5.2 검증기의 `schema` 이슈에 정보가 없다
+### 5.2 검증기의 `schema` 이슈에 정보가 없다 — **해결됨 (2026-08-21)**
 
-`src/features/editor/schema/validate.ts` 의 `validateVisualSpec` 은 ajv 오류를 이렇게 변환한다.
+`src/features/editor/schema/validate.ts` 의 `validateVisualSpec` 이 ajv 오류의 `error.keyword`,
+`error.params` 를 버리고 모든 `schema` 이슈에 "JSON 스키마의 구조 규칙을 위반했습니다."라는
+상수 문구 하나만 붙이던 문제다. `examples/invalid/text-without-content.json` 을 검증하면
+이슈 7개가 나오는데, 정작 원인인 `"content" 가 없다`는 말은 한 번도 나오지 않았다.
 
-```ts
-const issues: ValidationIssue[] = (validateSchema.errors ?? []).map((error) => ({
-  code: "schema",
-  path: error.instancePath || "/",
-  message: "JSON 스키마의 구조 규칙을 위반했습니다.",   // 상수 한 문장
-}));
-```
+`describeSchemaError()` 를 추가해 `error.keyword` 로 분기, `required` → `허용되지 않는 필드
+"X"가 있습니다.` 처럼 위반 종류별 메시지를 만든다. 스키마에 실제 쓰이는 키워드
+(`required`, `additionalProperties`, `const`, `enum`, `type`, `pattern`, `propertyNames`,
+`minimum`/`exclusiveMinimum`/`maximum`/`exclusiveMaximum`, `minLength`, `minProperties`,
+`multipleOf`, `oneOf`) 14개를 전부 다루고, 각 키워드의 `params` 필드명은 실제 ajv 출력으로
+검증했다. `ValidationIssue` 의 타입(`code`/`path`/`message`)은 바꾸지 않았다 — 공개 표면을
+넓히지 않고 `message` 문구만 고쳤다.
 
-`error.keyword` 와 `error.params` 를 그대로 버린다. 그래서 **몇 개가 나오든 메시지가 전부 같다.**
-
-`examples/invalid/text-without-content.json`(TextNode에서 `content` 를 뺀 문서)으로 실제 측정한 결과다.
-
-| ajv가 준 정보 | 이슈에 남는가 |
-|---|---|
-| `required` / `missingProperty: "content"` | **버려진다** |
-| `required` / `missingProperty: "layout"` | 버려진다 |
-| `required` / `missingProperty: "children"` | 버려진다 |
-| `additionalProperties` / `"typography"`, `"color"` | 버려진다 |
-| `const` / `allowedValue: "frame"` | 버려진다 |
-| `oneOf` | 버려진다 |
-
-노드 하나를 잘못 쓴 문서에서 이슈 **7개**가 나오는데, 정작 진짜 원인인 `"content" 가 없다` 는 말은 **한 번도 나오지 않는다.** 7개 모두 같은 문구다.
-
-원인은 `Node` 가 `oneOf: [FrameNode, TextNode]` 라서, `content` 하나가 빠지면 ajv가 "FrameNode로도 안 맞고 TextNode로도 안 맞는다"는 오류를 양쪽에서 쏟아내기 때문이다. `keyword`·`params` 를 살려 두면 그중 어느 것이 진짜 원인인지 읽는 사람이 판단할 수 있다.
-
-`validateVisualSpec` 이 절대 예외를 던지지 않는다는 계약([06-schema-freeze.md](06-schema-freeze.md))은 잘 지켜지고 있다. 문제는 **던지지 않는 대신 돌려주는 정보가 비어 있다**는 점이다.
+`validateVisualSpec` 이 절대 예외를 던지지 않는다는 계약([06-schema-freeze.md](06-schema-freeze.md))은
+계속 지켜진다.
 
 ---
 
@@ -182,11 +169,12 @@ const issues: ValidationIssue[] = (validateSchema.errors ?? []).map((error) => (
 - 렌더러를 구현하면 06이 "보장하지 않는다"고 남겨 둔 **`"fill"` 의 교차축 의미**를 정할 근거가 생긴다. 06 자체가 "Renderer 구현 시점에 정한다"고 적어 두었다.
 - 읽기 전용이라 IR 불변조건을 깨뜨릴 위험이 없다. `examples/*.json` 4개가 그대로 회귀 테스트 입력이 된다.
 
-### 제안 2 — 검증기 메시지 개선은 언제든 가능하다
+### 제안 2 — 검증기 메시지 개선은 언제든 가능하다 (완료, 5.2 참고)
 
-5.2는 스키마 **구조**를 바꾸지 않고 `validate.ts` 안에서만 고칠 수 있다. [06-schema-freeze.md](06-schema-freeze.md)의 동결 대상은 스키마의 구조와 제약이지 검증기의 메시지 문구가 아니다. 즉 **동결 해제를 기다릴 필요가 없다.**
-
-`ValidationIssue` 에 필드를 추가하면 공개 표면이 넓어지므로, 그 부분만 팀 확인을 거치면 된다.
+5.2가 처리됐다. 스키마 **구조**를 바꾸지 않고 `validate.ts` 안에서만 고쳤다 —
+[06-schema-freeze.md](06-schema-freeze.md)의 동결 대상은 스키마의 구조와 제약이지 검증기의
+메시지 문구가 아니므로 동결 해제를 기다리지 않았다. `ValidationIssue` 에 필드를 추가하지
+않아 공개 표면도 넓어지지 않았다.
 
 ### 제안 3 — Button · Input · Grid는 코드보다 문서 결정이 먼저
 
@@ -201,5 +189,5 @@ const issues: ValidationIssue[] = (validateSchema.errors ?? []).map((error) => (
 ```bash
 pnpm install --frozen-lockfile
 pnpm run typecheck   # 통과 (2026-08-20 확인)
-pnpm test            # 3파일 24케이스 통과 (2026-08-20 확인)
+pnpm test            # 3파일 26케이스 통과 (2026-08-21 확인)
 ```
