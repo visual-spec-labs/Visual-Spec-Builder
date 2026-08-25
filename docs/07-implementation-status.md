@@ -1,6 +1,12 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
+> 부분 갱신: **2026-08-25** / 확인 대상: `Yumesa2025/validate-skill-refresh` (`develop` 78a3e72 기준)
+>
+> 2026-08-25 갱신은 **문서 전체 재검증이 아니다.** 이번에 실제로 돌려 확인한 것은
+> `pnpm install --frozen-lockfile` · `pnpm run typecheck` · `pnpm test` 세 명령의 결과(4절 테스트 행,
+> 1절 IR·스키마 행, 아래 "확인 방법")와 5.2에 적힌 `describeSchemaError()` 의 실제 메시지 문구뿐이다.
+> **나머지 항목은 2026-08-20 확인 상태 그대로이며 이번에 재확인하지 않았다.**
 >
 > 이 문서는 **저장소의 실제 상태를 반영하는 현황 보고**다. 계획서가 아니다.
 > 코드가 바뀌면 이 문서도 함께 갱신한다. 갱신하지 않은 채 방치하면 없느니만 못하다.
@@ -26,7 +32,7 @@
 
 | 단위 | 상태 | 근거 / 무엇이 되고 무엇이 안 되는가 |
 |---|---|---|
-| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 3파일 26케이스 통과 |
+| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 4파일 34케이스 통과 |
 | Command Engine | **미착수** | `command.schema.ts` 없음, history manager 없음. `src/` 전체에 Command 관련 코드 0줄 |
 | 자연어 변환 | **미착수** | 관련 코드 없음 |
 | Ticket Compiler · Agent | **부분** | 코드 생성만 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다. IR을 작업 단위로 쪼개는 **티켓 개념, 실행 순서 결정, 티켓 상태 관리는 없다**. 티켓 스키마도 없다 |
@@ -112,7 +118,7 @@
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
 | 유효 예제 4개 | `examples/*.json` | 검증 통과 |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
-| 테스트 | `test/schema.test.ts`(4) · `test/public-api.test.ts`(4) · `test/validate.test.ts`(18) | **3파일 26케이스 전부 통과** (2026-08-21 확인) |
+| 테스트 | `test/schema.test.ts`(4) · `test/public-api.test.ts`(4) · `test/validate.test.ts`(18) · `test/editor-store.test.ts`(8) | **4파일 34케이스 전부 통과** (2026-08-25 확인) |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 6종 | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` · `analyze-target-project` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 6개 |
 
@@ -133,15 +139,16 @@
 `private: true` 인 Vite 앱이라 지금 당장 깨지는 것은 없다. 다만 **끊긴 참조**이고, 나중에 이 패키지를 실제로 배포하거나 `bin` 을 추가할 때 문제가 된다.
 (이 문서는 관찰 기록이므로 수정하지 않았다.)
 
-### 5.2 검증기의 `schema` 이슈에 정보가 없다 — **해결됨 (2026-08-21)**
+### 5.2 검증기의 `schema` 이슈에 정보가 없었다 — **해결됨 (2026-08-21)**
 
 `src/features/editor/schema/validate.ts` 의 `validateVisualSpec` 이 ajv 오류의 `error.keyword`,
 `error.params` 를 버리고 모든 `schema` 이슈에 "JSON 스키마의 구조 규칙을 위반했습니다."라는
 상수 문구 하나만 붙이던 문제다. `examples/invalid/text-without-content.json` 을 검증하면
 이슈 7개가 나오는데, 정작 원인인 `"content" 가 없다`는 말은 한 번도 나오지 않았다.
 
-`describeSchemaError()` 를 추가해 `error.keyword` 로 분기, `required` → `허용되지 않는 필드
-"X"가 있습니다.` 처럼 위반 종류별 메시지를 만든다. 스키마에 실제 쓰이는 키워드
+`describeSchemaError()` 를 추가해 `error.keyword` 로 분기, `required` → `필수 필드 "X"가
+없습니다.`, `additionalProperties` → `허용되지 않는 필드 "X"가 있습니다.` 처럼 위반 종류별
+메시지를 만든다. 스키마에 실제 쓰이는 키워드
 (`required`, `additionalProperties`, `const`, `enum`, `type`, `pattern`, `propertyNames`,
 `minimum`/`exclusiveMinimum`/`maximum`/`exclusiveMaximum`, `minLength`, `minProperties`,
 `multipleOf`, `oneOf`) 14개를 전부 다루고, 각 키워드의 `params` 필드명은 실제 ajv 출력으로
@@ -188,6 +195,6 @@
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm run typecheck   # 통과 (2026-08-20 확인)
-pnpm test            # 3파일 26케이스 통과 (2026-08-21 확인)
+pnpm run typecheck   # 통과 (2026-08-25 확인)
+pnpm test            # 4파일 34케이스 통과 (2026-08-25 확인)
 ```
