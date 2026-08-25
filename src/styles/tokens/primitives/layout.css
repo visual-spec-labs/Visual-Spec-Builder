@@ -5,8 +5,8 @@
  */
 
 @theme inline {
-  --size-48: 48px;
-  --size-56: 56px;
-  --size-240: 240px;
-  --size-280: 280px;
+  /* 전체 UI 스케일 한 단계 확대에 맞춰 셸 치수도 비례 확대. */
+  --size-60: 60px;
+  --size-300: 300px;
+  --size-350: 350px;
 }

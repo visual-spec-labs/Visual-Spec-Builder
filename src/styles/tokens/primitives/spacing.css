@@ -3,6 +3,14 @@
  * 규칙: docs/DESIGN-TOKEN-RULES.md — Primitive = 실제 값(px).
  */
 
+/* Tailwind 스페이싱 스케일의 기준 단위(기본 0.25rem=4px).
+   전체 UI 스케일 한 단계 확대: 5px로 조정 → 패딩·간격·크기 등 앱 전역 스페이싱이 비례 확대.
+   inline이 아닌 @theme로 두어 --spacing이 :root 변수로 유지되게 한다
+   (유틸이 calc(var(--spacing) x N)로 런타임 참조; arbitrary calc 등과 호환). */
+@theme {
+  --spacing: 0.3125rem;
+}
+
 @theme inline {
   --space-1: 4px;
   --space-2: 6px;
