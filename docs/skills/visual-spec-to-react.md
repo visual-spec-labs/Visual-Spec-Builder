@@ -28,9 +28,19 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 3. `validateVisualSpec` 검증을 통과하면 TSX 코드가 나온다. 실패하면 어떤 필드가 문제인지
    먼저 알려주고 멈춘다.
 4. 대상 프로젝트를 분석하거나 위치를 묻지 않는다 — 항상 고정 워크스페이스 경로
-   (`.visual-spec/generated/pages/<ComponentName>.tsx`)에 쓴다. Visual Spec Builder는
-   라이브러리로 설치돼 프로젝트마다 폴더 구조가 다르므로, 도구가 정한 경로를 쓰는 게
-   유일하게 일반화되는 방식이다.
+   (`.visual-spec/generated/pages/`, 분리된 컴포넌트는
+   `.visual-spec/generated/components/`)에 쓴다. Visual Spec Builder는 라이브러리로
+   설치돼 프로젝트마다 폴더 구조가 다르므로, 도구가 정한 경로를 쓰는 게 유일하게
+   일반화되는 방식이다.
+
+### 화면이 여러 컴포넌트로 쪼개질 때
+
+화면 하나를 항상 파일 하나로 만들지는 않는다. root의 직계 자식(Header, Content 등)은
+각각 별도 컴포넌트가 되고, 그 안에서 구조가 똑같이 반복되는 형제(카드 3개 등)가 있으면
+그 반복 단위를 props를 받는 공용 컴포넌트로 뽑는다. 스키마엔 "컴포넌트"·"props" 개념이
+없으므로(v0.1 제외 범위) 이건 코드 생성 시점의 판단이다. `@/` 별칭은 쓰지 않고 상대
+경로로만 서로 import한다 — 어느 프로젝트에 export해도 그대로 동작해야 하기 때문이다.
+자식 컴포넌트를 부모보다 먼저 만들고, 만들 때마다 진행 상황을 짧게 보고한다.
 
 ### 여러 화면을 한 번에 줬을 때
 
@@ -53,8 +63,6 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 - 결정론적 변환(항상 같은 입력 → 같은 출력이 코드 레벨로 보장되지는 않는다. 에이전트가
   매번 판단해서 쓴다)
 - 대상 프로젝트 폴더 구조 분석 (독립 작업공간 원칙상 필요하지 않다 — 항상 고정 경로에 쓴다)
-- 컴포넌트별 파일 분리 생성 (지금은 화면 하나 = 파일 하나다. Ticket Compiler가 로드맵에
-  있다 — [visual-spec 허브](./visual-spec.md)의 스킬 로드맵 참고)
 - 검증 실패 시 자동 수정 → [visual-spec-validate](./visual-spec-validate.md)가 `issues` 해석을 맡는다
 - Spec JSON 자체를 쓰거나 고치기, 피드백을 JSON 변경으로 해석하기 →
   [visual-spec-authoring](./visual-spec-authoring.md)이 맡는다. 이 스킬은 이미 고쳐진
