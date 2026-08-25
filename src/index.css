@@ -5,3 +5,6 @@
 
 /* Design tokens (Primitive → Semantic → Component) */
 @import "./styles/tokens/index.css";
+
+/* 캔버스 격자 오버레이 */
+@import "./styles/canvas-grid.css";

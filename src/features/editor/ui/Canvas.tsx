@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useViewStore } from "@/features/editor/store/viewStore";
 import type { FrameNode, NodeId, Size, TextNode } from "@/features/editor/schema";
 
 /**
@@ -103,22 +104,52 @@ function RenderNode({ id }: { id: NodeId }) {
   );
 }
 
+/**
+ * 줌 단계(ZOOM_MIN..ZOOM_MAX, ZOOM_STEP 간격)마다 리터럴 scale 클래스를 매핑한다.
+ * 인라인 style 없이도 동적 줌을 표현하기 위함 — 문자열이 소스에 그대로 존재해야
+ * Tailwind JIT가 클래스를 정적으로 찾아낼 수 있다 (docs/DESIGN-TOKEN-RULES.md 인라인 스타일 금지).
+ */
+const ZOOM_SCALE_CLASS: Record<number, string> = {
+  25: "scale-[0.25]",
+  50: "scale-[0.5]",
+  75: "scale-[0.75]",
+  100: "scale-[1]",
+  125: "scale-[1.25]",
+  150: "scale-[1.5]",
+  175: "scale-[1.75]",
+  200: "scale-[2]",
+  225: "scale-[2.25]",
+  250: "scale-[2.5]",
+  275: "scale-[2.75]",
+  300: "scale-[3]",
+  325: "scale-[3.25]",
+  350: "scale-[3.5]",
+  375: "scale-[3.75]",
+  400: "scale-[4]",
+};
+
 export function Canvas() {
   const root = useEditorStore((state) => state.spec.screen.root);
   const size = useEditorStore((state) => state.spec.screen.size);
   const select = useEditorStore((state) => state.select);
+  const zoom = useViewStore((s) => s.zoom);
+  const showGrid = useViewStore((s) => s.showGrid);
 
   return (
     <main
-      className="overflow-auto bg-surface-canvas p-8 [grid-area:canvas]"
+      className="relative overflow-auto bg-surface-canvas p-8 [grid-area:canvas]"
       onClick={() => select(null)}
     >
+      {showGrid && <div className="canvas-grid pointer-events-none absolute inset-0" />}
       <div
-        className="mx-auto bg-surface-raised shadow-sm"
+        className={`mx-auto origin-top bg-surface-raised shadow-sm ${ZOOM_SCALE_CLASS[zoom]}`}
         style={{ width: size.width, minHeight: size.height }}
       >
         <RenderNode id={root} />
       </div>
+      <span className="absolute bottom-3 left-3 rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
+        {zoom}%
+      </span>
     </main>
   );
 }
