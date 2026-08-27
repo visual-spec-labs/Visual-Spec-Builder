@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
+import { exportSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
 
 type MenuKey = "file" | "view";
 
@@ -11,24 +13,16 @@ type SeparatorEntry = { kind: "separator" };
 
 type MenuEntry = ActionEntry | ToggleEntry | SeparatorEntry;
 
-/** File 메뉴는 이번 범위 밖 — 클릭해도 메뉴만 닫히고 실제 동작은 없다. */
+/** New/Open/Save/Save as/Import는 이번 범위 밖 — 클릭해도 메뉴만 닫히고 실제 동작은 없다. */
 function noop() {
   /* 이후 이슈에서 연결 */
 }
 
-const FILE_MENU: MenuEntry[] = [
-  { kind: "action", label: "New", onSelect: noop },
-  { kind: "action", label: "Open", onSelect: noop },
-  { kind: "action", label: "Save", onSelect: noop },
-  { kind: "action", label: "Save as", onSelect: noop },
-  { kind: "separator" },
-  { kind: "action", label: "Import", onSelect: noop },
-  { kind: "action", label: "Export", onSelect: noop },
-];
-
 /**
  * 상단 메뉴바 — Figma 디자인 기준 레이아웃(로고·브랜드·중앙 프로젝트명·테마 토글) +
- * File/View 드롭다운. File 항목의 실제 동작(저장·열기 등)은 이후 이슈에서 연결한다.
+ * File/View 드롭다운. New/Open/Save/Save as/Import는 이후 이슈에서 연결한다.
+ * Export는 exportSpecAsJson으로 연결돼 있다(검증 실패 시 다운로드 대신
+ * 콘솔에 경고만 남긴다 — 메뉴 컨텍스트에 인라인 에러 UI가 없어서 낸 절충).
  * View 항목은 viewStore(줌·그리드·패널 표시)에 연결돼 있다.
  * Help은 gui-spec.md 기준 MVP 제외.
  */
@@ -36,6 +30,7 @@ export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const rootRef = useRef<HTMLElement>(null);
 
+  const spec = useEditorStore((s) => s.spec);
   const zoomIn = useViewStore((s) => s.zoomIn);
   const zoomOut = useViewStore((s) => s.zoomOut);
   const fitToScreen = useViewStore((s) => s.fitToScreen);
@@ -43,6 +38,16 @@ export function MenuBar() {
   const toggleGrid = useViewStore((s) => s.toggleGrid);
   const showPanels = useViewStore((s) => s.showPanels);
   const togglePanels = useViewStore((s) => s.togglePanels);
+
+  const FILE_MENU: MenuEntry[] = [
+    { kind: "action", label: "New", onSelect: noop },
+    { kind: "action", label: "Open", onSelect: noop },
+    { kind: "action", label: "Save", onSelect: noop },
+    { kind: "action", label: "Save as", onSelect: noop },
+    { kind: "separator" },
+    { kind: "action", label: "Import", onSelect: noop },
+    { kind: "action", label: "Export", onSelect: () => exportSpecAsJson(spec) },
+  ];
 
   const VIEW_MENU: MenuEntry[] = [
     { kind: "action", label: "Zoom In", onSelect: zoomIn },
