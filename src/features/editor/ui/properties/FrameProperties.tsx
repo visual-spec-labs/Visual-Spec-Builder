@@ -18,19 +18,21 @@ import {
 } from "lucide-react";
 
 import { PropertySection } from "./PropertySection";
+import { SizeSection } from "./SizeSection";
 import { useNodeField } from "./useNodeField";
 import {
   ColorField,
+  FieldLabel,
+  FieldRow,
   NumberField,
   SegmentedControl,
   SegmentOption,
-  SizeField,
+  type Size,
 } from "./fields";
 
 type Direction = "row" | "column";
 type MainAxis = "start" | "center" | "end" | "space-between";
 type CrossAxis = "start" | "center" | "end" | "stretch";
-type Size = number | "auto" | "fill";
 
 const ICON = 16;
 
@@ -103,16 +105,14 @@ export function FrameProperties() {
           onChange={setDirection}
         />
         <NumberField label="간격 (Gap)" value={gap} onChange={setGap} min={0} unit="px" />
-        <div>
-          <span className="mb-1 block text-[11px] font-medium tracking-wide text-content-muted">
-            패딩
-          </span>
-          <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1">
+          <FieldLabel>패딩</FieldLabel>
+          <FieldRow>
             <NumberField label="위" value={padTop} onChange={setPadTop} min={0} unit="px" />
             <NumberField label="오른쪽" value={padRight} onChange={setPadRight} min={0} unit="px" />
             <NumberField label="아래" value={padBottom} onChange={setPadBottom} min={0} unit="px" />
             <NumberField label="왼쪽" value={padLeft} onChange={setPadLeft} min={0} unit="px" />
-          </div>
+          </FieldRow>
         </div>
         <SegmentedControl
           label="주축 정렬"
@@ -128,22 +128,22 @@ export function FrameProperties() {
         />
       </PropertySection>
 
-      <PropertySection title="Size">
-        <div className="grid grid-cols-2 gap-2">
-          <SizeField label="너비 (W)" value={width} onChange={setWidth} />
-          <SizeField label="높이 (H)" value={height} onChange={setHeight} />
-        </div>
-      </PropertySection>
+      <SizeSection
+        width={width}
+        height={height}
+        onWidthChange={setWidth}
+        onHeightChange={setHeight}
+      />
 
       <PropertySection title="Background">
         <ColorField label="배경색" value={bgColor} onChange={setBgColor} />
       </PropertySection>
 
       <PropertySection title="Border">
-        <div className="grid grid-cols-2 gap-2">
+        <FieldRow>
           <NumberField label="두께" value={borderWidth} onChange={setBorderWidth} min={0} unit="px" />
-          <NumberField label="라운드" value={borderRadius} onChange={setBorderRadius} min={0} unit="px" />
-        </div>
+          <NumberField label="모서리 반경" value={borderRadius} onChange={setBorderRadius} min={0} unit="px" />
+        </FieldRow>
         <ColorField label="테두리색" value={borderColor} onChange={setBorderColor} />
       </PropertySection>
     </>
