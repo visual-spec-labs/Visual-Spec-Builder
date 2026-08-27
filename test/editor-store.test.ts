@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 
 import { validateVisualSpec } from "@/features/editor/schema";
+import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { getByPath, setByPath } from "@/features/editor/store/path";
 
@@ -70,5 +71,19 @@ describe("editorStore", () => {
     const before = useEditorStore.getState().spec;
     useEditorStore.getState().setNodeField("does-not-exist", "box.width", 10);
     expect(useEditorStore.getState().spec).toBe(before);
+  });
+
+  it("loadSpec은 spec을 통째로 교체하고 selectedId를 초기화한다", () => {
+    useEditorStore.getState().select("cardA");
+
+    const nextSpec = { ...blankSpec };
+    useEditorStore.getState().loadSpec(nextSpec);
+
+    expect(useEditorStore.getState().spec).toBe(nextSpec);
+    expect(useEditorStore.getState().selectedId).toBeNull();
+  });
+
+  it("blankSpec(File > New)은 그 자체로 유효한 스펙이다", () => {
+    expect(validateVisualSpec(blankSpec)).toEqual({ valid: true, issues: [] });
   });
 });
