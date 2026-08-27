@@ -1,127 +1,69 @@
-import { useState, type ReactNode } from "react";
+import { useEditorStore } from "@/features/editor/store/editorStore";
 
-const inputCls =
-  "rounded-control border border-line bg-surface-inset px-2 py-1 text-xs text-content";
+import { ExportJsonButton } from "./properties/ExportJsonButton";
+import { FrameProperties } from "./properties/FrameProperties";
+import { TextProperties } from "./properties/TextProperties";
+import { useNodeField } from "./properties/useNodeField";
+import { ToggleField } from "./properties/fields";
 
-/** 섹션(그룹) — 디자인의 LAYOUT/COLOR 등 대문자 라벨 그룹. */
-function Section({ title, children }: { title: string; children: ReactNode }) {
+const TYPE_LABEL: Record<string, string> = {
+  frame: "Frame",
+  text: "Text",
+};
+
+/** 노드 이름 + 타입 배지 + 표시 토글. 패널 맨 위 공통 영역. */
+function NodeHeader({ typeLabel }: { typeLabel: string }) {
+  const [name, setName] = useNodeField<string>("name");
+  const [visible, setVisible] = useNodeField<boolean>("visible");
+
   return (
-    <section className="flex flex-col gap-2 border-t border-line px-3 py-3">
-      <h3 className="text-xs font-semibold tracking-wide text-content-muted uppercase">
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
-/**
- * 라벨 + 입력 한 줄. 입력은 uncontrolled(포커스·타이핑만 되는 UI 인터랙션)이며
- * 값을 저장·처리하지 않는다(비즈니스 로직 없음).
- */
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <label className="flex items-center justify-between gap-3 text-xs text-content-muted">
-      <span className="shrink-0">{label}</span>
-      <input type="text" defaultValue={value} className={`w-32 ${inputCls}`} />
-    </label>
-  );
-}
-
-/**
- * 색상 스와치(피커) + hex 표시. 피커와 표시값은 로컬 상태로 동기화된다.
- * 값을 어디에도 저장·처리하지 않는 UI 인터랙션용. aria-label에 섹션명을 반영.
- */
-function ColorRow({
-  label,
-  color,
-  opacity,
-}: {
-  label: string;
-  color: string;
-  opacity?: string;
-}) {
-  const [value, setValue] = useState(color);
-  const display = opacity ? `${value.toUpperCase()} ${opacity}` : value.toUpperCase();
-  return (
-    <div className="flex items-center gap-1.5">
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        aria-label={`${label} 색상`}
-        className="size-6 shrink-0 rounded-control border border-line bg-surface-inset"
-      />
-      <input
-        type="text"
-        value={display}
-        readOnly
-        aria-label={`${label} 색상 값`}
-        className={`flex-1 ${inputCls}`}
-      />
-    </div>
-  );
-}
-
-/** 우측 세부설정 패널 — Figma 디자인 기준 레이아웃 + UI 인터랙션(비즈니스 로직 없음). */
-export function PropertiesPanel() {
-  return (
-    <aside className="flex flex-col overflow-auto border-l border-line bg-surface [grid-area:props]">
-      <header className="flex items-center gap-2 px-3 py-3">
-        <span className="truncate font-semibold text-content">ProductTable</span>
-        <span className="rounded-control bg-surface-raised px-1.5 py-0.5 text-xs text-content-muted">
-          Table
+    <header className="flex flex-col gap-2 border-b border-line px-3 py-3">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          aria-label="노드 이름"
+          value={name ?? ""}
+          onChange={(event) => setName(event.target.value)}
+          className="min-w-0 flex-1 rounded-control border border-transparent px-1.5 py-1 text-sm font-semibold text-content hover:border-line focus:border-primary focus:outline-none"
+        />
+        <span className="shrink-0 rounded-control bg-surface-raised px-1.5 py-0.5 text-xs text-content-muted">
+          {typeLabel}
         </span>
-      </header>
-
-      <Section title="Layout">
-        <Row label="X" value="244" />
-        <Row label="Y" value="180" />
-        <Row label="W" value="772" />
-        <Row label="H" value="210" />
-        <Row label="Rotation" value="0°" />
-      </Section>
-
-      <Section title="Color">
-        <ColorRow label="Color" color="#1c1e22" opacity="100%" />
-      </Section>
-
-      <Section title="Background">
-        <ColorRow label="Background" color="#ffffff" opacity="100%" />
-      </Section>
-
-      <Section title="Font">
-        <Row label="Family" value="Manrope" />
-        <Row label="Weight" value="Semibold" />
-        <Row label="Size" value="14 px" />
-      </Section>
-
-      <Section title="Border">
-        <ColorRow label="Border" color="#ececed" />
-        <Row label="Width" value="1 px" />
-        <Row label="Radius" value="10" />
-      </Section>
-
-      <Section title="Shadow">
-        <Row label="Blur" value="24" />
-        <Row label="Spread" value="0" />
-        <ColorRow label="Shadow" color="#000000" opacity="18%" />
-      </Section>
-
-      <div className="mt-auto flex gap-2 border-t border-line p-3">
-        <button
-          type="button"
-          className="flex-1 rounded-control bg-primary px-3 py-1.5 text-center text-xs font-semibold text-text-on-accent hover:bg-primary-hover"
-        >
-          Apply
-        </button>
-        <button
-          type="button"
-          className="flex-1 rounded-control border border-line px-3 py-1.5 text-center text-xs font-semibold text-content hover:bg-hover"
-        >
-          Export JSON
-        </button>
       </div>
+      <ToggleField label="표시" value={visible ?? true} onChange={setVisible} />
+    </header>
+  );
+}
+
+/** 우측 세부설정 패널 — 선택 노드의 속성을 편집한다. */
+export function PropertiesPanel() {
+  const selectedId = useEditorStore((state) => state.selectedId);
+  const node = useEditorStore((state) =>
+    selectedId === null ? undefined : state.spec.screen.nodes[selectedId],
+  );
+
+  if (selectedId === null || node === undefined) {
+    return (
+      <aside className="flex flex-col overflow-auto border-l border-line bg-surface [grid-area:props]">
+        <h2 className="border-b border-line px-3 py-3 text-xs font-semibold tracking-wide text-content-muted uppercase">
+          Properties
+        </h2>
+        <p className="p-4 text-sm text-content-subtle">
+          노드를 선택하면 속성이 여기에 표시됩니다.
+        </p>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="flex flex-col overflow-hidden border-l border-line bg-surface [grid-area:props]">
+      <NodeHeader typeLabel={TYPE_LABEL[node.type] ?? node.type} />
+
+      <div className="flex-1 overflow-auto">
+        {node.type === "frame" ? <FrameProperties /> : <TextProperties />}
+      </div>
+
+      <ExportJsonButton />
     </aside>
   );
 }

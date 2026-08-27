@@ -19,29 +19,86 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
    ```
    실패하면 반환된 `issues`를 사용자에게 그대로 보여주고 **중단한다**. 임의로 고치지 않는다.
 3. **통과하면 아래 매핑 참고표를 따라 TSX 코드를 직접 작성한다.** 표에 없는 상황을 만나면
-   판단해서 채우되, 왜 그렇게 했는지 한 줄로 밝힌다.
-4. **파일 위치를 사용자에게 확인한다.** 대상 React 프로젝트 구조는 프로젝트마다 다르므로
-   추측하지 않고 반드시 묻는다.
-5. **파일을 쓰고 결과를 보고한다.** 대상 프로젝트의 prettier/eslint 같은 포매터는 사용자가
-   요청하지 않는 한 자동으로 돌리지 않는다.
+   판단해서 채우되, 왜 그렇게 했는지 한 줄로 밝힌다. 화면이 컴포넌트 여러 개로 쪼개질
+   상황이면 "컴포넌트 단위로 분리 생성한다" 절을 먼저 본다.
+4. **고정 워크스페이스 경로에 쓴다.** 대상 프로젝트 구조를 분석하거나 사용자에게 위치를
+   묻지 않는다. Visual Spec Builder는 라이브러리로 설치돼 프로젝트마다 폴더 구조가 다른
+   상태로 쓰이므로, 대상 프로젝트에 의존하지 않는 도구 전용 경로에 쓴다.
+   ```
+   .visual-spec/generated/pages/<PageName>.tsx
+   .visual-spec/generated/components/<ComponentName>.tsx
+   ```
+5. **파일을 쓰고 결과를 보고한다.** prettier/eslint 같은 포매터는 사용자가 요청하지 않는
+   한 자동으로 돌리지 않는다.
+
+## 컴포넌트 단위로 분리 생성한다
+
+지금까지는 화면 하나를 파일 하나에 통째로 담았다. 화면이 커지면(섹션이 여러 개거나,
+같은 모양이 반복되면) 페이지 파일 하나가 비대해지고 재사용도 안 된다. 아래 순서로
+여러 파일로 쪼갠다.
+
+### 1. 컴포넌트 경계를 정한다
+
+1. **root의 직계 자식(frame) 각각을 별도 컴포넌트 후보로 본다.** 예: `Header`, `Sidebar`,
+   `Content`. root 자신은 이들을 조합하는 **페이지 컴포넌트**가 된다.
+2. **그 안에서 형제 노드가 구조적으로 반복되면(같은 자식 구성, 다른 내용만) 그 반복
+   단위를 하위 컴포넌트로 뽑는다.** 예: `Content` 아래 `Card` 3개가 레이아웃·자식
+   타입이 똑같고 텍스트만 다르면 `StatCard` 컴포넌트 하나로 뽑고 3번 호출한다. 내용이
+   다른 부분(텍스트, 색상 등)은 props로 넘긴다. 스키마 자체에는 "컴포넌트"나 "props"
+   개념이 없다(v0.1 제외 범위) — 이건 스펙을 그대로 반영하는 게 아니라 **코드 생성
+   시점의 판단**이다.
+3. **반복이 없는 하위 트리는 그 부모 컴포넌트 파일 안에 인라인한다.** 모든 프레임을
+   따로 뽑지 않는다 — 재사용되지 않는데 파일만 늘리면 오히려 읽기 어렵다.
+4. 경계가 애매하면(형제가 완전히 같지는 않은데 비슷하다거나) 판단해서 정하되, 왜
+   그렇게 나눴는지 한 줄로 밝힌다.
+
+### 2. 의존성 순서대로 만든다
+
+자식 컴포넌트를 부모보다 먼저 만든다. 트리를 post-order로 순회하는 것과 같다 — 가장
+안쪽 반복 컴포넌트부터 시작해서 마지막에 페이지 컴포넌트를 만든다.
+
+```
+StatCard → StatCardGrid → Sidebar → Header → DashboardPage
+```
+
+각 컴포넌트를 만들 때마다(대기 → 진행 → 완료) 진행 상황을 짧게 보고한다. 하나가
+실패해도("여러 화면을 한 번에 처리한다"와 같은 원칙으로) 나머지 컴포넌트는 계속
+만들고, 실패한 것만 표시해 보고한다.
+
+### 3. 상대 경로로 import한다
+
+`@/` 같은 프로젝트 전용 별칭을 쓰지 않는다. `.visual-spec/generated/`가 어느 프로젝트에
+설치되든 그대로 동작해야 하기 때문이다 — 별칭은 그 프로젝트의 tsconfig 설정에 의존하는데,
+설치 대상마다 설정이 다르거나 아예 없을 수 있다.
+
+```tsx
+// components/StatCardGrid.tsx
+import { StatCard } from "./StatCard";
+
+// pages/DashboardPage.tsx
+import { StatCardGrid } from "../components/StatCardGrid";
+import { Sidebar } from "../components/Sidebar";
+```
+
+같은 폴더는 `./`, 상위 폴더로 나갈 땐 `../`만 쓴다. 파일 위치(`pages/` vs `components/`)가
+정해져 있으므로 상대 경로 depth는 항상 예측 가능하다.
 
 ## 여러 화면을 한 번에 처리한다
 
 요청에 Visual Spec JSON이 여러 개 걸리면(경로 목록, 폴더, "다 변환해줘" 같은 요청) 위
-실행 순서를 파일마다 반복하되 아래 두 가지는 다르게 한다.
+실행 순서를 파일마다 반복하되 아래는 다르게 한다.
 
 - **하나가 검증에 실패해도 배치를 멈추지 않는다.** 단일 파일 처리 때는 실패하면 그 자리에서
   중단하지만, 배치에서는 그 파일의 실패를 기록해두고 나머지 파일은 계속 처리한다. 화면
   9개 중 1개가 틀렸다고 나머지 8개까지 막을 이유가 없다.
-- **파일 위치는 배치 전체에 같은 컨벤션이 적용되는지 먼저 확인하고, 파일마다 다시 묻지
-  않는다.** ([analyze-target-project](../analyze-target-project/SKILL.md)를 이미 돌렸으면
-  그 결과를 그대로 쓴다.) 컨벤션이 화면마다 다를 걸로 보이면 그때만 개별로 묻는다.
+
+(파일 위치는 4번과 같이 항상 고정 경로라, 배치라고 해서 미리 확인할 것이 따로 없다.)
 
 끝나면 파일별 결과를 표로 보고한다.
 
 | 파일 | 컴포넌트 | 결과 |
 |---|---|---|
-| `login-screen.json` | `Login` | 작성됨 — `src/screens/Login.tsx` |
+| `login-screen.json` | `Login` | 작성됨 — `.visual-spec/generated/pages/Login.tsx` |
 | `dashboard-cards.json` | `DashboardPage` | 검증 실패 — `child-missing` 1건 |
 
 표는 요약일 뿐이다. 실패한 파일은 표 아래에 `issues` 전체를 그대로 붙인다 — 단일 파일
@@ -50,17 +107,13 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
 ## 이미 생성한 파일을 다시 만들 때
 
 [visual-spec-authoring](../visual-spec-authoring/SKILL.md)에서 후속 피드백("버튼 색
-바꿔줘" 등)을 반영해 원본 스펙 JSON을 고치고 넘어온 경우다. 새 화면을 처음 만들 때와
-다르게 동작하는 두 가지가 있다.
+바꿔줘" 등)을 반영해 원본 스펙 JSON을 고치고 넘어온 경우다. 같은 스펙은 항상 같은
+경로(4번)에 쓰이므로 원래 파일을 그대로 덮어쓰면 된다 — 새로 만들 때와 위치를 다시
+정할 이유가 없다. 새 화면을 처음 만들 때와 다르게 동작하는 건 이것 하나뿐이다.
 
-- **4번(파일 위치 확인)을 건너뛴다.** 원래 파일을 그대로 덮어쓴다 — 어디 있는지 이미
-  안다. 위치가 불분명하면(예: 대화 맥락이 끊겼다) 그때만 다시 묻는다.
 - **결과를 새 코드 전체가 아니라 무엇이 바뀌었는지 diff로 요약해 보고한다.** 사용자가
   요청한 건 "버튼 색 바꿔줘" 하나인데 파일 전체를 다시 붙여 넣으면 실제로 뭐가
   바뀐 건지 찾기 어렵다.
-
-배치로 만든 화면들에 후속 피드백이 와서 위 절과 이 절이 겹칠 때는 이 절이 앞선다 —
-배치 전체에 한 번 위치를 확인하는 것도 생략하고 각 원래 파일을 덮어쓴다.
 
 ## 매핑 참고표
 
@@ -96,7 +149,8 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
 
 ## 예제
 
-`examples/login-screen.json`을 위 규칙대로 변환하면 이런 모양이 나와야 한다.
+`examples/login-screen.json`을 위 규칙대로 변환하면 이런 모양이 나와야 한다. 이 화면은
+반복되는 형제가 없어서 분리 없이 파일 하나로 끝난다.
 
 ```tsx
 export default function Login() {
@@ -112,6 +166,79 @@ export default function Login() {
 ```
 
 결과가 이 예제와 크게 다르면 위 매핑표가 불충분한 것이니 표를 먼저 의심한다.
+
+### 분리 생성 예제
+
+`examples/dashboard-cards.json`은 `content` 아래 `cardA`/`cardB`가 레이아웃·자식 구성이
+똑같고 텍스트만 다르다 — "컴포넌트 단위로 분리 생성한다" 규칙이 적용되는 경우다.
+
+- root의 직계 자식 `header`, `content` → 컴포넌트 후보
+- `content` 안의 `cardA`/`cardB`(둘 다 `name: "Card"`, 구조 동일) → 반복 컴포넌트 `Card`로
+  추출, `label`/`value`를 props로
+- `header`는 자식이 `headerTitle` 하나뿐이라 반복이 없다 → `Header.tsx`에 인라인
+
+```tsx
+// .visual-spec/generated/components/Card.tsx
+interface CardProps {
+  label: string;
+  value: string;
+}
+
+export function Card({ label, value }: CardProps) {
+  return (
+    <div className="flex flex-col gap-[8px] pt-[20px] pr-[20px] pb-[20px] pl-[20px] justify-start items-start bg-[#FFFFFF] border-[1px] border-[#E5E7EB] rounded-[12px] flex-1 h-auto">
+      <p className="w-auto h-auto text-[#6B7280] [font-family:'Pretendard'] text-[13px] font-medium leading-[18px] tracking-[0px] text-left">{label}</p>
+      <p className="w-auto h-auto text-[#111111] [font-family:'Pretendard'] text-[28px] font-bold leading-[36px] tracking-[-0.4px] text-left">{value}</p>
+    </div>
+  );
+}
+```
+
+```tsx
+// .visual-spec/generated/components/Content.tsx
+import { Card } from "./Card";
+
+export function Content() {
+  return (
+    <div className="flex flex-row gap-[16px] pt-[0px] pr-[0px] pb-[0px] pl-[0px] justify-start items-stretch self-stretch h-auto">
+      <Card label="총 방문자" value="12,480" />
+      <Card label="전환율" value="3.7%" />
+    </div>
+  );
+}
+```
+
+```tsx
+// .visual-spec/generated/components/Header.tsx
+export function Header() {
+  return (
+    <div className="flex flex-col gap-[0px] pt-[0px] pr-[0px] pb-[0px] pl-[0px] justify-start items-start self-stretch h-auto">
+      <p className="w-auto h-auto text-[#111111] [font-family:'Pretendard'] text-[28px] font-bold leading-[36px] tracking-[-0.6px] text-left">대시보드</p>
+    </div>
+  );
+}
+```
+
+```tsx
+// .visual-spec/generated/pages/DashboardPage.tsx
+import { Header } from "../components/Header";
+import { Content } from "../components/Content";
+
+export default function DashboardPage() {
+  return (
+    <div className="flex flex-col gap-[24px] pt-[32px] pr-[32px] pb-[32px] pl-[32px] justify-start items-stretch bg-[#F7F8FA] w-full h-full">
+      <Header />
+      <Content />
+    </div>
+  );
+}
+```
+
+의존 관계는 `Card → Content`, `{Header, Content} → DashboardPage`뿐이다. **자식이 부모보다
+먼저면 된다** — `Header`는 아무것도 의존하지 않으니 아무 때나(`Card`보다 먼저도) 만들 수
+있고, `Content`는 `Card`가 있어야 한다. `DashboardPage`는 `Header`와 `Content`가 둘 다
+끝난 뒤 마지막에 만든다. 형제 사이의 순서 자체는 자유다 — 의존하지 않는 컴포넌트끼리는
+어느 쪽을 먼저 만들어도 상관없다.
 
 ---
 

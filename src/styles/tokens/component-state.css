@@ -62,4 +62,8 @@
   --toolbar-border: var(--color-border-subtle);
   --toolbar-icon: var(--color-content-muted);
   --toolbar-icon-hover: var(--color-content);
+
+  /* ── Canvas ───────────────────────────────────────────── */
+  --canvas-grid-size: var(--gap-2xl);
+  --canvas-grid-line: var(--color-border-subtle);
 }

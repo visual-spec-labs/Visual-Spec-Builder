@@ -9,6 +9,7 @@
   --gap-md: var(--space-3);
   --gap-lg: var(--space-5);
   --gap-xl: var(--space-7);
+  --gap-2xl: var(--space-8);
 
   --padding-control: var(--space-3);
   --padding-panel: var(--space-5);

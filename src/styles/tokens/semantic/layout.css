@@ -8,4 +8,6 @@
   --layout-menubar-height: var(--size-60); /* 상단 메뉴바 높이 */
   --layout-tree-width: var(--size-300); /* 좌측 레이어 트리 폭 */
   --layout-props-width: var(--size-350); /* 우측 세부설정 패널 폭 */
+  --layout-tree-width-collapsed: var(--size-0); /* Panels/Sidebars 숨김 시 좌측 폭 */
+  --layout-props-width-collapsed: var(--size-0); /* Panels/Sidebars 숨김 시 우측 폭 */
 }
