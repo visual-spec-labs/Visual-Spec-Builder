@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
+import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
+import { openSpecFromFile } from "@/features/editor/ui/openSpecFromFile";
 
 type MenuKey = "file" | "view";
 
@@ -13,16 +15,19 @@ type SeparatorEntry = { kind: "separator" };
 
 type MenuEntry = ActionEntry | ToggleEntry | SeparatorEntry;
 
-/** New/Open/Save/Save as/Import는 이번 범위 밖 — 클릭해도 메뉴만 닫히고 실제 동작은 없다. */
+/** Save/Save as/Import는 이번 범위 밖 — 클릭해도 메뉴만 닫히고 실제 동작은 없다. */
 function noop() {
   /* 이후 이슈에서 연결 */
 }
 
 /**
  * 상단 메뉴바 — Figma 디자인 기준 레이아웃(로고·브랜드·중앙 프로젝트명·테마 토글) +
- * File/View 드롭다운. New/Open/Save/Save as/Import는 이후 이슈에서 연결한다.
- * Export는 exportSpecAsJson으로 연결돼 있다(검증 실패 시 다운로드 대신
- * 콘솔에 경고만 남긴다 — 메뉴 컨텍스트에 인라인 에러 UI가 없어서 낸 절충).
+ * File/View 드롭다운. Save/Save as/Import는 이후 이슈에서 연결한다.
+ * New는 loadSpec(blankSpec), Open은 openSpecFromFile(파일 선택 → 검증 →
+ * loadSpec)로 연결돼 있다. Export는 exportSpecAsJson으로 연결돼 있다.
+ * 검증 실패 시 Export는 다운로드 대신 콘솔 경고만 남기고(메뉴 컨텍스트에
+ * 인라인 에러 UI가 없어서 낸 절충), Open은 사용자가 고른 파일이 원인이라
+ * 조용히 실패하면 원인을 알 수 없어 최소한의 alert로 알린다.
  * View 항목은 viewStore(줌·그리드·패널 표시)에 연결돼 있다.
  * Help은 gui-spec.md 기준 MVP 제외.
  */
@@ -31,6 +36,7 @@ export function MenuBar() {
   const rootRef = useRef<HTMLElement>(null);
 
   const spec = useEditorStore((s) => s.spec);
+  const loadSpec = useEditorStore((s) => s.loadSpec);
   const zoomIn = useViewStore((s) => s.zoomIn);
   const zoomOut = useViewStore((s) => s.zoomOut);
   const fitToScreen = useViewStore((s) => s.fitToScreen);
@@ -40,8 +46,8 @@ export function MenuBar() {
   const togglePanels = useViewStore((s) => s.togglePanels);
 
   const FILE_MENU: MenuEntry[] = [
-    { kind: "action", label: "New", onSelect: noop },
-    { kind: "action", label: "Open", onSelect: noop },
+    { kind: "action", label: "New", onSelect: () => loadSpec(blankSpec) },
+    { kind: "action", label: "Open", onSelect: openSpecFromFile },
     { kind: "action", label: "Save", onSelect: noop },
     { kind: "action", label: "Save as", onSelect: noop },
     { kind: "separator" },
