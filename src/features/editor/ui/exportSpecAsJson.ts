@@ -24,3 +24,27 @@ export function exportSpecAsJson(spec: VisualSpec): ExportResult {
   }
   return result;
 }
+
+/**
+ * 파일명을 물어본 뒤 JSON으로 내보낸다(Save as). 검증 실패 시 다운로드
+ * 대신 alert로 알린다 — Open과 동일한 실패 안내 패턴(사용자 조작이
+ * 원인이라 조용히 실패하면 원인을 알 수 없다). prompt를 취소하면
+ * null을 돌려주고 아무 동작도 하지 않는다.
+ */
+export function saveSpecAsJson(spec: VisualSpec): ExportResult | null {
+  const result = buildExportPayload(spec);
+  if (!result.ok) {
+    window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
+    return result;
+  }
+
+  const chosenName = window.prompt("파일명", result.filename);
+  if (chosenName === null) {
+    return null;
+  }
+
+  const trimmedName = chosenName.trim() || result.filename;
+  const filename = trimmedName.endsWith(".json") ? trimmedName : `${trimmedName}.json`;
+  downloadJson(filename, result.json);
+  return result;
+}
