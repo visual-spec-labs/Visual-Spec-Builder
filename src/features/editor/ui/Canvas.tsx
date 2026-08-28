@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent } from "react";
+import { useEffect, useRef, type CSSProperties, type MouseEvent } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
@@ -134,9 +134,35 @@ export function Canvas() {
   const select = useEditorStore((state) => state.select);
   const zoom = useViewStore((s) => s.zoom);
   const showGrid = useViewStore((s) => s.showGrid);
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const node = mainRef.current;
+    if (!node) return;
+
+    function handleWheel(event: WheelEvent) {
+      // 일반 휠/트랙패드 스크롤은 overflow-auto 네이티브 스크롤(팬)에 맡긴다.
+      // Ctrl+휠(트랙패드 핀치도 브라우저가 ctrlKey=true로 보낸다)만 줌으로 가로챈다.
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const { zoomIn, zoomOut } = useViewStore.getState();
+      if (event.deltaY < 0) {
+        zoomIn();
+      } else if (event.deltaY > 0) {
+        zoomOut();
+      }
+    }
+
+    // React의 JSX onWheel은 passive 리스너로 등록될 수 있어 preventDefault가
+    // 안 먹는다 — { passive: false }로 직접 등록해야 브라우저 기본 페이지
+    // 줌을 확실히 막을 수 있다.
+    node.addEventListener("wheel", handleWheel, { passive: false });
+    return () => node.removeEventListener("wheel", handleWheel);
+  }, []);
 
   return (
     <main
+      ref={mainRef}
       className="relative overflow-auto bg-surface-canvas p-8 [grid-area:canvas]"
       onClick={() => select(null)}
     >
