@@ -2,7 +2,9 @@ import { useEffect, useRef, type CSSProperties, type MouseEvent } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
-import type { FrameNode, NodeId, Size, TextNode } from "@/features/editor/schema";
+import type { FrameNode, NodeId, TextNode } from "@/features/editor/schema";
+
+import { boxStyle, type Direction } from "./canvasLayout";
 
 /**
  * 중앙 캔버스.
@@ -25,13 +27,10 @@ const CROSS_AXIS: Record<string, CSSProperties["alignItems"]> = {
   stretch: "stretch",
 };
 
-function sizeToCss(size: Size): string {
-  if (size === "fill") return "100%";
-  if (size === "auto") return "auto";
-  return `${size}px`;
-}
-
-function frameStyle(node: FrameNode): CSSProperties {
+function frameStyle(
+  node: FrameNode,
+  parentDirection: Direction | undefined,
+): CSSProperties {
   const { layout } = node;
   return {
     display: "flex",
@@ -43,8 +42,7 @@ function frameStyle(node: FrameNode): CSSProperties {
     paddingLeft: layout.padding.left,
     justifyContent: MAIN_AXIS[layout.mainAxis],
     alignItems: CROSS_AXIS[layout.crossAxis],
-    width: sizeToCss(node.box.width),
-    height: sizeToCss(node.box.height),
+    ...boxStyle(node.box, parentDirection),
     background: node.background?.color,
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
@@ -54,11 +52,13 @@ function frameStyle(node: FrameNode): CSSProperties {
   };
 }
 
-function textStyle(node: TextNode): CSSProperties {
+function textStyle(
+  node: TextNode,
+  parentDirection: Direction | undefined,
+): CSSProperties {
   const { typography } = node;
   return {
-    width: sizeToCss(node.box.width),
-    height: sizeToCss(node.box.height),
+    ...boxStyle(node.box, parentDirection),
     color: node.color,
     fontFamily: typography.fontFamily,
     fontSize: typography.fontSize,
@@ -70,7 +70,14 @@ function textStyle(node: TextNode): CSSProperties {
   };
 }
 
-function RenderNode({ id }: { id: NodeId }) {
+function RenderNode({
+  id,
+  parentDirection,
+}: {
+  id: NodeId;
+  /** 부모 프레임의 레이아웃 방향. 최상위 노드는 부모가 없어 undefined. */
+  parentDirection?: Direction;
+}) {
   const node = useEditorStore((state) => state.spec.screen.nodes[id]);
   const selectedId = useEditorStore((state) => state.selectedId);
   const select = useEditorStore((state) => state.select);
@@ -89,16 +96,26 @@ function RenderNode({ id }: { id: NodeId }) {
 
   if (node.type === "text") {
     return (
-      <div style={{ ...textStyle(node), ...outline }} onClick={handleClick}>
+      <div
+        style={{ ...textStyle(node, parentDirection), ...outline }}
+        onClick={handleClick}
+      >
         {node.content}
       </div>
     );
   }
 
   return (
-    <div style={{ ...frameStyle(node), ...outline }} onClick={handleClick}>
+    <div
+      style={{ ...frameStyle(node, parentDirection), ...outline }}
+      onClick={handleClick}
+    >
       {node.children.map((child) => (
-        <RenderNode key={child.node} id={child.node} />
+        <RenderNode
+          key={child.node}
+          id={child.node}
+          parentDirection={node.layout.direction}
+        />
       ))}
     </div>
   );

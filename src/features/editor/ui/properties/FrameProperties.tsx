@@ -17,6 +17,9 @@ import {
   StretchVertical,
 } from "lucide-react";
 
+import type { Border } from "@/features/editor/schema";
+
+import { mergeBorder } from "./borderPatch";
 import { PropertySection } from "./PropertySection";
 import { SizeSection } from "./SizeSection";
 import { useNodeField } from "./useNodeField";
@@ -89,11 +92,13 @@ export function FrameProperties() {
 
   const [bgColor, setBgColor] = useNodeField<string>("background.color");
 
-  const [borderWidth, setBorderWidth] = useNodeField<number>("border.width");
-  const [borderColor, setBorderColor] = useNodeField<string>("border.color");
-  const [borderRadius, setBorderRadius] = useNodeField<number>("border.radius");
+  const [border, setBorder] = useNodeField<Border>("border");
 
   const dir: Direction = direction ?? "column";
+
+  function updateBorder(patch: Partial<Border>) {
+    setBorder(mergeBorder(border, patch));
+  }
 
   return (
     <>
@@ -141,10 +146,26 @@ export function FrameProperties() {
 
       <PropertySection title="Border">
         <FieldRow>
-          <NumberField label="두께" value={borderWidth} onChange={setBorderWidth} min={0} unit="px" />
-          <NumberField label="모서리 반경" value={borderRadius} onChange={setBorderRadius} min={0} unit="px" />
+          <NumberField
+            label="두께"
+            value={border?.width}
+            onChange={(width) => updateBorder({ width })}
+            min={0}
+            unit="px"
+          />
+          <NumberField
+            label="모서리 반경"
+            value={border?.radius}
+            onChange={(radius) => updateBorder({ radius })}
+            min={0}
+            unit="px"
+          />
         </FieldRow>
-        <ColorField label="테두리색" value={borderColor} onChange={setBorderColor} />
+        <ColorField
+          label="테두리색"
+          value={border?.color}
+          onChange={(color) => updateBorder({ color })}
+        />
       </PropertySection>
     </>
   );
