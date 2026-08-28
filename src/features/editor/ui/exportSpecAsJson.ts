@@ -1,5 +1,9 @@
 import type { VisualSpec } from "@/features/editor/schema";
-import { buildExportPayload, type ExportResult } from "@/features/editor/store/exportSpec";
+import {
+  buildExportPayload,
+  resolveFilename,
+  type ExportResult,
+} from "@/features/editor/store/exportSpec";
 
 /**
  * 브라우저 다운로드를 트리거하는 UI 레이어 래퍼(DOM 부수효과).
@@ -43,8 +47,6 @@ export function saveSpecAsJson(spec: VisualSpec): ExportResult | null {
     return null;
   }
 
-  const trimmedName = chosenName.trim() || result.filename;
-  const filename = trimmedName.endsWith(".json") ? trimmedName : `${trimmedName}.json`;
-  downloadJson(filename, result.json);
+  downloadJson(resolveFilename(chosenName, result.filename), result.json);
   return result;
 }

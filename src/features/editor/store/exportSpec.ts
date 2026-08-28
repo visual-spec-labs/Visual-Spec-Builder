@@ -22,3 +22,12 @@ export function buildExportPayload(spec: VisualSpec): ExportResult {
     json: JSON.stringify(spec, null, 2),
   };
 }
+
+/**
+ * Save as의 파일명 prompt 결과를 정리한다(순수 함수, DOM 없음 — 테스트 대상).
+ * 공백만 입력하면 기본 파일명으로 대체하고, .json 접미사가 없으면 붙인다.
+ */
+export function resolveFilename(chosenName: string, defaultFilename: string): string {
+  const trimmed = chosenName.trim() || defaultFilename;
+  return trimmed.endsWith(".json") ? trimmed : `${trimmed}.json`;
+}

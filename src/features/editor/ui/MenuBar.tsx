@@ -21,6 +21,20 @@ function noop() {
 }
 
 /**
+ * spec을 렌더 시점 구독값이 아니라 클릭 시점에 getState()로 읽는다.
+ * MenuBar가 s.spec을 구독하면 속성 패널에서 필드를 편집할 때마다
+ * (가장 빈번한 리렌더) 매번 새 클로저가 생기고 재구독까지 하게 된다.
+ * Export/Save/Save as는 클릭 때만 최신 spec이 필요하므로 반응형 구독이
+ * 필요 없다.
+ */
+function handleExport() {
+  exportSpecAsJson(useEditorStore.getState().spec);
+}
+function handleSaveAs() {
+  saveSpecAsJson(useEditorStore.getState().spec);
+}
+
+/**
  * 상단 메뉴바 — Figma 디자인 기준 레이아웃(로고·브랜드·중앙 프로젝트명·테마 토글) +
  * File/View 드롭다운. Import는 이후 이슈에서 연결한다.
  * New는 loadSpec(blankSpec), Open은 openSpecFromFile(파일 선택 → 검증 →
@@ -38,7 +52,6 @@ export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const rootRef = useRef<HTMLElement>(null);
 
-  const spec = useEditorStore((s) => s.spec);
   const loadSpec = useEditorStore((s) => s.loadSpec);
   const zoomIn = useViewStore((s) => s.zoomIn);
   const zoomOut = useViewStore((s) => s.zoomOut);
@@ -51,11 +64,11 @@ export function MenuBar() {
   const FILE_MENU: MenuEntry[] = [
     { kind: "action", label: "New", onSelect: () => loadSpec(blankSpec) },
     { kind: "action", label: "Open", onSelect: openSpecFromFile },
-    { kind: "action", label: "Save", onSelect: () => exportSpecAsJson(spec) },
-    { kind: "action", label: "Save as", onSelect: () => saveSpecAsJson(spec) },
+    { kind: "action", label: "Save", onSelect: handleExport },
+    { kind: "action", label: "Save as", onSelect: handleSaveAs },
     { kind: "separator" },
     { kind: "action", label: "Import", onSelect: noop },
-    { kind: "action", label: "Export", onSelect: () => exportSpecAsJson(spec) },
+    { kind: "action", label: "Export", onSelect: handleExport },
   ];
 
   const VIEW_MENU: MenuEntry[] = [
