@@ -15,10 +15,13 @@ import {
 
 type TextAlign = "left" | "center" | "right";
 
+/**
+ * 실제로 로드된 폰트만 노출한다. src/styles/fonts.css가 Pretendard만 불러오므로
+ * Manrope·Inter를 골라도 폰트 파일이 없어 기본 폰트로 조용히 떨어졌다.
+ * 폰트를 늘리려면 fonts.css에 @font-face를 먼저 추가한다.
+ */
 const FONT_FAMILY_OPTIONS = [
   { value: "Pretendard", label: "Pretendard" },
-  { value: "Manrope", label: "Manrope" },
-  { value: "Inter", label: "Inter" },
   { value: "system-ui", label: "System UI" },
 ] as const;
 
