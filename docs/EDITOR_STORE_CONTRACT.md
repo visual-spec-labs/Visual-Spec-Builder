@@ -19,7 +19,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 ---
 
-## 2. 스토어가 제공하는 것 — 계약의 전부 (4개)
+## 2. 스토어가 제공하는 것 — 계약의 전부 (5개)
 
 | 이름 | 타입 | 뭐냐 | 누가 쓰나 |
 |---|---|---|---|
@@ -27,6 +27,11 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `selectedId` | `NodeId \| null` | 지금 선택된 노드 id | 셋 다 **읽음** (하이라이트) |
 | `select` | `(id: NodeId \| null) => void` | 노드 선택 / 해제 | **트리 · 캔버스**가 호출 |
 | `setNodeField` | `(id: NodeId, path: string, value: unknown) => void` | 값 하나 변경 | **패널 · 캔버스(드래그)**가 호출 |
+| `loadSpec` | `(spec: VisualSpec) => void` | 스펙 전체 교체 + 선택 해제(New/Open) | **MenuBar**가 호출 |
+
+`loadSpec`은 `spec`을 통째로 바꾸면서 `selectedId`도 함께 `null`로 리셋한다.
+그러지 않으면 새 스펙에 우연히 같은 id(`root`, `cardA` 등)가 있을 때
+의도치 않은 노드가 선택된 것처럼 보일 수 있다.
 
 `setNodeField`의 `path`는 노드 내부 경로를 점(`.`)으로 표기한다.
 
