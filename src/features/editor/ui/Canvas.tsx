@@ -1,6 +1,13 @@
-import { useEffect, useRef, type CSSProperties, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type MouseEvent,
+  type RefObject,
+} from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import type { FrameNode, NodeId, TextNode } from "@/features/editor/schema";
 
@@ -70,6 +77,36 @@ function textStyle(
   };
 }
 
+/**
+ * 선택된 노드가 실제로 몇 px로 그려졌는지 재서 스토어에 올린다.
+ * transform: scale은 offsetWidth/Height에 영향을 주지 않으므로 줌과 무관한 실측값이다.
+ */
+function useReportMeasuredSize(
+  ref: RefObject<HTMLDivElement | null>,
+  active: boolean,
+) {
+  useEffect(() => {
+    const element = ref.current;
+    if (!active || element === null) return;
+
+    function report() {
+      if (element === null) return;
+      useMeasureStore.getState().setSize({
+        width: Math.round(element.offsetWidth),
+        height: Math.round(element.offsetHeight),
+      });
+    }
+
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      useMeasureStore.getState().setSize(null);
+    };
+  }, [ref, active]);
+}
+
 function RenderNode({
   id,
   parentDirection,
@@ -81,12 +118,15 @@ function RenderNode({
   const node = useEditorStore((state) => state.spec.screen.nodes[id]);
   const selectedId = useEditorStore((state) => state.selectedId);
   const select = useEditorStore((state) => state.select);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = selectedId === id;
+
+  useReportMeasuredSize(ref, selected && node?.visible !== false);
 
   if (node === undefined || node.visible === false) {
     return null;
   }
 
-  const selected = selectedId === id;
   const outline = selected ? { outline: "2px solid #F97316", outlineOffset: 1 } : {};
 
   function handleClick(event: MouseEvent) {
@@ -97,6 +137,7 @@ function RenderNode({
   if (node.type === "text") {
     return (
       <div
+        ref={ref}
         style={{ ...textStyle(node, parentDirection), ...outline }}
         onClick={handleClick}
       >
@@ -107,6 +148,7 @@ function RenderNode({
 
   return (
     <div
+      ref={ref}
       style={{ ...frameStyle(node, parentDirection), ...outline }}
       onClick={handleClick}
     >
@@ -148,9 +190,11 @@ const ZOOM_SCALE_CLASS: Record<number, string> = {
 export function Canvas() {
   const root = useEditorStore((state) => state.spec.screen.root);
   const size = useEditorStore((state) => state.spec.screen.size);
+  const screenName = useEditorStore((state) => state.spec.screen.name);
   const select = useEditorStore((state) => state.select);
   const zoom = useViewStore((s) => s.zoom);
   const showGrid = useViewStore((s) => s.showGrid);
+  const viewport = useViewStore((s) => s.viewport);
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -177,19 +221,89 @@ export function Canvas() {
     return () => node.removeEventListener("wheel", handleWheel);
   }, []);
 
+  // 뷰포트 실측값을 스토어에 올린다 — Fit to Screen이 이 값으로 확대율을 계산한다.
+  useEffect(() => {
+    const node = mainRef.current;
+    if (node === null) return;
+
+    function report() {
+      if (node === null) return;
+      const style = getComputedStyle(node);
+      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      useViewStore.getState().setViewport({
+        width: Math.max(0, node.clientWidth - padX),
+        height: Math.max(0, node.clientHeight - padY),
+      });
+    }
+
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    useViewStore.getState().setContent(size);
+  }, [size]);
+
+  // 처음 열었을 때는 Figma처럼 아트보드 전체가 보이도록 맞춘다.
+  // 100%로 시작하면 아트보드가 뷰포트보다 커서 캔버스 바탕이 안 보이고,
+  // 아트보드가 "캔버스 위에 얹힌 오브젝트"로 읽히지 않는다.
+  const didFit = useRef(false);
+  useEffect(() => {
+    if (didFit.current || viewport === null) return;
+    didFit.current = true;
+    useViewStore.getState().fitToScreen();
+  }, [viewport]);
+
+  const scale = zoom / 100;
+
   return (
     <main
       ref={mainRef}
       className="relative overflow-auto bg-surface-canvas p-8 [grid-area:canvas]"
       onClick={() => select(null)}
     >
+      {/*
+        TODO(캔버스 담당): 격자를 Figma처럼 "캔버스 평면에 깔린" 배경으로 바꿀 것.
+        지금은 absolute inset-0으로 뷰포트에 고정돼 있어, 스크롤·줌을 해도 격자가
+        따라 움직이지 않고 벽지처럼 제자리에 머문다. 그래서 아트보드가 캔버스 위에
+        놓여 있다는 느낌이 깨진다. 격자는 아트보드와 같은 변환(스크롤 오프셋 + 줌)을
+        받는 레이어에 그려야 하고, 칸 크기도 줌에 비례해야 한다
+        (--canvas-grid-size * scale). 스냅 기능은 아직 없으며 순수 배경 표시다.
+      */}
       {showGrid && <div className="canvas-grid pointer-events-none absolute inset-0" />}
+
+      {/*
+        바깥 박스는 "확대된 크기만큼의 자리"를 차지한다. transform: scale은 보이는
+        크기만 바꾸고 레이아웃 박스는 그대로라, 이 박스가 없으면 스크롤 범위가
+        확대율과 어긋난다(25%인데도 100% 크기의 빈 공간이 남는 식).
+      */}
       <div
-        className={`mx-auto origin-top bg-surface-raised shadow-sm ${ZOOM_SCALE_CLASS[zoom]}`}
-        style={{ width: size.width, minHeight: size.height }}
+        className="relative mx-auto"
+        style={{ width: size.width * scale, height: size.height * scale }}
       >
-        <RenderNode id={root} />
+        {/*
+          Figma처럼 아트보드 위에 화면 이름을 띄운다. 경계를 알려주는 가장 강한
+          단서라, 그림자만으로는 부족한 어두운 테마에서 특히 중요하다.
+          확대율과 무관하게 항상 같은 크기로 보이도록 아트보드 바깥에 둔다.
+        */}
+        <span className="absolute bottom-full left-0 mb-1 max-w-full truncate text-xs text-content-muted">
+          {screenName}
+        </span>
+        {/*
+          아트보드. screen.size로 고정하고 좌상단 기준으로 확대해 바깥 박스를 정확히 채운다.
+          자식이 커져도 아트보드는 그대로고 넘치는 만큼 밖으로 삐져나온다(Figma와 동일).
+        */}
+        <div
+          className={`relative bg-surface-raised shadow-modal origin-top-left ${ZOOM_SCALE_CLASS[zoom]}`}
+          style={{ width: size.width, height: size.height }}
+        >
+          <RenderNode id={root} />
+        </div>
       </div>
+
       <span className="absolute bottom-3 left-3 rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
         {zoom}%
       </span>
