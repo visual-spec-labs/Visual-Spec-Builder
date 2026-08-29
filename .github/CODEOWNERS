@@ -2,21 +2,54 @@
 # 각 항목은 "누가 그 영역을 실제로 작업해 왔는가"를 관찰한 결과일 뿐,
 # 팀이 합의한 담당 배정이 아니다. 이견이 있으면 이 파일을 고치는 PR을 올린다.
 #
+# 이 파일에 강제력은 없다. develop 브랜치 보호의 require_code_owner_reviews 가
+# false 라서, 여기 적힌 사람의 승인이 병합 조건은 아니다. 리뷰어 자동 요청에만 쓰인다.
+# (병합 조건은 승인 1건과 CI build 잡 통과다.)
+#
 # 문법: <경로 패턴> <공백> @GitHub핸들
 # 매칭은 아래에서 위가 아니라, 마지막에 매칭된 줄 하나만 적용된다.
+# 그래서 넓은 경로를 먼저 적고, 좁은 경로를 그 뒤에 적는다.
 
 # 전역 기본 소유자는 일부러 지정하지 않는다.
-# 3인 팀이라 '*'를 특정 한 사람에게 몰면 그 사람이 모든 PR의 필수 리뷰어가 되어
-# 병목이 된다. 담당이 명확히 갈린 영역만 아래에 지정하고, 나머지는 PR마다
-# 리뷰어를 직접 지정한다. (PR 템플릿 체크리스트의 "리뷰어를 지정했습니다" 항목)
+# 기여자가 5명으로 늘었지만 지정하지 않는다는 결론은 그대로다. 사람이 늘면서 PR 수도
+# 늘었고, '*'를 한 사람에게 몰면 그 사람에게 모든 PR의 리뷰 요청이 자동으로 쌓인다.
+# 5명이면 영역별 담당을 적는 것만으로 대부분의 PR이 이미 누군가에게 매칭된다.
+# 담당이 명확히 갈린 영역만 아래에 지정하고, 나머지는 PR마다 리뷰어를 직접 지정한다.
+# (PR 템플릿 체크리스트의 "리뷰어를 지정했습니다" 항목)
 
-# 스킬 문서 — 배포용 스킬 원본(SKILL.md 6종)과 사람이 읽는 설명 문서 (PR #17)
-/skills/          @Yumesa2025
-/docs/skills/     @Yumesa2025
+# 스킬 문서 — 배포용 스킬 원본(SKILL.md 5종)과 사람이 읽는 설명 문서
+# @Yumesa2025 가 skills/ 구조와 설명 문서를 만들었고(PR #17),
+# 그 뒤 스킬 본체 작업은 @wook3964 가 이어서 했다(PR #23 #25 #27 #34 #36).
+# git blame 기준 skills/ 는 박용욱 255줄 / Yumesa2025 239줄로 거의 반반이고,
+# docs/skills/ 는 Yumesa2025 246줄 / 박용욱 122줄이다. 그래서 공동 소유로 둔다.
+# (SKILL.md 는 PR #34 에서 analyze-target-project 가 빠져 6종에서 5종이 됐다.)
+/skills/          @Yumesa2025 @wook3964
+/docs/skills/     @Yumesa2025 @wook3964
 
-# 에디터 UI · 디자인 토큰 (PR #7)
+# 에디터 UI · 디자인 토큰 · 테마 (PR #7 #28)
+# Toolbar·LayerTree 와 테마 파일 3개(ThemeProvider, ThemeToggle, theme-storage)가
+# blame 기준 @SunMyunC 다수다.
 /src/features/editor/ui/    @SunMyunC
+
+# 에디터 공유 스토어 (PR #21) — editorStore·path·seedSpec 을 @GAMMJ 가 만들고 이어서 고쳤다
+/src/features/editor/store/    @GAMMJ
+
+# 속성 패널과 캔버스 (PR #6 #30)
+# properties/ 아래 12개 파일은 전부 @GAMMJ 가 만들었고 다른 사람이 손댄 적이 없다.
+# Canvas.tsx 는 blame 기준 @GAMMJ 122줄 / @dogui1018 33줄이다.
+/src/features/editor/ui/properties/         @GAMMJ
+/src/features/editor/ui/PropertiesPanel.tsx @GAMMJ
+/src/features/editor/ui/Canvas.tsx          @GAMMJ
+
+# 헤더 메뉴바와 View 메뉴 상태 (PR #31)
+# MenuBar.tsx 는 169줄 중 @dogui1018 이 152줄이고, viewStore.ts 는 @dogui1018 이
+# 만든 뒤 수정한 사람이 없다.
+/src/features/editor/ui/MenuBar.tsx      @dogui1018
+/src/features/editor/store/viewStore.ts  @dogui1018
+
+# GitHub 거버넌스 · CI (PR #13 #16 #19)
+/.github/    @Yumesa2025
 
 # .claude/ 의 에이전트 스킬 정의(PR #12)는 PR #17 에서 skills/ 로 옮겨졌고
 # .claude/ 는 통째로 .gitignore 대상이 되어 추적 파일이 없다.
-# 매칭될 파일이 없는 규칙이라 여기서 뺀다. @wook3964 의 담당 영역은 팀에서 다시 정한다.
+# 매칭될 파일이 없는 규칙이라 여기서 뺀다.
