@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
-
 import { Field, inputClass, invalidClass } from "./Field";
+import { useDraftInput } from "./useDraftInput";
 
-type Size = number | "auto" | "fill";
+export type Size = number | "auto" | "fill";
 type Mode = "fixed" | "auto" | "fill";
 
 interface SizeFieldProps {
@@ -20,33 +19,22 @@ function modeOf(value: Size | undefined): Mode {
 /** box.width / height 전용. Fixed(px) / Auto / Fill 중 선택. */
 export function SizeField({ label, value, onChange }: SizeFieldProps) {
   const mode = modeOf(value);
-  const numeric = typeof value === "number" ? value : 100;
 
-  const [draft, setDraft] = useState(String(numeric));
-  const [invalid, setInvalid] = useState(false);
-
-  useEffect(() => {
-    if (typeof value === "number") {
-      setDraft(String(value));
-      setInvalid(false);
-    }
-  }, [value]);
+  const { draft, invalid, handleChange } = useDraftInput(value, {
+    toDraft: (v) => (typeof v === "number" ? String(v) : undefined),
+    parse: (raw) => {
+      const parsed = Number(raw);
+      const ok = raw.trim() !== "" && Number.isFinite(parsed) && parsed >= 0;
+      return ok ? parsed : undefined;
+    },
+    onCommit: onChange,
+  });
 
   function handleMode(next: Mode) {
     if (next === "fixed") {
-      onChange(numeric);
+      onChange(typeof value === "number" ? value : 100);
     } else {
       onChange(next);
-    }
-  }
-
-  function handleNumber(raw: string) {
-    setDraft(raw);
-    const parsed = Number(raw);
-    const ok = raw.trim() !== "" && Number.isFinite(parsed) && parsed >= 0;
-    setInvalid(!ok);
-    if (ok) {
-      onChange(parsed);
     }
   }
 
@@ -69,7 +57,7 @@ export function SizeField({ label, value, onChange }: SizeFieldProps) {
             min={0}
             className={`${inputClass} ${invalid ? invalidClass : ""}`}
             value={draft}
-            onChange={(event) => handleNumber(event.target.value)}
+            onChange={(event) => handleChange(event.target.value)}
           />
         ) : null}
       </div>

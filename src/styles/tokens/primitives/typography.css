@@ -12,6 +12,7 @@
     Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* ── Font size (전체 UI 스케일 한 단계 확대) ─────────────── */
+  --text-2xs: 11px;
   --text-xs: 13px;
   --text-sm: 14px;
   --text-base: 15px;

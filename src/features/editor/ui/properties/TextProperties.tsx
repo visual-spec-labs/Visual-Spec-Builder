@@ -1,23 +1,27 @@
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
 
 import { PropertySection } from "./PropertySection";
+import { SizeSection } from "./SizeSection";
 import { useNodeField } from "./useNodeField";
 import {
   ColorField,
+  FieldRow,
   NumberField,
   SegmentedControl,
   SelectField,
-  SizeField,
   TextField,
+  type Size,
 } from "./fields";
 
 type TextAlign = "left" | "center" | "right";
-type Size = number | "auto" | "fill";
 
+/**
+ * 실제로 로드된 폰트만 노출한다. src/styles/fonts.css가 Pretendard만 불러오므로
+ * Manrope·Inter를 골라도 폰트 파일이 없어 기본 폰트로 조용히 떨어졌다.
+ * 폰트를 늘리려면 fonts.css에 @font-face를 먼저 추가한다.
+ */
 const FONT_FAMILY_OPTIONS = [
   { value: "Pretendard", label: "Pretendard" },
-  { value: "Manrope", label: "Manrope" },
-  { value: "Inter", label: "Inter" },
   { value: "system-ui", label: "System UI" },
 ] as const;
 
@@ -56,12 +60,12 @@ export function TextProperties() {
         <TextField label="텍스트" value={content} onChange={setContent} multiline />
       </PropertySection>
 
-      <PropertySection title="Size">
-        <div className="grid grid-cols-2 gap-2">
-          <SizeField label="너비 (W)" value={width} onChange={setWidth} />
-          <SizeField label="높이 (H)" value={height} onChange={setHeight} />
-        </div>
-      </PropertySection>
+      <SizeSection
+        width={width}
+        height={height}
+        onWidthChange={setWidth}
+        onHeightChange={setHeight}
+      />
 
       <PropertySection title="Font">
         <SelectField
@@ -70,7 +74,7 @@ export function TextProperties() {
           options={FONT_FAMILY_OPTIONS}
           onChange={setFontFamily}
         />
-        <div className="grid grid-cols-2 gap-2">
+        <FieldRow>
           <NumberField label="크기" value={fontSize} onChange={setFontSize} min={1} unit="px" />
           <SelectField
             label="굵기"
@@ -78,8 +82,8 @@ export function TextProperties() {
             options={FONT_WEIGHT_OPTIONS}
             onChange={(value) => setFontWeight(Number(value))}
           />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
+        </FieldRow>
+        <FieldRow>
           <NumberField
             label="행간"
             value={lineHeight}
@@ -94,7 +98,7 @@ export function TextProperties() {
             step={0.1}
             unit="px"
           />
-        </div>
+        </FieldRow>
         <SegmentedControl
           label="정렬"
           value={textAlign}
