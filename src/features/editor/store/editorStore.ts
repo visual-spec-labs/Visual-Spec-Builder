@@ -22,6 +22,13 @@ export interface EditorState {
    * 패널(편집)과 캔버스(드래그)가 호출한다.
    */
   setNodeField: (id: NodeId, path: string, value: unknown) => void;
+  /**
+   * 스펙 전체를 교체하고 선택을 해제한다(New/Open).
+   * selectedId도 함께 초기화한다 — 그러지 않으면 새 스펙에 우연히 같은
+   * id(root, cardA 등)가 있을 때 의도치 않은 노드가 선택된 것처럼 보인다.
+   * MenuBar가 호출한다.
+   */
+  loadSpec: (spec: VisualSpec) => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -50,4 +57,5 @@ export const useEditorStore = create<EditorState>((set) => ({
         },
       };
     }),
+  loadSpec: (spec) => set({ spec, selectedId: null }),
 }));

@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-
 import { Field, inputClass, invalidClass } from "./Field";
+import { useDraftInput } from "./useDraftInput";
 
 interface ColorFieldProps {
   label: string;
@@ -37,43 +36,31 @@ function composeColor(hex: string, opacity: number): string {
 
 /** 색상 입력. 스와치 + hex(6자리) + 불투명도(%). rgba는 #RRGGBBAA로 저장. */
 export function ColorField({ label, value, onChange }: ColorFieldProps) {
-  const parsed = parseColor(value);
-  const [hexDraft, setHexDraft] = useState(parsed.hex);
-  const [opacityDraft, setOpacityDraft] = useState(String(parsed.opacity));
-  const [invalid, setInvalid] = useState(false);
+  const opacity = useDraftInput(value, {
+    toDraft: (v) => String(parseColor(v).opacity),
+    parse: (raw) => {
+      const n = Number(raw);
+      const ok = raw.trim() !== "" && Number.isFinite(n) && n >= 0 && n <= 100;
+      return ok ? n : undefined;
+    },
+    onCommit: (n) => {
+      if (HEX6.test(hex.draft)) {
+        onChange(composeColor(hex.draft, n));
+      }
+    },
+  });
 
-  useEffect(() => {
-    const next = parseColor(value);
-    setHexDraft(next.hex);
-    setOpacityDraft(String(next.opacity));
-    setInvalid(false);
-  }, [value]);
+  const hex = useDraftInput(value, {
+    toDraft: (v) => parseColor(v).hex,
+    normalize: (raw) => (raw.startsWith("#") ? raw : `#${raw}`),
+    parse: (draft) => (HEX6.test(draft) ? draft : undefined),
+    onCommit: (nextHex) => {
+      const n = Number(opacity.draft);
+      onChange(composeColor(nextHex, Number.isFinite(n) ? n : 100));
+    },
+  });
 
-  function currentOpacity(): number {
-    const n = Number(opacityDraft);
-    return Number.isFinite(n) ? n : 100;
-  }
-
-  function handleHex(raw: string) {
-    const next = raw.startsWith("#") ? raw : `#${raw}`;
-    setHexDraft(next);
-    const ok = HEX6.test(next);
-    setInvalid(!ok);
-    if (ok) {
-      onChange(composeColor(next, currentOpacity()));
-    }
-  }
-
-  function handleOpacity(raw: string) {
-    setOpacityDraft(raw);
-    const n = Number(raw);
-    const ok = raw.trim() !== "" && Number.isFinite(n) && n >= 0 && n <= 100;
-    if (ok && HEX6.test(hexDraft)) {
-      onChange(composeColor(hexDraft, n));
-    }
-  }
-
-  const swatch = HEX6.test(hexDraft) ? hexDraft : "#000000";
+  const swatch = HEX6.test(hex.draft) ? hex.draft : "#000000";
 
   return (
     <Field label={label}>
@@ -83,14 +70,14 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
           aria-label={`${label} 색상 선택`}
           className="h-8 w-8 shrink-0 cursor-pointer rounded-control border border-line bg-surface p-0.5"
           value={swatch}
-          onChange={(event) => handleHex(event.target.value)}
+          onChange={(event) => hex.handleChange(event.target.value)}
         />
         <input
           type="text"
-          className={`${inputClass} ${invalid ? invalidClass : ""} uppercase`}
-          value={hexDraft}
+          className={`${inputClass} ${hex.invalid ? invalidClass : ""} uppercase`}
+          value={hex.draft}
           spellCheck={false}
-          onChange={(event) => handleHex(event.target.value)}
+          onChange={(event) => hex.handleChange(event.target.value)}
         />
         <div className="relative w-20 shrink-0">
           <input
@@ -99,8 +86,8 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
             max={100}
             aria-label={`${label} 불투명도`}
             className={`${inputClass} pr-6`}
-            value={opacityDraft}
-            onChange={(event) => handleOpacity(event.target.value)}
+            value={opacity.draft}
+            onChange={(event) => opacity.handleChange(event.target.value)}
           />
           <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-subtle">
             %

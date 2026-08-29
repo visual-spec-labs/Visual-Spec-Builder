@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-import { validateVisualSpec } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { exportSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
 
 /** 현재 스펙을 검증 후 JSON 파일로 내보낸다. 검증 실패 시 경고. */
 export function ExportJsonButton() {
@@ -9,23 +9,12 @@ export function ExportJsonButton() {
   const [error, setError] = useState<string | null>(null);
 
   function handleExport() {
-    const result = validateVisualSpec(spec);
-    if (!result.valid) {
-      setError(`검증 실패 (${result.issues.length}건). 콘솔을 확인하세요.`);
-      console.warn("Export 검증 실패:", result.issues);
+    const result = exportSpecAsJson(spec);
+    if (!result.ok) {
+      setError(`검증 실패 (${result.issueCount}건). 콘솔을 확인하세요.`);
       return;
     }
-
     setError(null);
-    const blob = new Blob([JSON.stringify(spec, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${spec.screen.name || "screen"}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
   }
 
   return (

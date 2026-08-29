@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-
 import { Field, inputClass, invalidClass } from "./Field";
+import { useDraftInput } from "./useDraftInput";
 
 interface NumberFieldProps {
   label: string;
@@ -23,29 +22,19 @@ export function NumberField({
   step,
   unit,
 }: NumberFieldProps) {
-  const [draft, setDraft] = useState(value === undefined ? "" : String(value));
-  const [invalid, setInvalid] = useState(false);
-
-  // 외부(스토어)에서 값이 바뀌면 입력값도 맞춘다.
-  useEffect(() => {
-    setDraft(value === undefined ? "" : String(value));
-    setInvalid(false);
-  }, [value]);
-
-  function handleChange(raw: string) {
-    setDraft(raw);
-    const parsed = Number(raw);
-    const ok =
-      raw.trim() !== "" &&
-      Number.isFinite(parsed) &&
-      (min === undefined || parsed >= min) &&
-      (max === undefined || parsed <= max);
-
-    setInvalid(!ok);
-    if (ok) {
-      onChange(parsed);
-    }
-  }
+  const { draft, invalid, handleChange } = useDraftInput(value, {
+    toDraft: (v) => (v === undefined ? "" : String(v)),
+    parse: (raw) => {
+      const parsed = Number(raw);
+      const ok =
+        raw.trim() !== "" &&
+        Number.isFinite(parsed) &&
+        (min === undefined || parsed >= min) &&
+        (max === undefined || parsed <= max);
+      return ok ? parsed : undefined;
+    },
+    onCommit: onChange,
+  });
 
   return (
     <Field label={label}>

@@ -1,4 +1,4 @@
-export { Field } from "./Field";
+export { Field, FieldLabel, FieldRow } from "./Field";
 export { NumberField } from "./NumberField";
 export { TextField } from "./TextField";
 export { SelectField } from "./SelectField";
@@ -7,4 +7,5 @@ export { SegmentedControl } from "./SegmentedControl";
 export type { SegmentOption } from "./SegmentedControl";
 export { ColorField } from "./ColorField";
 export { SizeField } from "./SizeField";
+export type { Size } from "./SizeField";
 export { ToggleField } from "./ToggleField";
