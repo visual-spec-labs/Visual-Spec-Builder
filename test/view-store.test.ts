@@ -10,7 +10,13 @@ import {
 
 describe("viewStore", () => {
   beforeEach(() => {
-    useViewStore.setState({ zoom: ZOOM_DEFAULT, showGrid: true, showPanels: true });
+    useViewStore.setState({
+      zoom: ZOOM_DEFAULT,
+      showGrid: true,
+      showPanels: true,
+      viewport: null,
+      content: null,
+    });
   });
 
   it("zoomIn은 ZOOM_STEP만큼 늘리고 ZOOM_MAX에서 멈춘다", () => {
@@ -31,10 +37,20 @@ describe("viewStore", () => {
     expect(useViewStore.getState().zoom).toBe(ZOOM_MIN);
   });
 
-  it("fitToScreen은 줌을 기본값으로 리셋한다", () => {
+  it("실측값을 못 받았으면 fitToScreen은 기본 확대율로 되돌린다", () => {
     useViewStore.setState({ zoom: ZOOM_MAX });
     useViewStore.getState().fitToScreen();
     expect(useViewStore.getState().zoom).toBe(ZOOM_DEFAULT);
+  });
+
+  it("실측값이 있으면 아트보드가 다 들어오는 확대율로 맞춘다", () => {
+    useViewStore.setState({
+      zoom: ZOOM_MAX,
+      viewport: { width: 1190, height: 940 },
+      content: { width: 1440, height: 900 },
+    });
+    useViewStore.getState().fitToScreen();
+    expect(useViewStore.getState().zoom).toBe(75);
   });
 
   it("toggleGrid는 showGrid를 반전한다", () => {
