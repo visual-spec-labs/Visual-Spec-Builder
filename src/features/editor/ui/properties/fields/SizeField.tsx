@@ -1,4 +1,4 @@
-import { Field, inputClass, invalidClass } from "./Field";
+import { blurOnWheel, Field, inputClass, invalidClass } from "./Field";
 import { useDraftInput } from "./useDraftInput";
 
 export type Size = number | "auto" | "fill";
@@ -66,6 +66,7 @@ export function SizeField({ label, value, onChange, measured }: SizeFieldProps) 
         <div className="relative">
           <input
             type="number"
+            onWheel={blurOnWheel}
             inputMode="decimal"
             min={0}
             aria-label={`${label} px`}

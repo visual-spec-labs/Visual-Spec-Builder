@@ -1,4 +1,4 @@
-import { Field, inputClass, invalidClass } from "./Field";
+import { blurOnWheel, Field, inputClass, invalidClass } from "./Field";
 import { useDraftInput } from "./useDraftInput";
 
 interface ColorFieldProps {
@@ -82,6 +82,7 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
         <div className="relative w-20 shrink-0">
           <input
             type="number"
+            onWheel={blurOnWheel}
             min={0}
             max={100}
             aria-label={`${label} 불투명도`}
