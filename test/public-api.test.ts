@@ -14,6 +14,7 @@ import type {
   ChildReference,
   Color,
   FrameNode,
+  ImageNode,
   Layout,
   Node,
   NodeId,
@@ -51,6 +52,7 @@ const typography: Typography = {
   textAlign: "left",
 };
 const childReference: ChildReference = { node: "label" };
+const heroReference: ChildReference = { node: "hero" };
 const textNode: TextNode = {
   type: "text",
   name: "Label",
@@ -59,6 +61,13 @@ const textNode: TextNode = {
   color,
   typography,
 };
+const imageNode: ImageNode = {
+  type: "image",
+  name: "Hero",
+  box,
+  src: "assets/hero.png",
+  fit: "cover",
+};
 const frameNode: FrameNode = {
   type: "frame",
   name: "Screen",
@@ -66,14 +75,14 @@ const frameNode: FrameNode = {
   layout,
   background,
   border,
-  children: [childReference],
+  children: [childReference, heroReference],
 };
 const node: Node = frameNode;
 const screen: ScreenSpec = {
   name: "TypeCheck",
   size: { width: 100, height: 100 },
   root: nodeId,
-  nodes: { root: node, label: textNode },
+  nodes: { root: node, label: textNode, hero: imageNode },
 };
 const spec: VisualSpec = { version: "0.1", screen };
 

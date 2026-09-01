@@ -19,10 +19,9 @@
         "children": [{ "node": "hero" }]
       },
       "hero": {
-        "type": "image",
+        "type": "shape",
         "name": "Hero",
-        "box": { "width": "fill", "height": 200 },
-        "src": "hero.png"
+        "box": { "width": "fill", "height": 200 }
       }
     }
   }
