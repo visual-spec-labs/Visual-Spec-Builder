@@ -19,7 +19,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 ---
 
-## 2. 스토어가 제공하는 것 — 계약의 전부 (5개)
+## 2. 스토어가 제공하는 것 — 계약의 전부 (6개)
 
 | 이름 | 타입 | 뭐냐 | 누가 쓰나 |
 |---|---|---|---|
@@ -28,6 +28,11 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `select` | `(id: NodeId \| null) => void` | 노드 선택 / 해제 | **트리 · 캔버스**가 호출 |
 | `setNodeField` | `(id: NodeId, path: string, value: unknown) => void` | 값 하나 변경 | **패널 · 캔버스(드래그)**가 호출 |
 | `loadSpec` | `(spec: VisualSpec) => void` | 스펙 전체 교체 + 선택 해제(New/Open) | **MenuBar**가 호출 |
+| `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import) | **MenuBar**가 호출 |
+
+`insertNode`는 `parentId`가 없거나 frame이 아니면 아무 것도 하지 않는다 — 호출자가
+`resolveImportParent`(`store/resolveImportParent.ts`, 순수 함수)로 유효한 frame id를
+먼저 골라서 넘겨야 한다. 새 노드 id는 `store/nodeId.ts`의 `generateNodeId`로 만든다.
 
 `loadSpec`은 `spec`을 통째로 바꾸면서 `selectedId`도 함께 `null`로 리셋한다.
 그러지 않으면 새 스펙에 우연히 같은 id(`root`, `cardA` 등)가 있을 때
@@ -72,6 +77,7 @@ import type {
   Node,
   FrameNode,
   TextNode,
+  ImageNode,
   NodeId,
 } from "@/features/editor/schema";
 ```
@@ -101,6 +107,11 @@ import type {
 | Font | 종류 / 크기 / 굵기 / 행간 / 자간 / 정렬 | `typography.fontFamily`, `typography.fontSize`, `typography.fontWeight`, `typography.lineHeight`, `typography.letterSpacing`, `typography.textAlign` |
 | Color | 글자색 | `color` |
 | 기타 | 표시 여부 | `visible` |
+
+**Image 노드**
+
+Import로 삽입은 되지만 세부설정 패널에는 아직 편집 필드가 없다(플레이스홀더만 표시).
+`box.width/height`는 삽입 시점의 이미지 원본 픽셀 크기로 채워진다.
 
 > **X / Y / Rotation / Shadow는 아직 없음.** 스키마 v0.1이 Auto Layout 전용이라 절대좌표·회전·그림자 필드가 없다.
 > 필요해지면 스키마 v0.2로 확장한다(아래 규칙 참고). 패널은 그때 필드 한 줄만 추가하면 되도록 설계돼 있다.
