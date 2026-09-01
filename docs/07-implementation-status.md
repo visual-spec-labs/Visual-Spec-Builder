@@ -1,13 +1,17 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
-> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후)
+> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후)
 >
 > 부분 갱신은 **문서 전체 재검증이 아니다.** 각 갱신에서 실제로 확인한 항목만 아래에 적는다.
 > 확인하지 않은 항목의 날짜는 올리지 않는다.
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
+> | 2026-09-01 | 1절 IR·스키마 행의 테스트 집계 · 4절 테스트 행 · 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck`(exit 0) · `pnpm test` 출력에서 파일 수·케이스 수를 읽음 |
+> | 2026-09-01 | "GUI 각 영역의 실제 동작" 표의 `ui/Canvas.tsx` · `store/viewStore.ts` · `store/measureStore.ts`(이번에 추가) · `ui/PropertiesPanel.tsx`/`properties/` 행 | `git log db7f8f4..a807bc4 --name-only` 로 변경 파일을 뽑아 전부 열람 — `store/measureStore.ts` · `store/viewStore.ts` · `ui/Canvas.tsx` · `ui/properties/SizeSection.tsx` · `ui/properties/fields/{Field,NumberField,ColorField,SizeField}.tsx` |
+> | 2026-09-01 | `properties/` 파일 개수(17) · 패널 필드 24개 서술 | `find src/features/editor/ui/properties -type f` 17개, `git grep "useNodeField"` 호출 지점 실측(`ui/PropertiesPanel.tsx` 2 · `properties/FrameProperties.tsx` 12 · `properties/TextProperties.tsx` 10) |
+> | 2026-09-01 | 5.3 검증 실패 알림 경로 · 6절 제안 1(둘 다 여전히 참) | `git log db7f8f4..a807bc4 --name-only` — `store/exportSpec.ts` · `store/loadSpec.ts` · `ui/exportSpecAsJson.ts` · `ui/openSpecFromFile.ts` · `ui/MenuBar.tsx` · `ui/properties/ExportJsonButton.tsx` · `ui/canvasLayout.ts` · `store/editorStore.ts` 변경 0건 |
 > | 2026-08-29 | 1절 IR·스키마 · GUI·Canvas · Export 행, "GUI 각 영역의 실제 동작" 표 | `src/features/editor/` 전 파일과 `src/app/App.tsx` 열람 |
 > | 2026-08-29 | 1절 Command Engine 행, Ticket Compiler 행의 "`src/` 에 0줄" 부분 | `git grep -i "command"`·`"ticket"` — `src/` 히트 각각 0건 |
 > | 2026-08-29 | 1절 표 아래 `setNodeField` 서술, 6절 제안 1 | `git grep "setNodeField"`·`"useNodeField"` 로 호출 지점 실측 |
@@ -17,6 +21,10 @@
 > | 2026-08-29 | 5.3(이번에 추가) 검증 실패 알림 경로 | `store/exportSpec.ts`·`store/loadSpec.ts`·`ui/exportSpecAsJson.ts`·`ui/openSpecFromFile.ts`·`ui/MenuBar.tsx`·`ui/properties/ExportJsonButton.tsx` 열람 |
 > | 2026-08-29 | 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck` · `pnpm test` |
 > | 2026-08-25 | 5.2 검증기 메시지 | `src/features/editor/schema/validate.ts` 수정과 테스트 |
+>
+> **2026-09-01에 재확인하지 않은 항목** — 위 표의 2026-09-01 행에 없는 모든 항목.
+> 이번 갱신은 `develop` 10커밋(db7f8f4 → a807bc4)이 실제로 건드린 파일에 걸린 서술만 다시 봤다.
+> 나머지는 2026-08-20 · 2026-08-25 · 2026-08-28 · 2026-08-29 확인 상태 그대로이며 날짜를 올리지 않았다.
 >
 > **2026-08-29에 재확인하지 않은 항목** — 1절 자연어 변환 행, Ticket Compiler 행의 스킬 지시문 서술,
 > 2절의 나머지 행, 3절(02와 스키마 v0.1의 범위 차이), 5.2, 제안 2·3.
@@ -50,7 +58,7 @@
 
 | 단위 | 상태 | 근거 / 무엇이 되고 무엇이 안 되는가 |
 |---|---|---|
-| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 9파일 63케이스 통과 |
+| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 10파일 71케이스 통과 |
 | Command Engine | **미착수** | `command.schema.ts` 없음, history manager 없음. `src/` 전체에 Command 관련 코드 0줄 |
 | 자연어 변환 | **미착수** | 관련 코드 없음 |
 | Ticket Compiler · Agent | **부분** | 코드 생성만 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다. 그 지시문에 **컴포넌트 분리 경계·의존성 순서(자식 먼저)·컴포넌트별 진행 보고**가 생겼다(같은 파일 "컴포넌트 단위로 분리 생성한다" 절). **다만 이는 문서이지 코드가 아니다** — 티켓 스키마도, 순서를 계산하거나 상태를 저장하는 코드도 `src/` 에 0줄이다 |
@@ -65,9 +73,9 @@
 | `src/features/editor/ui/EditorLayout.tsx` | 5개 영역 CSS Grid 배치. 패널 토글 시 좌우 컬럼을 접는다 | `viewStore.showPanels` |
 | `src/features/editor/ui/MenuBar.tsx` (View 메뉴) | 줌 In/Out · Fit to Screen · 격자 표시 · 패널 표시가 **동작한다** | `viewStore` |
 | `src/features/editor/ui/MenuBar.tsx` (File 메뉴) | New(`blankSpec` 로드) · Open(파일 선택 → 검증 → 로드) · Save · Save as · Export(스펙 JSON 다운로드)가 **동작한다**. **`noop()` 은 Import 하나만 남았다** | `editorStore.loadSpec` · `useEditorStore.getState().spec` |
-| `src/features/editor/ui/Canvas.tsx` | 스펙 트리를 flex 로 렌더(박스·레이아웃·배경·테두리·타이포그래피), 클릭 시 노드 선택, 줌 배율·격자 표시. **Ctrl+휠 줌**을 `{ passive: false }` 리스너로 가로채고, 일반 휠 팬은 `overflow-auto` 네이티브 스크롤에 맡긴다 | `editorStore` · `viewStore` |
+| `src/features/editor/ui/Canvas.tsx` | 스펙 트리를 flex 로 렌더(박스·레이아웃·배경·테두리·타이포그래피), 클릭 시 노드 선택, 줌 배율·격자 표시. **아트보드를 `spec.screen.size` 로 고정**하고 좌상단 기준 `transform: scale` 로 확대한다 — 자식이 커져도 아트보드는 그대로고 넘치는 만큼 밖으로 삐져나온다. 아트보드를 감싼 바깥 박스에 `size × 배율` 크기를 줘 **스크롤 범위를 확대율과 맞춘다**(`transform` 은 레이아웃 박스를 바꾸지 않아, 이 박스가 없으면 25%인데도 100% 크기의 빈 공간이 남는다). 아트보드 위에 화면 이름을 띄운다. `ResizeObserver` 로 **뷰포트 실측 크기**를, `spec.screen.size` 변화로 **아트보드 크기**를 `viewStore` 에 올리고, 뷰포트를 처음 받은 시점에 한 번만 `fitToScreen()` 을 부른다(처음 열었을 때 아트보드 전체가 보이게). 선택 노드가 실제로 그려진 px 도 재서 `measureStore` 에 올린다. **Ctrl+휠 줌**을 `{ passive: false }` 리스너로 가로채고, 일반 휠 팬은 `overflow-auto` 네이티브 스크롤에 맡긴다 | `editorStore` · `viewStore` · `measureStore` |
 | `src/features/editor/ui/canvasLayout.ts` | `Canvas.tsx` 에서 분리한 순수 함수 `sizeToCss` · `boxStyle`. Figma 의 Fixed/Hug/Fill 을 flex 로 옮긴다 — 주축 `fill` → `flex: 1 1 0` + `min-*: 0`(형제끼리 공간 균등 분배), 교차축 `fill` → `align-self: stretch`, 부모가 없는 최상위 노드만 `100%` | 없음 (순수 함수 — `test/canvas-layout.test.ts` 8케이스) |
-| `src/features/editor/ui/PropertiesPanel.tsx` 와 `ui/properties/`(파일 17개) | 선택 노드의 이름·표시·박스·레이아웃·배경·테두리·타이포그래피를 편집. 컨트롤은 `properties/fields/Field.tsx`(라벨·2열 행·인풋 스타일)와 `properties/fields/useDraftInput.ts`(타이핑 중에는 draft, 파싱에 성공하면 즉시 커밋)를 공유하고, Frame·Text 공통 Size 섹션은 `properties/SizeSection.tsx` 다. `border` 는 스키마상 세 필드가 모두 필수라 한 칸만 고쳐도 `properties/borderPatch.ts` 가 완전한 객체를 만들어 통째로 쓴다 | `properties/useNodeField.ts` 훅을 거쳐 `editorStore.setNodeField` |
+| `src/features/editor/ui/PropertiesPanel.tsx` 와 `ui/properties/`(파일 17개) | 선택 노드의 이름·표시·박스·레이아웃·배경·테두리·타이포그래피를 편집. 컨트롤은 `properties/fields/Field.tsx`(라벨·2열 행·인풋 스타일)와 `properties/fields/useDraftInput.ts`(타이핑 중에는 draft, 파싱에 성공하면 즉시 커밋)를 공유하고, Frame·Text 공통 Size 섹션은 `properties/SizeSection.tsx` 다. **Size 섹션의 px 칸은 Fixed 면 스펙값을, Hug/Fill 이면 `measureStore` 의 실측 px 를 보여준다**(`properties/fields/SizeField.tsx`) — 실측값을 아직 못 받았을 때만 `Hug`/`Fill` 을 placeholder 로 흐리게 띄우고, 모드를 Fixed 로 바꾸면 그 실측 px 를 그대로 이어받는다(못 받았으면 100). **스키마 값 `"auto"` 를 UI 는 Figma 용어인 `Hug` 로 부른다.** 숫자 칸(`type="number"`)은 **휠이 닿으면 포커스를 떼** 스크롤하다 값이 조용히 증감되는 일을 막는다(`properties/fields/Field.tsx` 의 `blurOnWheel` — `SizeField`·`NumberField`·`ColorField` 가 쓴다. 패널 자체가 `overflow-auto` 라 `preventDefault` 대신 `blur` 를 쓴다). `border` 는 스키마상 세 필드가 모두 필수라 한 칸만 고쳐도 `properties/borderPatch.ts` 가 완전한 객체를 만들어 통째로 쓴다 | `properties/useNodeField.ts` 훅을 거쳐 `editorStore.setNodeField`. Size 섹션은 `measureStore` 를 읽기만 한다 |
 | `src/features/editor/ui/LayerTree.tsx` | **하드코딩된 레이어 10개**(`LAYERS` 상수)를 표시. 선택은 로컬 하이라이트뿐 (이슈 #43) | 없음 |
 | `src/features/editor/ui/Toolbar.tsx` | Select/Frame/Text/Hand 버튼. 활성 표시만 로컬 상태 (이슈 #44) | 없음 (도구 동작 없음) |
 | `src/features/editor/store/editorStore.ts` | `spec` · `selectedId` · `select` · `setNodeField` · `loadSpec`(스펙 전체 교체 + 선택 해제 — New/Open 이 호출) ([EDITOR_STORE_CONTRACT.md](EDITOR_STORE_CONTRACT.md)) | — |
@@ -75,7 +83,8 @@
 | `src/features/editor/ui/exportSpecAsJson.ts` · `ui/openSpecFromFile.ts` | 위 순수 함수를 감싸는 파일 입출력 — `Blob`+`<a download>` 다운로드, `<input type=file>`+`FileReader` 읽기 | `editorStore.loadSpec` |
 | `src/features/editor/store/blankSpec.ts` | File > New 가 로드하는 빈 스펙(root frame 하나, 자식 없음, 1440×900) | — |
 | `src/features/editor/store/seedSpec.ts` | 초기 스펙을 하드코딩(`examples/dashboard-cards.json` 내용) | 앱 시작 시 `editorStore` 의 초기값. 자동 저장·복원은 없다 |
-| `src/features/editor/store/viewStore.ts` | 줌(25~400%) · 격자 · 패널 표시 | — |
+| `src/features/editor/store/viewStore.ts` | 줌(25~400%, 25 단위) · 격자 · 패널 표시에 더해 **뷰포트 실측 크기(`viewport`)와 아트보드 크기(`content`)**를 담는다 — 둘 다 `Canvas.tsx` 가 올린다. `fitToScreen()` 은 순수 함수 `fitZoom()` 으로 두 크기의 비율을 재서 `ZOOM_STEP` 단위로 **내림**한 확대율을 쓴다(올림하면 아트보드 가장자리가 잘린다). 실측값을 아직 못 받았으면 100%로 리셋한다 | — (`test/view-store.test.ts` 6케이스 · `fitZoom` 은 `test/fit-zoom.test.ts` 7케이스) |
+| `src/features/editor/store/measureStore.ts` | **선택 노드가 캔버스에서 실제로 몇 px 로 그려졌는지**(`size`)만 담는 단일 값 스토어. `Canvas.tsx` 의 `ResizeObserver` 가 올리고 `ui/properties/SizeSection.tsx` 가 읽는다. Hug/Fill 은 스펙에 숫자가 없어 패널이 크기를 알 수 없는데 그 자리를 이 실측값이 채운다. 같은 값이면 `set` 을 건너뛴다(`ResizeObserver` 가 자주 부른다) | — (IR 이 아닌 파생 UI 상태라 `editorStore` 의 4-멤버 계약과 분리했다 — [EDITOR_STORE_CONTRACT.md](EDITOR_STORE_CONTRACT.md)) |
 
 `Canvas.tsx` 상단 주석은 스스로를 **"임시 스탠드인 — 팀원이 정식 구현으로 교체할 예정"**이라고 밝힌다.
 캔버스에서 드래그·리사이즈로 편집하는 기능은 없다.
@@ -153,7 +162,7 @@
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
 | 유효 예제 4개 | `examples/*.json` | 검증 통과 |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
-| 테스트 | `test/validate.test.ts`(18) · `test/editor-store.test.ts`(10) · `test/canvas-layout.test.ts`(8) · `test/export-spec.test.ts`(6) · `test/border-patch.test.ts`(5) · `test/view-store.test.ts`(5) · `test/schema.test.ts`(4) · `test/public-api.test.ts`(4) · `test/load-spec.test.ts`(3) | **9파일 63케이스 전부 통과** (2026-08-29 확인) |
+| 테스트 | `test/validate.test.ts`(18) · `test/editor-store.test.ts`(10) · `test/canvas-layout.test.ts`(8) · `test/fit-zoom.test.ts`(7) · `test/export-spec.test.ts`(6) · `test/view-store.test.ts`(6) · `test/border-patch.test.ts`(5) · `test/schema.test.ts`(4) · `test/public-api.test.ts`(4) · `test/load-spec.test.ts`(3) | **10파일 71케이스 전부 통과** (2026-09-01 확인) |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 5종 | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 5개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33) |
 
@@ -256,6 +265,6 @@
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm run typecheck   # 통과 (2026-08-29 확인)
-pnpm test            # 9파일 63케이스 통과 (2026-08-29 확인)
+pnpm run typecheck   # 통과 (2026-09-01 확인)
+pnpm test            # 10파일 71케이스 통과 (2026-09-01 확인)
 ```
