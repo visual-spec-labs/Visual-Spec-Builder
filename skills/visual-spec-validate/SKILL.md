@@ -1,6 +1,6 @@
 ---
 name: visual-spec-validate
-description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해석하고 고쳐야 할 때 실행한다. "검증 실패했는데 뭐가 문제야", "valid 가 false 로 나와", "JSON 스키마의 구조 규칙을 위반했습니다", "루트에서 도달할 수 없습니다", "자식 노드가 nodes에 없습니다", "이 스펙 왜 안 되지", "VisualSpecValidationError 떴어"처럼 validateVisualSpec 의 실패 결과나 code/path/message 를 들고 오는 요청에서 쓴다. 아직 실패하지 않았어도 "스펙 검증해줘", "이 JSON 맞게 쓴 건지 확인해줘", "스펙 다 썼는데 이제 어떻게 해", "이슈가 9개 나왔는데 다 고쳐야 해"처럼 검증을 돌려달라거나 결과를 판단해달라는 요청, 스펙을 저장·변환하려다 검증에서 막혔을 때도 대상이다. 특히 message 가 모두 똑같이 나와 어느 필드가 문제인지 안 보일 때 쓴다.
+description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해석하고 고쳐야 할 때 실행한다. "검증 실패했는데 뭐가 문제야", "valid 가 false 로 나와", "필수 필드 "content"가 없습니다", "필수 필드 "src"가 없습니다", "허용되지 않는 필드 "typography"가 있습니다", "정의된 대안 스키마 중 어느 것과도 일치하지 않습니다", "값이 "image"이어야 합니다", "루트에서 도달할 수 없습니다", "가 nodes에 없습니다", "두 곳 이상에서 참조되었습니다", "이 스펙 왜 안 되지", "VisualSpecValidationError 떴어"처럼 validateVisualSpec 의 실패 결과나 code/path/message 를 들고 오는 요청에서 쓴다. 아직 실패하지 않았어도 "스펙 검증해줘", "이 JSON 맞게 쓴 건지 확인해줘", "스펙 다 썼는데 이제 어떻게 해", "이슈가 12개 나왔는데 다 고쳐야 해"처럼 검증을 돌려달라거나 결과를 판단해달라는 요청, 스펙을 저장·변환하려다 검증에서 막혔을 때도 대상이다. 특히 한 노드에서 schema 이슈가 여러 개 쏟아져 어느 message 를 믿어야 할지 안 보일 때 쓴다.
 ---
 
 # 검증 실패 해석과 수정
@@ -14,10 +14,25 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
 
 ## 먼저 알아야 할 것 — issues 만 봐서는 모르는 규칙
 
-- **`code: "schema"` 의 `message` 에는 정보가 없다.** 전부 "JSON 스키마의 구조 규칙을
-  위반했습니다" 로 똑같이 나온다. 볼 것은 `path` 뿐이다.
+- **`code: "schema"` 의 `message` 는 어느 필드인지 말해주지만, 3분의 2는 탈락한 갈래의
+  추측이다.** 노드 스키마가 `frame`·`text`·`image` 를 `oneOf` 로 묶고 있어 검증기가 **세 갈래**를
+  각각 대본 뒤 실패 이유를 전부 낸다. 갈래마다 `필수 필드 …가 없습니다.`
+  `허용되지 않는 필드 …가 있습니다.` 가 따로 나오므로, 노드 하나가 틀려도 이슈는 열 개를 넘는다.
+- **탈락한 갈래는 `.../type` 의 `값이 "X"이어야 합니다.` 로 찾는다. 살아남은 갈래는 그 메시지가
+  없는 갈래다.** 이것이 잡음을 걷어내는 유일한 신호다. 같은 노드 `path` 에
+  `값이 "frame"이어야 합니다.` 가 있으면 그 노드는 `frame` 갈래에서 탈락한 것이므로 그 갈래가 낸
+  이슈는 전부 잡음이다. **살아남은 갈래가 낸 이슈만 믿는다.**
+  `text-without-content.json` 은 이슈 **12개**를 내는데 `.../type` 이슈가 `"frame"`(5번째)과
+  `"image"`(11번째) 둘뿐이다 — `"text"` 가 없으니 `text` 갈래가 살아남았고, 진짜는 그 갈래가 낸
+  **6번째** `필수 필드 "content"가 없습니다.` 하나다. 나머지 11개는 `frame` 갈래 5개(1~5번째),
+  `image` 갈래 5개(7~11번째), 맨 끝 `oneOf` 요약 1개다.
+- **`.../type` 에 `값이 "frame"`·`값이 "text"`·`값이 "image"` 가 전부 나오면 갈래가
+  전멸한 것이다.** 그때는 개별 필드가 아니라 `type` 자체가 틀렸고, 그 세 메시지에 적힌 값이
+  v0.1 의 허용값 전부다. `unsupported-node-type.json`(`type: "shape"`)이 이 모양으로 11개를 낸다.
+- **맨 끝의 `정의된 대안 스키마 중 어느 것과도 일치하지 않습니다.` 는 원인이 아니라 요약이다.**
+  `oneOf` 가 실패했다는 사실만 말한다. 같은 `path` 의 다른 이슈로 되돌아가서 읽는다.
 - **`schema` 이슈 개수는 심각도가 아니다.** 노드 하나가 틀리면 `oneOf` 분기마다 이슈가
-  생겨 7~10개가 쏟아진다. 실수는 보통 하나다. `path` 를 중복 제거하고 그 노드만 본다.
+  생겨 11~12개가 쏟아진다. 실수는 보통 하나다. `path` 를 중복 제거하고 그 노드만 본다.
 - **스키마 검증에 실패하면 구조 검사는 아예 돌지 않는다.** `schema` 이슈가 있으면 그것만
   고치고 다시 돌린다. 남은 문제는 그다음에 보인다.
 - **`root-missing` 이면 `orphan-node` 검사를 건너뛴다.** 출발점이 없으면 모든 노드가 도달
@@ -36,16 +51,20 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
 | `cycle` | 자식이 조상을 다시 참조한다. 이동 작업에서 부모/자식을 뒤집으면 생긴다 | `path` 가 가리키는 참조를 끊는다 |
 | `root-missing` | `screen.root` 값이 `nodes` 의 키와 다르다 | 둘 중 하나를 상대에 맞춘다 |
 | `root-not-frame` | 루트를 `text` 로 만들었다. 텍스트 한 줄짜리 화면에서 자주 나온다 | 루트 프레임을 만들고 그 텍스트를 자식으로 넣는다 |
-| `schema` at `.../<node>` (`text-without-content`) | TextNode 에 `content` 가 없다. 필수 필드 누락은 전부 이 모양으로 나온다 | 정본 스키마의 `required` 와 그 노드를 대조해 빠진 필드를 채운다 |
-| `schema` at `.../<node>/type` (`unsupported-node-type`) | `shape`, `button`, `input` 처럼 v0.1 에 없는 `type` 을 썼다 | v0.1 은 `frame`, `text`, `image` 셋뿐이다. 셋 중 가장 가까운 것으로 근사한다 |
+| `schema` at `.../<node>` (`text-without-content`) | TextNode 에 `content` 가 없다. **필수 필드 누락은 전부 이 모양으로 나온다.** 이슈 12개 중 6번째 `필수 필드 "content"가 없습니다.` 만 진짜고 나머지는 `frame`·`image` 갈래의 잡음이다 | 정본 스키마의 `required` 와 그 노드를 대조해, `message` 가 지목한 빠진 필드를 채운다 |
+| `schema` at `.../<node>/type` (`unsupported-node-type`) | `shape`, `button`, `input` 처럼 v0.1 에 없는 `type` 을 썼다. `값이 "frame"`·`값이 "text"`·`값이 "image"` 세 이슈가 **함께** 나오는 것이 신호다 | 그 세 메시지의 값이 허용값 전부다 — v0.1 은 `frame`, `text`, `image` 셋뿐이다. 셋 중 가장 가까운 것으로 근사한다 |
 
 ## 절차
 
 1. `code: "schema"` 가 하나라도 있으면 그것부터. `path` 를 중복 제거해 대상 노드를 좁힌다.
-2. 그 노드를 정본 `src/features/editor/schema/visual-spec.schema.json` 의 `required` 및
+2. 그 노드의 실제 `type` 값을 확인하고, `.../type` 의 `값이 "X"이어야 합니다.` 로 탈락한
+   갈래를 지운다. **세 갈래(`frame`·`text`·`image`) 중 그 메시지가 나오지 않은 하나가 살아남은
+   갈래다.** 남은 이슈의 `message` 가 가리키는 필드가 고칠 대상이다. 세 개가 전부 나왔으면
+   갈래가 전멸한 것이니 `type` 부터 고친다.
+3. 그 노드를 정본 `src/features/editor/schema/visual-spec.schema.json` 의 `required` 및
    `additionalProperties: false` 와 눈으로 대조한다. 정의를 외워서 판단하지 않는다.
-3. 고칠 때마다 다시 검증한다. 가려져 있던 이슈가 새로 나타나는 것이 정상이다.
-4. `valid: true` 가 될 때까지 반복한다. 이슈가 줄었다는 것만으로 완료라고 말하지 않는다.
+4. 고칠 때마다 다시 검증한다. 가려져 있던 이슈가 새로 나타나는 것이 정상이다.
+5. `valid: true` 가 될 때까지 반복한다. 이슈가 줄었다는 것만으로 완료라고 말하지 않는다.
 
 수정 중 스펙을 새로 써야 하면 [../visual-spec-authoring/SKILL.md](../visual-spec-authoring/SKILL.md) 를,
 스키마 원문을 찾아야 하면 [../visual-spec-docs/SKILL.md](../visual-spec-docs/SKILL.md) 를 연다.
