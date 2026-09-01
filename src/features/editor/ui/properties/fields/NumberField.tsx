@@ -1,4 +1,4 @@
-import { Field, inputClass, invalidClass } from "./Field";
+import { blurOnWheel, Field, inputClass, invalidClass } from "./Field";
 import { useDraftInput } from "./useDraftInput";
 
 interface NumberFieldProps {
@@ -41,6 +41,7 @@ export function NumberField({
       <div className="relative">
         <input
           type="number"
+          onWheel={blurOnWheel}
           inputMode="decimal"
           className={`${inputClass} ${invalid ? invalidClass : ""} ${unit ? "pr-7" : ""}`}
           value={draft}

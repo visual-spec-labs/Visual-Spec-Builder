@@ -93,8 +93,12 @@ pnpm run generate:types
 
 ## 문서 구조
 
-- [`docs/`](docs/)는 `01`~`06` 번호 순서로 읽는다. 목차는 [README.md](README.md#문서)에 있다.
-  범위를 판단해야 할 때의 기준은 [`docs/02-mvp-scope.md`](docs/02-mvp-scope.md)다.
+- [`docs/`](docs/)는 `01`~`07` 번호 순서로 읽는다. 목차는 [README.md](README.md#문서)에 있다.
+  범위를 판단해야 할 때의 기준은 [`docs/02-mvp-scope.md`](docs/02-mvp-scope.md)이고,
+  지금 무엇이 구현됐는지는 [`docs/07-implementation-status.md`](docs/07-implementation-status.md)다.
+- 번호가 없는 규칙 문서도 `docs/` 바로 아래에 둔다 —
+  [`docs/DESIGN-TOKEN-RULES.md`](docs/DESIGN-TOKEN-RULES.md)(디자인 토큰 네이밍·참조 규칙),
+  [`docs/EDITOR_STORE_CONTRACT.md`](docs/EDITOR_STORE_CONTRACT.md)(에디터 상태 공유 계약).
 - 스킬 설명 문서(사람이 읽는 것)는 [`docs/skills/`](docs/skills/)에 둔다.
 - 설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 둔다.
 - 배포용 스킬 원본은 저장소 루트 [`skills/`](skills/)에 둔다. 스킬 하나가 디렉터리 하나이고 그 안에 `SKILL.md`가 들어간다.
@@ -105,6 +109,13 @@ pnpm run generate:types
 **PR 하나에 라벨을 몇 개까지 다는지는 아직 정해지지 않았다.**
 
 PR 본문의 "변경 유형" 체크박스를 그대로 옮긴 결과 PR #1에 라벨이 4개(`feat`, `docs`, `test`, `chore`)
-붙어 산만하다는 지적이 있었다. PR #13 본문에서 리뷰어에게 물었으나 답이 오지 않았다.
+붙어 산만하다는 지적이 있었다. PR #13 본문에서 리뷰어에게 물었으나 답이 오지 않았고, 그 뒤로도
+답이 오지 않았다. 어디에도 합의로 기록된 적이 없으므로 **여전히 미확정이다.**
+
+다만 실제로 어떻게 달고 있는지는 관찰된다. 합의가 아니라 관행이다.
+머지된 PR 22건의 라벨 개수를 세어 보면, 질문이 올라온 PR #13 이후 머지된 15건은
+라벨이 1개(10건) 아니면 0개(5건)이고 2개 이상인 것은 하나도 없다.
+2개 이상 붙은 것은 PR #13 이전의 #1(4개) · #4 · #9 · #12(각 2개)뿐이다.
+라벨이 아예 없는 5건(#23 #25 #27 #34 #36)은 모두 스킬 작업 PR이다.
 
 정책이 정해지면 이 절에 적는다. 그때까지는 각자 판단해서 달고, 이 항목을 근거로 리뷰에서 지적하지 않는다.
