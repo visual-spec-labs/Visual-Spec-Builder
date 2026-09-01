@@ -2,7 +2,7 @@ import {
   useEffect,
   useRef,
   type CSSProperties,
-  type MouseEvent,
+  type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from "react";
 
@@ -20,6 +20,7 @@ import type {
 } from "@/features/editor/schema";
 
 import { boxStyle, type Direction } from "./canvasLayout";
+import { resolveClickTarget } from "./selection";
 
 /**
  * 중앙 캔버스.
@@ -197,6 +198,30 @@ function useReportMeasuredSize(
   }, [ref, active]);
 }
 
+/**
+ * 노드를 클릭했을 때 무엇을 선택할지 정한다.
+ *
+ * 스토어를 구독하는 대신 getState로 읽는다 — 재귀 렌더 트리의 모든 노드에
+ * 핸들러를 내려보내지 않기 위해서다.
+ */
+function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
+  // 중첩된 부모의 핸들러까지 함께 실행되면 어느 노드를 클릭했는지 알 수 없다.
+  event.stopPropagation();
+
+  const { spec, activePageId, select } = useEditorStore.getState();
+  const { nodes, root } = spec.pages[activePageId];
+
+  // Cmd(macOS) / Ctrl(Windows)를 누르면 상세 지정(최하위)
+  select(
+    resolveClickTarget({
+      nodes,
+      root,
+      clickedId,
+      deep: event.metaKey || event.ctrlKey,
+    }),
+  );
+}
+
 function RenderNode({
   id,
   parentDirection,
@@ -209,7 +234,6 @@ function RenderNode({
     (state) => state.spec.pages[state.activePageId].nodes[id],
   );
   const selectedId = useEditorStore((state) => state.selectedId);
-  const select = useEditorStore((state) => state.select);
   const ref = useRef<HTMLDivElement>(null);
   const selected = selectedId === id;
 
@@ -221,17 +245,12 @@ function RenderNode({
 
   const outline = selected ? { outline: "2px solid #F97316", outlineOffset: 1 } : {};
 
-  function handleClick(event: MouseEvent) {
-    event.stopPropagation();
-    select(id);
-  }
-
   if (node.type === "text") {
     return (
       <div
         ref={ref}
         style={{ ...textStyle(node, parentDirection), ...outline }}
-        onClick={handleClick}
+        onClick={(event) => handleNodeClick(id, event)}
       >
         {node.content}
       </div>
@@ -243,7 +262,7 @@ function RenderNode({
       <div
         ref={ref}
         style={{ ...imageStyle(node, parentDirection), ...outline }}
-        onClick={handleClick}
+        onClick={(event) => handleNodeClick(id, event)}
       />
     );
   }
@@ -253,7 +272,7 @@ function RenderNode({
       <div
         ref={ref}
         style={{ ...buttonStyle(node, parentDirection), ...outline }}
-        onClick={handleClick}
+        onClick={(event) => handleNodeClick(id, event)}
       >
         {node.content}
       </div>
@@ -265,7 +284,7 @@ function RenderNode({
       <div
         ref={ref}
         style={{ ...inputStyle(node, parentDirection), ...outline }}
-        onClick={handleClick}
+        onClick={(event) => handleNodeClick(id, event)}
       >
         {node.placeholder}
       </div>
@@ -276,7 +295,7 @@ function RenderNode({
     <div
       ref={ref}
       style={{ ...frameStyle(node, parentDirection), ...outline }}
-      onClick={handleClick}
+      onClick={(event) => handleNodeClick(id, event)}
     >
       {node.children.map((child) => (
         <RenderNode
