@@ -2,7 +2,7 @@
 /* 손으로 수정하지 마세요. 재생성: pnpm generate:types */
 
 export type NodeId = string;
-export type Node = FrameNode | TextNode;
+export type Node = FrameNode | TextNode | ImageNode;
 /**
  * number | "auto" | "fill". number는 minimum 0, px로 해석.
  */
@@ -93,4 +93,18 @@ export interface Typography {
   lineHeight: number;
   letterSpacing: number;
   textAlign: "left" | "center" | "right";
+}
+export interface ImageNode {
+  type: "image";
+  name: string;
+  visible?: boolean;
+  box: Box;
+  /**
+   * 워크스페이스 assets에 저장된 이미지를 가리키는 상대 경로 또는 assetId.
+   */
+  src: string;
+  /**
+   * MVP는 object-fit 방식만.
+   */
+  fit: "cover" | "contain" | "fill";
 }

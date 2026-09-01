@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import dashboardCards from "../examples/dashboard-cards.json";
 import emptyTitleScreen from "../examples/empty-title-screen.json";
 import headerContent from "../examples/header-content.json";
+import imageHero from "../examples/image-hero.json";
 import childMissing from "../examples/invalid/child-missing.json";
 import cycle from "../examples/invalid/cycle.json";
 import multipleParents from "../examples/invalid/multiple-parents.json";
@@ -20,6 +21,7 @@ describe("validateVisualSpec", () => {
     ["empty-title-screen", emptyTitleScreen],
     ["dashboard-cards", dashboardCards],
     ["header-content", headerContent],
+    ["image-hero", imageHero],
   ] as const)("%s 예제를 통과시킨다", (_name, input) => {
     expect(validateVisualSpec(input)).toEqual({ valid: true, issues: [] });
   });

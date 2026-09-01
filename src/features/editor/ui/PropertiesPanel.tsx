@@ -2,6 +2,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 import { ExportJsonButton } from "./properties/ExportJsonButton";
 import { FrameProperties } from "./properties/FrameProperties";
+import { PropertySection } from "./properties/PropertySection";
 import { TextProperties } from "./properties/TextProperties";
 import { useNodeField } from "./properties/useNodeField";
 import { ToggleField } from "./properties/fields";
@@ -9,6 +10,7 @@ import { ToggleField } from "./properties/fields";
 const TYPE_LABEL: Record<string, string> = {
   frame: "Frame",
   text: "Text",
+  image: "Image",
 };
 
 /** 노드 이름 + 타입 배지 + 표시 토글. 패널 맨 위 공통 영역. */
@@ -60,7 +62,17 @@ export function PropertiesPanel() {
       <NodeHeader typeLabel={TYPE_LABEL[node.type] ?? node.type} />
 
       <div className="flex-1 overflow-auto">
-        {node.type === "frame" ? <FrameProperties /> : <TextProperties />}
+        {node.type === "frame" ? (
+          <FrameProperties />
+        ) : node.type === "text" ? (
+          <TextProperties />
+        ) : (
+          <PropertySection title="Image">
+            <p className="text-sm text-content-subtle">
+              이미지 속성 편집은 아직 지원하지 않습니다.
+            </p>
+          </PropertySection>
+        )}
       </div>
 
       <ExportJsonButton />

@@ -1,0 +1,46 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "ImageHeroPage",
+    "size": { "width": 390, "height": 844 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Screen",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "column",
+          "gap": 16,
+          "padding": { "top": 0, "right": 0, "bottom": 24, "left": 0 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "background": { "color": "#FFFFFF" },
+        "children": [{ "node": "hero" }, { "node": "caption" }]
+      },
+      "hero": {
+        "type": "image",
+        "name": "Hero",
+        "box": { "width": "fill", "height": 240 },
+        "src": "assets/hero.png",
+        "fit": "cover"
+      },
+      "caption": {
+        "type": "text",
+        "name": "Caption",
+        "box": { "width": "fill", "height": "auto" },
+        "content": "가져온 이미지 위에 설명 텍스트를 배치한다.",
+        "color": "#374151",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      }
+    }
+  }
+}
