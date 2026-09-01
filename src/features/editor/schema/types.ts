@@ -108,3 +108,22 @@ export interface ImageNode {
    */
   fit: "cover" | "contain" | "fill";
 }
+
+export type PageId = string;
+
+/**
+ * Visual Spec v0.2 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 v0.1의 ScreenSpec 그대로다.
+ */
+export interface ProjectSpec {
+  version: "0.2";
+  name: string;
+  pages: {
+    [k: string]: ScreenSpec;
+  };
+  /**
+   * pages의 키와 정확히 일치해야 한다. JSON Schema로는 표현할 수 없어 validateProjectSpec이 page-order-mismatch로 검사한다.
+   *
+   * @minItems 1
+   */
+  pageOrder: [PageId, ...PageId[]];
+}
