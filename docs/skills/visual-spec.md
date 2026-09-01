@@ -74,7 +74,7 @@ Visual Spec Builder가 라이브러리로 설치돼 프로젝트마다 다른 �
 - [x] **[visual-spec-docs](./visual-spec-docs.md)** — 스키마 계약·범위·설계 근거의 원문
       위치를 알려준다. 지식을 복붙해두지 않고 찾는 경로만 준다.
 - [x] **[visual-spec-authoring](./visual-spec-authoring.md)** — Visual Spec JSON을 새로 쓰거나
-      고친다. v0.1은 `frame`과 `text`만 지원한다.
+      고친다. v0.1은 `frame`, `text`, `image` 셋만 지원한다.
 - [x] **생성된 코드 수정 반영** — [visual-spec-authoring](./visual-spec-authoring.md)(JSON
       수정)과 [visual-spec-to-react](./visual-spec-to-react.md)(재생성)의 연결로 처리했다.
 - [x] **여러 화면 일괄 변환** — [visual-spec-to-react](./visual-spec-to-react.md)의 배치
