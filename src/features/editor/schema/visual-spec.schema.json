@@ -35,6 +35,34 @@
         }
       }
     },
+    "ProjectSpec": {
+      "description": "Visual Spec v0.2 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 v0.1의 ScreenSpec 그대로다.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "name", "pages", "pageOrder"],
+      "properties": {
+        "version": { "const": "0.2" },
+        "name": { "type": "string", "minLength": 1 },
+        "pages": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[A-Za-z0-9_-]+$" },
+          "additionalProperties": { "$ref": "#/$defs/ScreenSpec" }
+        },
+        "pageOrder": {
+          "description": "pages의 키와 정확히 일치해야 한다. JSON Schema로는 표현할 수 없어 validateProjectSpec이 page-order-mismatch로 검사한다.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/PageId" }
+        }
+      }
+    },
+    "PageId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
     "Size": {
       "description": "number | \"auto\" | \"fill\". number는 minimum 0, px로 해석.",
       "oneOf": [
