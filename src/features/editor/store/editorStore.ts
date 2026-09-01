@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { NodeId, VisualSpec } from "@/features/editor/schema";
+import type { Node, NodeId, VisualSpec } from "@/features/editor/schema";
 
 import { setByPath } from "./path";
 import { seedSpec } from "./seedSpec";
@@ -29,6 +29,12 @@ export interface EditorState {
    * MenuBar가 호출한다.
    */
   loadSpec: (spec: VisualSpec) => void;
+  /**
+   * 새 노드를 parentId(frame) 자식 목록 끝에 추가하고 선택한다(Import).
+   * parentId가 없거나 frame이 아니면 아무 것도 하지 않는다 — 호출자가
+   * resolveImportParent 등으로 유효한 frame id를 먼저 골라서 넘겨야 한다.
+   */
+  insertNode: (parentId: NodeId, id: NodeId, node: Node) => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -58,4 +64,26 @@ export const useEditorStore = create<EditorState>((set) => ({
       };
     }),
   loadSpec: (spec) => set({ spec, selectedId: null }),
+  insertNode: (parentId, id, node) =>
+    set((state) => {
+      const parent = state.spec.screen.nodes[parentId];
+      if (parent === undefined || parent.type !== "frame") {
+        return state;
+      }
+
+      return {
+        spec: {
+          ...state.spec,
+          screen: {
+            ...state.spec.screen,
+            nodes: {
+              ...state.spec.screen.nodes,
+              [parentId]: { ...parent, children: [...parent.children, { node: id }] },
+              [id]: node,
+            },
+          },
+        },
+        selectedId: id,
+      };
+    }),
 }));

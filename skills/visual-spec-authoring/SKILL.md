@@ -55,7 +55,7 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ## 기존 예제가 지키는 관용구
 
-`examples/` 4개에서 반복되는 것들이다. 따르면 리뷰가 빨라진다.
+`examples/` 5개에서 반복되는 것들이다. 따르면 리뷰가 빨라진다.
 
 - 트리는 평평한 `nodes` 맵 + `children: [{ "node": "id" }]` 참조로만 만든다. 노드 중첩은 없다.
 - 루트 프레임은 `box: { "width": "fill", "height": "fill" }` 에 `background.color` 를 갖는다.
@@ -67,9 +67,14 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ## 제약
 
-v0.1 의 노드 타입은 **`frame` 과 `text` 둘뿐이다.** `image`, `button`, `input`, `component`
-같은 타입을 지어내지 않는다. 표현할 수 없는 요구가 오면 프레임과 텍스트로 근사하고,
-근사했다는 사실을 사용자에게 알린다.
+v0.1 의 노드 타입은 **`frame`, `text`, `image` 셋뿐이다.** `button`, `input`, `component`
+같은 타입은 여전히 없다 — 지어내지 않는다. 표현할 수 없는 요구가 오면 프레임과 텍스트로
+근사하고, 근사했다는 사실을 사용자에게 알린다.
+
+`ImageNode`는 `background`·`border`·`children`을 갖지 않는다(leaf 노드, `text`와 같은
+성격). 필수 필드는 `type`(`"image"`), `name`, `box`, `src`(워크스페이스 assets를 가리키는
+상대 경로 또는 assetId), `fit`(`"cover"`/`"contain"`/`"fill"`, CSS `object-fit`에 대응).
+실물은 `examples/image-hero.json`이다.
 
 필드 정의가 필요하면 정본 `src/features/editor/schema/visual-spec.schema.json` 을 읽는다.
 찾는 방법은 [../visual-spec-docs/SKILL.md](../visual-spec-docs/SKILL.md) 에 있다.

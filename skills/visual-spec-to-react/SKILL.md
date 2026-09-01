@@ -142,10 +142,32 @@ import { Sidebar } from "../components/Sidebar";
 | `TextNode.color` | `text-[#RRGGBB(AA)]` |
 | `frame` 노드 | `<div>` |
 | `text` 노드 | `<p>` |
+| `image` 노드 | `<img>` |
+| `ImageNode.src` | `src` 속성. 아래 "image 노드" 참고 — 값을 그대로 쓰지 않는다 |
+| `ImageNode.fit` | `object-cover`/`object-contain`/`object-fill` |
 | `visible: false` | 해당 노드와 자식은 코드에서 아예 제외한다 |
 
 `fill`의 주축/교차축 판단: 부모 `layout.direction`이 `row`면 width가 주축, `column`이면 height가
 주축이다.
+
+### image 노드
+
+`ImageNode`는 `background`·`border`·`children`이 없는 leaf 노드다 — `text`와 같은 성격으로
+다룬다(부모의 `layout.direction` 기준으로 `box`의 주축/교차축을 판단).
+
+`src`는 그대로 쓰지 않는다. 생성 파일(`pages/` 또는 `components/`, 둘 다
+`.visual-spec/generated/` 바로 아래)에서 워크스페이스 assets까지의 상대 경로로 바꾼다.
+지금은 `../assets/<파일명>` 형태로 가정한다 — 정확한 경로 depth는 `.visual-spec/` 작업공간을
+실제로 만드는 CLI가 아직 없어(#42) 확정된 게 아니다. 실제 작업공간 구조가 나오면 이 규칙을
+맞춰 고친다.
+
+```tsx
+<img src="../assets/hero.png" alt="" className="..." />
+```
+
+`className`은 다른 노드와 똑같이 위 `box`/`fit` 규칙으로 채운다(§ 아래 "image 노드
+예제" 참고). `alt`는 스키마에 없는 필드다. 빈 문자열로 채우고 왜 비웠는지 밝힌다(장식용
+이미지로 근사) — 사용자가 의미 있는 대체 텍스트를 알려주면 그걸 쓴다.
 
 ## 예제
 
@@ -239,6 +261,28 @@ export default function DashboardPage() {
 있고, `Content`는 `Card`가 있어야 한다. `DashboardPage`는 `Header`와 `Content`가 둘 다
 끝난 뒤 마지막에 만든다. 형제 사이의 순서 자체는 자유다 — 의존하지 않는 컴포넌트끼리는
 어느 쪽을 먼저 만들어도 상관없다.
+
+### image 노드 예제
+
+`examples/image-hero.json`을 위 "image 노드" 규칙대로 변환하면 이런 모양이 나와야 한다.
+
+```tsx
+export default function ImageHeroPage() {
+  return (
+    <div className="flex flex-col gap-[16px] pt-[0px] pr-[0px] pb-[24px] pl-[0px] justify-start items-stretch bg-[#FFFFFF] w-full h-full">
+      <img
+        src="../assets/hero.png"
+        alt=""
+        className="self-stretch h-[240px] object-cover"
+      />
+      <p className="self-stretch h-auto text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">가져온 이미지 위에 설명 텍스트를 배치한다.</p>
+    </div>
+  );
+}
+```
+
+`hero`는 반복되는 형제가 없어 컴포넌트로 뽑지 않고 페이지 파일에 인라인했다 — "컴포넌트
+경계를 정한다"의 3번 규칙 그대로다.
 
 ---
 
