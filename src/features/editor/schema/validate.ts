@@ -2,7 +2,7 @@ import Ajv2020 from "ajv/dist/2020";
 import type { ErrorObject } from "ajv/dist/2020";
 
 import visualSpecJsonSchema from "./visual-spec.schema.json";
-import type { VisualSpec } from "./types";
+import type { ProjectSpec, ScreenSpec, VisualSpec } from "./types";
 
 export type IssueCode =
   | "schema"
@@ -11,7 +11,8 @@ export type IssueCode =
   | "child-missing"
   | "cycle"
   | "multiple-parents"
-  | "orphan-node";
+  | "orphan-node"
+  | "page-order-mismatch";
 
 export interface ValidationIssue {
   code: IssueCode;
@@ -24,15 +25,15 @@ export interface ValidationResult {
   issues: ValidationIssue[];
 }
 
-type VisualSpecNode = VisualSpec["screen"]["nodes"][string];
+type VisualSpecNode = ScreenSpec["nodes"][string];
 type FrameNode = Extract<VisualSpecNode, { type: "frame" }>;
 
-let schemaValidator:
-  ReturnType<InstanceType<typeof Ajv2020>["compile"]> | undefined;
+type CompiledValidator = ReturnType<InstanceType<typeof Ajv2020>["compile"]>;
 
-function getSchemaValidator(): ReturnType<
-  InstanceType<typeof Ajv2020>["compile"]
-> {
+let schemaValidator: CompiledValidator | undefined;
+let projectSchemaValidator: CompiledValidator | undefined;
+
+function getSchemaValidator(): CompiledValidator {
   if (schemaValidator === undefined) {
     const ajv = new Ajv2020({ allErrors: true });
     schemaValidator = ajv.compile(visualSpecJsonSchema);
@@ -41,12 +42,29 @@ function getSchemaValidator(): ReturnType<
   return schemaValidator;
 }
 
+/**
+ * ProjectSpec은 정본 스키마의 루트가 아니라 `$defs` 항목이다. 루트는 v0.1
+ * VisualSpec으로 그대로 두기 위해서다. 그래서 스키마를 통째로 등록한 뒤
+ * 해당 `$def`를 가리키는 얇은 스키마를 컴파일한다.
+ */
+function getProjectSchemaValidator(): CompiledValidator {
+  if (projectSchemaValidator === undefined) {
+    const ajv = new Ajv2020({ allErrors: true });
+    ajv.addSchema(visualSpecJsonSchema, "visual-spec");
+    projectSchemaValidator = ajv.compile({
+      $ref: "visual-spec#/$defs/ProjectSpec",
+    });
+  }
+
+  return projectSchemaValidator;
+}
+
 function escapeJsonPointer(value: string): string {
   return value.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 
-function nodePath(nodeId: string): string {
-  return `/screen/nodes/${escapeJsonPointer(nodeId)}`;
+function nodePath(basePath: string, nodeId: string): string {
+  return `${basePath}/nodes/${escapeJsonPointer(nodeId)}`;
 }
 
 function isFrameNode(node: VisualSpecNode): node is FrameNode {
@@ -89,9 +107,12 @@ function describeSchemaError(error: ErrorObject): string {
   }
 }
 
-function validateReferences(spec: VisualSpec): ValidationIssue[] {
+function validateScreenReferences(
+  screen: ScreenSpec,
+  basePath: string,
+): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const { nodes, root } = spec.screen;
+  const { nodes, root } = screen;
   const hasNode = (nodeId: string): boolean =>
     Object.prototype.hasOwnProperty.call(nodes, nodeId);
   const rootNode = hasNode(root) ? nodes[root] : undefined;
@@ -99,13 +120,13 @@ function validateReferences(spec: VisualSpec): ValidationIssue[] {
   if (rootNode === undefined) {
     issues.push({
       code: "root-missing",
-      path: "/screen/root",
+      path: `${basePath}/root`,
       message: `루트 노드 "${root}"가 nodes에 없습니다.`,
     });
   } else if (!isFrameNode(rootNode)) {
     issues.push({
       code: "root-not-frame",
-      path: "/screen/root",
+      path: `${basePath}/root`,
       message: `루트 노드 "${root}"의 type은 "frame"이어야 합니다.`,
     });
   }
@@ -119,7 +140,7 @@ function validateReferences(spec: VisualSpec): ValidationIssue[] {
 
     for (let index = 0; index < node.children.length; index += 1) {
       const child = node.children[index];
-      const path = `${nodePath(parentId)}/children/${index}/node`;
+      const path = `${nodePath(basePath, parentId)}/children/${index}/node`;
       const childId = child.node;
 
       if (!hasNode(childId)) {
@@ -169,7 +190,7 @@ function validateReferences(spec: VisualSpec): ValidationIssue[] {
           hasCycle = true;
           issues.push({
             code: "cycle",
-            path: `${nodePath(nodeId)}/children/${index}/node`,
+            path: `${nodePath(basePath, nodeId)}/children/${index}/node`,
             message: `노드 "${childId}"로 향하는 자식 참조에서 순환이 발견되었습니다.`,
           });
           continue;
@@ -216,7 +237,7 @@ function validateReferences(spec: VisualSpec): ValidationIssue[] {
       if (!reachable.has(nodeId)) {
         issues.push({
           code: "orphan-node",
-          path: nodePath(nodeId),
+          path: nodePath(basePath, nodeId),
           message: `노드 "${nodeId}"는 루트에서 도달할 수 없습니다.`,
         });
       }
@@ -250,7 +271,101 @@ export function validateVisualSpec(input: unknown): ValidationResult {
       return { valid: false, issues };
     }
 
-    const issues = validateReferences(input as VisualSpec);
+    const issues = validateScreenReferences(
+      (input as VisualSpec).screen,
+      "/screen",
+    );
+    return { valid: issues.length === 0, issues };
+  } catch {
+    return {
+      valid: false,
+      issues: [
+        {
+          code: "schema",
+          path: "/",
+          message: "입력을 검증하는 중 오류가 발생했습니다.",
+        },
+      ],
+    };
+  }
+}
+
+/**
+ * `pageOrder`가 `pages`의 키와 정확히 일치하는지 본다.
+ *
+ * 이 불변조건은 JSON Schema 2020-12로 표현할 수 없다 — 배열 항목이 객체 키를
+ * 참조하는 문법이 없기 때문이다. `nodes` ↔ `children.node`를 그래프 검사로
+ * 처리하는 것과 같은 이유로 여기서 따로 확인한다.
+ * (`pageOrder` 자체의 중복은 스키마의 `uniqueItems`가 잡는다.)
+ */
+function validatePageOrder(project: ProjectSpec): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const ordered = new Set(project.pageOrder);
+
+  for (let index = 0; index < project.pageOrder.length; index += 1) {
+    const pageId = project.pageOrder[index];
+    if (!Object.prototype.hasOwnProperty.call(project.pages, pageId)) {
+      issues.push({
+        code: "page-order-mismatch",
+        path: `/pageOrder/${index}`,
+        message: `pageOrder의 "${pageId}"가 pages에 없습니다.`,
+      });
+    }
+  }
+
+  for (const pageId of Object.keys(project.pages)) {
+    if (!ordered.has(pageId)) {
+      issues.push({
+        code: "page-order-mismatch",
+        path: `/pages/${escapeJsonPointer(pageId)}`,
+        message: `페이지 "${pageId}"가 pageOrder에 없습니다.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * v0.2 프로젝트 문서를 검증한다. 절대 던지지 않는다.
+ * 페이지마다 v0.1과 같은 그래프 검사를 돌리고, 에러 경로는 `/pages/<id>/...`가 된다.
+ */
+export function validateProjectSpec(input: unknown): ValidationResult {
+  try {
+    const validateSchema = getProjectSchemaValidator();
+
+    if (!validateSchema(input)) {
+      const issues: ValidationIssue[] = (validateSchema.errors ?? []).map(
+        (error) => ({
+          code: "schema",
+          path: error.instancePath || "/",
+          message: describeSchemaError(error),
+        }),
+      );
+
+      if (issues.length === 0) {
+        issues.push({
+          code: "schema",
+          path: "/",
+          message: "스키마 검증에 실패했습니다.",
+        });
+      }
+
+      return { valid: false, issues };
+    }
+
+    const project = input as ProjectSpec;
+    const issues = validatePageOrder(project);
+
+    for (const [pageId, page] of Object.entries(project.pages)) {
+      issues.push(
+        ...validateScreenReferences(
+          page,
+          `/pages/${escapeJsonPointer(pageId)}`,
+        ),
+      );
+    }
+
     return { valid: issues.length === 0, issues };
   } catch {
     return {
