@@ -1,7 +1,6 @@
 import { Frame, Hand, MousePointer2, Type, type LucideIcon } from "lucide-react";
-import { useState } from "react";
 
-type ToolId = "select" | "frame" | "text" | "hand";
+import { useToolStore, type ToolId } from "@/features/editor/store/toolStore";
 
 const TOOLS: { id: ToolId; label: string; Icon: LucideIcon }[] = [
   { id: "select", label: "Select", Icon: MousePointer2 },
@@ -11,11 +10,13 @@ const TOOLS: { id: ToolId; label: string; Icon: LucideIcon }[] = [
 ];
 
 /**
- * 캔버스 위에 떠 있는 도구 모음. 활성 도구는 로컬 UI 상태로만 표시한다
- * (실제 도구 동작·비즈니스 로직 없음).
+ * 캔버스 위에 떠 있는 도구 모음.
+ * 활성 도구는 toolStore가 값 하나로 들고 있어 언제나 하나만 켜진다.
+ * 실제 동작(선택·생성·팬)은 이 값을 읽는 Canvas가 수행한다.
  */
 export function Toolbar() {
-  const [activeTool, setActiveTool] = useState<ToolId>("select");
+  const activeTool = useToolStore((state) => state.activeTool);
+  const setActiveTool = useToolStore((state) => state.setActiveTool);
 
   return (
     <div
