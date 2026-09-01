@@ -27,7 +27,10 @@ export function boxStyle(
   parentDirection: Direction | undefined,
 ): CSSProperties {
   // 최상위 노드는 flex 아이템이 아니다 — 고정 크기 래퍼 기준 퍼센트로 처리한다.
-  if (parentDirection === undefined) {
+  // grid 아이템도 같은 취급이다: flex-grow/shrink 기반 주축/교차축 배분은 grid에
+  // 뜻이 없다 — grid 컨테이너 쪽(frameStyle)의 최소 구현이라 아이템은 그냥
+  // width/height 그대로 쓴다(fill→100%). 정식 grid 배치는 후속 작업.
+  if (parentDirection === undefined || parentDirection === "grid") {
     return { width: sizeToCss(box.width), height: sizeToCss(box.height) };
   }
 

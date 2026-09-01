@@ -1,6 +1,12 @@
 import type { CSSProperties } from "react";
 
-import type { FrameNode, ImageNode, TextNode } from "@/features/editor/schema";
+import type {
+  ButtonNode,
+  FrameNode,
+  ImageNode,
+  InputNode,
+  TextNode,
+} from "@/features/editor/schema";
 
 import { boxStyle, type Direction } from "./canvasLayout";
 
@@ -27,14 +33,28 @@ const CROSS_AXIS: Record<string, CSSProperties["alignItems"]> = {
   stretch: "stretch",
 };
 
+/**
+ * grid는 최소 구현이다 — Canvas.tsx의 displayStyle()과 같은 규칙(균등 N열
+ * 자동 배치만, 셀 지정 없음, mainAxis/crossAxis 무시). 카드 미리보기는
+ * Canvas.tsx와 별개 구현이라(위 주석 참고) 여기도 같이 맞춘다.
+ */
+function previewDisplayStyle(layout: FrameNode["layout"]): CSSProperties {
+  if (layout.direction === "grid") {
+    return {
+      display: "grid",
+      gridTemplateColumns: `repeat(${layout.columns ?? 1}, 1fr)`,
+    };
+  }
+  return { display: "flex", flexDirection: layout.direction };
+}
+
 export function previewFrameStyle(
   node: FrameNode,
   parentDirection: Direction | undefined,
 ): CSSProperties {
   const { layout } = node;
   return {
-    display: "flex",
-    flexDirection: layout.direction,
+    ...previewDisplayStyle(layout),
     gap: layout.gap,
     paddingTop: layout.padding.top,
     paddingRight: layout.padding.right,
@@ -80,6 +100,58 @@ export function previewImageStyle(
     backgroundSize: node.fit === "fill" ? "100% 100%" : node.fit,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
+  };
+}
+
+export function previewButtonStyle(
+  node: ButtonNode,
+  parentDirection: Direction | undefined,
+): CSSProperties {
+  const { typography } = node;
+  return {
+    ...boxStyle(node.box, parentDirection),
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: node.color,
+    fontFamily: typography.fontFamily,
+    fontSize: typography.fontSize,
+    fontWeight: typography.fontWeight,
+    lineHeight: `${typography.lineHeight}px`,
+    letterSpacing: typography.letterSpacing,
+    textAlign: typography.textAlign,
+    background: node.background?.color,
+    border: node.border
+      ? `${node.border.width}px solid ${node.border.color}`
+      : undefined,
+    borderRadius: node.border?.radius,
+    boxSizing: "border-box",
+  };
+}
+
+export function previewInputStyle(
+  node: InputNode,
+  parentDirection: Direction | undefined,
+): CSSProperties {
+  const { typography } = node;
+  return {
+    ...boxStyle(node.box, parentDirection),
+    display: "flex",
+    alignItems: "center",
+    color: node.color,
+    opacity: 0.6,
+    fontFamily: typography.fontFamily,
+    fontSize: typography.fontSize,
+    fontWeight: typography.fontWeight,
+    lineHeight: `${typography.lineHeight}px`,
+    letterSpacing: typography.letterSpacing,
+    textAlign: typography.textAlign,
+    background: node.background?.color,
+    border: node.border
+      ? `${node.border.width}px solid ${node.border.color}`
+      : undefined,
+    borderRadius: node.border?.radius,
+    boxSizing: "border-box",
   };
 }
 

@@ -67,7 +67,7 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ## 제약
 
-v0.1 의 노드 타입은 **`frame`, `text`, `image` 셋뿐이다.** `button`, `input`, `component`
+v0.1 의 노드 타입은 **`frame`, `text`, `image`, `button`, `input` 다섯뿐이다.** `component`
 같은 타입은 여전히 없다 — 지어내지 않는다. 표현할 수 없는 요구가 오면 프레임과 텍스트로
 근사하고, 근사했다는 사실을 사용자에게 알린다.
 
@@ -75,6 +75,16 @@ v0.1 의 노드 타입은 **`frame`, `text`, `image` 셋뿐이다.** `button`, `
 성격). 필수 필드는 `type`(`"image"`), `name`, `box`, `src`(워크스페이스 assets를 가리키는
 상대 경로 또는 assetId), `fit`(`"cover"`/`"contain"`/`"fill"`, CSS `object-fit`에 대응).
 실물은 `examples/image-hero.json`이다.
+
+`ButtonNode`/`InputNode`도 leaf 노드다. 둘 다 `text`처럼 `typography`·`color`가 필수고,
+`background`·`border`는 선택이다. `ButtonNode`는 `content`(버튼 라벨, 빈 문자열 불가),
+`InputNode`는 `placeholder`(빈 문자열 허용)가 각각 필수 텍스트 필드다. **둘 다 표시용
+텍스트만 있다** — `onClick`·`value`·`onChange` 같은 이벤트·바인딩은 스키마에 없다("버튼
+누르면 로그인" 같은 동작 요구는 표현할 수 없다고 알린다). 실물은 `examples/form-grid.json`이다.
+
+`layout.direction`은 `"row"`/`"column"`/`"grid"` 셋이다. `"grid"`일 때만 `layout.columns`
+(선택 필드, 열 개수)를 쓸 수 있다 — row/column에는 넣지 않는다. Grid는 균등 N열 자동
+배치일 뿐 특정 자식을 특정 셀에 지정하는 기능은 없다(`mainAxis`/`crossAxis`도 무시된다).
 
 필드 정의가 필요하면 정본 `src/features/editor/schema/visual-spec.schema.json` 을 읽는다.
 찾는 방법은 [../visual-spec-docs/SKILL.md](../visual-spec-docs/SKILL.md) 에 있다.

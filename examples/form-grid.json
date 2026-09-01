@@ -1,0 +1,112 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "FormGridPage",
+    "size": { "width": 390, "height": 844 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Screen",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "grid",
+          "columns": 2,
+          "gap": 12,
+          "padding": { "top": 24, "right": 16, "bottom": 24, "left": 16 },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "background": { "color": "#FFFFFF" },
+        "children": [
+          { "node": "nameLabel" },
+          { "node": "nameInput" },
+          { "node": "emailLabel" },
+          { "node": "emailInput" },
+          { "node": "submit" }
+        ]
+      },
+      "nameLabel": {
+        "type": "text",
+        "name": "NameLabel",
+        "box": { "width": "fill", "height": "auto" },
+        "content": "이름",
+        "color": "#374151",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "nameInput": {
+        "type": "input",
+        "name": "NameInput",
+        "box": { "width": "fill", "height": 44 },
+        "placeholder": "이름을 입력하세요",
+        "color": "#111827",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        },
+        "background": { "color": "#F9FAFB" },
+        "border": { "width": 1, "color": "#D1D5DB", "radius": 8 }
+      },
+      "emailLabel": {
+        "type": "text",
+        "name": "EmailLabel",
+        "box": { "width": "fill", "height": "auto" },
+        "content": "이메일",
+        "color": "#374151",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "emailInput": {
+        "type": "input",
+        "name": "EmailInput",
+        "box": { "width": "fill", "height": 44 },
+        "placeholder": "이메일을 입력하세요",
+        "color": "#111827",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        },
+        "background": { "color": "#F9FAFB" },
+        "border": { "width": 1, "color": "#D1D5DB", "radius": 8 }
+      },
+      "submit": {
+        "type": "button",
+        "name": "SubmitButton",
+        "box": { "width": "fill", "height": 44 },
+        "content": "제출",
+        "color": "#FFFFFF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 600,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "center"
+        },
+        "background": { "color": "#4F46E5" },
+        "border": { "width": 0, "color": "#4F46E5", "radius": 8 }
+      }
+    }
+  }
+}

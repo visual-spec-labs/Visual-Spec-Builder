@@ -79,7 +79,9 @@
       "oneOf": [
         { "$ref": "#/$defs/FrameNode" },
         { "$ref": "#/$defs/TextNode" },
-        { "$ref": "#/$defs/ImageNode" }
+        { "$ref": "#/$defs/ImageNode" },
+        { "$ref": "#/$defs/ButtonNode" },
+        { "$ref": "#/$defs/InputNode" }
       ]
     },
     "FrameNode": {
@@ -135,6 +137,41 @@
         }
       }
     },
+    "ButtonNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name", "box", "content", "typography", "color"],
+      "properties": {
+        "type": { "const": "button" },
+        "name": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean", "default": true },
+        "box": { "$ref": "#/$defs/Box" },
+        "content": { "type": "string", "minLength": 1, "description": "버튼 라벨." },
+        "typography": { "$ref": "#/$defs/Typography" },
+        "color": { "$ref": "#/$defs/Color" },
+        "background": { "$ref": "#/$defs/Background" },
+        "border": { "$ref": "#/$defs/Border" }
+      }
+    },
+    "InputNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name", "box", "placeholder", "typography", "color"],
+      "properties": {
+        "type": { "const": "input" },
+        "name": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean", "default": true },
+        "box": { "$ref": "#/$defs/Box" },
+        "placeholder": {
+          "type": "string",
+          "description": "MVP는 표시용 placeholder 텍스트만 있다. value·onChange 같은 바인딩은 없다(props/bindings는 MVP 제외 범위)."
+        },
+        "typography": { "$ref": "#/$defs/Typography" },
+        "color": { "$ref": "#/$defs/Color" },
+        "background": { "$ref": "#/$defs/Background" },
+        "border": { "$ref": "#/$defs/Border" }
+      }
+    },
     "ChildReference": {
       "type": "object",
       "additionalProperties": false,
@@ -173,7 +210,7 @@
       "additionalProperties": false,
       "required": ["direction", "gap", "padding", "mainAxis", "crossAxis"],
       "properties": {
-        "direction": { "type": "string", "enum": ["row", "column"] },
+        "direction": { "type": "string", "enum": ["row", "column", "grid"] },
         "gap": { "type": "number", "minimum": 0 },
         "padding": { "$ref": "#/$defs/Padding" },
         "mainAxis": {
@@ -183,6 +220,11 @@
         "crossAxis": {
           "type": "string",
           "enum": ["start", "center", "end", "stretch"]
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "direction이 \"grid\"일 때만 의미가 있는 열 개수. row/column에서는 없어도 된다 — v0.1의 '선택 필드는 visible만'(06-schema-freeze.md) 규칙에서 일부러 벗어난 예외다. row/column에 이 필드를 강제하면 기존 예제·테스트가 전부 깨지는데, grid에만 뜻이 있는 값을 매번 채우게 하는 것도 부자연스럽다."
         }
       }
     },

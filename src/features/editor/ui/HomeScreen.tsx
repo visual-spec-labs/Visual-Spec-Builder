@@ -9,8 +9,10 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
 import {
+  previewButtonStyle,
   previewFrameStyle,
   previewImageStyle,
+  previewInputStyle,
   previewScale,
   previewTextStyle,
 } from "@/features/editor/ui/homePreview";
@@ -163,6 +165,14 @@ function PreviewNode({
 
   if (node.type === "text") {
     return <div style={previewTextStyle(node, parentDirection)}>{node.content}</div>;
+  }
+
+  if (node.type === "button") {
+    return <div style={previewButtonStyle(node, parentDirection)}>{node.content}</div>;
+  }
+
+  if (node.type === "input") {
+    return <div style={previewInputStyle(node, parentDirection)}>{node.placeholder}</div>;
   }
 
   return <div style={previewImageStyle(node, parentDirection)} />;
