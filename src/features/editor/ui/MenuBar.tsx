@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson, saveSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
@@ -45,12 +46,15 @@ function handleSaveAs() {
  * 원인이라 조용히 실패하면 원인을 알 수 없어 최소한의 alert로 알린다.
  * View 항목은 viewStore(줌·그리드·패널 표시)에 연결돼 있다.
  * Help은 gui-spec.md 기준 MVP 제외.
+ * 로고·브랜드명 클릭은 navigationStore.openHome()으로 홈 화면으로 돌아간다(#72) —
+ * 홈 → 에디터는 카드 클릭/새 화면으로 들어오므로, 나가는 길도 있어야 한다.
  */
 export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const rootRef = useRef<HTMLElement>(null);
 
   const loadSpec = useEditorStore((s) => s.loadSpec);
+  const openHome = useNavigationStore((s) => s.openHome);
   const zoomIn = useViewStore((s) => s.zoomIn);
   const zoomOut = useViewStore((s) => s.zoomOut);
   const fitToScreen = useViewStore((s) => s.fitToScreen);
@@ -104,8 +108,15 @@ export function MenuBar() {
       className="flex items-center gap-4 border-b border-line bg-surface px-4 text-sm [grid-area:menu]"
     >
       <div className="flex shrink-0 items-center gap-4">
-        <span aria-hidden="true" className="size-4 rounded-sm bg-primary" />
-        <span className="font-semibold text-content-strong">Visual Spec Builder</span>
+        <button
+          type="button"
+          onClick={openHome}
+          className="flex items-center gap-2 rounded-control hover:bg-hover"
+          aria-label="홈으로"
+        >
+          <span aria-hidden="true" className="size-4 rounded-sm bg-primary" />
+          <span className="font-semibold text-content-strong">Visual Spec Builder</span>
+        </button>
         <MenuButton
           label="File"
           isOpen={openMenu === "file"}
