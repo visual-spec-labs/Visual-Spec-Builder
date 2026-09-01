@@ -49,7 +49,6 @@ export function previewFrameStyle(
       : undefined,
     borderRadius: node.border?.radius,
     boxSizing: "border-box",
-    overflow: "hidden",
   };
 }
 
@@ -68,7 +67,6 @@ export function previewTextStyle(
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
     whiteSpace: "pre-wrap",
-    overflow: "hidden",
   };
 }
 
