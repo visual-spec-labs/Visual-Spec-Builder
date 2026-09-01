@@ -5,6 +5,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson, saveSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
+import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
 import { openSpecFromFile } from "@/features/editor/ui/openSpecFromFile";
 
 type MenuKey = "file" | "view";
@@ -14,11 +15,6 @@ type ToggleEntry = { kind: "toggle"; label: string; checked: boolean; onToggle: 
 type SeparatorEntry = { kind: "separator" };
 
 type MenuEntry = ActionEntry | ToggleEntry | SeparatorEntry;
-
-/** Import는 이번 범위 밖 — 클릭해도 메뉴만 닫히고 실제 동작은 없다. */
-function noop() {
-  /* 이후 이슈에서 연결 */
-}
 
 /**
  * spec을 렌더 시점 구독값이 아니라 클릭 시점에 getState()로 읽는다.
@@ -36,12 +32,14 @@ function handleSaveAs() {
 
 /**
  * 상단 메뉴바 — Figma 디자인 기준 레이아웃(로고·브랜드·중앙 프로젝트명·테마 토글) +
- * File/View 드롭다운. Import는 이후 이슈에서 연결한다.
+ * File/View 드롭다운.
  * New는 loadSpec(blankSpec), Open은 openSpecFromFile(파일 선택 → 검증 →
  * loadSpec)로 연결돼 있다. Export/Save는 exportSpecAsJson(현재 파일명
  * 그대로 다운로드)을 공유하고, Save as는 파일명을 물어보는
  * saveSpecAsJson을 쓴다 — 워크스페이스가 없는 브라우저 앱이라 셋 다
  * 실질적으로 같은 "JSON 다운로드" 메커니즘이다.
+ * Import는 importImageFromFile(이미지 선택 → 선택된 프레임/root에 삽입)로
+ * 연결돼 있다 — 코드·디자인 파일 가져오기는 이번 범위 밖(별도 이슈).
  * 검증 실패 시 Export는 다운로드 대신 콘솔 경고만 남기고(메뉴 컨텍스트에
  * 인라인 에러 UI가 없어서 낸 절충), Open/Save as는 사용자 조작이
  * 원인이라 조용히 실패하면 원인을 알 수 없어 최소한의 alert로 알린다.
@@ -67,7 +65,7 @@ export function MenuBar() {
     { kind: "action", label: "Save", onSelect: handleExport },
     { kind: "action", label: "Save as", onSelect: handleSaveAs },
     { kind: "separator" },
-    { kind: "action", label: "Import", onSelect: noop },
+    { kind: "action", label: "Import", onSelect: importImageFromFile },
     { kind: "action", label: "Export", onSelect: handleExport },
   ];
 

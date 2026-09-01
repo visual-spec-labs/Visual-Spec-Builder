@@ -51,8 +51,8 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
 | `cycle` | 자식이 조상을 다시 참조한다. 이동 작업에서 부모/자식을 뒤집으면 생긴다 | `path` 가 가리키는 참조를 끊는다 |
 | `root-missing` | `screen.root` 값이 `nodes` 의 키와 다르다 | 둘 중 하나를 상대에 맞춘다 |
 | `root-not-frame` | 루트를 `text` 로 만들었다. 텍스트 한 줄짜리 화면에서 자주 나온다 | 루트 프레임을 만들고 그 텍스트를 자식으로 넣는다 |
-| `schema` at `.../<node>` (`text-without-content`) | TextNode 에 `content` 가 없다. 이슈 12개 중 6번째 `필수 필드 "content"가 없습니다.` 만 진짜고 나머지는 `frame`·`image` 갈래의 잡음이다 | `message` 가 지목한 필드를 정본 스키마의 `required` 와 대조해 채운다 |
-| `schema` at `.../<node>/type` (`unsupported-node-type`) | `shape` 처럼 v0.1 에 없는 `type` 을 썼다. `값이 "frame"`·`값이 "text"`·`값이 "image"` 세 이슈가 **함께** 나오는 것이 신호다 | 그 세 메시지의 값이 허용값 전부다. `frame`·`text`·`image` 중 하나로 바꾼다 |
+| `schema` at `.../<node>` (`text-without-content`) | TextNode 에 `content` 가 없다. **필수 필드 누락은 전부 이 모양으로 나온다.** 이슈 12개 중 6번째 `필수 필드 "content"가 없습니다.` 만 진짜고 나머지는 `frame`·`image` 갈래의 잡음이다 | 정본 스키마의 `required` 와 그 노드를 대조해, `message` 가 지목한 빠진 필드를 채운다 |
+| `schema` at `.../<node>/type` (`unsupported-node-type`) | `shape`, `button`, `input` 처럼 v0.1 에 없는 `type` 을 썼다. `값이 "frame"`·`값이 "text"`·`값이 "image"` 세 이슈가 **함께** 나오는 것이 신호다 | 그 세 메시지의 값이 허용값 전부다 — v0.1 은 `frame`, `text`, `image` 셋뿐이다. 셋 중 가장 가까운 것으로 근사한다 |
 
 ## 절차
 
