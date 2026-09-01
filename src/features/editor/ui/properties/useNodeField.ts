@@ -16,7 +16,7 @@ export function useNodeField<T>(path: string): [T | undefined, (value: T) => voi
     if (selectedId === null) {
       return undefined;
     }
-    const node = state.spec.screen.nodes[selectedId];
+    const node = state.spec.pages[state.activePageId].nodes[selectedId];
     return node === undefined ? undefined : getByPath(node, path);
   }) as T | undefined;
 

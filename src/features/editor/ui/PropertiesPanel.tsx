@@ -41,7 +41,7 @@ function NodeHeader({ typeLabel }: { typeLabel: string }) {
 export function PropertiesPanel() {
   const selectedId = useEditorStore((state) => state.selectedId);
   const node = useEditorStore((state) =>
-    selectedId === null ? undefined : state.spec.screen.nodes[selectedId],
+    selectedId === null ? undefined : state.spec.pages[state.activePageId].nodes[selectedId],
   );
 
   if (selectedId === null || node === undefined) {

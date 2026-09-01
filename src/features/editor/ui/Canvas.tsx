@@ -13,6 +13,7 @@ import type {
   FrameNode,
   ImageNode,
   NodeId,
+  PageId,
   TextNode,
 } from "@/features/editor/schema";
 
@@ -133,7 +134,9 @@ function RenderNode({
   /** 부모 프레임의 레이아웃 방향. 최상위 노드는 부모가 없어 undefined. */
   parentDirection?: Direction;
 }) {
-  const node = useEditorStore((state) => state.spec.screen.nodes[id]);
+  const node = useEditorStore(
+    (state) => state.spec.pages[state.activePageId].nodes[id],
+  );
   const selectedId = useEditorStore((state) => state.selectedId);
   const select = useEditorStore((state) => state.select);
   const ref = useRef<HTMLDivElement>(null);
@@ -216,9 +219,10 @@ const ZOOM_SCALE_CLASS: Record<number, string> = {
 };
 
 export function Canvas() {
-  const root = useEditorStore((state) => state.spec.screen.root);
-  const size = useEditorStore((state) => state.spec.screen.size);
-  const screenName = useEditorStore((state) => state.spec.screen.name);
+  const activePageId = useEditorStore((state) => state.activePageId);
+  const root = useEditorStore((state) => state.spec.pages[state.activePageId].root);
+  const size = useEditorStore((state) => state.spec.pages[state.activePageId].size);
+  const screenName = useEditorStore((state) => state.spec.pages[state.activePageId].name);
   const select = useEditorStore((state) => state.select);
   const zoom = useViewStore((s) => s.zoom);
   const showGrid = useViewStore((s) => s.showGrid);
@@ -278,12 +282,15 @@ export function Canvas() {
   // 처음 열었을 때는 Figma처럼 아트보드 전체가 보이도록 맞춘다.
   // 100%로 시작하면 아트보드가 뷰포트보다 커서 캔버스 바탕이 안 보이고,
   // 아트보드가 "캔버스 위에 얹힌 오브젝트"로 읽히지 않는다.
-  const didFit = useRef(false);
+  //
+  // 페이지를 바꿀 때도 다시 맞춘다. 1440×900에서 390×844로 옮겼는데 확대율이
+  // 그대로면 아트보드가 뷰포트 구석에 조그맣게 남는다.
+  const fittedFor = useRef<PageId | null>(null);
   useEffect(() => {
-    if (didFit.current || viewport === null) return;
-    didFit.current = true;
+    if (fittedFor.current === activePageId || viewport === null) return;
+    fittedFor.current = activePageId;
     useViewStore.getState().fitToScreen();
-  }, [viewport]);
+  }, [viewport, activePageId]);
 
   const scale = zoom / 100;
 
