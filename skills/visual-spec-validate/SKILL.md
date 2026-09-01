@@ -37,7 +37,7 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
 | `root-missing` | `screen.root` 값이 `nodes` 의 키와 다르다 | 둘 중 하나를 상대에 맞춘다 |
 | `root-not-frame` | 루트를 `text` 로 만들었다. 텍스트 한 줄짜리 화면에서 자주 나온다 | 루트 프레임을 만들고 그 텍스트를 자식으로 넣는다 |
 | `schema` at `.../<node>` (`text-without-content`) | TextNode 에 `content` 가 없다. 필수 필드 누락은 전부 이 모양으로 나온다 | 정본 스키마의 `required` 와 그 노드를 대조해 빠진 필드를 채운다 |
-| `schema` at `.../<node>/type` (`unsupported-node-type`) | `image` 처럼 v0.1 에 없는 `type` 을 썼다 | v0.1 은 `frame` 과 `text` 뿐이다. 프레임·텍스트로 바꾼다 |
+| `schema` at `.../<node>/type` (`unsupported-node-type`) | `shape`, `button`, `input` 처럼 v0.1 에 없는 `type` 을 썼다 | v0.1 은 `frame`, `text`, `image` 셋뿐이다. 셋 중 가장 가까운 것으로 근사한다 |
 
 ## 절차
 
