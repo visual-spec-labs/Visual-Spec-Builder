@@ -48,7 +48,11 @@
       "pattern": "^[A-Za-z0-9_-]+$"
     },
     "Node": {
-      "oneOf": [{ "$ref": "#/$defs/FrameNode" }, { "$ref": "#/$defs/TextNode" }]
+      "oneOf": [
+        { "$ref": "#/$defs/FrameNode" },
+        { "$ref": "#/$defs/TextNode" },
+        { "$ref": "#/$defs/ImageNode" }
+      ]
     },
     "FrameNode": {
       "type": "object",
@@ -80,6 +84,27 @@
         "content": { "type": "string" },
         "typography": { "$ref": "#/$defs/Typography" },
         "color": { "$ref": "#/$defs/Color" }
+      }
+    },
+    "ImageNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name", "box", "src", "fit"],
+      "properties": {
+        "type": { "const": "image" },
+        "name": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean", "default": true },
+        "box": { "$ref": "#/$defs/Box" },
+        "src": {
+          "type": "string",
+          "minLength": 1,
+          "description": "워크스페이스 assets에 저장된 이미지를 가리키는 상대 경로 또는 assetId."
+        },
+        "fit": {
+          "type": "string",
+          "description": "MVP는 object-fit 방식만.",
+          "enum": ["cover", "contain", "fill"]
+        }
       }
     },
     "ChildReference": {

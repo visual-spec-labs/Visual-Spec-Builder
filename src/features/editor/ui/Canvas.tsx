@@ -9,7 +9,12 @@ import {
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
-import type { FrameNode, NodeId, TextNode } from "@/features/editor/schema";
+import type {
+  FrameNode,
+  ImageNode,
+  NodeId,
+  TextNode,
+} from "@/features/editor/schema";
 
 import { boxStyle, type Direction } from "./canvasLayout";
 
@@ -74,6 +79,19 @@ function textStyle(
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
     whiteSpace: "pre-wrap",
+  };
+}
+
+function imageStyle(
+  node: ImageNode,
+  parentDirection: Direction | undefined,
+): CSSProperties {
+  return {
+    ...boxStyle(node.box, parentDirection),
+    backgroundImage: `url(${node.src})`,
+    backgroundSize: node.fit === "fill" ? "100% 100%" : node.fit,
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
   };
 }
 
@@ -143,6 +161,16 @@ function RenderNode({
       >
         {node.content}
       </div>
+    );
+  }
+
+  if (node.type === "image") {
+    return (
+      <div
+        ref={ref}
+        style={{ ...imageStyle(node, parentDirection), ...outline }}
+        onClick={handleClick}
+      />
     );
   }
 

@@ -9,6 +9,7 @@ import { ToggleField } from "./properties/fields";
 const TYPE_LABEL: Record<string, string> = {
   frame: "Frame",
   text: "Text",
+  image: "Image",
 };
 
 /** 노드 이름 + 타입 배지 + 표시 토글. 패널 맨 위 공통 영역. */

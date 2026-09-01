@@ -13,6 +13,7 @@
 - `screen`
 - `frame`
 - `text`
+- `image`
 - `layout`
 - `box`
 - `background`
@@ -21,7 +22,6 @@
 
 지원하지 않는다.
 
-- `image`
 - `component`
 - `event`
 - `token`
@@ -46,6 +46,7 @@ import type {
   Node,
   FrameNode,
   TextNode,
+  ImageNode,
 } from "@/features/editor/schema";
 ```
 
@@ -72,6 +73,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 |---|---|
 | Frame 추가 | `nodes`에 `type: "frame"` 항목 추가 |
 | Text 추가 | `nodes`에 `type: "text"` 항목 추가 |
+| Image 추가 | `nodes`에 `type: "image"` 항목 추가 — `src`(워크스페이스 assets 참조)와 `fit`(`cover`\|`contain`\|`fill`) 필수 |
 | 부모-자식 구조 | `FrameNode.children[].node`가 `nodes`의 key를 참조 |
 | width / height | `box.width`, `box.height` — `number | "auto" | "fill"` |
 | gap / padding | `layout.gap`, `layout.padding.{top,right,bottom,left}` |
@@ -88,6 +90,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 | `examples/login-screen.json` | 중첩 프레임, border, 부분 투명 색상 |
 | `examples/dashboard-cards.json` | `Header > Title` + `Content > Card, Card` 2단 트리. `direction: row` 카드 배치 |
 | `examples/header-content.json` | 고정 높이(px) 헤더 + `space-between` + `fill` 본문 + `visible: false` |
+| `examples/image-hero.json` | `image` 노드 — `fill` 너비 + 고정 높이(px), `fit: "cover"` |
 
 `dashboard-cards.json`은 스키마가 한 화면에만 맞춰진 구조가 아님을 확인하기 위해 만들었다.
 
@@ -99,6 +102,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 - **멀티 스크린.** 파일 1개 = Screen 1개다. 최상위에 `screens` 맵은 없다.
 - **`fontWeight`의 100 단위 제약.** JSON Schema는 강제하지만 생성된 TS 타입은 `number`다. 타입만으로는 못 막으니 `validateVisualSpec`을 거쳐야 한다.
 - **편집 연산.** 노드 추가·삭제·이동·재부모화 함수는 없다. 지금은 각 화면이 직접 `nodes`를 다루므로 불변조건을 깨뜨릴 수 있다. `validateVisualSpec`은 예방 수단이 아니라 최후 방어선이다.
+- **`ImageNode.src`가 가리키는 워크스페이스 assets 저장소.** 스키마는 문자열 참조만 정의한다. 실제로 파일을 어디에 저장하고 `src` 값을 어떻게 채우는지는 Import 기능(별도 이슈) 쪽 책임이며, 아직 워크스페이스 계층 자체가 저장소에 없다.
 
 ---
 
