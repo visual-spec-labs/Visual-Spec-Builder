@@ -98,10 +98,12 @@ Visual Spec Builder가 라이브러리로 설치돼 프로젝트마다 다른 �
 - [ ] **기존 컴포넌트 재사용 감지** — 대상 프로젝트에 이미 있는 컴포넌트를 찾아 새로 만들지
       않고 재사용하도록 판단한다. (원래 설계 문서 §1에서 범위 밖으로 뺀 항목. "독립
       작업공간" 원칙과도 긴장 관계라 재검토 필요)
-- [ ] **[막힘] Command 기반 편집으로 전환** — `visual-spec-authoring`은 지금 JSON을 텍스트로
+- [ ] **Command 기반 편집으로 전환** — `visual-spec-authoring`은 지금도 JSON을 텍스트로
       직접 고친다. PRD 16장 원칙("GUI와 자연어는 동일한 Command Engine API만 호출한다")과
-      어긋나는 임시방편이다. `command.schema.ts`(다른 트랙, Command Engine)가 나와야
-      제대로 고칠 수 있다.
+      어긋나는 임시방편이다. `src/features/editor/command/`에 Command 타입 5종·적용기·
+      history 스택이 생겼지만(#73), `editorStore`·`docs/EDITOR_STORE_CONTRACT.md`가
+      여전히 `setNodeField` 직접 호출을 팀 계약으로 삼고 있어서 이 스킬을 그 위로 옮기는
+      건 GUI 트랙과 같이 정할 문제로 남겨뒀다.
 
 새 스킬을 추가하면 이 목록에서 체크하고, 필요하면 `docs/skills/<이름>.md`로 같은 형식을
 이어간다.
