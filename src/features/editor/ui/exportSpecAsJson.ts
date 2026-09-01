@@ -1,4 +1,4 @@
-import type { VisualSpec } from "@/features/editor/schema";
+import type { ProjectSpec } from "@/features/editor/schema";
 import {
   buildExportPayload,
   resolveFilename,
@@ -21,7 +21,7 @@ function downloadJson(filename: string, json: string): void {
 }
 
 /** 스펙을 검증 후 JSON 파일로 내보낸다. 검증 실패 시 다운로드하지 않는다. */
-export function exportSpecAsJson(spec: VisualSpec): ExportResult {
+export function exportSpecAsJson(spec: ProjectSpec): ExportResult {
   const result = buildExportPayload(spec);
   if (result.ok) {
     downloadJson(result.filename, result.json);
@@ -35,7 +35,7 @@ export function exportSpecAsJson(spec: VisualSpec): ExportResult {
  * 원인이라 조용히 실패하면 원인을 알 수 없다). prompt를 취소하면
  * null을 돌려주고 아무 동작도 하지 않는다.
  */
-export function saveSpecAsJson(spec: VisualSpec): ExportResult | null {
+export function saveSpecAsJson(spec: ProjectSpec): ExportResult | null {
   const result = buildExportPayload(spec);
   if (!result.ok) {
     window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
