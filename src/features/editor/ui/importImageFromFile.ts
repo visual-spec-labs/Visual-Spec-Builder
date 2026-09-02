@@ -43,9 +43,11 @@ export function importImageFromFile(): void {
         window.alert("이미지를 불러올 수 없습니다. 이미지 파일이 맞는지 확인하세요.");
       };
       image.onload = () => {
-        const { spec, selectedId, insertNode } = useEditorStore.getState();
-        const parentId = resolveImportParent(spec, selectedId);
-        const id = generateNodeId("image", spec.screen.nodes);
+        const { spec, activePageId, selectedId, insertNode } =
+          useEditorStore.getState();
+        const page = spec.pages[activePageId];
+        const parentId = resolveImportParent(page, selectedId);
+        const id = generateNodeId("image", page.nodes);
 
         const node: ImageNode = {
           type: "image",
