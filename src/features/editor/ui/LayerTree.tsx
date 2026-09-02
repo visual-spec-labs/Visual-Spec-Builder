@@ -53,7 +53,9 @@ function LayerRow({
   collapsed: Set<NodeId>;
   onToggleCollapse: (id: NodeId) => void;
 }) {
-  const node = useEditorStore((state) => state.spec.screen.nodes[id]);
+  const node = useEditorStore(
+    (state) => state.spec.pages[state.activePageId].nodes[id],
+  );
   const selectedId = useEditorStore((state) => state.selectedId);
   const select = useEditorStore((state) => state.select);
   const setNodeField = useEditorStore((state) => state.setNodeField);
@@ -137,11 +139,13 @@ function LayerRow({
   );
 }
 
-/** 좌측 레이어 트리 — editorStore의 spec을 root부터 재귀 렌더링한다. */
+/** 좌측 레이어 트리 — editorStore의 활성 페이지를 root부터 재귀 렌더링한다. */
 export function LayerTree() {
-  const root = useEditorStore((state) => state.spec.screen.root);
+  const root = useEditorStore(
+    (state) => state.spec.pages[state.activePageId].root,
+  );
   const nodeCount = useEditorStore(
-    (state) => Object.keys(state.spec.screen.nodes).length,
+    (state) => Object.keys(state.spec.pages[state.activePageId].nodes).length,
   );
   const [collapsed, setCollapsed] = useState<Set<NodeId>>(new Set());
 
@@ -158,9 +162,11 @@ export function LayerTree() {
   }
 
   function handleAddFrame() {
-    const { spec, selectedId, insertNode } = useEditorStore.getState();
-    const parentId = resolveImportParent(spec, selectedId);
-    const id = generateNodeId("frame", spec.screen.nodes);
+    const { spec, activePageId, selectedId, insertNode } =
+      useEditorStore.getState();
+    const page = spec.pages[activePageId];
+    const parentId = resolveImportParent(page, selectedId);
+    const id = generateNodeId("frame", page.nodes);
     insertNode(parentId, id, blankFrameNode());
   }
 
