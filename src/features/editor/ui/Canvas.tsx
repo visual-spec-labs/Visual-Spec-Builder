@@ -6,8 +6,11 @@ import {
   type RefObject,
 } from "react";
 
+import { createNode, type NodeKind } from "@/features/editor/store/createNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { generateNodeId } from "@/features/editor/store/nodeId";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
+import { useToolStore } from "@/features/editor/store/toolStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import type {
   ButtonNode,
@@ -20,7 +23,7 @@ import type {
 } from "@/features/editor/schema";
 
 import { boxStyle, type Direction } from "./canvasLayout";
-import { resolveClickTarget } from "./selection";
+import { resolveClickTarget, resolveInsertParent } from "./selection";
 
 /**
  * 중앙 캔버스.
@@ -198,20 +201,35 @@ function useReportMeasuredSize(
   }, [ref, active]);
 }
 
+/** 새 노드를 만들어 부모에 붙이고, 도구를 Select로 되돌린다. */
+function insertNewNode(kind: NodeKind, parentId: NodeId) {
+  const { spec, activePageId, insertNode } = useEditorStore.getState();
+  const { nodes } = spec.pages[activePageId];
+  insertNode(parentId, generateNodeId(kind, nodes), createNode(kind));
+  // 피그마와 같은 흐름 — 하나 만들면 바로 그것을 만질 수 있게 선택 도구로 돌아온다.
+  useToolStore.getState().setActiveTool("select");
+}
+
 /**
- * 노드를 클릭했을 때 무엇을 선택할지 정한다.
+ * 노드를 클릭했을 때 활성 도구에 따라 무엇을 할지 정한다.
  *
  * 스토어를 구독하는 대신 getState로 읽는다 — 재귀 렌더 트리의 모든 노드에
- * 핸들러를 내려보내지 않기 위해서다.
+ * 핸들러를 내려보내거나 도구가 바뀔 때마다 트리 전체를 다시 그리지 않기 위해서다.
  */
 function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
   // 중첩된 부모의 핸들러까지 함께 실행되면 어느 노드를 클릭했는지 알 수 없다.
   event.stopPropagation();
 
+  const tool = useToolStore.getState().activeTool;
   const { spec, activePageId, select } = useEditorStore.getState();
   const { nodes, root } = spec.pages[activePageId];
 
-  // Cmd(macOS) / Ctrl(Windows)를 누르면 상세 지정(최하위)
+  if (tool === "frame" || tool === "text") {
+    insertNewNode(tool, resolveInsertParent({ nodes, root, clickedId }));
+    return;
+  }
+
+  // Select 도구 — Cmd(macOS) / Ctrl(Windows)를 누르면 상세 지정(최하위)
   select(
     resolveClickTarget({
       nodes,
@@ -220,6 +238,19 @@ function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
       deep: event.metaKey || event.ctrlKey,
     }),
   );
+}
+
+/** 아트보드 바깥(캔버스 바탕)을 클릭했을 때. */
+function handleBackgroundClick() {
+  const tool = useToolStore.getState().activeTool;
+  const { spec, activePageId, select } = useEditorStore.getState();
+
+  if (tool === "frame" || tool === "text") {
+    insertNewNode(tool, spec.pages[activePageId].root);
+    return;
+  }
+
+  select(null);
 }
 
 function RenderNode({
@@ -321,7 +352,6 @@ export function Canvas() {
   const size = useEditorStore((state) => state.spec.pages[state.activePageId].size);
   const screenName = useEditorStore((state) => state.spec.pages[state.activePageId].name);
   const selectedId = useEditorStore((state) => state.selectedId);
-  const select = useEditorStore((state) => state.select);
   const zoom = useViewStore((s) => s.zoom);
   const showGrid = useViewStore((s) => s.showGrid);
   const fillViewport = useViewStore((s) => s.fillViewport);
@@ -406,7 +436,7 @@ export function Canvas() {
       className={`relative overflow-auto bg-surface-canvas [grid-area:canvas] [scrollbar-gutter:stable] ${
         fillViewport ? "" : "p-8"
       }`}
-      onClick={() => select(null)}
+      onClick={handleBackgroundClick}
     >
       {/*
         TODO(캔버스 담당): 격자를 Figma처럼 "캔버스 평면에 깔린" 배경으로 바꿀 것.
@@ -436,7 +466,10 @@ export function Canvas() {
           채우기 모드에서는 경계가 곧 뷰포트 경계라 이름표도 그림자도 필요 없다.
         */}
         {!fillViewport && (
-          <span className="absolute bottom-full left-0 mb-1 max-w-full truncate text-xs text-content-muted">
+          <span
+            onClick={(event) => event.stopPropagation()}
+            className="absolute bottom-full left-0 mb-1 max-w-full truncate text-xs text-content-muted"
+          >
             {screenName}
           </span>
         )}
@@ -463,7 +496,15 @@ export function Canvas() {
         </div>
       </div>
 
-      <div className="absolute bottom-3 left-3 flex items-center gap-2">
+      {/*
+        표시 전용 배지. main의 자식이라 클릭이 바탕 핸들러까지 올라가는데, 생성
+        도구가 켜져 있으면 배지를 눌렀을 뿐인데 노드가 생긴다. 클릭을 통과시키면
+        (pointer-events-none) 결국 바탕을 누른 것이 되므로 여기서 삼킨다.
+      */}
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className="absolute bottom-3 left-3 flex items-center gap-2"
+      >
         <span className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
           {Math.round(zoom)}%
         </span>
