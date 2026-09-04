@@ -249,6 +249,9 @@ function RenderNode({
     return (
       <div
         ref={ref}
+        // 스펙상의 노드 id를 DOM에 그대로 남긴다 — 중첩 안쪽을 상세 지정했을 때
+        // 어떤 item이 잡혔는지 개발자 도구에서 바로 확인할 수 있다.
+        data-node-id={id}
         style={{ ...textStyle(node, parentDirection), ...outline }}
         onClick={(event) => handleNodeClick(id, event)}
       >
@@ -261,6 +264,7 @@ function RenderNode({
     return (
       <div
         ref={ref}
+        data-node-id={id}
         style={{ ...imageStyle(node, parentDirection), ...outline }}
         onClick={(event) => handleNodeClick(id, event)}
       />
@@ -271,6 +275,7 @@ function RenderNode({
     return (
       <div
         ref={ref}
+        data-node-id={id}
         style={{ ...buttonStyle(node, parentDirection), ...outline }}
         onClick={(event) => handleNodeClick(id, event)}
       >
@@ -283,6 +288,7 @@ function RenderNode({
     return (
       <div
         ref={ref}
+        data-node-id={id}
         style={{ ...inputStyle(node, parentDirection), ...outline }}
         onClick={(event) => handleNodeClick(id, event)}
       >
@@ -294,6 +300,7 @@ function RenderNode({
   return (
     <div
       ref={ref}
+      data-node-id={id}
       style={{ ...frameStyle(node, parentDirection), ...outline }}
       onClick={(event) => handleNodeClick(id, event)}
     >
@@ -313,6 +320,7 @@ export function Canvas() {
   const root = useEditorStore((state) => state.spec.pages[state.activePageId].root);
   const size = useEditorStore((state) => state.spec.pages[state.activePageId].size);
   const screenName = useEditorStore((state) => state.spec.pages[state.activePageId].name);
+  const selectedId = useEditorStore((state) => state.selectedId);
   const select = useEditorStore((state) => state.select);
   const zoom = useViewStore((s) => s.zoom);
   const showGrid = useViewStore((s) => s.showGrid);
@@ -455,9 +463,23 @@ export function Canvas() {
         </div>
       </div>
 
-      <span className="absolute bottom-3 left-3 rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
-        {Math.round(zoom)}%
-      </span>
+      <div className="absolute bottom-3 left-3 flex items-center gap-2">
+        <span className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
+          {Math.round(zoom)}%
+        </span>
+        {/*
+          선택된 노드의 id. Cmd/Ctrl+클릭으로 중첩 안쪽을 상세 지정했을 때
+          의도한 item이 잡혔는지 눈으로 바로 확인하는 용도다.
+        */}
+        {selectedId !== null && (
+          <span
+            aria-label="선택한 노드 id"
+            className="rounded-control bg-surface-raised px-2 py-1 font-mono text-xs text-content shadow-card"
+          >
+            #{selectedId}
+          </span>
+        )}
+      </div>
     </main>
   );
 }
