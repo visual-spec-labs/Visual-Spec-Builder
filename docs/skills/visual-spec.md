@@ -89,7 +89,9 @@ Visual Spec Builder가 라이브러리로 설치돼 프로젝트마다 다른 �
       root의 직계 자식을 컴포넌트 후보로 보고, 구조가 반복되는 형제는 props를 받는
       공용 컴포넌트로 뽑는다(스키마엔 없는 개념이라 코드 생성 시점의 판단). 자식을
       부모보다 먼저 만들고, `@/` 대신 상대 경로로만 import한다. `component-architecture.md`의
-      `vsb-ticket-compiler`를 근거로 삼았다.
+      `vsb-ticket-compiler`를 근거로 삼았다. 이 규칙을 `src/features/editor/ticket/`에
+      순수 함수(`compileTickets` — 반복 형제 그룹화, 의존성 순서, 최소 상태 관리)로도
+      옮겼다(#74) — 스킬 지시문과 코드가 같은 규칙을 따르는지 테스트로 고정된다.
 - [x] **Button/Input 노드 타입 + Grid 레이아웃 스킬 반영** — v0.1 스키마에 `button`·`input`
       노드와 `layout.direction: "grid"`가 추가되면서(#75) `visual-spec-authoring`·
       `visual-spec-to-react`·`visual-spec-validate` 세 스킬을 갱신했다. `oneOf` 갈래가
