@@ -55,7 +55,7 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ## 기존 예제가 지키는 관용구
 
-`examples/` 5개에서 반복되는 것들이다. 따르면 리뷰가 빨라진다.
+`examples/` 7개에서 반복되는 것들이다. 따르면 리뷰가 빨라진다.
 
 - 트리는 평평한 `nodes` 맵 + `children: [{ "node": "id" }]` 참조로만 만든다. 노드 중첩은 없다.
 - 루트 프레임은 `box: { "width": "fill", "height": "fill" }` 에 `background.color` 를 갖는다.
@@ -86,6 +86,23 @@ v0.1 의 노드 타입은 **`frame`, `text`, `image`, `button`, `input` 다섯�
 (선택 필드, 열 개수)를 쓸 수 있다 — row/column에는 넣지 않는다. Grid는 균등 N열 자동
 배치일 뿐 특정 자식을 특정 셀에 지정하는 기능은 없다(`mainAxis`/`crossAxis`도 무시된다).
 
+
+스타일 효과는 전부 **선택 필드**다. 없으면 그리지 않는다 — 요구에 없으면 넣지 않는다.
+
+| 필드 | 어디에 | 없을 때 |
+|---|---|---|
+| `shadow` | `frame`만 | 그림자 없음 |
+| `opacity` | `frame`·`text`·`image` | `1`(불투명) |
+| `blur` | `frame`·`text`·`image` | `0` |
+| `border.align` | `Border` (`frame`·`button`·`input`) | `"inside"` |
+
+`shadow`는 `x`·`y`·`blur`·`spread`·`color` **다섯 칸을 모두** 적는다. 한 칸이라도 빠지면
+검증에서 걸린다. `border.radius`는 숫자 하나(네 모서리 같음) 또는
+`{topLeft, topRight, bottomRight, bottomLeft}` 네 칸 전부다 — 섞어 쓰거나 일부만 적지 않는다.
+
+`shadow`를 `text`에 넣지 않는다. 글자 모양을 따라가는 그림자는 성격이 달라 스키마에 없다.
+`button`·`input`에는 `shadow`·`opacity`·`blur`가 아직 없다(`border.align`·`radius`는 있다).
+실물은 `examples/card-effects.json`이다.
 필드 정의가 필요하면 정본 `src/features/editor/schema/visual-spec.schema.json` 을 읽는다.
 찾는 방법은 [../visual-spec-docs/SKILL.md](../visual-spec-docs/SKILL.md) 에 있다.
 

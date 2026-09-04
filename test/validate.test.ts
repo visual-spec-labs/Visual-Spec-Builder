@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import dashboardCards from "../examples/dashboard-cards.json";
 import emptyTitleScreen from "../examples/empty-title-screen.json";
+import cardEffects from "../examples/card-effects.json";
 import formGrid from "../examples/form-grid.json";
 import headerContent from "../examples/header-content.json";
 import imageHero from "../examples/image-hero.json";
@@ -24,6 +25,7 @@ describe("validateVisualSpec", () => {
     ["header-content", headerContent],
     ["image-hero", imageHero],
     ["form-grid", formGrid],
+    ["card-effects", cardEffects],
   ] as const)("%s 예제를 통과시킨다", (_name, input) => {
     expect(validateVisualSpec(input)).toEqual({ valid: true, issues: [] });
   });
