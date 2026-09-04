@@ -8,7 +8,7 @@
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
-> | 2026-09-04 (#78) | "GUI 각 영역의 실제 동작" 표의 `ui/Canvas.tsx`·`ui/canvasLayout.ts`·`ui/PropertiesPanel.tsx` 행 | 세 파일과 `ui/properties/`(EffectsSection·shadowPatch·radiusPatch·effectPatch 신규) 전문 편집·열람. `pnpm test`(19파일 189케이스) |
+> | 2026-09-04 (#78) | "GUI 각 영역의 실제 동작" 표의 `ui/Canvas.tsx`·`ui/canvasLayout.ts`·`ui/PropertiesPanel.tsx` 행 | 세 파일과 `ui/properties/`(EffectsSection·shadowPatch·radiusPatch·effectPatch 신규) 전문 편집·열람. `pnpm test`(22파일 208케이스) |
 > | 2026-09-04 (#78) | 4절 유효 예제 행 | `examples/card-effects.json` 신규. `visual-spec.schema.json` 에 Shadow·Opacity·Blur·StrokeAlign·Radius 추가 후 `pnpm run generate:types` |
 > | 2026-09-02 (#75) | 3절 노드 타입·레이아웃 표, 6절 제안 3, 4절 유효 예제·테스트 행, 1절 IR·스키마 행 | `visual-spec.schema.json`에 `ButtonNode`/`InputNode`/`Layout.direction: "grid"` 추가 후 `pnpm run generate:types`(diff 없음) · `pnpm test`(13파일 99케이스) · `examples/form-grid.json` 신규 예제로 검증. 아직 `develop`에 머지되지 않은 브랜치 위에서 작업 중이라 push/PR 전 상태다 |
 > | 2026-09-02 (#75) | "GUI 각 영역의 실제 동작" 표의 `ui/Canvas.tsx`·`ui/canvasLayout.ts`·`ui/PropertiesPanel.tsx` 행 | 세 파일 전문 편집·열람 — `Canvas.tsx`에 `button`/`input` 렌더 분기와 `displayStyle()`(grid), `canvasLayout.ts`의 `boxStyle()`에 grid 아이템 분기, `PropertiesPanel.tsx`의 fallback 안내 문구 일반화 |

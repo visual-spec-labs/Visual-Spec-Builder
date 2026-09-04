@@ -19,8 +19,9 @@
 - `layout` (`direction`: `row` | `column` | `grid`)
 - `box`
 - `background`
-- `border`
+- `border` (`align`, 모서리별 `radius` 포함)
 - `typography`
+- `shadow` · `opacity` · `blur`
 
 지원하지 않는다.
 

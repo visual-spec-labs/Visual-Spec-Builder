@@ -55,7 +55,7 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ## 기존 예제가 지키는 관용구
 
-`examples/` 5개에서 반복되는 것들이다. 따르면 리뷰가 빨라진다.
+`examples/` 7개에서 반복되는 것들이다. 따르면 리뷰가 빨라진다.
 
 - 트리는 평평한 `nodes` 맵 + `children: [{ "node": "id" }]` 참조로만 만든다. 노드 중첩은 없다.
 - 루트 프레임은 `box: { "width": "fill", "height": "fill" }` 에 `background.color` 를 갖는다.

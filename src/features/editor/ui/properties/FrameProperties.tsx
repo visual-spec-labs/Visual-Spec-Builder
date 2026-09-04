@@ -184,7 +184,9 @@ export function FrameProperties() {
           {corners === undefined && (
             <NumberField
               label="모서리 반경"
-              value={toUniform(radius)}
+              // toUniform은 모드 전환용이다 — 여기서 쓰면 테두리가 없는 노드에도 0이
+              // 찍혀 옆 "두께" 칸(빈칸)과 기준이 어긋난다. 값이 없으면 비워 둔다.
+              value={typeof radius === "number" ? radius : undefined}
               onChange={(radius) => updateBorder({ radius })}
               min={0}
               unit="px"

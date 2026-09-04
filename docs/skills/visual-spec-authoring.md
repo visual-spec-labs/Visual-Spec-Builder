@@ -8,7 +8,7 @@
 Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을 고친다. 산출물은 JSON 그 자체다 —
 React 코드가 아니다.
 
-최소 유효 문서의 뼈대, `examples/` 6개가 공통으로 지키는 관용구(평평한 `nodes` 맵과
+최소 유효 문서의 뼈대, `examples/` 7개가 공통으로 지키는 관용구(평평한 `nodes` 맵과
 `children` 참조로만 트리를 만든다, `layout` 5개 필드를 생략 없이 다 적는다, TextNode의
 `height`는 예외 없이 `"auto"`다 등), `examples/invalid/` 8개에서 실제로 반복되는 실수 목록을
 담고 있다.
