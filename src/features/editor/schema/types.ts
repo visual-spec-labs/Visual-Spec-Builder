@@ -80,7 +80,7 @@ export interface Layout {
   mainAxis: "start" | "center" | "end" | "space-between";
   crossAxis: "start" | "center" | "end" | "stretch";
   /**
-   * direction이 "grid"일 때만 의미가 있는 열 개수. row/column에서는 없어도 된다 — v0.1의 '선택 필드는 visible만'(06-schema-freeze.md) 규칙에서 일부러 벗어난 예외다. row/column에 이 필드를 강제하면 기존 예제·테스트가 전부 깨지는데, grid에만 뜻이 있는 값을 매번 채우게 하는 것도 부자연스럽다.
+   * direction이 "grid"일 때만 의미가 있는 열 개수. 없으면 1열로 본다. row/column에 이 필드를 강제하면 기존 예제·테스트가 전부 깨지는데, grid에만 뜻이 있는 값을 매번 채우게 하는 것도 부자연스럽다. 선택 필드 추가 조건은 06-schema-freeze.md '변경 규칙' 참고.
    */
   columns?: number;
 }

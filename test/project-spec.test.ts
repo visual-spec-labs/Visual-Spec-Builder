@@ -8,6 +8,7 @@ import {
 } from "@/features/editor/schema";
 import type { ProjectSpec, VisualSpec } from "@/features/editor/schema";
 
+import cardEffects from "../examples/card-effects.json";
 import dashboardCards from "../examples/dashboard-cards.json";
 import loginScreen from "../examples/login-screen.json";
 import twoPageExample from "../examples/two-page-project.json";
@@ -122,5 +123,24 @@ describe("validateVisualSpec은 그대로다", () => {
 
   it("프로젝트 문서는 v0.1로서는 거부한다", () => {
     expect(validateVisualSpec(twoPageProject()).valid).toBe(false);
+  });
+});
+
+describe("스타일 효과 필드", () => {
+  // v0.1과 v0.2는 $defs/Node를 공유하지만(root.screen과 ProjectSpec.pages[*]가 같은
+  // ScreenSpec을 가리킨다) 실제로 v0.2 경로로 도는 검증이 없으면 회귀를 못 잡는다.
+  it("v0.1로 통과한 문서는 v0.2로 넓혀도 통과한다", () => {
+    const v01Spec = cardEffects as VisualSpec;
+
+    expect(validateVisualSpec(v01Spec)).toEqual({ valid: true, issues: [] });
+    expect(validateProjectSpec(migrateV01(v01Spec))).toEqual({ valid: true, issues: [] });
+  });
+
+  it("v0.2 페이지 안의 잘못된 효과도 잡는다", () => {
+    const project = migrateV01(cardEffects as VisualSpec);
+    const page = project.pages[project.pageOrder[0]];
+    (page.nodes.elevatedCard as { shadow?: unknown }).shadow = { y: 4 };
+
+    expect(validateProjectSpec(project).valid).toBe(false);
   });
 });

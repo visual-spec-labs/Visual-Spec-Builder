@@ -27,6 +27,22 @@ React 코드가 아니다.
 `placeholder`가 필수 텍스트 필드다 — **표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은
 동작은 없다.** 실물 예제는 `layout.direction: "grid"`와 함께 쓴 `examples/form-grid.json`.
 
+### 스타일 효과는 전부 선택 필드다
+
+`shadow`(frame만) · `opacity` · `blur`(frame·text·image) · `border.align`은 없으면 그리지
+않는 선택 필드다. 요구에 없으면 넣지 않는다. 기본값은 각각 그림자 없음 · `1` · `0` ·
+`"inside"`이고, 이 값들은 필드가 생기기 전 렌더와 같아서 기존 문서의 모양이 바뀌지 않는다.
+
+객체를 받는 필드는 **칸을 전부** 채운다. `shadow`는 `x`·`y`·`blur`·`spread`·`color` 다섯,
+모서리별 `border.radius`는 `topLeft`·`topRight`·`bottomRight`·`bottomLeft` 넷이다. 한 칸만
+적은 반쪽 객체는 검증에서 걸리고 CSS도 깨진다. `radius`는 숫자 하나(네 모서리 같음)로도
+쓸 수 있다. 실물 예제는 `examples/card-effects.json`.
+
+`text`에 `shadow`를 두지 않은 이유는 글자 모양을 따라가는 그림자가 `box-shadow`가 아니라
+`filter: drop-shadow`라 성격이 다르기 때문이다. `button`·`input`에는 `shadow`·`opacity`·
+`blur`가 아직 없다 — 속성 패널이 없어 스키마에만 있고 편집할 수 없는 필드가 되기 때문이다
+(`border.align`과 모서리별 `radius`는 `Border`를 공유해 두 노드에도 적용된다).
+
 그래서 "버튼 누르면 로그인" 같은 동작 요구가 오면 에이전트는 타입을 지어내지 않고, 버튼
 자체는 만들되 동작은 표현할 수 없다는 사실을 사용자에게 알린다. 조용히 넘어가면 사용자는
 그 동작이 실제로 생긴 줄 안다. 근사가 마음에 들지 않으면 그 자리에서 다시 논의하면 된다.
