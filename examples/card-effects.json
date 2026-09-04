@@ -1,0 +1,118 @@
+{
+  "version": "0.1",
+  "screen": {
+    "name": "CardEffectsPage",
+    "size": { "width": 1440, "height": 900 },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Screen",
+        "box": { "width": "fill", "height": "fill" },
+        "layout": {
+          "direction": "row",
+          "gap": 24,
+          "padding": { "top": 48, "right": 48, "bottom": 48, "left": 48 },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "background": { "color": "#F1F5F9" },
+        "children": [{ "node": "elevatedCard" }, { "node": "outlinedCard" }, { "node": "fadedCard" }]
+      },
+      "elevatedCard": {
+        "type": "frame",
+        "name": "ElevatedCard",
+        "box": { "width": "fill", "height": 180 },
+        "layout": {
+          "direction": "column",
+          "gap": 8,
+          "padding": { "top": 20, "right": 20, "bottom": 20, "left": 20 },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "background": { "color": "#FFFFFF" },
+        "border": { "width": 0, "color": "#00000000", "radius": 12 },
+        "shadow": { "x": 0, "y": 8, "blur": 24, "spread": -4, "color": "#0F172A26" },
+        "children": [{ "node": "elevatedTitle" }]
+      },
+      "elevatedTitle": {
+        "type": "text",
+        "name": "ElevatedTitle",
+        "box": { "width": "fill", "height": "auto" },
+        "content": "그림자",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 18,
+          "fontWeight": 600,
+          "lineHeight": 26,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        },
+        "color": "#0F172A"
+      },
+      "outlinedCard": {
+        "type": "frame",
+        "name": "OutlinedCard",
+        "box": { "width": "fill", "height": 180 },
+        "layout": {
+          "direction": "column",
+          "gap": 8,
+          "padding": { "top": 20, "right": 20, "bottom": 20, "left": 20 },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "background": { "color": "#FFFFFF" },
+        "border": { "width": 2, "color": "#6366F1", "radius": 12, "align": "outside" },
+        "children": [{ "node": "outlinedTitle" }]
+      },
+      "outlinedTitle": {
+        "type": "text",
+        "name": "OutlinedTitle",
+        "box": { "width": "fill", "height": "auto" },
+        "content": "바깥 테두리",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 18,
+          "fontWeight": 600,
+          "lineHeight": 26,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        },
+        "color": "#0F172A"
+      },
+      "fadedCard": {
+        "type": "frame",
+        "name": "FadedCard",
+        "box": { "width": "fill", "height": 180 },
+        "layout": {
+          "direction": "column",
+          "gap": 8,
+          "padding": { "top": 20, "right": 20, "bottom": 20, "left": 20 },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "background": { "color": "#FFFFFF" },
+        "border": { "width": 1, "color": "#E2E8F0", "radius": 12, "align": "inside" },
+        "opacity": 0.5,
+        "blur": 2,
+        "children": [{ "node": "fadedTitle" }]
+      },
+      "fadedTitle": {
+        "type": "text",
+        "name": "FadedTitle",
+        "box": { "width": "fill", "height": "auto" },
+        "content": "투명도 · 블러",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 18,
+          "fontWeight": 600,
+          "lineHeight": 26,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        },
+        "color": "#0F172A",
+        "opacity": 0.8
+      }
+    }
+  }
+}
