@@ -12,6 +12,17 @@ export type Size = number | ("auto" | "fill");
  */
 export type Color = string;
 /**
+ * 모서리 반경. 숫자 하나면 네 모서리가 같고, 객체면 모서리별로 다르다. 객체 쪽은 네 칸이 모두 필수다 — 한 칸만 쓴 반쪽 객체는 CSS border-radius를 통째로 깨뜨린다.
+ */
+export type Radius =
+  | number
+  | {
+      topLeft: number;
+      topRight: number;
+      bottomRight: number;
+      bottomLeft: number;
+    };
+/**
  * 테두리를 박스 경계 기준 어디에 그릴지. 없으면 "inside"로 본다 — 지금까지 CSS border + box-sizing: border-box 로 그려온 방식이 곧 inside라, 기본값을 이렇게 두면 기존 문서의 렌더가 바뀌지 않는다.
  */
 export type StrokeAlign = "inside" | "center" | "outside";
@@ -91,7 +102,7 @@ export interface Background {
 export interface Border {
   width: number;
   color: Color;
-  radius: number;
+  radius: Radius;
   align?: StrokeAlign;
 }
 /**

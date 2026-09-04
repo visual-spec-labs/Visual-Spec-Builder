@@ -252,9 +252,26 @@
       "properties": {
         "width": { "type": "number", "minimum": 0 },
         "color": { "$ref": "#/$defs/Color" },
-        "radius": { "type": "number", "minimum": 0 },
+        "radius": { "$ref": "#/$defs/Radius" },
         "align": { "$ref": "#/$defs/StrokeAlign" }
       }
+    },
+    "Radius": {
+      "description": "모서리 반경. 숫자 하나면 네 모서리가 같고, 객체면 모서리별로 다르다. 객체 쪽은 네 칸이 모두 필수다 — 한 칸만 쓴 반쪽 객체는 CSS border-radius를 통째로 깨뜨린다.",
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["topLeft", "topRight", "bottomRight", "bottomLeft"],
+          "properties": {
+            "topLeft": { "type": "number", "minimum": 0 },
+            "topRight": { "type": "number", "minimum": 0 },
+            "bottomRight": { "type": "number", "minimum": 0 },
+            "bottomLeft": { "type": "number", "minimum": 0 }
+          }
+        }
+      ]
     },
     "StrokeAlign": {
       "type": "string",

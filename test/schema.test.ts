@@ -67,6 +67,28 @@ describe("JSON Schema 검증", () => {
     expectSchemaIssue(input);
   });
 
+  it("칸이 빠진 모서리별 반경을 거부한다 — 반쪽 객체가 border-radius를 깨뜨린다", () => {
+    const input = structuredClone(loginScreen);
+    (input.screen.nodes.root as { border?: unknown }).border = {
+      width: 1,
+      color: "#000000",
+      radius: { topLeft: 8, topRight: 8 },
+    };
+
+    expectSchemaIssue(input);
+  });
+
+  it("음수 모서리 반경을 거부한다", () => {
+    const input = structuredClone(loginScreen);
+    (input.screen.nodes.root as { border?: unknown }).border = {
+      width: 1,
+      color: "#000000",
+      radius: { topLeft: -1, topRight: 0, bottomRight: 0, bottomLeft: 0 },
+    };
+
+    expectSchemaIssue(input);
+  });
+
   it("version 불일치를 거부한다", () => {
     const input: unknown = {
       ...structuredClone(loginScreen),

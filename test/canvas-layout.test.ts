@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   boxStyle,
   effectStyle,
+  radiusCss,
   strokeAndShadowStyle,
 } from "@/features/editor/ui/canvasLayout";
 
@@ -186,5 +187,28 @@ describe("effectStyle", () => {
 
   it("blur 0은 filter를 붙이지 않는다 — 새 stacking context를 만들지 않기 위해서다", () => {
     expect(effectStyle(undefined, 0).filter).toBeUndefined();
+  });
+});
+
+describe("radiusCss", () => {
+  it("값이 없으면 아무것도 내보내지 않는다", () => {
+    expect(radiusCss(undefined)).toBeUndefined();
+  });
+
+  it("숫자 하나는 그대로 넘긴다 — React가 px를 붙인다", () => {
+    expect(radiusCss(12)).toBe(12);
+    expect(radiusCss(0)).toBe(0);
+  });
+
+  it("모서리별은 CSS 순서(좌상 → 우상 → 우하 → 좌하)로 적는다", () => {
+    const css = radiusCss({ topLeft: 12, topRight: 8, bottomRight: 4, bottomLeft: 0 });
+
+    expect(css).toBe("12px 8px 4px 0px");
+  });
+
+  it("네 값이 같으면 숫자 하나와 같은 모양을 그린다", () => {
+    expect(radiusCss({ topLeft: 6, topRight: 6, bottomRight: 6, bottomLeft: 6 })).toBe(
+      "6px 6px 6px 6px",
+    );
   });
 });

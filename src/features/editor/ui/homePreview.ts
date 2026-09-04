@@ -8,7 +8,7 @@ import type {
   TextNode,
 } from "@/features/editor/schema";
 
-import { boxStyle, type Direction } from "./canvasLayout";
+import { boxStyle, radiusCss, type Direction } from "./canvasLayout";
 
 /**
  * 홈 화면 카드가 스펙을 축소해서 즉석 렌더할 때 쓰는 순수 스타일 계산.
@@ -67,7 +67,7 @@ export function previewFrameStyle(
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
       : undefined,
-    borderRadius: node.border?.radius,
+    borderRadius: radiusCss(node.border?.radius),
     boxSizing: "border-box",
   };
 }
@@ -124,7 +124,7 @@ export function previewButtonStyle(
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
       : undefined,
-    borderRadius: node.border?.radius,
+    borderRadius: radiusCss(node.border?.radius),
     boxSizing: "border-box",
   };
 }
@@ -150,7 +150,7 @@ export function previewInputStyle(
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
       : undefined,
-    borderRadius: node.border?.radius,
+    borderRadius: radiusCss(node.border?.radius),
     boxSizing: "border-box",
   };
 }

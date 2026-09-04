@@ -1,8 +1,28 @@
 import type { CSSProperties } from "react";
 
-import type { Border, Box, FrameNode, Shadow, Size } from "@/features/editor/schema";
+import type {
+  Border,
+  Box,
+  FrameNode,
+  Radius,
+  Shadow,
+  Size,
+} from "@/features/editor/schema";
 
 export type Direction = FrameNode["layout"]["direction"];
+
+/**
+ * 모서리 반경을 CSS border-radius로 옮긴다.
+ *
+ * 숫자 하나면 그대로 넘긴다(React가 px를 붙인다). 모서리별이면 CSS가 정한 순서
+ * — 좌상 → 우상 → 우하 → 좌하 — 로 네 값을 적는다.
+ */
+export function radiusCss(radius: Radius | undefined): string | number | undefined {
+  if (radius === undefined || typeof radius === "number") return radius;
+
+  const { topLeft, topRight, bottomRight, bottomLeft } = radius;
+  return `${topLeft}px ${topRight}px ${bottomRight}px ${bottomLeft}px`;
+}
 
 /**
  * 테두리와 그림자를 함께 CSS로 옮긴다.
@@ -31,7 +51,7 @@ export function strokeAndShadowStyle(
     // 테두리 고리를 그림자보다 앞에 둔다 — box-shadow는 먼저 적은 것이 위에 그려진다.
     boxShadow: layers.length > 0 ? layers.join(", ") : undefined,
     border: insideBorder ? `${border.width}px solid ${border.color}` : undefined,
-    borderRadius: border?.radius,
+    borderRadius: radiusCss(border?.radius),
   };
 }
 
