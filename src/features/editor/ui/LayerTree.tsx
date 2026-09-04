@@ -5,7 +5,9 @@ import {
   EyeOff,
   Frame as FrameIcon,
   Image as ImageIcon,
+  MousePointerClick as ButtonIcon,
   Plus,
+  TextCursorInput as InputIcon,
   Type as TypeIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -23,6 +25,8 @@ const TYPE_ICON: Record<Node["type"], LucideIcon> = {
   frame: FrameIcon,
   text: TypeIcon,
   image: ImageIcon,
+  button: ButtonIcon,
+  input: InputIcon,
 };
 
 /** "레이어 추가" 버튼이 만드는 기본 Frame. blankSpec의 root frame과 같은 규격이다. */

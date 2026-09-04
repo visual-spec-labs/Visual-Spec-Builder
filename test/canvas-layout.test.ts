@@ -70,3 +70,12 @@ describe("boxStyle — 최상위 노드", () => {
     expect(style).toEqual({ width: "100%", height: "100%" });
   });
 });
+
+describe("boxStyle — grid 아이템", () => {
+  it("최상위 노드와 동일하게 flex-grow/shrink 없이 width/height 그대로 쓴다", () => {
+    // grid 컨테이너 쪽(displayStyle)의 최소 구현에 맞춘 대칭 — 정식 grid 배치는 후속 작업.
+    const style = boxStyle({ width: "fill", height: 120 }, "grid");
+
+    expect(style).toEqual({ width: "100%", height: "120px" });
+  });
+});

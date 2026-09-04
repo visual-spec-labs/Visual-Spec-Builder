@@ -90,6 +90,11 @@ Visual Spec Builder가 라이브러리로 설치돼 프로젝트마다 다른 �
       공용 컴포넌트로 뽑는다(스키마엔 없는 개념이라 코드 생성 시점의 판단). 자식을
       부모보다 먼저 만들고, `@/` 대신 상대 경로로만 import한다. `component-architecture.md`의
       `vsb-ticket-compiler`를 근거로 삼았다.
+- [x] **Button/Input 노드 타입 + Grid 레이아웃 스킬 반영** — v0.1 스키마에 `button`·`input`
+      노드와 `layout.direction: "grid"`가 추가되면서(#75) `visual-spec-authoring`·
+      `visual-spec-to-react`·`visual-spec-validate` 세 스킬을 갱신했다. `oneOf` 갈래가
+      셋에서 다섯으로 늘어난 만큼 `visual-spec-validate`의 잡음-걷어내기 규칙(갈래별
+      이슈 개수, 예제 실측치)도 다시 셌다 — #70/#71(image)이 세운 선례를 그대로 따랐다.
 - [ ] **기존 컴포넌트 재사용 감지** — 대상 프로젝트에 이미 있는 컴포넌트를 찾아 새로 만들지
       않고 재사용하도록 판단한다. (원래 설계 문서 §1에서 범위 밖으로 뺀 항목. "독립
       작업공간" 원칙과도 긴장 관계라 재검토 필요)

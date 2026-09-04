@@ -10,8 +10,10 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import type {
+  ButtonNode,
   FrameNode,
   ImageNode,
+  InputNode,
   NodeId,
   PageId,
   TextNode,
@@ -40,14 +42,28 @@ const CROSS_AXIS: Record<string, CSSProperties["alignItems"]> = {
   stretch: "stretch",
 };
 
+/**
+ * grid는 최소 구현이다 — 열 N개짜리 균등 그리드로만 그린다(자동 배치, 아이템별
+ * 셀 지정 없음). mainAxis/crossAxis는 grid에 뜻이 없어 무시한다. 정식 구현은
+ * 후속 작업(이 파일 자체가 "임시 스탠드인" — 위 주석 참고).
+ */
+function displayStyle(layout: FrameNode["layout"]): CSSProperties {
+  if (layout.direction === "grid") {
+    return {
+      display: "grid",
+      gridTemplateColumns: `repeat(${layout.columns ?? 1}, 1fr)`,
+    };
+  }
+  return { display: "flex", flexDirection: layout.direction };
+}
+
 function frameStyle(
   node: FrameNode,
   parentDirection: Direction | undefined,
 ): CSSProperties {
   const { layout } = node;
   return {
-    display: "flex",
-    flexDirection: layout.direction,
+    ...displayStyle(layout),
     gap: layout.gap,
     paddingTop: layout.padding.top,
     paddingRight: layout.padding.right,
@@ -93,6 +109,61 @@ function imageStyle(
     backgroundSize: node.fit === "fill" ? "100% 100%" : node.fit,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
+  };
+}
+
+/** frame(배경/테두리) + text(타이포그래피)를 합친 모양 — 최소 구현. 클릭 동작은 없다(인터랙션은 v0.1 제외). */
+function buttonStyle(
+  node: ButtonNode,
+  parentDirection: Direction | undefined,
+): CSSProperties {
+  const { typography } = node;
+  return {
+    ...boxStyle(node.box, parentDirection),
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: node.color,
+    fontFamily: typography.fontFamily,
+    fontSize: typography.fontSize,
+    fontWeight: typography.fontWeight,
+    lineHeight: `${typography.lineHeight}px`,
+    letterSpacing: typography.letterSpacing,
+    textAlign: typography.textAlign,
+    background: node.background?.color,
+    border: node.border
+      ? `${node.border.width}px solid ${node.border.color}`
+      : undefined,
+    borderRadius: node.border?.radius,
+    boxSizing: "border-box",
+    cursor: "default",
+  };
+}
+
+/** placeholder 텍스트만 흐리게 보여준다 — 실제 입력 상호작용은 없다(value/onChange는 스키마에 없음). */
+function inputStyle(
+  node: InputNode,
+  parentDirection: Direction | undefined,
+): CSSProperties {
+  const { typography } = node;
+  return {
+    ...boxStyle(node.box, parentDirection),
+    display: "flex",
+    alignItems: "center",
+    color: node.color,
+    opacity: 0.6,
+    fontFamily: typography.fontFamily,
+    fontSize: typography.fontSize,
+    fontWeight: typography.fontWeight,
+    lineHeight: `${typography.lineHeight}px`,
+    letterSpacing: typography.letterSpacing,
+    textAlign: typography.textAlign,
+    background: node.background?.color,
+    border: node.border
+      ? `${node.border.width}px solid ${node.border.color}`
+      : undefined,
+    borderRadius: node.border?.radius,
+    boxSizing: "border-box",
   };
 }
 
@@ -174,6 +245,30 @@ function RenderNode({
         style={{ ...imageStyle(node, parentDirection), ...outline }}
         onClick={handleClick}
       />
+    );
+  }
+
+  if (node.type === "button") {
+    return (
+      <div
+        ref={ref}
+        style={{ ...buttonStyle(node, parentDirection), ...outline }}
+        onClick={handleClick}
+      >
+        {node.content}
+      </div>
+    );
+  }
+
+  if (node.type === "input") {
+    return (
+      <div
+        ref={ref}
+        style={{ ...inputStyle(node, parentDirection), ...outline }}
+        onClick={handleClick}
+      >
+        {node.placeholder}
+      </div>
     );
   }
 

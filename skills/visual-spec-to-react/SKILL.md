@@ -126,7 +126,8 @@ import { Sidebar } from "../components/Sidebar";
 | `box.width`/`height` = `"fill"`, 부모 주축 방향 | `flex-1` |
 | `box.width`/`height` = `"fill"`, 부모 교차축 방향 | `self-stretch` |
 | `box.width`/`height` = `"fill"`, root(부모 없음) | `w-full` / `h-full` |
-| `layout.direction` | `flex-row` / `flex-col` (frame은 항상 `flex`) |
+| `layout.direction` = `"row"`/`"column"` | `flex flex-row` / `flex flex-col` |
+| `layout.direction` = `"grid"` | `grid grid-cols-[N]` (N은 `layout.columns`, 없으면 1). `mainAxis`/`crossAxis`는 grid에서 무시한다 — 아래 "grid 레이아웃" 참고 |
 | `layout.gap` | `gap-[Npx]` |
 | `layout.padding.*` | `pt-/pr-/pb-/pl-[Npx]` |
 | `layout.mainAxis` | `justify-start`/`center`/`end`/`between` |
@@ -145,6 +146,10 @@ import { Sidebar } from "../components/Sidebar";
 | `image` 노드 | `<img>` |
 | `ImageNode.src` | `src` 속성. 아래 "image 노드" 참고 — 값을 그대로 쓰지 않는다 |
 | `ImageNode.fit` | `object-cover`/`object-contain`/`object-fill` |
+| `button` 노드 | `<button type="button">` |
+| `ButtonNode.content` | 버튼의 텍스트 children |
+| `input` 노드 | `<input>` (자기닫힘 태그, children 없음) |
+| `InputNode.placeholder` | `placeholder` 속성 |
 | `visible: false` | 해당 노드와 자식은 코드에서 아예 제외한다 |
 
 `fill`의 주축/교차축 판단: 부모 `layout.direction`이 `row`면 width가 주축, `column`이면 height가
@@ -168,6 +173,33 @@ import { Sidebar } from "../components/Sidebar";
 `className`은 다른 노드와 똑같이 위 `box`/`fit` 규칙으로 채운다(§ 아래 "image 노드
 예제" 참고). `alt`는 스키마에 없는 필드다. 빈 문자열로 채우고 왜 비웠는지 밝힌다(장식용
 이미지로 근사) — 사용자가 의미 있는 대체 텍스트를 알려주면 그걸 쓴다.
+
+### button / input 노드
+
+`ButtonNode`·`InputNode`는 `text`와 같은 성격의 leaf 노드다(부모의 `layout.direction` 기준
+주축/교차축 판단, `box`/`typography`/`color` 규칙 동일). `background`·`border`가 있으면
+`frame`과 같은 규칙으로 채운다.
+
+```tsx
+<button type="button" className="...">제출</button>
+<input placeholder="이메일을 입력하세요" className="..." />
+```
+
+**`value`/`onChange`/`onClick` 같은 상태·이벤트 바인딩은 만들지 않는다.** 스키마에 없는
+개념이다(props/bindings는 MVP 제외 범위). "누르면 로그인되게 해줘" 같은 요청이 오면 정적
+마크업만 만들고, 동작은 스펙이 표현하지 못한다고 알린다.
+
+### grid 레이아웃
+
+`layout.direction: "grid"`는 `layout.columns`(선택, 없으면 1)만큼의 열로 자식을 균등하게
+자동 배치한다 — 특정 자식을 특정 셀에 지정하는 기능은 없다.
+
+```tsx
+<div className="grid grid-cols-[2] gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full h-full">
+```
+
+grid 컨테이너의 직계 자식은 `flex-1`/`self-stretch` 같은 flex 전용 클래스를 붙이지 않는다 —
+grid 아이템에는 뜻이 없다. `fill`이면 그냥 `w-full`/`h-full`을 쓴다.
 
 ## 예제
 
@@ -283,6 +315,37 @@ export default function ImageHeroPage() {
 
 `hero`는 반복되는 형제가 없어 컴포넌트로 뽑지 않고 페이지 파일에 인라인했다 — "컴포넌트
 경계를 정한다"의 3번 규칙 그대로다.
+
+### grid / button / input 예제
+
+`examples/form-grid.json`을 위 "grid 레이아웃"·"button / input 노드" 규칙대로 변환하면
+이런 모양이 나와야 한다.
+
+```tsx
+export default function FormGridPage() {
+  return (
+    <div className="grid grid-cols-[2] gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full h-full">
+      <p className="w-full h-auto text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이름</p>
+      <input
+        placeholder="이름을 입력하세요"
+        className="w-full h-[44px] text-[#111827] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left bg-[#F9FAFB] border-[1px] border-[#D1D5DB] rounded-[8px]"
+      />
+      <p className="w-full h-auto text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이메일</p>
+      <input
+        placeholder="이메일을 입력하세요"
+        className="w-full h-[44px] text-[#111827] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left bg-[#F9FAFB] border-[1px] border-[#D1D5DB] rounded-[8px]"
+      />
+      <button type="button" className="w-full h-[44px] text-[#FFFFFF] [font-family:'Pretendard'] text-[14px] font-semibold leading-[20px] tracking-[0px] text-center bg-[#4F46E5] rounded-[8px]">제출</button>
+    </div>
+  );
+}
+```
+
+grid 컨테이너 바로 아래라 자식들은 `flex-1`/`self-stretch`가 아니라 `w-full`을 썼다 —
+"grid 레이아웃" 절의 규칙대로다. `login-screen`/`image-hero`와 마찬가지로 트리가 평평하고
+(중첩 프레임 없음) `nameInput`/`emailInput`처럼 구조가 같은 형제가 있어도 그 자체가 페이지
+전체가 아니라 개별 leaf 노드라 "컴포넌트 단위로 분리 생성한다" 절의 대상이 아니다 — 파일
+하나로 끝난다.
 
 ---
 

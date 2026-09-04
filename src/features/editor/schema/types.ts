@@ -2,7 +2,7 @@
 /* 손으로 수정하지 마세요. 재생성: pnpm generate:types */
 
 export type NodeId = string;
-export type Node = FrameNode | TextNode | ImageNode;
+export type Node = FrameNode | TextNode | ImageNode | ButtonNode | InputNode;
 /**
  * number | "auto" | "fill". number는 minimum 0, px로 해석.
  */
@@ -48,11 +48,15 @@ export interface Box {
   height: Size;
 }
 export interface Layout {
-  direction: "row" | "column";
+  direction: "row" | "column" | "grid";
   gap: number;
   padding: Padding;
   mainAxis: "start" | "center" | "end" | "space-between";
   crossAxis: "start" | "center" | "end" | "stretch";
+  /**
+   * direction이 "grid"일 때만 의미가 있는 열 개수. row/column에서는 없어도 된다 — v0.1의 '선택 필드는 visible만'(06-schema-freeze.md) 규칙에서 일부러 벗어난 예외다. row/column에 이 필드를 강제하면 기존 예제·테스트가 전부 깨지는데, grid에만 뜻이 있는 값을 매번 채우게 하는 것도 부자연스럽다.
+   */
+  columns?: number;
 }
 export interface Padding {
   top: number;
@@ -107,6 +111,34 @@ export interface ImageNode {
    * MVP는 object-fit 방식만.
    */
   fit: "cover" | "contain" | "fill";
+}
+export interface ButtonNode {
+  type: "button";
+  name: string;
+  visible?: boolean;
+  box: Box;
+  /**
+   * 버튼 라벨.
+   */
+  content: string;
+  typography: Typography;
+  color: Color;
+  background?: Background;
+  border?: Border;
+}
+export interface InputNode {
+  type: "input";
+  name: string;
+  visible?: boolean;
+  box: Box;
+  /**
+   * MVP는 표시용 placeholder 텍스트만 있다. value·onChange 같은 바인딩은 없다(props/bindings는 MVP 제외 범위).
+   */
+  placeholder: string;
+  typography: Typography;
+  color: Color;
+  background?: Background;
+  border?: Border;
 }
 
 export type PageId = string;

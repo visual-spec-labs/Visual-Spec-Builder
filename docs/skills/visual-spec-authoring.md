@@ -8,23 +8,28 @@
 Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을 고친다. 산출물은 JSON 그 자체다 —
 React 코드가 아니다.
 
-최소 유효 문서의 뼈대, `examples/` 5개가 공통으로 지키는 관용구(평평한 `nodes` 맵과
+최소 유효 문서의 뼈대, `examples/` 6개가 공통으로 지키는 관용구(평평한 `nodes` 맵과
 `children` 참조로만 트리를 만든다, `layout` 5개 필드를 생략 없이 다 적는다, TextNode의
 `height`는 예외 없이 `"auto"`다 등), `examples/invalid/` 8개에서 실제로 반복되는 실수 목록을
 담고 있다.
 
-### v0.1 제약 — 노드 타입은 셋뿐이다
+### v0.1 제약 — 노드 타입은 다섯뿐이다
 
 이 스킬을 쓸 때 가장 먼저 알아야 할 제약이다. **v0.1이 지원하는 노드 타입은 `frame`,
-`text`, `image` 셋뿐이다.** `button`, `input`, `component` 같은 타입은 여전히 없다.
+`text`, `image`, `button`, `input` 다섯뿐이다.** `component` 같은 타입은 여전히 없다.
 
 `image`(`ImageNode`)는 `background`·`border`·`children`이 없는 leaf 노드다. 필수 필드는
 `type`, `name`, `box`, `src`(assets 상대 경로/assetId), `fit`(`cover`/`contain`/`fill`).
 실물 예제는 `examples/image-hero.json`.
 
-그래서 "버튼 넣어줘" 같은 요청이 오면 에이전트는 타입을 지어내지 않고 프레임과 텍스트로
-근사한다. 그리고 **근사했다는 사실을 사용자에게 알린다.** 조용히 넘어가면 사용자는 버튼
-노드가 실제로 생긴 줄 안다. 근사가 마음에 들지 않으면 그 자리에서 다시 논의하면 된다.
+`button`(`ButtonNode`)·`input`(`InputNode`)도 leaf 노드다. `text`처럼 `typography`·`color`가
+필수고 `background`·`border`는 선택이다. `button`은 `content`(라벨), `input`은
+`placeholder`가 필수 텍스트 필드다 — **표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은
+동작은 없다.** 실물 예제는 `layout.direction: "grid"`와 함께 쓴 `examples/form-grid.json`.
+
+그래서 "버튼 누르면 로그인" 같은 동작 요구가 오면 에이전트는 타입을 지어내지 않고, 버튼
+자체는 만들되 동작은 표현할 수 없다는 사실을 사용자에게 알린다. 조용히 넘어가면 사용자는
+그 동작이 실제로 생긴 줄 안다. 근사가 마음에 들지 않으면 그 자리에서 다시 논의하면 된다.
 
 ### 다 쓰면 반드시 검증한다
 

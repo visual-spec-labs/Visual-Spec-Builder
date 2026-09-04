@@ -14,7 +14,9 @@
 - `frame`
 - `text`
 - `image`
-- `layout`
+- `button`
+- `input`
+- `layout` (`direction`: `row` | `column` | `grid`)
 - `box`
 - `background`
 - `border`
@@ -49,6 +51,8 @@ import type {
   FrameNode,
   TextNode,
   ImageNode,
+  ButtonNode,
+  InputNode,
 } from "@/features/editor/schema";
 ```
 
@@ -86,15 +90,18 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 | Frame 추가 | `nodes`에 `type: "frame"` 항목 추가 |
 | Text 추가 | `nodes`에 `type: "text"` 항목 추가 |
 | Image 추가 | `nodes`에 `type: "image"` 항목 추가 — `src`(워크스페이스 assets 참조)와 `fit`(`cover`\|`contain`\|`fill`) 필수 |
+| Button 추가 | `nodes`에 `type: "button"` 항목 추가 — `content`(라벨), `typography`, `color` 필수 |
+| Input 추가 | `nodes`에 `type: "input"` 항목 추가 — `placeholder`, `typography`, `color` 필수. 값 바인딩(`value`/`onChange`)은 없다 |
 | 부모-자식 구조 | `FrameNode.children[].node`가 `nodes`의 key를 참조 |
 | width / height | `box.width`, `box.height` — `number | "auto" | "fill"` |
 | gap / padding | `layout.gap`, `layout.padding.{top,right,bottom,left}` |
+| Grid 배치 | `layout.direction: "grid"` + `layout.columns`(선택, grid에서만 의미) — 균등 N열 자동 배치만 지원, 셀 지정 없음 |
 | text content | `TextNode.content` |
 | font size | `typography.fontSize` |
 | color | `TextNode.color`, `background.color`, `border.color` — hex 문자열 |
 | 표시 / 숨김 | `visible` (생략 시 `true`) |
 
-검증된 예제는 넷이다.
+검증된 예제는 여섯이다.
 
 | 파일 | 확인하는 것 |
 |---|---|
@@ -103,6 +110,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 | `examples/dashboard-cards.json` | `Header > Title` + `Content > Card, Card` 2단 트리. `direction: row` 카드 배치 |
 | `examples/header-content.json` | 고정 높이(px) 헤더 + `space-between` + `fill` 본문 + `visible: false` |
 | `examples/image-hero.json` | `image` 노드 — `fill` 너비 + 고정 높이(px), `fit: "cover"` |
+| `examples/form-grid.json` | `button`/`input` 노드 + `layout.direction: "grid"`(`columns: 2`) 레이블-입력 쌍 배치 |
 
 `dashboard-cards.json`은 스키마가 한 화면에만 맞춰진 구조가 아님을 확인하기 위해 만들었다.
 
@@ -115,6 +123,8 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 - **`fontWeight`의 100 단위 제약.** JSON Schema는 강제하지만 생성된 TS 타입은 `number`다. 타입만으로는 못 막으니 `validateVisualSpec`을 거쳐야 한다.
 - **편집 연산.** 노드 추가·삭제·이동·재부모화 함수는 없다. 지금은 각 화면이 직접 `nodes`를 다루므로 불변조건을 깨뜨릴 수 있다. `validateVisualSpec`은 예방 수단이 아니라 최후 방어선이다.
 - **`ImageNode.src`가 가리키는 워크스페이스 assets 저장소.** 스키마는 문자열 참조만 정의한다. 실제로 파일을 어디에 저장하고 `src` 값을 어떻게 채우는지는 Import 기능(별도 이슈) 쪽 책임이며, 아직 워크스페이스 계층 자체가 저장소에 없다.
+- **Grid의 셀 배치.** `layout.columns`만큼 균등한 열로 자동 배치할 뿐, 특정 자식을 특정 셀·여러 칸에 놓는 기능은 없다. `mainAxis`/`crossAxis`는 grid에서 무시된다. Canvas.tsx가 "임시 스탠드인"이라 정식 grid 배치는 그 교체 작업과 함께 다시 다룬다.
+- **Button/Input의 상호작용.** `content`/`placeholder`는 표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은 이벤트·바인딩은 정의하지 않는다. props/bindings는 MVP 제외 범위(`docs/05-schema.md`)에 그대로 속한다.
 
 ---
 

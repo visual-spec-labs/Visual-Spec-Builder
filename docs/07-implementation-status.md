@@ -1,13 +1,15 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
-> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차)
+> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치)
 >
 > 부분 갱신은 **문서 전체 재검증이 아니다.** 각 갱신에서 실제로 확인한 항목만 아래에 적는다.
 > 확인하지 않은 항목의 날짜는 올리지 않는다.
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
+> | 2026-09-02 (#75) | 3절 노드 타입·레이아웃 표, 6절 제안 3, 4절 유효 예제·테스트 행, 1절 IR·스키마 행 | `visual-spec.schema.json`에 `ButtonNode`/`InputNode`/`Layout.direction: "grid"` 추가 후 `pnpm run generate:types`(diff 없음) · `pnpm test`(13파일 99케이스) · `examples/form-grid.json` 신규 예제로 검증. 아직 `develop`에 머지되지 않은 브랜치 위에서 작업 중이라 push/PR 전 상태다 |
+> | 2026-09-02 (#75) | "GUI 각 영역의 실제 동작" 표의 `ui/Canvas.tsx`·`ui/canvasLayout.ts`·`ui/PropertiesPanel.tsx` 행 | 세 파일 전문 편집·열람 — `Canvas.tsx`에 `button`/`input` 렌더 분기와 `displayStyle()`(grid), `canvasLayout.ts`의 `boxStyle()`에 grid 아이템 분기, `PropertiesPanel.tsx`의 fallback 안내 문구 일반화 |
 > | 2026-09-01 (3차, 020be51) | 1절 GUI·Canvas 행의 Import 서술 · "GUI 각 영역의 실제 동작" 표의 `ui/MenuBar.tsx`(File) 행 | `git grep "noop" src/features/editor/ui/MenuBar.tsx` 히트 **0건**, File 메뉴 6개 항목의 `onSelect` 를 전부 열람 |
 > | 2026-09-01 (3차, 020be51) | 같은 표에 추가한 `ui/importImageFromFile.ts` · `store/resolveImportParent.ts` · `store/nodeId.ts` 행, `store/editorStore.ts` 행 | 네 파일 전문 열람. 계약 멤버 수는 `docs/EDITOR_STORE_CONTRACT.md`("계약의 전부 (6개)")와 대조 |
 > | 2026-09-01 (3차, 020be51) | 1절 IR·스키마 행의 테스트 집계 · 4절 테스트 행 · 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck`(exit 0) · `pnpm test`(12파일 84케이스) 출력에서 파일 수·케이스 수를 읽음 |
@@ -30,6 +32,14 @@
 > | 2026-08-29 | 5.3(이번에 추가) 검증 실패 알림 경로 | `store/exportSpec.ts`·`store/loadSpec.ts`·`ui/exportSpecAsJson.ts`·`ui/openSpecFromFile.ts`·`ui/MenuBar.tsx`·`ui/properties/ExportJsonButton.tsx` 열람 |
 > | 2026-08-29 | 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck` · `pnpm test` |
 > | 2026-08-25 | 5.2 검증기 메시지 | `src/features/editor/schema/validate.ts` 수정과 테스트 |
+>
+> **2026-09-02(#75)에 재확인하지 않은 항목** — 위 표의 "#75" 행에 없는 모든 항목.
+> 이 갱신은 `develop` 020be51 위에 올린 이슈 #75 브랜치(`75--button-input-grid-nodes`)에서
+> 직접 건드린 스키마·Canvas·PropertiesPanel·예제·테스트 파일에 걸린 서술만 다시 봤다.
+> **이 브랜치는 아직 `develop`에 머지되지 않았다** — 같은 시점에 열려 있던 PR #77(홈 화면)·
+> PR #79(Command Engine)·PR #81(Ticket 스키마)도 마찬가지로 `develop`에 없으므로, 이 문서의
+> Command Engine·Ticket Compiler·홈 화면 관련 서술은 여전히 020be51 기준 그대로이며 날짜를
+> 올리지 않았다. 그 세 항목은 각 PR이 머지된 뒤 별도로 갱신한다.
 >
 > **2026-09-01 3차(020be51)에 재확인하지 않은 항목** — 위 표의 "3차" 행에 없는 모든 항목.
 > 3차 갱신은 `develop` 5커밋(1b73ccd → 020be51, PR #69 Import 연결 · PR #71 스킬 image 반영)이
@@ -78,7 +88,7 @@
 
 | 단위 | 상태 | 근거 / 무엇이 되고 무엇이 안 되는가 |
 |---|---|---|
-| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 12파일 84케이스 통과 |
+| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 13파일 99케이스 통과(2026-09-02, 이슈 #75 브랜치 기준) |
 | Command Engine | **미착수** | `command.schema.ts` 없음, history manager 없음. `src/` 전체에 Command 관련 코드 0줄 |
 | 자연어 변환 | **미착수** | 관련 코드 없음 |
 | Ticket Compiler · Agent | **부분** | 코드 생성만 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다. 그 지시문에 **컴포넌트 분리 경계·의존성 순서(자식 먼저)·컴포넌트별 진행 보고**가 생겼다(같은 파일 "컴포넌트 단위로 분리 생성한다" 절). **다만 이는 문서이지 코드가 아니다** — 티켓 스키마도, 순서를 계산하거나 상태를 저장하는 코드도 `src/` 에 0줄이다 |
@@ -93,9 +103,9 @@
 | `src/features/editor/ui/EditorLayout.tsx` | 5개 영역 CSS Grid 배치. 패널 토글 시 좌우 컬럼을 접는다 | `viewStore.showPanels` |
 | `src/features/editor/ui/MenuBar.tsx` (View 메뉴) | 줌 In/Out · Fit to Screen · 격자 표시 · 패널 표시 · **채우기(Fill Viewport)** 가 **동작한다** | `viewStore` |
 | `src/features/editor/ui/MenuBar.tsx` (File 메뉴) | New(`blankSpec` 로드) · Open(파일 선택 → 검증 → 로드) · Save · Save as · Export(스펙 JSON 다운로드) · **Import(이미지 선택 → 삽입)**가 전부 **동작한다**. **`noop()` 은 0개다** — 2026-09-01(PR #69)에 Import 가 연결되면서 File 메뉴에 미구현 항목이 없어졌다(`git grep "noop" src/features/editor/ui/MenuBar.tsx` 히트 0건) | `editorStore.loadSpec` · `editorStore.insertNode` · `useEditorStore.getState().spec` |
-| `src/features/editor/ui/Canvas.tsx` | 스펙 트리를 flex 로 렌더(박스·레이아웃·배경·테두리·타이포그래피), 클릭 시 노드 선택, 줌 배율·격자 표시. **`image` 노드는 빈 `div` 의 `background-image` 로 그린다**(`imageStyle()` — `fit` 의 `cover`/`contain` 은 `background-size` 로 그대로 넘기고 `fill` 만 `100% 100%` 로 옮긴다. `background-position: center`, 반복 없음. 자식을 받지 않는다). **아트보드를 `spec.screen.size` 로 고정**하고 좌상단 기준 `transform: scale` 로 확대한다 — 자식이 커져도 아트보드는 그대로고 넘치는 만큼 밖으로 삐져나온다. 아트보드를 감싼 바깥 박스에 `size × 배율` 크기를 줘 **스크롤 범위를 확대율과 맞춘다**(`transform` 은 레이아웃 박스를 바꾸지 않아, 이 박스가 없으면 25%인데도 100% 크기의 빈 공간이 남는다). 아트보드 위에 화면 이름을 띄운다. `ResizeObserver` 로 **뷰포트 실측 크기**를, `spec.screen.size` 변화로 **아트보드 크기**를 `viewStore` 에 올리고, 뷰포트를 처음 받은 시점과 페이지를 바꿀 때 `fitToScreen()` 을 부른다(처음 열었을 때 아트보드 전체가 보이게). **채우기 모드에서는 뷰포트·해상도가 바뀔 때마다 다시 맞춘다** — "뷰포트 가로 = 페이지 가로"가 상시 규칙이라 한 번만 맞추면 안 된다. 채우기 모드에서는 캔버스 여백(`p-8`)·격자·그림자·이름표도 함께 걷는다. 스크롤바 등장/소멸이 `clientWidth` 를 흔들어 배율이 진동하지 않도록 `scrollbar-gutter: stable` 로 스크롤바 자리를 고정한다. 선택 노드가 실제로 그려진 px 도 재서 `measureStore` 에 올린다. **Ctrl+휠 줌**을 `{ passive: false }` 리스너로 가로채고, 일반 휠 팬은 `overflow-auto` 네이티브 스크롤에 맡긴다 | `editorStore` · `viewStore` · `measureStore` |
-| `src/features/editor/ui/canvasLayout.ts` | `Canvas.tsx` 에서 분리한 순수 함수 `sizeToCss` · `boxStyle`. Figma 의 Fixed/Hug/Fill 을 flex 로 옮긴다 — 주축 `fill` → `flex: 1 1 0` + `min-*: 0`(형제끼리 공간 균등 분배), 교차축 `fill` → `align-self: stretch`, 부모가 없는 최상위 노드만 `100%` | 없음 (순수 함수 — `test/canvas-layout.test.ts` 8케이스) |
-| `src/features/editor/ui/PropertiesPanel.tsx` 와 `ui/properties/`(파일 17개) | 선택 노드의 이름·표시·박스·레이아웃·배경·테두리·타이포그래피를 편집. 타입별로 `frame` → `FrameProperties`, `text` → `TextProperties` 로 갈라지고, **`image` 는 "이미지 속성 편집은 아직 지원하지 않습니다." 안내 한 줄만 띄운다**(2026-09-01, PR #67 — 그전에는 `frame` 이 아니면 전부 `TextProperties` 로 떨어져 `image` 노드에 Text 편집 UI 가 잘못 그려졌다. `src`·`fit` 을 GUI 에서 고칠 방법은 아직 없다). 컨트롤은 `properties/fields/Field.tsx`(라벨·2열 행·인풋 스타일)와 `properties/fields/useDraftInput.ts`(타이핑 중에는 draft, 파싱에 성공하면 즉시 커밋)를 공유하고, Frame·Text 공통 Size 섹션은 `properties/SizeSection.tsx` 다. **Size 섹션의 px 칸은 Fixed 면 스펙값을, Hug/Fill 이면 `measureStore` 의 실측 px 를 보여준다**(`properties/fields/SizeField.tsx`) — 실측값을 아직 못 받았을 때만 `Hug`/`Fill` 을 placeholder 로 흐리게 띄우고, 모드를 Fixed 로 바꾸면 그 실측 px 를 그대로 이어받는다(못 받았으면 100). **스키마 값 `"auto"` 를 UI 는 Figma 용어인 `Hug` 로 부른다.** 숫자 칸(`type="number"`)은 **휠이 닿으면 포커스를 떼** 스크롤하다 값이 조용히 증감되는 일을 막는다(`properties/fields/Field.tsx` 의 `blurOnWheel` — `SizeField`·`NumberField`·`ColorField` 가 쓴다. 패널 자체가 `overflow-auto` 라 `preventDefault` 대신 `blur` 를 쓴다). `border` 는 스키마상 세 필드가 모두 필수라 한 칸만 고쳐도 `properties/borderPatch.ts` 가 완전한 객체를 만들어 통째로 쓴다 | `properties/useNodeField.ts` 훅을 거쳐 `editorStore.setNodeField`. Size 섹션은 `measureStore` 를 읽기만 한다 |
+| `src/features/editor/ui/Canvas.tsx` | 스펙 트리를 flex/grid 로 렌더(박스·레이아웃·배경·테두리·타이포그래피), 클릭 시 노드 선택, 줌 배율·격자 표시. **`image` 노드는 빈 `div` 의 `background-image` 로 그린다**(`imageStyle()` — `fit` 의 `cover`/`contain` 은 `background-size` 로 그대로 넘기고 `fill` 만 `100% 100%` 로 옮긴다. `background-position: center`, 반복 없음. 자식을 받지 않는다). **`button`/`input` 노드는 각각 `<div>` 로 그린다**(`buttonStyle()`/`inputStyle()`, 2026-09-02·이슈 #75 — `content`/`placeholder` 텍스트를 보여주기만 하고 실제 클릭·입력 동작은 없다). **`layout.direction: "grid"` 는 `display: grid` + `layout.columns` 만큼의 `gridTemplateColumns` 로 그린다**(`displayStyle()`, 같은 PR — 균등 자동 배치뿐, 셀 지정 없음. `mainAxis`/`crossAxis` 무시). **아트보드를 `spec.screen.size` 로 고정**하고 좌상단 기준 `transform: scale` 로 확대한다 — 자식이 커져도 아트보드는 그대로고 넘치는 만큼 밖으로 삐져나온다. 아트보드를 감싼 바깥 박스에 `size × 배율` 크기를 줘 **스크롤 범위를 확대율과 맞춘다**(`transform` 은 레이아웃 박스를 바꾸지 않아, 이 박스가 없으면 25%인데도 100% 크기의 빈 공간이 남는다). 아트보드 위에 화면 이름을 띄운다. `ResizeObserver` 로 **뷰포트 실측 크기**를, `spec.screen.size` 변화로 **아트보드 크기**를 `viewStore` 에 올리고, 뷰포트를 처음 받은 시점과 페이지를 바꿀 때 `fitToScreen()` 을 부른다(처음 열었을 때 아트보드 전체가 보이게). **채우기 모드에서는 뷰포트·해상도가 바뀔 때마다 다시 맞춘다** — "뷰포트 가로 = 페이지 가로"가 상시 규칙이라 한 번만 맞추면 안 된다. 채우기 모드에서는 캔버스 여백(`p-8`)·격자·그림자·이름표도 함께 걷는다. 스크롤바 등장/소멸이 `clientWidth` 를 흔들어 배율이 진동하지 않도록 `scrollbar-gutter: stable` 로 스크롤바 자리를 고정한다. 선택 노드가 실제로 그려진 px 도 재서 `measureStore` 에 올린다. **Ctrl+휠 줌**을 `{ passive: false }` 리스너로 가로채고, 일반 휠 팬은 `overflow-auto` 네이티브 스크롤에 맡긴다 | `editorStore` · `viewStore` · `measureStore` |
+| `src/features/editor/ui/canvasLayout.ts` | `Canvas.tsx` 에서 분리한 순수 함수 `sizeToCss` · `boxStyle`. Figma 의 Fixed/Hug/Fill 을 flex 로 옮긴다 — 주축 `fill` → `flex: 1 1 0` + `min-*: 0`(형제끼리 공간 균등 분배), 교차축 `fill` → `align-self: stretch`, 부모가 없는 최상위 노드만 `100%`. **`parentDirection === "grid"` 도 최상위 노드와 동일하게 취급한다**(2026-09-02, 이슈 #75 — flex-grow/shrink 기반 배분이 grid 아이템에는 뜻이 없어서다) | 없음 (순수 함수 — `test/canvas-layout.test.ts` 9케이스) |
+| `src/features/editor/ui/PropertiesPanel.tsx` 와 `ui/properties/`(파일 17개) | 선택 노드의 이름·표시·박스·레이아웃·배경·테두리·타이포그래피를 편집. 타입별로 `frame` → `FrameProperties`, `text` → `TextProperties` 로 갈라지고, **`image`·`button`·`input` 은 "이 노드 타입의 속성 편집은 아직 지원하지 않습니다." 안내 한 줄만 띄운다**(문구는 2026-09-02·이슈 #75에 세 타입 공통으로 일반화됐다 — 그전에는 "이미지 속성 편집은…"으로 image 전용 문구였는데 `button`/`input` 도 같은 fallback 을 타면서 부정확해졌다. `src`/`fit`·`content`/`placeholder` 를 GUI 에서 고칠 방법은 아직 없다). 컨트롤은 `properties/fields/Field.tsx`(라벨·2열 행·인풋 스타일)와 `properties/fields/useDraftInput.ts`(타이핑 중에는 draft, 파싱에 성공하면 즉시 커밋)를 공유하고, Frame·Text 공통 Size 섹션은 `properties/SizeSection.tsx` 다. **Size 섹션의 px 칸은 Fixed 면 스펙값을, Hug/Fill 이면 `measureStore` 의 실측 px 를 보여준다**(`properties/fields/SizeField.tsx`) — 실측값을 아직 못 받았을 때만 `Hug`/`Fill` 을 placeholder 로 흐리게 띄우고, 모드를 Fixed 로 바꾸면 그 실측 px 를 그대로 이어받는다(못 받았으면 100). **스키마 값 `"auto"` 를 UI 는 Figma 용어인 `Hug` 로 부른다.** 숫자 칸(`type="number"`)은 **휠이 닿으면 포커스를 떼** 스크롤하다 값이 조용히 증감되는 일을 막는다(`properties/fields/Field.tsx` 의 `blurOnWheel` — `SizeField`·`NumberField`·`ColorField` 가 쓴다. 패널 자체가 `overflow-auto` 라 `preventDefault` 대신 `blur` 를 쓴다). `border` 는 스키마상 세 필드가 모두 필수라 한 칸만 고쳐도 `properties/borderPatch.ts` 가 완전한 객체를 만들어 통째로 쓴다 | `properties/useNodeField.ts` 훅을 거쳐 `editorStore.setNodeField`. Size 섹션은 `measureStore` 를 읽기만 한다 |
 | `src/features/editor/ui/LayerTree.tsx` | **하드코딩된 레이어 10개**(`LAYERS` 상수)를 표시. 선택은 로컬 하이라이트뿐 (이슈 #43) | 없음 |
 | `src/features/editor/ui/Toolbar.tsx` | Select/Frame/Text/Hand 버튼. 활성 표시만 로컬 상태 (이슈 #44) | 없음 (도구 동작 없음) |
 | `src/features/editor/store/editorStore.ts` | `spec` · `selectedId` · `select` · `setNodeField` · `loadSpec`(스펙 전체 교체 + 선택 해제 — New/Open 이 호출) · **`insertNode`(새 노드를 `parentId` frame 의 자식 끝에 추가하고 그 노드를 선택 — Import 가 호출)**. `insertNode` 는 `parentId` 가 없거나 frame 이 아니면 아무 것도 하지 않는다 — 유효한 frame id 를 고르는 책임은 호출자에게 있다. 계약 멤버는 **6개**다(2026-09-01, PR #69 에서 5개 → 6개) ([EDITOR_STORE_CONTRACT.md](EDITOR_STORE_CONTRACT.md)) | — |
@@ -145,32 +155,35 @@
 
 ### 노드 타입
 
-02는 `Container / Text / Button / Input / Image` 5종을 요구한다. 스키마 v0.1은 `frame`, `text`, `image` 3종이다(`src/features/editor/schema/visual-spec.schema.json` 의 `$defs.Node` — `oneOf` 가 `FrameNode`·`TextNode`·`ImageNode` 세 갈래다).
+02는 `Container / Text / Button / Input / Image` 5종을 요구한다. 스키마 v0.1은 이제 `frame`, `text`, `image`, `button`, `input` 5종이다(`src/features/editor/schema/visual-spec.schema.json` 의 `$defs.Node` — `oneOf` 가 `FrameNode`·`TextNode`·`ImageNode`·`ButtonNode`·`InputNode` 다섯 갈래다). **02가 요구한 5종이 전부 충족됐다.**
 
 | 02가 요구한 노드 | v0.1 | 성격 |
 |---|---|---|
 | Container | `frame` 으로 충족 | 이름만 다르다 |
 | Text | `text` 로 충족 | — |
 | Image | `image` 로 충족 | **충족됐다(2026-09-01, PR #67).** 06이 `image` 를 지원 목록으로 옮기고 제외 목록에서 뺐다. `src`(워크스페이스 assets 참조)와 `fit`(`cover`\|`contain`\|`fill`)이 필수이며 예제는 `examples/image-hero.json` 이다. **다만 05는 아직 `ImageNode` 를 "MVP 제외 범위"에 두고 포함 목록에도 `FrameNode`·`TextNode` 만 적어 둔 상태라 06·정본 스키마와 어긋난다**([05-schema.md](05-schema.md) — 이 문서는 관찰 기록이므로 05를 고치지 않았다). **06이 남긴 미해결(`src` 가 가리킬 워크스페이스 assets 저장소)은 아직 그대로다.** PR #69 의 Import 는 그 저장소를 만드는 대신 이미지를 base64 data URI 로 스펙에 인라인해 우회했다(`ui/importImageFromFile.ts`). 그래서 정본 스키마가 `src` 를 "워크스페이스 assets에 저장된 이미지를 가리키는 상대 경로 또는 assetId"로 설명하는 것과 **실제로 채워지는 값이 어긋난다** — 스키마 제약은 `type: string`·`minLength: 1` 뿐이라 검증은 통과한다. 관찰 기록이므로 코드도 스키마도 고치지 않았다 |
-| Button | 없음 | **미조정.** 05·06 어느 쪽의 제외 목록에도 없다. 요구되지만 구현도 제외 선언도 되지 않았다 |
-| Input | 없음 | **미조정.** 같음 |
+| Button | `button` 으로 충족 | **충족됐다(2026-09-02, 이슈 #75).** `content`(라벨)·`typography`·`color`가 필수, `background`·`border`는 선택. `text`와 달리 `content`는 `minLength: 1`(빈 라벨 금지). `onClick` 같은 이벤트는 스키마에 없다 — 표시용 정적 마크업만 만든다는 뜻이다. 예제는 `examples/form-grid.json` |
+| Input | `input` 으로 충족 | **충족됐다(2026-09-02, 이슈 #75).** `placeholder`(빈 문자열 허용)·`typography`·`color`가 필수. `value`/`onChange` 바인딩은 없다 — props/bindings가 MVP 제외 범위인 것과 같은 이유다. 예제는 `examples/form-grid.json` |
+
+**05는 아직 이 둘을 반영하지 못했다.** `05-schema.md`의 포함 목록에 `ButtonNode`·`InputNode`가 없다 — Image와 같은 종류의 지연이다. 관찰 기록이므로 05를 고치지 않았다.
 
 ### 레이아웃
 
-02는 `Row / Column / Grid` 를 요구한다. 정본 스키마의 `$defs.Layout.direction` 은 `["row", "column"]` 두 값만 허용한다.
+02는 `Row / Column / Grid` 를 요구한다. 정본 스키마의 `$defs.Layout.direction` 은 이제 `["row", "column", "grid"]` 세 값을 허용한다.
 
 - Row · Column — 충족
-- **Grid — 없다.** 05·06의 제외 목록 어디에도 Grid가 없다. 노드 타입의 Button·Input과 같은 미조정 항목이다.
+- **Grid — 최소 구현으로 충족됐다(2026-09-02, 이슈 #75).** `layout.columns`(선택, grid에서만 의미)만큼의 균등 N열 자동 배치만 지원한다 — 특정 자식을 특정 셀에 지정하는 기능은 없고, grid에서는 `mainAxis`/`crossAxis`가 무시된다. `ui/Canvas.tsx`의 `displayStyle()`, `ui/canvasLayout.ts`의 `boxStyle()` grid 분기가 렌더링을 맡는다. `Canvas.tsx`가 스스로 "임시 스탠드인"이라 밝히고 있어 정식 grid 셀 배치는 그 교체 작업과 함께 다시 다뤄야 한다
 
 ### 크기
 
 02의 `Fixed / Fill / Hug` 는 v0.1의 `Size = number | "fill" | "auto"` 로 전부 충족된다.
 다만 06이 밝힌 대로 **`"fill"` 이 교차축에서 무엇을 의미하는지는 계약에 포함되지 않았다.** Renderer 구현 시점에 정해야 한다.
 
-> Button · Input · Grid 3건은 "구현이 안 됐다"기보다 **02와 05·06 사이가 정리되지 않은 상태**다.
-> 스키마를 넓힐지 02의 범위를 줄일지는 팀이 정할 일이며, 스키마를 건드린다면 [06-schema-freeze.md](06-schema-freeze.md)의 변경 절차를 따라야 한다.
-> **Image 는 2026-09-01 에 이 목록에서 빠졌다** — PR #67 이 06의 변경 절차를 밟아 스키마를 넓히는 쪽으로 결론냈다.
-> 남은 미조정은 Button · Input · Grid 3건이고, 여기에 **05가 06을 따라오지 못한 `ImageNode` 항목**이 하나 더 붙었다.
+> Button · Input · Grid 3건은 "구현이 안 됐다"기보다 **02와 05·06 사이가 정리되지 않은 상태**였다.
+> **Image 는 2026-09-01 에, Button · Input · Grid 는 2026-09-02(이슈 #75)에 이 목록에서 빠졌다** —
+> 둘 다 06의 변경 절차를 밟아 스키마를 넓히는 쪽으로 결론냈다(PR #67, 이슈 #75).
+> **남은 미조정은 05가 06을 따라오지 못한 `ImageNode`·`ButtonNode`·`InputNode` 항목뿐이다** —
+> 05의 포함 목록 갱신은 별도로 남아 있다.
 
 ---
 
@@ -185,9 +198,9 @@
 | 검증기 | `src/features/editor/schema/validate.ts` | `validateVisualSpec` / `assertVisualSpec` / `VisualSpecValidationError` |
 | 공개 표면 | `src/features/editor/schema/index.ts` | 타입·검증기는 이 index를 거쳐서만 가져온다 |
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
-| 유효 예제 5개 | `examples/*.json` | 검증 통과. `examples/image-hero.json` 이 2026-09-01(PR #67)에 추가됐다 |
+| 유효 예제 6개 | `examples/*.json` | 검증 통과. `examples/image-hero.json` 이 2026-09-01(PR #67)에, `examples/form-grid.json`(button·input·grid)이 2026-09-02(이슈 #75)에 추가됐다 |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
-| 테스트 | `test/validate.test.ts`(19) · `test/editor-store.test.ts`(14) · `test/canvas-layout.test.ts`(8) · `test/fit-zoom.test.ts`(7) · `test/export-spec.test.ts`(6) · `test/view-store.test.ts`(6) · `test/border-patch.test.ts`(5) · `test/node-id.test.ts`(4) · `test/resolve-import-parent.test.ts`(4) · `test/schema.test.ts`(4) · `test/public-api.test.ts`(4) · `test/load-spec.test.ts`(3) | **12파일 84케이스 전부 통과** (2026-09-01, 020be51 기준 확인) |
+| 테스트 | `test/validate.test.ts`(20) · `test/editor-store.test.ts`(14) · `test/canvas-layout.test.ts`(9) · `test/fit-zoom.test.ts`(7) · `test/export-spec.test.ts`(6) · `test/view-store.test.ts`(6) · `test/border-patch.test.ts`(5) · `test/node-id.test.ts`(4) · `test/resolve-import-parent.test.ts`(4) · `test/schema.test.ts`(4) · `test/public-api.test.ts`(4) · `test/load-spec.test.ts`(3) · `test/project-spec.test.ts`(13) | **13파일 99케이스 전부 통과** (2026-09-02, 이슈 #75 브랜치 기준 확인 — `test/project-spec.test.ts`는 PR #76의 v0.2 `ProjectSpec` 작업으로 그사이 `develop`에 이미 추가돼 있었다) |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 5종 | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 5개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33) |
 
@@ -280,9 +293,15 @@
 메시지 문구가 아니므로 동결 해제를 기다리지 않았다. `ValidationIssue` 에 필드를 추가하지
 않아 공개 표면도 넓어지지 않았다.
 
-### 제안 3 — Button · Input · Grid는 코드보다 문서 결정이 먼저
+### 제안 3 — Button · Input · Grid는 코드보다 문서 결정이 먼저 (완료, 3절 참고)
 
-3절의 미조정 3건은 구현 과제가 아니라 **범위 결정 과제**다. 스키마를 넓힐지 02의 범위를 줄일지 정하지 않은 채로 구현에 들어가면 [06-schema-freeze.md](06-schema-freeze.md)의 변경 절차를 우회하게 된다. 결정 결과는 02 또는 05·06에 반영하고, 미확정으로 남는다면 [open-questions.md](open-questions.md)로 옮기는 편이 낫다.
+이 제안이 근거로 삼은 상태 — "결정 없이 구현에 들어가면 06의 변경 절차를 우회하게 된다" —
+는 해소됐다. 이슈 #75가 06의 변경 절차(별도 PR·`generate:types`·예제/테스트 갱신)를 밟아
+스키마를 넓히는 쪽으로 결론냈다 — Button·Input 노드 타입과 Grid 레이아웃(균등 N열 자동
+배치만 지원하는 최소 구현)이 v0.1에 들어갔다.
+
+남은 것은 05의 포함 목록이 06·정본 스키마를 아직 따라오지 못한 부분뿐이다(3절 참고 —
+`ImageNode` 도 같은 상태로 이미 남아 있었다).
 
 ---
 
@@ -292,6 +311,6 @@
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm run typecheck   # 통과 (2026-09-01, develop 020be51 기준 확인)
-pnpm test            # 12파일 84케이스 통과 (2026-09-01, develop 020be51 기준 확인)
+pnpm run typecheck   # 통과 (2026-09-02, 이슈 #75 브랜치 기준 확인)
+pnpm test            # 13파일 99케이스 통과 (2026-09-02, 이슈 #75 브랜치 기준 확인)
 ```

@@ -12,6 +12,8 @@ const TYPE_LABEL: Record<string, string> = {
   frame: "Frame",
   text: "Text",
   image: "Image",
+  button: "Button",
+  input: "Input",
 };
 
 /** 노드 이름 + 타입 배지 + 표시 토글. 패널 맨 위 공통 영역. */
@@ -72,9 +74,9 @@ export function PropertiesPanel() {
         ) : node.type === "text" ? (
           <TextProperties />
         ) : (
-          <PropertySection title="Image">
+          <PropertySection title={TYPE_LABEL[node.type] ?? node.type}>
             <p className="text-sm text-content-subtle">
-              이미지 속성 편집은 아직 지원하지 않습니다.
+              이 노드 타입의 속성 편집은 아직 지원하지 않습니다.
             </p>
           </PropertySection>
         )}
