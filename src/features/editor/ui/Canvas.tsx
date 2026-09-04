@@ -1,6 +1,7 @@
 import {
   useEffect,
   useRef,
+  useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type RefObject,
@@ -221,6 +222,8 @@ function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
   event.stopPropagation();
 
   const tool = useToolStore.getState().activeTool;
+  if (tool === "hand") return; // 팬 전용 도구 — 선택을 바꾸지 않는다
+
   const { spec, activePageId, select } = useEditorStore.getState();
   const { nodes, root } = spec.pages[activePageId];
 
@@ -243,6 +246,8 @@ function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
 /** 아트보드 바깥(캔버스 바탕)을 클릭했을 때. */
 function handleBackgroundClick() {
   const tool = useToolStore.getState().activeTool;
+  if (tool === "hand") return;
+
   const { spec, activePageId, select } = useEditorStore.getState();
 
   if (tool === "frame" || tool === "text") {
@@ -352,11 +357,13 @@ export function Canvas() {
   const size = useEditorStore((state) => state.spec.pages[state.activePageId].size);
   const screenName = useEditorStore((state) => state.spec.pages[state.activePageId].name);
   const selectedId = useEditorStore((state) => state.selectedId);
+  const activeTool = useToolStore((state) => state.activeTool);
   const zoom = useViewStore((s) => s.zoom);
   const showGrid = useViewStore((s) => s.showGrid);
   const fillViewport = useViewStore((s) => s.fillViewport);
   const viewport = useViewStore((s) => s.viewport);
   const mainRef = useRef<HTMLElement>(null);
+  const [panning, setPanning] = useState(false);
 
   useEffect(() => {
     const node = mainRef.current;
@@ -380,6 +387,68 @@ export function Canvas() {
     // 줌을 확실히 막을 수 있다.
     node.addEventListener("wheel", handleWheel, { passive: false });
     return () => node.removeEventListener("wheel", handleWheel);
+  }, []);
+
+  // Hand 도구: 캔버스를 끌어서 화면을 이동(팬)한다.
+  // 스크롤 컨테이너가 이미 main이므로 scrollLeft/Top만 옮기면 된다.
+  useEffect(() => {
+    const node = mainRef.current;
+    if (node === null) return;
+
+    /** 끌기 시작점. 끌고 있지 않으면 null. */
+    let origin: {
+      x: number;
+      y: number;
+      scrollLeft: number;
+      scrollTop: number;
+    } | null = null;
+
+    function endPan() {
+      if (origin === null) return;
+      origin = null;
+      setPanning(false);
+    }
+
+    function handleMouseDown(event: MouseEvent) {
+      if (node === null) return;
+      if (useToolStore.getState().activeTool !== "hand") return;
+      if (event.button !== 0) return;
+      // 끄는 동안 텍스트가 선택되거나 드래그 고스트가 생기지 않게 막는다.
+      event.preventDefault();
+
+      origin = {
+        x: event.clientX,
+        y: event.clientY,
+        scrollLeft: node.scrollLeft,
+        scrollTop: node.scrollTop,
+      };
+      setPanning(true);
+    }
+
+    function handleMouseMove(event: MouseEvent) {
+      if (node === null || origin === null) return;
+      // 창 밖에서 버튼을 떼면 mouseup이 페이지로 오지 않는다. 버튼이 눌려 있지
+      // 않은 이동을 보면 그때 끌기를 끝내야 커서가 grabbing에 갇히지 않는다.
+      if (event.buttons === 0) {
+        endPan();
+        return;
+      }
+      // 종이를 손으로 끄는 방향 — 오른쪽으로 끌면 내용이 오른쪽으로 따라온다.
+      node.scrollLeft = origin.scrollLeft - (event.clientX - origin.x);
+      node.scrollTop = origin.scrollTop - (event.clientY - origin.y);
+    }
+
+    // 캔버스 밖으로 커서가 나가도 끌기가 이어지도록 이동·해제는 window에서 듣는다.
+    // 끌기마다 붙였다 떼면 mouseup을 놓쳤을 때 리스너가 남으므로 여기서 한 번만
+    // 등록하고, 정리도 이 effect가 책임진다.
+    node.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", endPan);
+    return () => {
+      node.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", endPan);
+    };
   }, []);
 
   // 뷰포트 실측값을 스토어에 올린다 — Fit to Screen이 이 값으로 확대율을 계산한다.
@@ -426,6 +495,8 @@ export function Canvas() {
   }, [viewport, activePageId, fillViewport, size]);
 
   const scale = zoom / 100;
+  const cursorClass =
+    activeTool === "hand" ? (panning ? "cursor-grabbing" : "cursor-grab") : "";
 
   // scrollbar-gutter는 세로 스크롤바 자리를 항상 비워둔다. 없으면 채우기 모드에서
   // 되먹임 진동이 난다: 스크롤바 등장 → clientWidth 감소 → 배율 축소 → 내용이 짧아져
@@ -435,7 +506,7 @@ export function Canvas() {
       ref={mainRef}
       className={`relative overflow-auto bg-surface-canvas [grid-area:canvas] [scrollbar-gutter:stable] ${
         fillViewport ? "" : "p-8"
-      }`}
+      } ${cursorClass}`}
       onClick={handleBackgroundClick}
     >
       {/*
