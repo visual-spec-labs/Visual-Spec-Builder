@@ -1,13 +1,17 @@
 import {
   useEffect,
   useRef,
+  useState,
   type CSSProperties,
-  type MouseEvent,
+  type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from "react";
 
+import { createNode, type NodeKind } from "@/features/editor/store/createNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { generateNodeId } from "@/features/editor/store/nodeId";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
+import { useToolStore } from "@/features/editor/store/toolStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import type {
   ButtonNode,
@@ -20,6 +24,7 @@ import type {
 } from "@/features/editor/schema";
 
 import { boxStyle, type Direction } from "./canvasLayout";
+import { resolveClickTarget, resolveInsertParent } from "./selection";
 
 /**
  * 중앙 캔버스.
@@ -197,6 +202,62 @@ function useReportMeasuredSize(
   }, [ref, active]);
 }
 
+/** 새 노드를 만들어 부모에 붙이고, 도구를 Select로 되돌린다. */
+function insertNewNode(kind: NodeKind, parentId: NodeId) {
+  const { spec, activePageId, insertNode } = useEditorStore.getState();
+  const { nodes } = spec.pages[activePageId];
+  insertNode(parentId, generateNodeId(kind, nodes), createNode(kind));
+  // 피그마와 같은 흐름 — 하나 만들면 바로 그것을 만질 수 있게 선택 도구로 돌아온다.
+  useToolStore.getState().setActiveTool("select");
+}
+
+/**
+ * 노드를 클릭했을 때 활성 도구에 따라 무엇을 할지 정한다.
+ *
+ * 스토어를 구독하는 대신 getState로 읽는다 — 재귀 렌더 트리의 모든 노드에
+ * 핸들러를 내려보내거나 도구가 바뀔 때마다 트리 전체를 다시 그리지 않기 위해서다.
+ */
+function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
+  // 중첩된 부모의 핸들러까지 함께 실행되면 어느 노드를 클릭했는지 알 수 없다.
+  event.stopPropagation();
+
+  const tool = useToolStore.getState().activeTool;
+  if (tool === "hand") return; // 팬 전용 도구 — 선택을 바꾸지 않는다
+
+  const { spec, activePageId, select } = useEditorStore.getState();
+  const { nodes, root } = spec.pages[activePageId];
+
+  if (tool === "frame" || tool === "text") {
+    insertNewNode(tool, resolveInsertParent({ nodes, root, clickedId }));
+    return;
+  }
+
+  // Select 도구 — Cmd(macOS) / Ctrl(Windows)를 누르면 상세 지정(최하위)
+  select(
+    resolveClickTarget({
+      nodes,
+      root,
+      clickedId,
+      deep: event.metaKey || event.ctrlKey,
+    }),
+  );
+}
+
+/** 아트보드 바깥(캔버스 바탕)을 클릭했을 때. */
+function handleBackgroundClick() {
+  const tool = useToolStore.getState().activeTool;
+  if (tool === "hand") return;
+
+  const { spec, activePageId, select } = useEditorStore.getState();
+
+  if (tool === "frame" || tool === "text") {
+    insertNewNode(tool, spec.pages[activePageId].root);
+    return;
+  }
+
+  select(null);
+}
+
 function RenderNode({
   id,
   parentDirection,
@@ -209,7 +270,6 @@ function RenderNode({
     (state) => state.spec.pages[state.activePageId].nodes[id],
   );
   const selectedId = useEditorStore((state) => state.selectedId);
-  const select = useEditorStore((state) => state.select);
   const ref = useRef<HTMLDivElement>(null);
   const selected = selectedId === id;
 
@@ -221,17 +281,15 @@ function RenderNode({
 
   const outline = selected ? { outline: "2px solid #F97316", outlineOffset: 1 } : {};
 
-  function handleClick(event: MouseEvent) {
-    event.stopPropagation();
-    select(id);
-  }
-
   if (node.type === "text") {
     return (
       <div
         ref={ref}
+        // 스펙상의 노드 id를 DOM에 그대로 남긴다 — 중첩 안쪽을 상세 지정했을 때
+        // 어떤 item이 잡혔는지 개발자 도구에서 바로 확인할 수 있다.
+        data-node-id={id}
         style={{ ...textStyle(node, parentDirection), ...outline }}
-        onClick={handleClick}
+        onClick={(event) => handleNodeClick(id, event)}
       >
         {node.content}
       </div>
@@ -242,8 +300,9 @@ function RenderNode({
     return (
       <div
         ref={ref}
+        data-node-id={id}
         style={{ ...imageStyle(node, parentDirection), ...outline }}
-        onClick={handleClick}
+        onClick={(event) => handleNodeClick(id, event)}
       />
     );
   }
@@ -252,8 +311,9 @@ function RenderNode({
     return (
       <div
         ref={ref}
+        data-node-id={id}
         style={{ ...buttonStyle(node, parentDirection), ...outline }}
-        onClick={handleClick}
+        onClick={(event) => handleNodeClick(id, event)}
       >
         {node.content}
       </div>
@@ -264,8 +324,9 @@ function RenderNode({
     return (
       <div
         ref={ref}
+        data-node-id={id}
         style={{ ...inputStyle(node, parentDirection), ...outline }}
-        onClick={handleClick}
+        onClick={(event) => handleNodeClick(id, event)}
       >
         {node.placeholder}
       </div>
@@ -275,8 +336,9 @@ function RenderNode({
   return (
     <div
       ref={ref}
+      data-node-id={id}
       style={{ ...frameStyle(node, parentDirection), ...outline }}
-      onClick={handleClick}
+      onClick={(event) => handleNodeClick(id, event)}
     >
       {node.children.map((child) => (
         <RenderNode
@@ -294,12 +356,14 @@ export function Canvas() {
   const root = useEditorStore((state) => state.spec.pages[state.activePageId].root);
   const size = useEditorStore((state) => state.spec.pages[state.activePageId].size);
   const screenName = useEditorStore((state) => state.spec.pages[state.activePageId].name);
-  const select = useEditorStore((state) => state.select);
+  const selectedId = useEditorStore((state) => state.selectedId);
+  const activeTool = useToolStore((state) => state.activeTool);
   const zoom = useViewStore((s) => s.zoom);
   const showGrid = useViewStore((s) => s.showGrid);
   const fillViewport = useViewStore((s) => s.fillViewport);
   const viewport = useViewStore((s) => s.viewport);
   const mainRef = useRef<HTMLElement>(null);
+  const [panning, setPanning] = useState(false);
 
   useEffect(() => {
     const node = mainRef.current;
@@ -323,6 +387,68 @@ export function Canvas() {
     // 줌을 확실히 막을 수 있다.
     node.addEventListener("wheel", handleWheel, { passive: false });
     return () => node.removeEventListener("wheel", handleWheel);
+  }, []);
+
+  // Hand 도구: 캔버스를 끌어서 화면을 이동(팬)한다.
+  // 스크롤 컨테이너가 이미 main이므로 scrollLeft/Top만 옮기면 된다.
+  useEffect(() => {
+    const node = mainRef.current;
+    if (node === null) return;
+
+    /** 끌기 시작점. 끌고 있지 않으면 null. */
+    let origin: {
+      x: number;
+      y: number;
+      scrollLeft: number;
+      scrollTop: number;
+    } | null = null;
+
+    function endPan() {
+      if (origin === null) return;
+      origin = null;
+      setPanning(false);
+    }
+
+    function handleMouseDown(event: MouseEvent) {
+      if (node === null) return;
+      if (useToolStore.getState().activeTool !== "hand") return;
+      if (event.button !== 0) return;
+      // 끄는 동안 텍스트가 선택되거나 드래그 고스트가 생기지 않게 막는다.
+      event.preventDefault();
+
+      origin = {
+        x: event.clientX,
+        y: event.clientY,
+        scrollLeft: node.scrollLeft,
+        scrollTop: node.scrollTop,
+      };
+      setPanning(true);
+    }
+
+    function handleMouseMove(event: MouseEvent) {
+      if (node === null || origin === null) return;
+      // 창 밖에서 버튼을 떼면 mouseup이 페이지로 오지 않는다. 버튼이 눌려 있지
+      // 않은 이동을 보면 그때 끌기를 끝내야 커서가 grabbing에 갇히지 않는다.
+      if (event.buttons === 0) {
+        endPan();
+        return;
+      }
+      // 종이를 손으로 끄는 방향 — 오른쪽으로 끌면 내용이 오른쪽으로 따라온다.
+      node.scrollLeft = origin.scrollLeft - (event.clientX - origin.x);
+      node.scrollTop = origin.scrollTop - (event.clientY - origin.y);
+    }
+
+    // 캔버스 밖으로 커서가 나가도 끌기가 이어지도록 이동·해제는 window에서 듣는다.
+    // 끌기마다 붙였다 떼면 mouseup을 놓쳤을 때 리스너가 남으므로 여기서 한 번만
+    // 등록하고, 정리도 이 effect가 책임진다.
+    node.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", endPan);
+    return () => {
+      node.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", endPan);
+    };
   }, []);
 
   // 뷰포트 실측값을 스토어에 올린다 — Fit to Screen이 이 값으로 확대율을 계산한다.
@@ -369,6 +495,8 @@ export function Canvas() {
   }, [viewport, activePageId, fillViewport, size]);
 
   const scale = zoom / 100;
+  const cursorClass =
+    activeTool === "hand" ? (panning ? "cursor-grabbing" : "cursor-grab") : "";
 
   // scrollbar-gutter는 세로 스크롤바 자리를 항상 비워둔다. 없으면 채우기 모드에서
   // 되먹임 진동이 난다: 스크롤바 등장 → clientWidth 감소 → 배율 축소 → 내용이 짧아져
@@ -378,8 +506,8 @@ export function Canvas() {
       ref={mainRef}
       className={`relative overflow-auto bg-surface-canvas [grid-area:canvas] [scrollbar-gutter:stable] ${
         fillViewport ? "" : "p-8"
-      }`}
-      onClick={() => select(null)}
+      } ${cursorClass}`}
+      onClick={handleBackgroundClick}
     >
       {/*
         TODO(캔버스 담당): 격자를 Figma처럼 "캔버스 평면에 깔린" 배경으로 바꿀 것.
@@ -409,7 +537,10 @@ export function Canvas() {
           채우기 모드에서는 경계가 곧 뷰포트 경계라 이름표도 그림자도 필요 없다.
         */}
         {!fillViewport && (
-          <span className="absolute bottom-full left-0 mb-1 max-w-full truncate text-xs text-content-muted">
+          <span
+            onClick={(event) => event.stopPropagation()}
+            className="absolute bottom-full left-0 mb-1 max-w-full truncate text-xs text-content-muted"
+          >
             {screenName}
           </span>
         )}
@@ -436,9 +567,31 @@ export function Canvas() {
         </div>
       </div>
 
-      <span className="absolute bottom-3 left-3 rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
-        {Math.round(zoom)}%
-      </span>
+      {/*
+        표시 전용 배지. main의 자식이라 클릭이 바탕 핸들러까지 올라가는데, 생성
+        도구가 켜져 있으면 배지를 눌렀을 뿐인데 노드가 생긴다. 클릭을 통과시키면
+        (pointer-events-none) 결국 바탕을 누른 것이 되므로 여기서 삼킨다.
+      */}
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className="absolute bottom-3 left-3 flex items-center gap-2"
+      >
+        <span className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
+          {Math.round(zoom)}%
+        </span>
+        {/*
+          선택된 노드의 id. Cmd/Ctrl+클릭으로 중첩 안쪽을 상세 지정했을 때
+          의도한 item이 잡혔는지 눈으로 바로 확인하는 용도다.
+        */}
+        {selectedId !== null && (
+          <span
+            aria-label="선택한 노드 id"
+            className="rounded-control bg-surface-raised px-2 py-1 font-mono text-xs text-content shadow-card"
+          >
+            #{selectedId}
+          </span>
+        )}
+      </div>
     </main>
   );
 }
