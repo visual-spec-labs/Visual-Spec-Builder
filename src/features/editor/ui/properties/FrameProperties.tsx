@@ -20,6 +20,7 @@ import {
 import type { Border } from "@/features/editor/schema";
 
 import { mergeBorder } from "./borderPatch";
+import { EffectsSection } from "./EffectsSection";
 import { PropertySection } from "./PropertySection";
 import { SizeSection } from "./SizeSection";
 import { useNodeField } from "./useNodeField";
@@ -42,6 +43,14 @@ const ICON = 16;
 const DIRECTION_OPTIONS = [
   { value: "column", content: "세로", title: "세로 (column)" },
   { value: "row", content: "가로", title: "가로 (row)" },
+] as const;
+
+// 스키마상 선택 필드지만 칸은 항상 셋 중 하나를 고른 상태로 둔다 —
+// 값이 없을 때의 동작이 곧 inside라, 빈 상태를 따로 보여줄 이유가 없다.
+const STROKE_ALIGN_OPTIONS = [
+  { value: "inside", content: "안쪽", title: "안쪽 (inside)" },
+  { value: "center", content: "가운데", title: "가운데 (center)" },
+  { value: "outside", content: "바깥", title: "바깥 (outside)" },
 ] as const;
 
 // 주축/교차축은 레이아웃 방향에 따라 물리적 방향이 바뀌므로 아이콘도 방향별로 고른다.
@@ -166,7 +175,15 @@ export function FrameProperties() {
           value={border?.color}
           onChange={(color) => updateBorder({ color })}
         />
+        <SegmentedControl
+          label="정렬"
+          value={border?.align ?? "inside"}
+          options={STROKE_ALIGN_OPTIONS}
+          onChange={(align) => updateBorder({ align })}
+        />
       </PropertySection>
+
+      <EffectsSection withShadow />
     </>
   );
 }
