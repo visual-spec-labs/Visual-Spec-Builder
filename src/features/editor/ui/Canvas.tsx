@@ -194,30 +194,6 @@ function RenderNode({
   );
 }
 
-/**
- * 줌 단계(ZOOM_MIN..ZOOM_MAX, ZOOM_STEP 간격)마다 리터럴 scale 클래스를 매핑한다.
- * 인라인 style 없이도 동적 줌을 표현하기 위함 — 문자열이 소스에 그대로 존재해야
- * Tailwind JIT가 클래스를 정적으로 찾아낼 수 있다 (docs/DESIGN-TOKEN-RULES.md 인라인 스타일 금지).
- */
-const ZOOM_SCALE_CLASS: Record<number, string> = {
-  25: "scale-[0.25]",
-  50: "scale-[0.5]",
-  75: "scale-[0.75]",
-  100: "scale-[1]",
-  125: "scale-[1.25]",
-  150: "scale-[1.5]",
-  175: "scale-[1.75]",
-  200: "scale-[2]",
-  225: "scale-[2.25]",
-  250: "scale-[2.5]",
-  275: "scale-[2.75]",
-  300: "scale-[3]",
-  325: "scale-[3.25]",
-  350: "scale-[3.5]",
-  375: "scale-[3.75]",
-  400: "scale-[4]",
-};
-
 export function Canvas() {
   const activePageId = useEditorStore((state) => state.activePageId);
   const root = useEditorStore((state) => state.spec.pages[state.activePageId].root);
@@ -226,6 +202,7 @@ export function Canvas() {
   const select = useEditorStore((state) => state.select);
   const zoom = useViewStore((s) => s.zoom);
   const showGrid = useViewStore((s) => s.showGrid);
+  const fillViewport = useViewStore((s) => s.fillViewport);
   const viewport = useViewStore((s) => s.viewport);
   const mainRef = useRef<HTMLElement>(null);
 
@@ -285,19 +262,28 @@ export function Canvas() {
   //
   // 페이지를 바꿀 때도 다시 맞춘다. 1440×900에서 390×844로 옮겼는데 확대율이
   // 그대로면 아트보드가 뷰포트 구석에 조그맣게 남는다.
+  //
+  // 채우기 모드에서는 "뷰포트 가로 = 페이지 가로"가 곧 규칙이므로 한 번만 맞추면
+  // 안 된다. 창을 줄이거나 해상도를 바꿀 때마다 다시 맞춰야 계속 꽉 찬다.
   const fittedFor = useRef<PageId | null>(null);
   useEffect(() => {
-    if (fittedFor.current === activePageId || viewport === null) return;
+    if (viewport === null) return;
+    if (!fillViewport && fittedFor.current === activePageId) return;
     fittedFor.current = activePageId;
     useViewStore.getState().fitToScreen();
-  }, [viewport, activePageId]);
+  }, [viewport, activePageId, fillViewport, size]);
 
   const scale = zoom / 100;
 
+  // scrollbar-gutter는 세로 스크롤바 자리를 항상 비워둔다. 없으면 채우기 모드에서
+  // 되먹임 진동이 난다: 스크롤바 등장 → clientWidth 감소 → 배율 축소 → 내용이 짧아져
+  // 스크롤바 소멸 → clientWidth 복귀 → 다시 등장…이 무한 반복된다.
   return (
     <main
       ref={mainRef}
-      className="relative overflow-auto bg-surface-canvas p-8 [grid-area:canvas]"
+      className={`relative overflow-auto bg-surface-canvas [grid-area:canvas] [scrollbar-gutter:stable] ${
+        fillViewport ? "" : "p-8"
+      }`}
       onClick={() => select(null)}
     >
       {/*
@@ -308,7 +294,9 @@ export function Canvas() {
         받는 레이어에 그려야 하고, 칸 크기도 줌에 비례해야 한다
         (--canvas-grid-size * scale). 스냅 기능은 아직 없으며 순수 배경 표시다.
       */}
-      {showGrid && <div className="canvas-grid pointer-events-none absolute inset-0" />}
+      {showGrid && !fillViewport && (
+        <div className="canvas-grid pointer-events-none absolute inset-0" />
+      )}
 
       {/*
         바깥 박스는 "확대된 크기만큼의 자리"를 차지한다. transform: scale은 보이는
@@ -323,24 +311,38 @@ export function Canvas() {
           Figma처럼 아트보드 위에 화면 이름을 띄운다. 경계를 알려주는 가장 강한
           단서라, 그림자만으로는 부족한 어두운 테마에서 특히 중요하다.
           확대율과 무관하게 항상 같은 크기로 보이도록 아트보드 바깥에 둔다.
+          채우기 모드에서는 경계가 곧 뷰포트 경계라 이름표도 그림자도 필요 없다.
         */}
-        <span className="absolute bottom-full left-0 mb-1 max-w-full truncate text-xs text-content-muted">
-          {screenName}
-        </span>
+        {!fillViewport && (
+          <span className="absolute bottom-full left-0 mb-1 max-w-full truncate text-xs text-content-muted">
+            {screenName}
+          </span>
+        )}
         {/*
-          아트보드. screen.size로 고정하고 좌상단 기준으로 확대해 바깥 박스를 정확히 채운다.
+          아트보드. 페이지 size로 고정하고 좌상단 기준으로 확대해 바깥 박스를 정확히 채운다.
           자식이 커져도 아트보드는 그대로고 넘치는 만큼 밖으로 삐져나온다(Figma와 동일).
+
+          scale은 Tailwind 클래스가 아니라 인라인 transform이다 — 확대율이 25% 배수가
+          아닌 임의값(예: 57%)까지 가야 Fit/채우기가 여백 없이 정확히 맞는다. 바로 위
+          width/height와 같은 부류(스펙에서 계산된 치수)이므로
+          docs/DESIGN-TOKEN-RULES.md의 인라인 스타일 금지 예외에 해당한다.
         */}
         <div
-          className={`relative bg-surface-raised shadow-modal origin-top-left ${ZOOM_SCALE_CLASS[zoom]}`}
-          style={{ width: size.width, height: size.height }}
+          className={`relative bg-surface-raised origin-top-left ${
+            fillViewport ? "" : "shadow-modal"
+          }`}
+          style={{
+            width: size.width,
+            height: size.height,
+            transform: `scale(${scale})`,
+          }}
         >
           <RenderNode id={root} />
         </div>
       </div>
 
       <span className="absolute bottom-3 left-3 rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
-        {zoom}%
+        {Math.round(zoom)}%
       </span>
     </main>
   );
