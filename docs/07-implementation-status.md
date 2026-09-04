@@ -1,7 +1,7 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
-> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치)
+> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전)
 >
 > 부분 갱신은 **문서 전체 재검증이 아니다.** 각 갱신에서 실제로 확인한 항목만 아래에 적는다.
 > 확인하지 않은 항목의 날짜는 올리지 않는다.
@@ -10,6 +10,7 @@
 > |---|---|---|
 > | 2026-09-02 (#75) | 3절 노드 타입·레이아웃 표, 6절 제안 3, 4절 유효 예제·테스트 행, 1절 IR·스키마 행 | `visual-spec.schema.json`에 `ButtonNode`/`InputNode`/`Layout.direction: "grid"` 추가 후 `pnpm run generate:types`(diff 없음) · `pnpm test`(13파일 99케이스) · `examples/form-grid.json` 신규 예제로 검증. 아직 `develop`에 머지되지 않은 브랜치 위에서 작업 중이라 push/PR 전 상태다 |
 > | 2026-09-02 (#75) | "GUI 각 영역의 실제 동작" 표의 `ui/Canvas.tsx`·`ui/canvasLayout.ts`·`ui/PropertiesPanel.tsx` 행 | 세 파일 전문 편집·열람 — `Canvas.tsx`에 `button`/`input` 렌더 분기와 `displayStyle()`(grid), `canvasLayout.ts`의 `boxStyle()`에 grid 아이템 분기, `PropertiesPanel.tsx`의 fallback 안내 문구 일반화 |
+> | 2026-09-02 | 1절 Command Engine 행, 2절 Command 스키마 v0.1 행·Undo/Redo 행 | `src/features/editor/command/{types,applyCommand,history}.ts` 신설. `pnpm test`(`apply-command.test.ts` 18케이스, `history.test.ts` 6케이스) 통과 확인. `editorStore`·`PropertiesPanel`을 이 위로 옮기는 건 이번에 **하지 않았다** — 아래 서술 참고 |
 > | 2026-09-01 (3차, 020be51) | 1절 GUI·Canvas 행의 Import 서술 · "GUI 각 영역의 실제 동작" 표의 `ui/MenuBar.tsx`(File) 행 | `git grep "noop" src/features/editor/ui/MenuBar.tsx` 히트 **0건**, File 메뉴 6개 항목의 `onSelect` 를 전부 열람 |
 > | 2026-09-01 (3차, 020be51) | 같은 표에 추가한 `ui/importImageFromFile.ts` · `store/resolveImportParent.ts` · `store/nodeId.ts` 행, `store/editorStore.ts` 행 | 네 파일 전문 열람. 계약 멤버 수는 `docs/EDITOR_STORE_CONTRACT.md`("계약의 전부 (6개)")와 대조 |
 > | 2026-09-01 (3차, 020be51) | 1절 IR·스키마 행의 테스트 집계 · 4절 테스트 행 · 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck`(exit 0) · `pnpm test`(12파일 84케이스) 출력에서 파일 수·케이스 수를 읽음 |
@@ -36,10 +37,16 @@
 > **2026-09-02(#75)에 재확인하지 않은 항목** — 위 표의 "#75" 행에 없는 모든 항목.
 > 이 갱신은 `develop` 020be51 위에 올린 이슈 #75 브랜치(`75--button-input-grid-nodes`)에서
 > 직접 건드린 스키마·Canvas·PropertiesPanel·예제·테스트 파일에 걸린 서술만 다시 봤다.
-> **이 브랜치는 아직 `develop`에 머지되지 않았다** — 같은 시점에 열려 있던 PR #77(홈 화면)·
-> PR #79(Command Engine)·PR #81(Ticket 스키마)도 마찬가지로 `develop`에 없으므로, 이 문서의
-> Command Engine·Ticket Compiler·홈 화면 관련 서술은 여전히 020be51 기준 그대로이며 날짜를
-> 올리지 않았다. 그 세 항목은 각 PR이 머지된 뒤 별도로 갱신한다.
+> **이 브랜치는 이 문단을 쓴 시점엔 아직 `develop`에 머지되지 않았다** — 같은 시점에 열려
+> 있던 PR #77(홈 화면)·PR #79(Command Engine)·PR #81(Ticket 스키마)도 마찬가지로 `develop`에
+> 없으므로, 이 문서의 Command Engine·Ticket Compiler·홈 화면 관련 서술은 여전히 020be51
+> 기준 그대로이며 날짜를 올리지 않았다. 그 세 항목은 각 PR이 머지된 뒤 별도로 갱신한다.
+>
+> **2026-09-02(Command Engine)에 재확인하지 않은 항목** — 위 "2026-09-02"(Command Engine) 행에
+> 적은 것 말고는 전부 이전 확인 상태 그대로다. 이번 갱신은 재검증이 아니라 **새 코드
+> 추가**(`command/` 신설)이고, `editorStore`·`PropertiesPanel`·`docs/EDITOR_STORE_CONTRACT.md`는
+> 건드리지 않았다 — 1절 GUI·Canvas 행과 "GUI 각 영역의 실제 동작" 표의 관련 서술, 이슈 #40
+> 서술은 그대로 유효하다.
 >
 > **2026-09-01 3차(020be51)에 재확인하지 않은 항목** — 위 표의 "3차" 행에 없는 모든 항목.
 > 3차 갱신은 `develop` 5커밋(1b73ccd → 020be51, PR #69 Import 연결 · PR #71 스킬 image 반영)이
@@ -89,7 +96,7 @@
 | 단위 | 상태 | 근거 / 무엇이 되고 무엇이 안 되는가 |
 |---|---|---|
 | IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). `test/` 13파일 99케이스 통과(2026-09-02, 이슈 #75 브랜치 기준) |
-| Command Engine | **미착수** | `command.schema.ts` 없음, history manager 없음. `src/` 전체에 Command 관련 코드 0줄 |
+| Command Engine | **부분** | `src/features/editor/command/`에 Command 타입 5종(`types.ts` — createNode/updateNode/deleteNode/moveNode/setLayout), 순수 적용기(`applyCommand.ts` — 규칙 위반 시 예외 없이 원본 spec 참조를 그대로 돌려준다), 범용 undo/redo 스택(`history.ts`)이 생겼다(`test/apply-command.test.ts` 18케이스 · `test/history.test.ts` 6케이스). **다만 아무도 이걸 안 쓴다.** `editorStore`도 `PropertiesPanel`도 여전히 `setNodeField`를 직접 호출한다 — 아래 §의 이슈 #40 서술 그대로다. `docs/EDITOR_STORE_CONTRACT.md`가 `setNodeField`를 이미 팀 계약(규칙 1, 4)으로 못박아 둔 상태라, GUI를 이 위로 옮기는 건 별도 팀 합의 없이는 하지 않기로 했다(#73 논의) |
 | 자연어 변환 | **미착수** | 관련 코드 없음 |
 | Ticket Compiler · Agent | **부분** | 코드 생성만 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다. 그 지시문에 **컴포넌트 분리 경계·의존성 순서(자식 먼저)·컴포넌트별 진행 보고**가 생겼다(같은 파일 "컴포넌트 단위로 분리 생성한다" 절). **다만 이는 문서이지 코드가 아니다** — 티켓 스키마도, 순서를 계산하거나 상태를 저장하는 코드도 `src/` 에 0줄이다 |
 | localhost GUI · Canvas | **부분** | 캔버스가 스토어의 스펙을 실제로 그리고 클릭으로 노드를 선택할 수 있으며, 세부설정 패널 편집이 즉시 반영되고, Ctrl+휠 줌·휠 팬이 동작한다(`src/features/editor/ui/Canvas.tsx`, `ui/canvasLayout.ts`, `ui/PropertiesPanel.tsx`, `store/editorStore.ts`). File 메뉴로 **새 문서·열기·저장(JSON 파일 다운로드)도 된다**(`ui/MenuBar.tsx`, `ui/openSpecFromFile.ts`, `ui/exportSpecAsJson.ts` — 이슈 #41이 지적한 것 중 New·Open·Save·Save as가 해소됐다). **Import 도 된다** — 이미지를 골라 선택된 프레임(없으면 root)의 자식으로 `image` 노드를 삽입한다(`ui/importImageFromFile.ts`, 2026-09-01 PR #69). 이로써 **File 메뉴에 미구현 항목이 없다.** **안 되는 것 — 캔버스 드래그·리사이즈 편집, 레이어 트리(#43)·도구 모음(#44)의 스토어 연결, 그리고 지속성**: 앱을 열면 여전히 `store/seedSpec.ts` 의 하드코딩 스펙에서 시작하고 새로고침하면 편집 내용이 사라진다(`src/` 의 `localStorage` 사용처는 테마뿐 — `ui/theme-storage.ts`). 아래 표 참고 |
@@ -138,9 +145,9 @@
 |---|---|---|---|
 | CLI | `npx visual-spec init` / `npx visual-spec` | **미착수** | `package.json` 에 `bin` 필드 없음. CLI 진입점 파일 없음 (이슈 #42) |
 | `.visual-spec/` 작업공간 | `specs/` `generated/` `preview/` `assets/` `runtime/` | **미착수** | 작업공간을 만들거나 읽는 코드 0줄. `git grep "\.visual-spec"` 히트는 전부 문서와 스킬 지시문이고 `src/`·`test/`·`scripts/` 는 여전히 0건(2026-08-29 재확인). `skills/visual-spec-to-react/SKILL.md` 가 생성 위치를 `.visual-spec/generated/` 고정 경로로 정했지만 **경로 약속이지 구현이 아니다.** GUI 에 생긴 Open/Save 는 브라우저 파일 다이얼로그와 다운로드를 쓰는 것이라(`ui/openSpecFromFile.ts`, `ui/exportSpecAsJson.ts`) **작업공간과는 다른 물건이다** (이슈 #42). **2026-09-01 재확인 — PR #69 의 Import 도 작업공간을 만들지 않는다.** `ui/importImageFromFile.ts` 는 고른 이미지를 base64 data URI 로 바꿔 `ImageNode.src` 에 그대로 넣는다. 즉 `assets/` 디렉터리를 쓰는 대신 **파일 내용을 스펙 안에 인라인해 우회한 것**이므로 이 행은 **미착수 그대로**다 |
-| Command 스키마 v0.1 | "v0.1로 고정한다"고 선언한 3개 스키마 중 하나 | **미착수** | 스키마 파일 없음 |
+| Command 스키마 v0.1 | "v0.1로 고정한다"고 선언한 3개 스키마 중 하나 | **부분** | `src/features/editor/command/types.ts`에 TypeScript 타입으로 존재한다. IR 스키마처럼 JSON Schema 정본 + `06-schema-freeze.md` 같은 동결 절차를 거친 **"v0.1로 고정"은 아직 아니다** — 내부 구현 타입일 뿐 공개 계약으로 확정된 게 아니다 |
 | Ticket 스키마 v0.1 | 같음 | **미착수** | 스키마 파일 없음 |
-| Undo / Redo | MVP 포함 범위 표 "편집" 행 | **미착수** | history manager 없음 (Command Engine 부재의 결과) |
+| Undo / Redo | MVP 포함 범위 표 "편집" 행 | **부분** | `command/history.ts`에 범용 undo/redo 스택(순수 함수)이 생겼다. **다만 아무 데도 연결돼 있지 않다** — `editorStore`가 이 history를 쓰지 않고, Undo/Redo를 누를 UI 버튼·단축키도 없다. 사용자가 실제로 되돌리기를 쓸 방법은 지금 없다 |
 | 반응형 (데스크톱 · 모바일) | MVP 포함 범위 표 "반응형" 행 | **미착수** | 스키마가 `responsive`를 명시적으로 제외([06-schema-freeze.md](06-schema-freeze.md), [05-schema.md](05-schema.md)) |
 | 홈(진입) 화면 | [04-gui-spec.md §2](04-gui-spec.md#2-홈진입-화면)가 화면 목록·카드·빈 상태까지 명세 | **미착수** | `src/app/App.tsx` 가 `EditorLayout` 을 바로 렌더한다. 홈 화면 컴포넌트도 라우팅도 없다 |
 
