@@ -49,4 +49,23 @@ describe("fitZoom", () => {
       ZOOM_DEFAULT,
     );
   });
+
+  describe("width 모드", () => {
+    it("세로를 무시하고 가로만 맞춘다 — 세로는 스크롤에 맡긴다", () => {
+      // contain이면 480/900 = 53%지만, width 모드는 1440/1440 = 100%
+      expect(fitZoom({ width: 1440, height: 480 }, SCREEN, "width")).toBe(100);
+    });
+
+    it("아트보드보다 넓은 뷰포트도 가로를 꽉 채운다", () => {
+      // 1728/1440 = 120%
+      expect(fitZoom({ width: 1728, height: 300 }, SCREEN, "width")).toBe(120);
+    });
+
+    it("모바일 해상도를 넓은 뷰포트에 띄우면 크게 확대한다", () => {
+      // 1170/390 = 300%
+      expect(
+        fitZoom({ width: 1170, height: 600 }, { width: 390, height: 844 }, "width"),
+      ).toBe(300);
+    });
+  });
 });
