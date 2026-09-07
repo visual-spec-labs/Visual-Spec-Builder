@@ -235,4 +235,73 @@ describe("compileTickets", () => {
     expect(buttonTicket).toBeDefined();
     expect(buttonTicket?.instances.sort()).toEqual(["buttonA", "buttonB"]);
   });
+
+  it("shadow만 다른 형제는 반복으로 묶지 않는다", () => {
+    // structuralKey가 #88(Shadow/Opacity/Blur 추가)에서 이 필드들을 비교 기준에서
+    // 빠뜨리면, 그림자만 다른 형제를 조용히 같은 컴포넌트로 합쳐버린다 — 이 파일이
+    // 스스로 밝힌 "잘못 합치는 것보다 안 합치는 게 안전하다" 원칙이 깨지는 지점이다.
+    const frame = (
+      name: string,
+      shadow?: { x: number; y: number; blur: number; spread: number; color: string },
+    ): Node => ({
+      type: "frame",
+      name,
+      box: { width: "fill", height: 100 },
+      layout: {
+        direction: "column",
+        gap: 0,
+        padding: { top: 0, right: 0, bottom: 0, left: 0 },
+        mainAxis: "start",
+        crossAxis: "start" as const,
+      },
+      shadow,
+      children: [],
+    });
+
+    const screen: ScreenSpec = {
+      name: "ShadowDiff",
+      size: { width: 100, height: 100 },
+      root: "root",
+      nodes: {
+        root: {
+          type: "frame",
+          name: "Root",
+          box: { width: "fill", height: "fill" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "list" }],
+        },
+        list: {
+          type: "frame",
+          name: "List",
+          box: { width: "fill", height: "auto" },
+          layout: {
+            direction: "column",
+            gap: 8,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "stretch",
+          },
+          children: [{ node: "cardA" }, { node: "cardB" }],
+        },
+        cardA: frame("CardA", { x: 0, y: 2, blur: 4, spread: 0, color: "#00000040" }),
+        cardB: frame("CardB", undefined),
+      },
+    };
+
+    const tickets = compileTickets(screen);
+
+    // shadow가 달라 반복 그룹으로 안 묶인다 — 묶였다면 어느 티켓의 instances에
+    // cardA와 cardB가 함께 들어 있었을 것이다. 안 묶인 형제는 그룹화 규칙 자체가
+    // 별도 티켓을 안 만들고 부모("List")에 인라인하므로(2개 미만은 "반복" 아님),
+    // cardA/cardB를 instances로 가진 티켓이 하나도 없어야 한다.
+    expect(tickets.some((t) => t.instances.includes("cardA"))).toBe(false);
+    expect(tickets.some((t) => t.instances.includes("cardB"))).toBe(false);
+    expect(tickets.filter((t) => t.kind === "component").map((t) => t.id)).toEqual(["List"]);
+  });
 });

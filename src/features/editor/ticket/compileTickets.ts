@@ -29,11 +29,24 @@ export function toPascalCase(name: string): string {
  */
 function structuralKey(node: Node, nodes: Record<NodeId, Node>): string {
   if (node.type === "text") {
-    return JSON.stringify({ t: "text", box: node.box, color: node.color, typography: node.typography });
+    return JSON.stringify({
+      t: "text",
+      box: node.box,
+      color: node.color,
+      typography: node.typography,
+      opacity: node.opacity,
+      blur: node.blur,
+    });
   }
 
   if (node.type === "image") {
-    return JSON.stringify({ t: "image", box: node.box, fit: node.fit });
+    return JSON.stringify({
+      t: "image",
+      box: node.box,
+      fit: node.fit,
+      opacity: node.opacity,
+      blur: node.blur,
+    });
   }
 
   // ButtonNode.content, InputNode.placeholder도 TextNode.content와 같은 이유로 뺀다 —
@@ -66,6 +79,9 @@ function structuralKey(node: Node, nodes: Record<NodeId, Node>): string {
     layout: node.layout,
     background: node.background,
     border: node.border,
+    shadow: node.shadow,
+    opacity: node.opacity,
+    blur: node.blur,
     children: node.children.map((child) => {
       const childNode = nodes[child.node];
       return childNode === undefined ? null : structuralKey(childNode, nodes);
