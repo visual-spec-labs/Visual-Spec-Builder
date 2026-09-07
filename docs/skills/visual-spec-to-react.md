@@ -68,6 +68,15 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
   [visual-spec-authoring](./visual-spec-authoring.md)이 맡는다. 이 스킬은 이미 고쳐진
   JSON을 받아 재생성만 한다
 
+## 매핑에서 한 번 걸리는 곳 — `border.align`과 `shadow`
+
+두 필드가 **`box-shadow` 한 칸을 공유한다.** 따로 쓰면 나중 것이 앞을 통째로 덮어쓰므로,
+`SKILL.md`는 한 `shadow-[...]` 안에 쉼표로 합치고 테두리 고리를 앞에 적도록 정해뒀다.
+
+`border.align`이 `outside`/`center`일 때는 `border-*`를 쓰지 않는다. `outline-*`도 쓰지
+않는다 — 브라우저 포커스 링과 겹친다. 캔버스(`canvasLayout.strokeAndShadowStyle`)가 같은
+이유로 같은 선택을 하고 있어, 캔버스와 생성 코드가 같은 모양을 낸다.
+
 세부 매핑 규칙과 실행 순서는 `skills/visual-spec-to-react/SKILL.md` 본문을 본다.
 설계 배경은 `docs/superpowers/specs/2026-08-11-visual-spec-to-react-codegen-design.md`에 있다.
 

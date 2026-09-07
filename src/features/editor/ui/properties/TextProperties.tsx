@@ -1,5 +1,6 @@
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
 
+import { EffectsSection } from "./EffectsSection";
 import { PropertySection } from "./PropertySection";
 import { SizeSection } from "./SizeSection";
 import { useNodeField } from "./useNodeField";
@@ -106,6 +107,8 @@ export function TextProperties() {
           onChange={setTextAlign}
         />
       </PropertySection>
+
+      <EffectsSection />
 
       <PropertySection title="Color">
         <ColorField label="글자색" value={color} onChange={setColor} />

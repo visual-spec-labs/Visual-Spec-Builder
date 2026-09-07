@@ -133,7 +133,13 @@ import { Sidebar } from "../components/Sidebar";
 | `layout.mainAxis` | `justify-start`/`center`/`end`/`between` |
 | `layout.crossAxis` | `items-start`/`center`/`end`/`stretch` |
 | `background.color` | `bg-[#RRGGBB(AA)]` |
-| `border.width/color/radius` | `border-[Npx] border-[#..] rounded-[Npx]` |
+| `border.width/color` | `border-[Npx] border-[#..]` — 단, `align`이 `inside`가 아니면 아래 "테두리 정렬" 참고 |
+| `border.radius` = `number` | `rounded-[Npx]` |
+| `border.radius` = 객체 | `rounded-[Apx_Bpx_Cpx_Dpx]` (좌상 · 우상 · 우하 · 좌하 순서) |
+| `border.align` | 아래 "테두리 정렬" 참고. 없으면 `inside` |
+| `shadow` | `shadow-[Xpx_Ypx_Bpx_Spx_#RRGGBBAA]` |
+| `opacity` | `opacity-[N]` (0..1 값을 그대로. 예: 0.5 → `opacity-[0.5]`). 없으면 붙이지 않는다 |
+| `blur` | `blur-[Npx]` — Tailwind의 `blur-*`는 `filter: blur()`라 자식까지 흐려진다(의도된 동작). 없거나 0이면 붙이지 않는다 |
 | `typography.fontFamily` | `[font-family:'값']` |
 | `typography.fontSize` | `text-[Npx]` |
 | `typography.fontWeight` | `font-thin`~`font-black` (100 단위 named 매핑) |
@@ -154,6 +160,25 @@ import { Sidebar } from "../components/Sidebar";
 
 `fill`의 주축/교차축 판단: 부모 `layout.direction`이 `row`면 width가 주축, `column`이면 height가
 주축이다.
+
+### 테두리 정렬 (`border.align`)
+
+| 값 | Tailwind |
+|---|---|
+| `inside`(기본) | `border-[Npx] border-[#..]` — 지금까지와 같다 |
+| `outside` | `shadow-[0_0_0_Npx_#..]`. `border-*` 를 **쓰지 않는다** |
+| `center` | `shadow-[0_0_0_Hpx_#..,inset_0_0_0_Hpx_#..]` (H = N/2). `border-*` 없음 |
+
+`outside`/`center` 를 `outline-*` 로 옮기지 않는다. 브라우저 포커스 링과 겹친다. 캔버스도 같은 이유로
+`box-shadow` 를 쓴다(`canvasLayout.strokeAndShadowStyle`).
+
+**`shadow` 와 `border.align` 이 둘 다 있으면 한 `shadow-[...]` 안에 쉼표로 합친다.** `box-shadow` 는 CSS
+속성 하나라 따로 쓰면 나중 것이 앞을 통째로 덮어쓴다. 테두리 고리를 앞에 적는다 — 먼저 적은 레이어가
+위에 그려진다.
+
+```
+shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
+```
 
 ### image 노드
 

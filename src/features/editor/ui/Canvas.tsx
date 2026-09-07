@@ -23,7 +23,12 @@ import type {
   TextNode,
 } from "@/features/editor/schema";
 
-import { boxStyle, type Direction } from "./canvasLayout";
+import {
+  boxStyle,
+  effectStyle,
+  strokeAndShadowStyle,
+  type Direction,
+} from "./canvasLayout";
 import { resolveClickTarget, resolveInsertParent } from "./selection";
 
 /**
@@ -78,10 +83,8 @@ function frameStyle(
     alignItems: CROSS_AXIS[layout.crossAxis],
     ...boxStyle(node.box, parentDirection),
     background: node.background?.color,
-    border: node.border
-      ? `${node.border.width}px solid ${node.border.color}`
-      : undefined,
-    borderRadius: node.border?.radius,
+    ...strokeAndShadowStyle(node.border, node.shadow),
+    ...effectStyle(node.opacity, node.blur),
     boxSizing: "border-box",
   };
 }
@@ -101,6 +104,7 @@ function textStyle(
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
     whiteSpace: "pre-wrap",
+    ...effectStyle(node.opacity, node.blur),
   };
 }
 
@@ -114,6 +118,7 @@ function imageStyle(
     backgroundSize: node.fit === "fill" ? "100% 100%" : node.fit,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
+    ...effectStyle(node.opacity, node.blur),
   };
 }
 
@@ -136,10 +141,9 @@ function buttonStyle(
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
     background: node.background?.color,
-    border: node.border
-      ? `${node.border.width}px solid ${node.border.color}`
-      : undefined,
-    borderRadius: node.border?.radius,
+    // button·input에는 shadow 필드가 아직 없다(속성 패널이 없어 편집할 수 없다).
+    // Border는 공유하므로 정렬만 같은 합성기로 처리한다.
+    ...strokeAndShadowStyle(node.border, undefined),
     boxSizing: "border-box",
     cursor: "default",
   };
@@ -164,10 +168,7 @@ function inputStyle(
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
     background: node.background?.color,
-    border: node.border
-      ? `${node.border.width}px solid ${node.border.color}`
-      : undefined,
-    borderRadius: node.border?.radius,
+    ...strokeAndShadowStyle(node.border, undefined),
     boxSizing: "border-box",
   };
 }
