@@ -8,6 +8,10 @@
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
+> | 2026-09-08 (2차) | 4절 유효 예제 행 · 4절 끝의 구조 오류 코드 종류 | `ls examples/*.json` **8개**(`examples/invalid/` 하위 8개는 별도 집계) · `schema/validate.ts:7` 의 `IssueCode` 유니온 멤버를 세어 **8종** 확인 |
+> | 2026-09-08 (2차) | "GUI 각 영역의 실제 동작" 표의 `ui/PropertiesPanel.tsx`/`ui/properties/` 행 · 같은 표 `store/measureStore.ts` 행 괄호 안의 계약 멤버 수 서술 | `find src/features/editor/ui/properties -type f` **23개**. `ui/PropertiesPanel.tsx` · `properties/PageProperties.tsx` · `properties/resolutionPresets.ts` · `properties/fields/index.ts` 전문 열람 |
+> | 2026-09-08 (2차) | 1절 표 아래 `setNodeField` 문단 · 6절 제안 1 의 호출 지점·필드 수 | `git grep -n "setNodeField" src/` 로 **실제 호출 지점 2곳**(`properties/useNodeField.ts:28` · `ui/LayerTree.tsx:116`) 실측 — 나머지 히트는 정의와 주석이다. `git grep -n "useNodeField" src/` 로 훅 호출 지점 실측(`ui/PropertiesPanel.tsx` 2 · `properties/EffectsSection.tsx` 3 · `properties/FrameProperties.tsx` 12 · `properties/TextProperties.tsx` 10 = **27**), `git grep -n "setPageField(" src/features/editor/ui/`(`properties/PageProperties.tsx` 4칸) |
+> | 2026-09-08 (2차) | 5.2 의 실측 이슈 개수 | `validateVisualSpec` 과 같은 설정(`new Ajv2020({ allErrors: true })` + `ajv.compile(visualSpecJsonSchema)`)으로 `examples/invalid/text-without-content.json` 을 넣은 **일회성 실행** — **16개**. 테스트로 남기지 않았다 |
 > | 2026-09-08 | "GUI 각 영역의 실제 동작" 표의 `src/app/App.tsx`·`ui/LayerTree.tsx`·`ui/Toolbar.tsx` 행(이번에 추가한 `ui/HomeScreen.tsx`·`ui/homePreview.ts`·`store/navigationStore.ts`·`store/toolStore.ts`·`store/createNode.ts`·`ui/selection.ts` 행 포함) · 1절 GUI·Canvas 행의 "안 되는 것" 목록 · 2절 홈(진입) 화면 행 | 위 파일 전문 열람. `ui/Canvas.tsx` 는 도구 관련 부분만 열람(`insertNewNode`·`handleNodeClick`·`handleBackgroundClick`·hand 팬 리스너 — 나머지 서술은 2026-09-04 확인 상태 그대로다). `git grep "LAYERS" src/` 히트 **0건**, `git grep "selectPage" src/` · `"addPage"` · `"removePage"` 히트가 `store/editorStore.ts` 의 정의뿐임을 확인. `gh issue view 43`·`44` 둘 다 **CLOSED** |
 > | 2026-09-08 | 같은 표의 `store/editorStore.ts` 행 — 계약 멤버 수 | `EditorState` 인터페이스 전문 열람 후 `docs/EDITOR_STORE_CONTRACT.md` §2("계약의 전부 (11개)")와 1:1 대조 — 목록·개수 일치 |
 > | 2026-09-08 | 1절 IR·스키마 행(스키마 v0.1/v0.2 병행 상태 포함) · 4절 테스트 행 · 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck`(exit 0) · `pnpm test`(24파일 232케이스) 출력에서 파일 수·케이스 수를 읽음. `visual-spec.schema.json` 의 루트와 `$defs.ProjectSpec`·`PageId` 를 실제 JSON 으로 출력해 확인하고 `schema/migrate.ts` · `schema/validate.ts` 의 `validateProjectSpec` · `store/exportSpec.ts` 열람 |
@@ -41,11 +45,13 @@
 > | 2026-08-29 | 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck` · `pnpm test` |
 > | 2026-08-25 | 5.2 검증기 메시지 | `src/features/editor/schema/validate.ts` 수정과 테스트 |
 >
-> **2026-09-08에 재확인하지 않은 항목** — 위 표의 "2026-09-08" 행에 없는 모든 항목.
+> **2026-09-08에 재확인하지 않은 항목** — 위 표의 "2026-09-08" 두 행 묶음(1차·2차)에 없는 모든 항목.
 > 이 갱신은 `develop` f583647 위에서 **07의 서술이 코드와 어긋난 것으로 지목된 항목만** 다시 봤다.
-> `ui/Canvas.tsx`(도구 관련 부분 제외)·`ui/canvasLayout.ts`·`ui/PropertiesPanel.tsx`/`properties/` 행의
-> 본문 서술, `ui/MenuBar.tsx` 행, 1절 자연어 변환·Export 행, 2절의 나머지 행, 4절의 예제·스킬·CI 행,
-> 5절, 6절은 이전 확인 상태 그대로이며 날짜를 올리지 않았다.
+> 1차는 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·테스트 집계와 스키마 v0.1/v0.2 병행 상태를,
+> 2차는 예제·오류 코드 개수, 패널 파일·필드 집계, `setNodeField` 호출 지점, 5.2 의 실측 수치를 봤다.
+> `ui/Canvas.tsx`(도구 관련 부분 제외)·`ui/canvasLayout.ts` 행의 본문 서술, `ui/MenuBar.tsx` 행,
+> 1절 자연어 변환·Export 행, 2절의 나머지 행, 4절의 스킬·CI 행, 5.1·5.3, 6절 제안 2·3 은
+> 이전 확인 상태 그대로이며 날짜를 올리지 않았다.
 > Command Engine · Command 스키마 · Ticket 스키마 · Undo/Redo 관련 행도 이번에 보지 않았다 —
 > 그 항목들은 다른 작업이 같은 줄을 고치는 중이라 손대지 않았다.
 >
@@ -133,7 +139,7 @@
 | `src/features/editor/ui/MenuBar.tsx` (File 메뉴) | New(`blankSpec` 로드) · Open(파일 선택 → 검증 → 로드) · Save · Save as · Export(스펙 JSON 다운로드) · **Import(이미지 선택 → 삽입)**가 전부 **동작한다**. **`noop()` 은 0개다** — 2026-09-01(PR #69)에 Import 가 연결되면서 File 메뉴에 미구현 항목이 없어졌다(`git grep "noop" src/features/editor/ui/MenuBar.tsx` 히트 0건) | `editorStore.loadSpec` · `editorStore.insertNode` · `useEditorStore.getState().spec` |
 | `src/features/editor/ui/Canvas.tsx` | 스펙 트리를 flex/grid 로 렌더(박스·레이아웃·배경·테두리·타이포그래피·그림자·불투명도·블러), 클릭 시 노드 선택, 줌 배율·격자 표시. **테두리·그림자는 `canvasLayout.strokeAndShadowStyle` 이 `box-shadow` 한 문자열로 합성하고, 불투명도·블러는 `effectStyle` 이 낸다**(2026-09-04·이슈 #78 — `frame` 은 둘 다, `text`·`image` 는 `effectStyle` 만, `button`·`input` 은 `Border` 를 공유하므로 테두리 정렬만). **`image` 노드는 빈 `div` 의 `background-image` 로 그린다**(`imageStyle()` — `fit` 의 `cover`/`contain` 은 `background-size` 로 그대로 넘기고 `fill` 만 `100% 100%` 로 옮긴다. `background-position: center`, 반복 없음. 자식을 받지 않는다). **`button`/`input` 노드는 각각 `<div>` 로 그린다**(`buttonStyle()`/`inputStyle()`, 2026-09-02·이슈 #75 — `content`/`placeholder` 텍스트를 보여주기만 하고 실제 클릭·입력 동작은 없다). **`layout.direction: "grid"` 는 `display: grid` + `layout.columns` 만큼의 `gridTemplateColumns` 로 그린다**(`displayStyle()`, 같은 PR — 균등 자동 배치뿐, 셀 지정 없음. `mainAxis`/`crossAxis` 무시). **아트보드를 `spec.screen.size` 로 고정**하고 좌상단 기준 `transform: scale` 로 확대한다 — 자식이 커져도 아트보드는 그대로고 넘치는 만큼 밖으로 삐져나온다. 아트보드를 감싼 바깥 박스에 `size × 배율` 크기를 줘 **스크롤 범위를 확대율과 맞춘다**(`transform` 은 레이아웃 박스를 바꾸지 않아, 이 박스가 없으면 25%인데도 100% 크기의 빈 공간이 남는다). 아트보드 위에 화면 이름을 띄운다. `ResizeObserver` 로 **뷰포트 실측 크기**를, `spec.screen.size` 변화로 **아트보드 크기**를 `viewStore` 에 올리고, 뷰포트를 처음 받은 시점과 페이지를 바꿀 때 `fitToScreen()` 을 부른다(처음 열었을 때 아트보드 전체가 보이게). **채우기 모드에서는 뷰포트·해상도가 바뀔 때마다 다시 맞춘다** — "뷰포트 가로 = 페이지 가로"가 상시 규칙이라 한 번만 맞추면 안 된다. 채우기 모드에서는 캔버스 여백(`p-8`)·격자·그림자·이름표도 함께 걷는다. 스크롤바 등장/소멸이 `clientWidth` 를 흔들어 배율이 진동하지 않도록 `scrollbar-gutter: stable` 로 스크롤바 자리를 고정한다. 선택 노드가 실제로 그려진 px 도 재서 `measureStore` 에 올린다. **Ctrl+휠 줌**을 `{ passive: false }` 리스너로 가로채고, 일반 휠 팬은 `overflow-auto` 네이티브 스크롤에 맡긴다. **클릭·팬 동작은 활성 도구(`toolStore`)에 따라 갈린다** — `select` 는 선택, `frame`·`text` 는 노드 생성, `hand` 는 팬이다(위 `ui/Toolbar.tsx` 행에 자세히 적었다. 도구 값은 구독하지 않고 `getState()` 로 읽는다 — 재귀 렌더 트리에 핸들러를 내려보내거나 도구가 바뀔 때마다 트리를 다시 그리지 않기 위해서다) | `editorStore` · `viewStore` · `measureStore` · `toolStore` |
 | `src/features/editor/ui/canvasLayout.ts` | `Canvas.tsx` 에서 분리한 순수 함수 `sizeToCss` · `boxStyle` · `radiusCss` · `strokeAndShadowStyle` · `effectStyle`. Figma 의 Fixed/Hug/Fill 을 flex 로 옮긴다 — 주축 `fill` → `flex: 1 1 0` + `min-*: 0`(형제끼리 공간 균등 분배), 교차축 `fill` → `align-self: stretch`, 부모가 없는 최상위 노드만 `100%`. **`parentDirection === "grid"` 도 최상위 노드와 동일하게 취급한다**(2026-09-02, 이슈 #75 — flex-grow/shrink 기반 배분이 grid 아이템에는 뜻이 없어서다). **`strokeAndShadowStyle` 은 테두리 정렬과 그림자를 한 `box-shadow` 로 합친다**(2026-09-04·이슈 #78 — 둘이 같은 CSS 속성 한 칸을 두고 다투기 때문이다. 테두리 고리를 앞에 적어 그림자에 묻히지 않게 한다). 정렬을 `outline` 으로 그리지 않는 이유는 `Canvas.tsx` 의 `RenderNode` 가 **선택 표시에 이미 `outline` 을 쓰고 있어서**다 — 노드를 고르는 순간 둘 중 하나가 사라진다. `inside` 만 CSS `border` 속성을 유지한다(`box-shadow` 는 레이아웃 박스를 차지하지 않는데 기존 문서가 전부 `inside` 라 갈아타면 안쪽 여백이 달라진다). `radiusCss` 는 모서리별 반경을 CSS 순서(좌상 → 우상 → 우하 → 좌하)로 옮긴다 | 없음 (순수 함수 — `test/canvas-layout.test.ts` 26케이스) |
-| `src/features/editor/ui/PropertiesPanel.tsx` 와 `ui/properties/`(파일 17개) | 선택 노드의 이름·표시·박스·레이아웃·배경·테두리·타이포그래피·효과(그림자·불투명도·블러)를 편집. 타입별로 `frame` → `FrameProperties`, `text` → `TextProperties` 로 갈라지고, **`image`·`button`·`input` 은 "이 노드 타입의 속성 편집은 아직 지원하지 않습니다." 안내 한 줄만 띄운다**(문구는 2026-09-02·이슈 #75에 세 타입 공통으로 일반화됐다 — 그전에는 "이미지 속성 편집은…"으로 image 전용 문구였는데 `button`/`input` 도 같은 fallback 을 타면서 부정확해졌다. `src`/`fit`·`content`/`placeholder` 를 GUI 에서 고칠 방법은 아직 없다). 컨트롤은 `properties/fields/Field.tsx`(라벨·2열 행·인풋 스타일)와 `properties/fields/useDraftInput.ts`(타이핑 중에는 draft, 파싱에 성공하면 즉시 커밋)를 공유하고, Frame·Text 공통 Size 섹션은 `properties/SizeSection.tsx` 다. **Size 섹션의 px 칸은 Fixed 면 스펙값을, Hug/Fill 이면 `measureStore` 의 실측 px 를 보여준다**(`properties/fields/SizeField.tsx`) — 실측값을 아직 못 받았을 때만 `Hug`/`Fill` 을 placeholder 로 흐리게 띄우고, 모드를 Fixed 로 바꾸면 그 실측 px 를 그대로 이어받는다(못 받았으면 100). **스키마 값 `"auto"` 를 UI 는 Figma 용어인 `Hug` 로 부른다.** 숫자 칸(`type="number"`)은 **휠이 닿으면 포커스를 떼** 스크롤하다 값이 조용히 증감되는 일을 막는다(`properties/fields/Field.tsx` 의 `blurOnWheel` — `SizeField`·`NumberField`·`ColorField` 가 쓴다. 패널 자체가 `overflow-auto` 라 `preventDefault` 대신 `blur` 를 쓴다). `border` 는 스키마상 세 필드가 모두 필수라 한 칸만 고쳐도 `properties/borderPatch.ts` 가 완전한 객체를 만들어 통째로 쓴다. **`shadow`·모서리별 `radius` 도 같은 이유로 `properties/shadowPatch.ts`·`properties/radiusPatch.ts` 가 같은 일을 한다**(2026-09-04·이슈 #78). 효과 섹션은 `properties/EffectsSection.tsx` 로 `frame`·`text` 가 공유하고(그림자는 `frame` 만), **불투명도는 스키마 0..1 을 칸에서는 % 로 보여준다** — 항등값(불투명도 100%, 블러 0, 그림자 토글 끄기)으로 되돌리면 필드를 지운다(`properties/effectPatch.ts`. 아무 효과도 없는 값이 남으면 export 된 JSON 을 읽는 쪽이 의미 있는 지정으로 오해한다). 테두리 정렬은 `안쪽`/`가운데`/`바깥`, 모서리 반경은 `전체`/`개별` 토글로 고른다 | `properties/useNodeField.ts` 훅을 거쳐 `editorStore.setNodeField`. Size 섹션은 `measureStore` 를 읽기만 한다 |
+| `src/features/editor/ui/PropertiesPanel.tsx` 와 `ui/properties/`(파일 **23개**, 2026-09-08 실측) | 선택 노드의 이름·표시·박스·레이아웃·배경·테두리·타이포그래피·효과(그림자·불투명도·블러)를 편집. **노드 말고 페이지 자체도 편집한다** — `properties/PageProperties.tsx` 가 **페이지 이름과 해상도(가로·세로 px)** 를 `editorStore.setPageField` 로 고친다(패널에서 `setNodeField` 가 아닌 경로는 이 섹션뿐이다). 이 섹션은 **root 를 골랐거나 아무것도 고르지 않았을 때** 패널 맨 위에 얹힌다(파일 주석 — 페이지 행이 곧 그 페이지의 root 프레임이고, 빈 안내문만 띄우느니 화면 크기를 바꿀 자리를 두는 편이 낫다는 판단이다). 해상도는 `properties/resolutionPresets.ts` 의 프리셋 14종(FHD·MacBook Pro 14·iPad·iPhone·Android 등 — 가로형은 숫자가 곧 이름이라 그대로 두고 세로형에만 기기 이름을 붙였다)에서 고르거나 px 를 직접 넣는다. 지금 크기와 맞는 프리셋이 없으면 `findPresetId` 가 `custom`("직접 입력")을 돌려준다. **프리셋을 고르면 아트보드가 실제로 커지고 작아지므로 `viewStore.setContent` + `fitToScreen()` 으로 확대율을 그 자리에서 다시 맞춘다**(캔버스가 올려 주기를 기다리면 한 프레임 늦어 직전 크기로 맞춰진다). 직접 입력 중에는 다시 맞추지 않는다 — 한 글자마다 줌이 튀면 쓰기 어렵다. 타입별로 `frame` → `FrameProperties`, `text` → `TextProperties` 로 갈라지고, **`image`·`button`·`input` 은 "이 노드 타입의 속성 편집은 아직 지원하지 않습니다." 안내 한 줄만 띄운다**(문구는 2026-09-02·이슈 #75에 세 타입 공통으로 일반화됐다 — 그전에는 "이미지 속성 편집은…"으로 image 전용 문구였는데 `button`/`input` 도 같은 fallback 을 타면서 부정확해졌다. `src`/`fit`·`content`/`placeholder` 를 GUI 에서 고칠 방법은 아직 없다). 컨트롤은 `properties/fields/Field.tsx`(라벨·2열 행·인풋 스타일)와 `properties/fields/useDraftInput.ts`(타이핑 중에는 draft, 파싱에 성공하면 즉시 커밋)를 공유하고, Frame·Text 공통 Size 섹션은 `properties/SizeSection.tsx` 다. **공용 컨트롤은 `properties/fields/index.ts` 한 곳에서만 가져온다** — `Field`/`FieldLabel`/`FieldRow` · `NumberField` · `TextField` · `SelectField` · `SegmentedControl` · `ColorField` · `SizeField` · `ToggleField`. 이번에 새로 확인한 네 가지가 쓰이는 자리는 — `TextField`(페이지 이름 · 텍스트 내용), `SelectField`(해상도 프리셋 · 글꼴 종류 · 굵기), `SegmentedControl`(레이아웃 방향 · 주축/교차축 정렬 · 테두리 정렬 · 모서리 `전체`/`개별` · 텍스트 정렬 — Frame 5곳, Text 1곳), `ToggleField`(패널 머리의 표시 여부 · 효과 섹션의 그림자 토글)다. **Size 섹션의 px 칸은 Fixed 면 스펙값을, Hug/Fill 이면 `measureStore` 의 실측 px 를 보여준다**(`properties/fields/SizeField.tsx`) — 실측값을 아직 못 받았을 때만 `Hug`/`Fill` 을 placeholder 로 흐리게 띄우고, 모드를 Fixed 로 바꾸면 그 실측 px 를 그대로 이어받는다(못 받았으면 100). **스키마 값 `"auto"` 를 UI 는 Figma 용어인 `Hug` 로 부른다.** 숫자 칸(`type="number"`)은 **휠이 닿으면 포커스를 떼** 스크롤하다 값이 조용히 증감되는 일을 막는다(`properties/fields/Field.tsx` 의 `blurOnWheel` — `SizeField`·`NumberField`·`ColorField` 가 쓴다. 패널 자체가 `overflow-auto` 라 `preventDefault` 대신 `blur` 를 쓴다). `border` 는 스키마상 세 필드가 모두 필수라 한 칸만 고쳐도 `properties/borderPatch.ts` 가 완전한 객체를 만들어 통째로 쓴다. **`shadow`·모서리별 `radius` 도 같은 이유로 `properties/shadowPatch.ts`·`properties/radiusPatch.ts` 가 같은 일을 한다**(2026-09-04·이슈 #78). 효과 섹션은 `properties/EffectsSection.tsx` 로 `frame`·`text` 가 공유하고(그림자는 `frame` 만), **불투명도는 스키마 0..1 을 칸에서는 % 로 보여준다** — 항등값(불투명도 100%, 블러 0, 그림자 토글 끄기)으로 되돌리면 필드를 지운다(`properties/effectPatch.ts`. 아무 효과도 없는 값이 남으면 export 된 JSON 을 읽는 쪽이 의미 있는 지정으로 오해한다). 테두리 정렬은 `안쪽`/`가운데`/`바깥`, 모서리 반경은 `전체`/`개별` 토글로 고른다 | `properties/useNodeField.ts` 훅을 거쳐 `editorStore.setNodeField`(훅 호출 지점 27개 — 아래 표 밑 문단 참고). **Page 섹션만 `editorStore.setPageField` 를 직접 부르고(4칸) `viewStore` 도 함께 건드린다.** Size 섹션은 `measureStore` 를 읽기만 한다 |
 | `src/features/editor/ui/LayerTree.tsx` | **활성 페이지의 실제 노드 트리**를 `root` 부터 재귀로 그린다(PR #84 — 하드코딩 목록이던 `LAYERS` 상수는 사라졌다. `git grep "LAYERS" src/` 히트 **0건**, 이슈 #43 닫힘). 줄마다 **타입 아이콘**(`TYPE_ICON` 이 `frame`·`text`·`image`·`button`·`input` 5종을 다룬다) · 이름 · **표시 토글**(`setNodeField(id, "visible", …)` — 트리가 `setNodeField` 를 부르는 유일한 자리다)이 있고, 자식이 있는 프레임은 접기/펼치기가 된다(**접힘 상태만 로컬 `useState`** — 스펙에 저장하지 않는 화면 상태라서다). 하단 **"레이어 추가"** 버튼은 `store/resolveImportParent.ts` 로 부모 프레임을 고르고 `store/nodeId.ts` 의 `generateNodeId` 로 id 를 만들어 기본 Frame(`blankFrameNode()` — `auto`×`auto`, 자식 없음)을 넣는다. 하단 오른쪽에 활성 페이지의 노드 개수를 띄운다. **페이지 폴더·페이지 전환 UI 는 아직 없다** — 계약에 있는 `selectPage`·`addPage`·`removePage` 를 이 파일이 부르지 않고, `git grep` 상 `src/` 전체에서 호출자가 `store/editorStore.ts` 의 정의뿐이다 | `editorStore` (`spec`·`activePageId`·`selectedId`·`select`·`setNodeField`·`insertNode`) |
 | `src/features/editor/ui/Toolbar.tsx` 와 `store/toolStore.ts` · `store/createNode.ts` | Select/Frame/Text/Hand 버튼. **활성 도구를 `toolStore` 가 값 하나(`activeTool`)로 들고 있어 항상 하나만 켜진다**(PR #68 — 이슈 #44 닫힘. IR 이 아닌 순수 UI 상태라 `viewStore` 와 같은 층에 두었다). **도구를 고르는 것만 이 파일이 하고 실제 동작은 `ui/Canvas.tsx` 가 이 값을 읽어 수행한다** — `frame`·`text` 도구로 노드나 캔버스 바탕을 클릭하면 `insertNewNode()` 가 `store/createNode.ts` 의 `createNode(kind)`(순수 함수 — Frame 은 200×120 고정 크기, Text 는 `auto`·"텍스트")로 노드를 만들어 `generateNodeId` + `editorStore.insertNode` 로 넣고 **곧바로 도구를 `select` 로 되돌린다**(피그마와 같은 흐름). `hand` 도구는 `mousedown`/`mousemove` 로 캔버스를 팬하고 **선택을 바꾸지 않는다**(클릭 핸들러가 `hand` 면 그대로 빠져나간다). `createNode` 가 다루는 종류는 `frame`·`text` 뿐이다 — Button·Input 은 아직 도구가 없다(파일 주석) | `toolStore.activeTool` (`test/tool-store.test.ts` 3케이스 · `test/create-node.test.ts` 4케이스) |
 | `src/features/editor/ui/selection.ts` | 캔버스 클릭 지점을 "어떤 노드를 대상으로 삼을지"로 옮기는 순수 해석기. `buildParentMap`(자식 → 부모 역맵) · `resolveClickTarget`(일반 클릭은 root 바로 아래 **최상위 조상**을, Cmd/Ctrl+클릭은 실제로 클릭한 **최하위 노드**를 고른다) · `resolveInsertParent`(클릭한 노드가 프레임이면 그 안에, 아니면 가장 가까운 조상 프레임에 넣는다 — 텍스트는 자식을 가질 수 없어서다) | 없음 (순수 함수 — `test/canvas-selection.test.ts` 12케이스) |
@@ -146,7 +152,7 @@
 | `src/features/editor/store/blankSpec.ts` | File > New 가 로드하는 빈 스펙(root frame 하나, 자식 없음, 1440×900) | — |
 | `src/features/editor/store/seedSpec.ts` | 초기 스펙을 하드코딩(`examples/dashboard-cards.json` 내용) | 앱 시작 시 `editorStore` 의 초기값. 자동 저장·복원은 없다 |
 | `src/features/editor/store/viewStore.ts` | 줌(25~400%, 버튼·휠은 25 눈금) · 격자 · 패널 표시 · **채우기 모드(`fillViewport`)** 에 더해 **뷰포트 실측 크기(`viewport`)와 아트보드 크기(`content`)**를 담는다 — 둘 다 `Canvas.tsx` 가 올린다. `fitToScreen()` 은 순수 함수 `fitZoom()` 으로 두 크기의 비율을 재서 소수점 두 자리에서 **내림**한 확대율을 쓴다(올림하면 아트보드 가장자리가 잘린다). `ZOOM_STEP` 눈금으로 내리지 않는다 — 1920px 아트보드에서 1%p는 19px이고 채우기 모드에서 그만큼이 바탕색 띠로 보인다. 그래서 `zoomIn/zoomOut` 은 더하고 빼는 대신 다음/이전 눈금으로 **붙인다**(57% → 75%). `fitZoom` 의 `mode` 가 `"width"` 면 세로를 무시하고 가로만 맞춘다(채우기 모드). 실측값을 아직 못 받았으면 100%로 리셋한다 | — (`test/view-store.test.ts` 9케이스 · `fitZoom` 은 `test/fit-zoom.test.ts` 10케이스) |
-| `src/features/editor/store/measureStore.ts` | **선택 노드가 캔버스에서 실제로 몇 px 로 그려졌는지**(`size`)만 담는 단일 값 스토어. `Canvas.tsx` 의 `ResizeObserver` 가 올리고 `ui/properties/SizeSection.tsx` 가 읽는다. Hug/Fill 은 스펙에 숫자가 없어 패널이 크기를 알 수 없는데 그 자리를 이 실측값이 채운다. 같은 값이면 `set` 을 건너뛴다(`ResizeObserver` 가 자주 부른다) | — (IR 이 아닌 파생 UI 상태라 `editorStore` 계약과 분리했다 — [EDITOR_STORE_CONTRACT.md](EDITOR_STORE_CONTRACT.md). 다만 `store/measureStore.ts:10` 과 `store/viewStore.ts:6` 의 주석은 아직 그 계약을 **"4-멤버"**라고 부른다 — 계약은 그동안 5개를 거쳐 6개가 됐으므로 주석이 낡았다. 관찰 기록이므로 고치지 않았다) |
+| `src/features/editor/store/measureStore.ts` | **선택 노드가 캔버스에서 실제로 몇 px 로 그려졌는지**(`size`)만 담는 단일 값 스토어. `Canvas.tsx` 의 `ResizeObserver` 가 올리고 `ui/properties/SizeSection.tsx` 가 읽는다. Hug/Fill 은 스펙에 숫자가 없어 패널이 크기를 알 수 없는데 그 자리를 이 실측값이 채운다. 같은 값이면 `set` 을 건너뛴다(`ResizeObserver` 가 자주 부른다) | — (IR 이 아닌 파생 UI 상태라 `editorStore` 계약과 분리했다 — [EDITOR_STORE_CONTRACT.md](EDITOR_STORE_CONTRACT.md). 다만 `store/measureStore.ts:10` 과 `store/viewStore.ts:6` 의 주석은 아직 그 계약을 **"4-멤버"**라고 부른다 — 계약은 그동안 5 → 6개를 거쳐 **지금 11개**이므로(2026-09-08 재확인, 위 `store/editorStore.ts` 행 참고) 주석이 그만큼 더 낡았다. 관찰 기록이므로 고치지 않았다) |
 
 `Canvas.tsx` 상단 주석은 스스로를 **"임시 스탠드인 — 팀원이 정식 구현으로 교체할 예정"**이라고 밝힌다.
 캔버스에서 드래그·리사이즈로 편집하는 기능은 없다.
@@ -154,10 +160,21 @@
 세부설정 패널은 Command Engine을 거치지 않고 `editorStore.setNodeField` 로 IR을 직접 고친다.
 [02-mvp-scope.md](02-mvp-scope.md)가 못박은 "GUI는 IR을 직접 수정하지 않는다" 제약과 어긋난 상태다(이슈 #40, 6절 제안 1 참고).
 
-다만 **그 호출 경로는 한 곳으로 모여 있다.** `src/` 전체에서 `setNodeField` 를 실제로 호출하는 지점은
-`src/features/editor/ui/properties/useNodeField.ts:28` **하나뿐**이고, 패널의 필드 24개
-(`ui/PropertiesPanel.tsx` 2 · `ui/properties/FrameProperties.tsx` 12 · `ui/properties/TextProperties.tsx` 10)는
-전부 그 훅을 거친다. `src/` 의 나머지 `setNodeField` 히트는 스토어의 정의(`store/editorStore.ts:38`)와 주석이다.
+**그 호출 경로가 한 곳으로 모여 있다는 서술은 더 이상 정확하지 않다.** `src/` 전체에서 `setNodeField` 를
+실제로 호출하는 지점은 **두 곳**이다(2026-09-08 재실측) — `src/features/editor/ui/properties/useNodeField.ts:28`
+과 **`src/features/editor/ui/LayerTree.tsx:116`**(레이어 트리의 표시 토글. 훅을 거치지 않고 스토어를 직접
+부른다). `src/` 의 나머지 `setNodeField` 히트는 스토어의 정의(`store/editorStore.ts:46`·`:109`)와 주석이다.
+
+**패널 쪽에 한해서는 여전히 한 곳이다.** 패널의 필드 27개
+(`ui/PropertiesPanel.tsx` 2 · `ui/properties/EffectsSection.tsx` 3 · `ui/properties/FrameProperties.tsx` 12 ·
+`ui/properties/TextProperties.tsx` 10 — `useNodeField` 호출 지점 실측)는 전부 그 훅을 거치므로,
+**필드가 늘어도 패널에서 바꿔야 할 지점은 늘지 않는다.** 24개이던 집계가 27개가 된 것도 필드가 늘었을 뿐
+훅을 거치지 않는 필드가 생겨서가 아니다(2026-09-04·이슈 #78 의 효과 섹션 3개가 그때 집계에 빠져 있었다).
+바뀐 것은 **패널 밖에서 새 호출자가 하나 생겼다**는 점이고, 이슈 #40 을 처리할 때 걷어낼 지점은
+한 곳이 아니라 두 곳이다.
+
+페이지 자체(이름·해상도)는 `setNodeField` 가 아니라 `setPageField` 로 고친다 —
+`ui/properties/PageProperties.tsx` 한 곳에서 4칸이 부른다. 이쪽도 Command Engine을 거치지 않는 건 같다.
 
 ---
 
@@ -229,13 +246,13 @@
 | 검증기 | `src/features/editor/schema/validate.ts` | `validateVisualSpec` / `assertVisualSpec` / `VisualSpecValidationError` |
 | 공개 표면 | `src/features/editor/schema/index.ts` | 타입·검증기는 이 index를 거쳐서만 가져온다 |
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
-| 유효 예제 6개 | `examples/*.json` | 검증 통과. `examples/image-hero.json` 이 2026-09-01(PR #67)에, `examples/form-grid.json`(button·input·grid)이 2026-09-02(이슈 #75)에 추가됐다 |
+| 유효 예제 8개 | `examples/*.json` | 검증 통과(2026-09-08 실측 — `ls examples/*.json` 8개. **7개는 `version: "0.1"` 이라 `validateVisualSpec` 이, `two-page-project.json` 만 `version: "0.2"` 라 `validateProjectSpec` 이 받는다**). `examples/image-hero.json` 이 2026-09-01(PR #67)에, `examples/form-grid.json`(button·input·grid)이 2026-09-02(이슈 #75)에, `examples/card-effects.json`(그림자·불투명도·블러)이 2026-09-04(이슈 #78)에, **`examples/two-page-project.json`(v0.2 `ProjectSpec` — 페이지 2장)**이 그사이 추가됐다 |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
 | 테스트 | `test/editor-store.test.ts`(28) · `test/canvas-layout.test.ts`(26) · `test/validate.test.ts`(21) · `test/apply-command.test.ts`(18) · `test/project-spec.test.ts`(15) · `test/resolution-presets.test.ts`(13) · `test/canvas-selection.test.ts`(12) · `test/radius-patch.test.ts`(12) · `test/schema.test.ts`(10) · `test/fit-zoom.test.ts`(10) · `test/view-store.test.ts`(9) · `test/effect-patch.test.ts`(8) · `test/export-spec.test.ts`(6) · `test/history.test.ts`(6) · `test/border-patch.test.ts`(5) · `test/shadow-patch.test.ts`(5) · `test/create-node.test.ts`(4) · `test/node-id.test.ts`(4) · `test/public-api.test.ts`(4) · `test/resolve-import-parent.test.ts`(4) · `test/load-spec.test.ts`(3) · `test/home-preview.test.ts`(3) · `test/navigation-store.test.ts`(3) · `test/tool-store.test.ts`(3) | **24파일 232케이스 전부 통과** (2026-09-08, `develop` f583647 기준 확인) |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 5종 | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 5개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33) |
 
-검증기가 잡아내는 구조 오류는 코드 7종이다 — `schema`, `root-missing`, `root-not-frame`, `child-missing`, `cycle`, `multiple-parents`, `orphan-node`.
+검증기가 잡아내는 구조 오류는 코드 **8종**이다(2026-09-08 실측 — `schema/validate.ts:7` 의 `IssueCode` 유니온) — `schema`, `root-missing`, `root-not-frame`, `child-missing`, `cycle`, `multiple-parents`, `orphan-node`, **`page-order-mismatch`**. 마지막 하나가 v0.2 와 함께 늘었다 — `pages` 의 키와 `pageOrder` 가 정확히 일치해야 한다는 규칙은 JSON Schema 로 표현할 수 없어 `validateProjectSpec` 이 코드로 검사한다(정본 스키마의 `$defs.ProjectSpec.pageOrder` 설명이 그렇게 밝히고 있다).
 
 ---
 
@@ -261,7 +278,10 @@
 상수 문구 하나만 붙이던 문제다. `examples/invalid/text-without-content.json` 을 검증하면
 이슈 7개가 나오는데, 정작 원인인 `"content" 가 없다`는 말은 한 번도 나오지 않았다.
 (이 "7개"는 **2026-08-21 당시** 수치다. `$defs.Node` 의 `oneOf` 가 두 갈래이던 때이고,
-`image` 갈래가 늘어난 지금 같은 파일은 12개를 낸다 — 2026-09-01 실측.)
+갈래가 늘 때마다 개수도 는다 — 세 갈래(`image` 추가)에서 12개였고,
+**다섯 갈래(`button`·`input` 추가)인 지금 같은 파일은 16개를 낸다 — 2026-09-08 실측.**
+`oneOf` 는 맞지 않는 갈래마다 오류를 쌓으므로, 갈래가 늘수록 정작 원인과 무관한 이슈가
+같이 늘어난다는 뜻이다. 메시지 문구가 개선됐어도 **개수 자체는 줄지 않았다.**)
 
 `describeSchemaError()` 를 추가해 `error.keyword` 로 분기, `required` → `필수 필드 "X"가
 없습니다.`, `additionalProperties` → `허용되지 않는 필드 "X"가 있습니다.` 처럼 위반 종류별
@@ -311,8 +331,11 @@
 - **지금 패널은 Command Engine을 거치지 않고 `editorStore.setNodeField` 로 IR을 직접 고친다**(이슈 #40).
   [02-mvp-scope.md](02-mvp-scope.md)의 "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다"
   제약과 어긋나므로, Command Engine을 놓을 때 이 호출 경로를 함께 바꿔야 한다.
-  **걷어낼 호출 지점은 `ui/properties/useNodeField.ts` 한 곳이다** — 패널 필드 24개가 전부 이 훅을
-  거치므로, 필드가 늘어도 바꿔야 할 지점은 늘지 않는다(1절 표 아래 참고).
+  **걷어낼 호출 지점은 두 곳이다**(2026-09-08 재실측) — `ui/properties/useNodeField.ts:28` 과
+  `ui/LayerTree.tsx:116`(표시 토글). 패널 필드 27개는 전부 그 훅을 거치므로 **필드가 늘어도 패널 쪽
+  지점은 늘지 않지만**, 트리가 훅을 거치지 않고 스토어를 직접 부르면서 패널 밖 호출자가 하나 생겼다
+  (1절 표 아래 참고). 페이지 이름·해상도를 고치는 `setPageField` 경로(`ui/properties/PageProperties.tsx`)도
+  같은 제약에 걸린다.
 - 06이 남겨 둔 **`"fill"` 의 교차축 의미**는 `ui/canvasLayout.ts` 의 `boxStyle()` 이 교차축 `"fill"` 을
   `align-self: stretch` 로 옮기는 방식으로 사실상 한 가지 해석을 쓰고 있다(주축 `"fill"` 은 `flex: 1 1 0`,
   부모가 없는 최상위 노드만 `100%`). 06에 반영할지는 정해지지 않았다(이슈 #46).
