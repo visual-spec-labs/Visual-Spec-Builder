@@ -304,4 +304,128 @@ describe("compileTickets", () => {
     expect(tickets.some((t) => t.instances.includes("cardB"))).toBe(false);
     expect(tickets.filter((t) => t.kind === "component").map((t) => t.id)).toEqual(["List"]);
   });
+
+  it("visible만 다른 형제는 반복으로 묶지 않는다", () => {
+    // 리뷰(Yumesa2025, PR #81)에서 지적된 지점 — structuralKey가 visible을 비교
+    // 기준에서 빠뜨리면, visible: false인 형제와 true인 형제가 구조만 같으면
+    // 같은 컴포넌트로 묶인다. skills/visual-spec-to-react/SKILL.md의 매핑표는
+    // "visible: false면 해당 노드와 자식은 코드에서 아예 제외한다"고 정하고
+    // 있어서, 묶인 티켓이 "2개 인스턴스"라고 말하는 게 실제로는 거짓말이 된다.
+    const text = (name: string, visible?: boolean): Node => ({
+      type: "text",
+      name,
+      visible,
+      box: { width: "auto", height: "auto" },
+      content: name,
+      color: "#000000",
+      typography: {
+        fontFamily: "Pretendard",
+        fontSize: 12,
+        fontWeight: 400,
+        lineHeight: 16,
+        letterSpacing: 0,
+        textAlign: "left",
+      },
+    });
+
+    const screen: ScreenSpec = {
+      name: "VisibleDiff",
+      size: { width: 100, height: 100 },
+      root: "root",
+      nodes: {
+        root: {
+          type: "frame",
+          name: "Root",
+          box: { width: "fill", height: "fill" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "list" }],
+        },
+        list: {
+          type: "frame",
+          name: "List",
+          box: { width: "fill", height: "auto" },
+          layout: {
+            direction: "column",
+            gap: 8,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "stretch",
+          },
+          children: [{ node: "labelA" }, { node: "labelB" }],
+        },
+        labelA: text("LabelA", true),
+        labelB: text("LabelB", false),
+      },
+    };
+
+    const tickets = compileTickets(screen);
+
+    expect(tickets.some((t) => t.instances.includes("labelA"))).toBe(false);
+    expect(tickets.some((t) => t.instances.includes("labelB"))).toBe(false);
+    expect(tickets.filter((t) => t.kind === "component").map((t) => t.id)).toEqual(["List"]);
+  });
+
+  it("순환 참조가 있어도 스택 오버플로 없이 끝난다", () => {
+    // 리뷰(Yumesa2025, PR #81)에서 지적된 지점 — structuralKey의 재귀에 순환
+    // 방어가 없으면 검증 안 된 스펙(cycle)이 들어왔을 때 무한 재귀로 죽는다.
+    // 정상 경로에서는 compileTickets를 부르기 전에 항상 validateVisualSpec이
+    // cycle을 걸러내지만, 이 함수 자체는 그 전제에 기대지 않고 방어해야 한다
+    // (command/applyCommand.ts의 collectSubtreeIds와 같은 방어 수준).
+    const screen: ScreenSpec = {
+      name: "Cycle",
+      size: { width: 100, height: 100 },
+      root: "root",
+      nodes: {
+        root: {
+          type: "frame",
+          name: "Root",
+          box: { width: "fill", height: "fill" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "a" }],
+        },
+        // a -> b -> a 순환. validateVisualSpec이라면 cycle로 거부하겠지만,
+        // 여기서는 compileTickets가 검증을 거치지 않고 직접 받았다고 가정한다.
+        a: {
+          type: "frame",
+          name: "A",
+          box: { width: "fill", height: "auto" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "b" }],
+        },
+        b: {
+          type: "frame",
+          name: "B",
+          box: { width: "fill", height: "auto" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "a" }],
+        },
+      },
+    };
+
+    expect(() => compileTickets(screen)).not.toThrow();
+  });
 });

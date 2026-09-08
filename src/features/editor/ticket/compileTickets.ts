@@ -26,11 +26,31 @@ export function toPascalCase(name: string): string {
  * 될 값)은 일부러 뺀다. 나머지가 하나라도 다르면 다른 컴포넌트로 본다 —
  * 색상·타이포그래피 같은 스타일 차이까지 props로 자동 추출하지 않는다(v0.1은
  * 보수적으로 간다. 잘못 합치는 것보다 안 합치는 게 안전하다).
+ *
+ * id로 받고 내부에서 nodes[id]를 찾는 이유는 순환 방어 때문이다 — `visiting`에
+ * 현재까지 내려온 조상 id를 전부 담아 두고, 같은 id를 다시 만나면(자기 자신이든
+ * 더 위 조상이든) 재귀를 멈춘다. 검증되지 않은 스펙(cycle)이 들어와도 스택
+ * 오버플로 없이 "cycle"이라는 표식만 남긴다 — command/applyCommand.ts의
+ * collectSubtreeIds와 같은 방어다.
  */
-function structuralKey(node: Node, nodes: Record<NodeId, Node>): string {
+function structuralKey(
+  id: NodeId,
+  nodes: Record<NodeId, Node>,
+  visiting: ReadonlySet<NodeId> = new Set(),
+): string {
+  if (visiting.has(id)) {
+    return JSON.stringify({ t: "cycle" });
+  }
+
+  const node = nodes[id];
+  if (node === undefined) {
+    return JSON.stringify({ t: "missing" });
+  }
+
   if (node.type === "text") {
     return JSON.stringify({
       t: "text",
+      visible: node.visible,
       box: node.box,
       color: node.color,
       typography: node.typography,
@@ -42,6 +62,7 @@ function structuralKey(node: Node, nodes: Record<NodeId, Node>): string {
   if (node.type === "image") {
     return JSON.stringify({
       t: "image",
+      visible: node.visible,
       box: node.box,
       fit: node.fit,
       opacity: node.opacity,
@@ -54,6 +75,7 @@ function structuralKey(node: Node, nodes: Record<NodeId, Node>): string {
   if (node.type === "button") {
     return JSON.stringify({
       t: "button",
+      visible: node.visible,
       box: node.box,
       typography: node.typography,
       color: node.color,
@@ -65,6 +87,7 @@ function structuralKey(node: Node, nodes: Record<NodeId, Node>): string {
   if (node.type === "input") {
     return JSON.stringify({
       t: "input",
+      visible: node.visible,
       box: node.box,
       typography: node.typography,
       color: node.color,
@@ -73,8 +96,10 @@ function structuralKey(node: Node, nodes: Record<NodeId, Node>): string {
     });
   }
 
+  const nextVisiting = new Set(visiting).add(id);
   return JSON.stringify({
     t: "frame",
+    visible: node.visible,
     box: node.box,
     layout: node.layout,
     background: node.background,
@@ -82,10 +107,7 @@ function structuralKey(node: Node, nodes: Record<NodeId, Node>): string {
     shadow: node.shadow,
     opacity: node.opacity,
     blur: node.blur,
-    children: node.children.map((child) => {
-      const childNode = nodes[child.node];
-      return childNode === undefined ? null : structuralKey(childNode, nodes);
-    }),
+    children: node.children.map((child) => structuralKey(child.node, nodes, nextVisiting)),
   });
 }
 
@@ -97,10 +119,9 @@ function groupRepeatedSiblings(
   const buckets = new Map<string, NodeId[]>();
 
   for (const child of children) {
-    const node = nodes[child.node];
-    if (node === undefined) continue;
+    if (nodes[child.node] === undefined) continue;
 
-    const key = structuralKey(node, nodes);
+    const key = structuralKey(child.node, nodes);
     const bucket = buckets.get(key);
     if (bucket === undefined) {
       buckets.set(key, [child.node]);
