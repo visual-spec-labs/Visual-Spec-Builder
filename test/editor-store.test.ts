@@ -54,6 +54,7 @@ function resetToSeed(): void {
     spec,
     activePageId: spec.pageOrder[0],
     selectedId: null,
+    history: {}, // setState는 부분 병합이라 안 지우면 이전 테스트의 undo 스택이 새어 들어온다
   });
 }
 
@@ -282,6 +283,132 @@ describe("editorStore", () => {
 
       useEditorStore.getState().insertNode("does-not-exist", "image-1", imageNode);
 
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+  });
+
+  describe("undo / redo (#40)", () => {
+    it("setNodeField 하나를 되돌린다", () => {
+      const before = activePage().nodes.cardA;
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+
+      useEditorStore.getState().undo();
+
+      expect(activePage().nodes.cardA).toBe(before);
+    });
+
+    it("되돌린 것을 다시 실행한다", () => {
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+      const changed = activePage().nodes.cardA;
+      useEditorStore.getState().undo();
+
+      useEditorStore.getState().redo();
+
+      expect(activePage().nodes.cardA).toBe(changed);
+    });
+
+    it("연속된 변경을 순서대로 되돌린다", () => {
+      const original = activePage().nodes.cardA;
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 10);
+      const first = activePage().nodes.cardA;
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 20);
+
+      useEditorStore.getState().undo();
+      expect(activePage().nodes.cardA).toBe(first);
+
+      useEditorStore.getState().undo();
+      expect(activePage().nodes.cardA).toBe(original);
+    });
+
+    it("되돌릴 것이 없으면 아무 일도 하지 않는다", () => {
+      const before = useEditorStore.getState().spec;
+
+      useEditorStore.getState().undo();
+
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("다시 실행할 것이 없으면 아무 일도 하지 않는다", () => {
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+      const before = useEditorStore.getState().spec;
+
+      useEditorStore.getState().redo(); // undo를 안 했으니 future가 비어 있다
+
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("한 페이지의 undo가 다른 페이지에 영향을 주지 않는다", () => {
+      useEditorStore.getState().addPage();
+      const [firstPageId, secondPageId] = useEditorStore.getState().spec.pageOrder;
+
+      useEditorStore.getState().selectPage(firstPageId);
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+
+      useEditorStore.getState().selectPage(secondPageId);
+      // 새 페이지의 root는 undo할 것이 없다 — 다른 페이지 히스토리를 잘못 봤다면
+      // 여기서 뭔가 바뀌었을 것이다.
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("두 setNodeField 사이에 낀 insertNode는 그 사이 한 단계에서 살아남는다", () => {
+      // reconciledHistory는 push/점프 직전에 present를 실제 현재 페이지로
+      // 맞춘다 — 그래서 "setNodeField → insertNode → setNodeField" 순서면
+      // 두 번째 setNodeField가 만드는 체크포인트에 insertNode의 결과가
+      // 포함된다. 한 단계만 undo하면 그 체크포인트로 돌아가므로 이미지가
+      // 남는다.
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+      useEditorStore.getState().insertNode("content", "image-1", {
+        type: "image",
+        name: "Hero",
+        box: { width: 640, height: 360 },
+        src: "data:image/png;base64,AAAA",
+        fit: "cover",
+      });
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 50);
+
+      useEditorStore.getState().undo();
+
+      // gap 40(insertNode 직후 체크포인트)으로 돌아가고, image-1은 남아 있다.
+      const cardA = activePage().nodes.cardA;
+      expect(cardA.type === "frame" && cardA.layout.gap).toBe(40);
+      expect(activePage().nodes["image-1"]).toBeDefined();
+    });
+
+    it("알려진 한계 — insertNode 바로 뒤에 undo하면 그 삽입까지 함께 되돌아간다", () => {
+      // insertNode 자신은 history에 체크포인트를 안 남긴다(#40 범위 밖). 그
+      // 앞뒤로 setNodeField가 없으면 되짚어 갈 중간 스냅숏 자체가 없어서,
+      // undo는 그보다 앞선(마지막 tracked) 체크포인트로 통째로 점프한다 —
+      // 방금 삽입한 노드까지 함께 사라진다. reconciledHistory의 문서화된
+      // 한계이지 이 테스트가 잡으려는 회귀는 아니다.
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+      useEditorStore.getState().insertNode("content", "image-1", {
+        type: "image",
+        name: "Hero",
+        box: { width: 640, height: 360 },
+        src: "data:image/png;base64,AAAA",
+        fit: "cover",
+      });
+
+      useEditorStore.getState().undo();
+
+      const cardA = activePage().nodes.cardA;
+      expect(cardA.type === "frame" && cardA.layout.gap).toBe(8); // 시드 원래 값까지 되돌아감
+      expect(activePage().nodes["image-1"]).toBeUndefined(); // 삽입도 함께 사라짐
+      // 그래도 spec 자체는 여전히 유효해야 한다 — 되돌아간 상태가 깨진 트리는 아니다.
+      expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+    });
+
+    it("loadSpec은 history를 비운다", () => {
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+
+      useEditorStore.getState().loadSpec(blankSpec);
+
+      expect(useEditorStore.getState().history).toEqual({});
+      // 비었으니 undo를 불러도 blankSpec 이전(시드) 상태로 튀지 않는다.
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().undo();
       expect(useEditorStore.getState().spec).toBe(before);
     });
   });

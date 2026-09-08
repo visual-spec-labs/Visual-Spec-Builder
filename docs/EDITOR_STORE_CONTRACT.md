@@ -19,7 +19,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 ---
 
-## 2. 스토어가 제공하는 것 — 계약의 전부 (11개)
+## 2. 스토어가 제공하는 것 — 계약의 전부 (14개)
 
 **파일 1개 = 프로젝트 1개**다. 프로젝트는 페이지 여러 장을 담고, 캔버스에는 그중 한 장만 뜬다. 그 한 장을 가리키는 것이 `activePageId`다.
 
@@ -28,14 +28,31 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `spec` | `ProjectSpec` | 편집 중인 **프로젝트 전체** | 셋 다 **읽음** |
 | `activePageId` | `PageId` | 지금 캔버스에 떠 있는 페이지 | 셋 다 **읽음** |
 | `selectedId` | `NodeId \| null` | 선택된 노드 id (활성 페이지 안) | 셋 다 **읽음** (하이라이트) |
+| `history` | `Record<PageId, HistoryState<ScreenSpec>>` | 페이지별 실행 취소 스택(#40) | 보통 안 읽는다 — `undo`/`redo`가 대신 씀 |
 | `select` | `(id: NodeId \| null) => void` | 노드 선택 / 해제 | **트리 · 캔버스**가 호출 |
 | `selectPage` | `(id: PageId) => void` | 캔버스에 띄울 페이지 전환 | **트리**가 호출 |
 | `setNodeField` | `(id: NodeId, path: string, value: unknown) => void` | 노드 값 하나 변경 | **패널 · 캔버스(드래그)**가 호출 |
 | `setPageField` | `(pageId: PageId, path: string, value: unknown) => void` | 페이지 이름 · 크기(해상도) 변경 | **패널**이 호출 |
 | `addPage` | `() => void` | 빈 페이지를 끝에 추가하고 이동 | **트리**가 호출 |
 | `removePage` | `(id: PageId) => void` | 페이지 삭제 | **트리**가 호출 |
-| `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제(New/Open) | **MenuBar**가 호출 |
+| `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제 + history 초기화(New/Open) | **MenuBar**가 호출 |
 | `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import) | **MenuBar**가 호출 |
+| `undo` | `() => void` | 활성 페이지를 한 단계 되돌림(#40) | 아직 아무도 안 부름 — 버튼·단축키는 범위 밖 |
+| `redo` | `() => void` | 활성 페이지를 한 단계 다시 실행(#40) | 위와 같음 |
+
+### setNodeField는 이제 Command Engine을 거친다 (#40)
+
+`setNodeField`의 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`, 트리의 "표시" 토글)는 하나도 안 바뀐다. 달라진 건 내부뿐이다: 이전엔 `setByPath`를 직접 불렀지만, 이제 `command/applyCommand.ts`의 `updateNode` Command를 만들어 적용한다. `02-mvp-scope.md`가 못박은 "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다" 제약을 이 함수 안에서 충족한다 — 이슈 #40 참고.
+
+부수 효과로 성공한 변경마다 `history`에도 쌓인다. `insertNode`·`setPageField`·`addPage`·`removePage`는 **아직 이 경로를 안 거친다** — #40의 변경 범위 밖이다. 그래서 이런 액션 뒤에 바로 `undo`를 부르면, 그 액션의 결과까지 함께 되돌아갈 수 있다(직전 tracked 체크포인트로 점프하므로). `editorStore.ts`의 `reconciledHistory` 주석에 이 한계가 자세히 적혀 있다.
+
+### Undo/Redo는 페이지별로 독립이다
+
+`history`는 페이지 id로 나뉘어 있다 — 페이지 A를 고쳐도 페이지 B의 undo 스택에는 안 걸린다. 아직 한 번도 안 고친 페이지는 `history`에 항목이 없고, `undo`/`redo`는 그 경우 조용히 아무 일도 안 한다.
+
+`loadSpec`(New/Open)은 `history`를 통째로 비운다 — 안 비우면 새로 연 프로젝트가 이전 프로젝트와 우연히 같은 페이지 id(예: 마이그레이션이 항상 만드는 `"page1"`)를 써서 남의 undo 스택을 이어받는 사고가 난다.
+
+**아직 없는 것 — Undo/Redo를 실제로 부를 UI.** 버튼도 단축키(Cmd/Ctrl+Z)도 없다. 스토어 액션만 있고 아무도 호출하지 않는다 — Command Engine PR(#79)이 `applyCommand`/`history.ts`만 만들고 GUI 연결은 범위 밖으로 남긴 것과 같은 패턴이다.
 
 ### 노드를 다루는 함수는 활성 페이지를 알아서 찾는다
 

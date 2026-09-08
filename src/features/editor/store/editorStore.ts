@@ -1,5 +1,15 @@
 import { create } from "zustand";
 
+import { applyCommand } from "@/features/editor/command/applyCommand";
+import {
+  canRedo as historyCanRedo,
+  canUndo as historyCanUndo,
+  initHistory,
+  pushHistory,
+  redo as historyRedo,
+  undo as historyUndo,
+  type HistoryState,
+} from "@/features/editor/command/history";
 import { migrateV01 } from "@/features/editor/schema";
 import type {
   Node,
@@ -29,6 +39,13 @@ export interface EditorState {
   activePageId: PageId;
   /** 현재 선택된 노드 id. 없으면 null. 활성 페이지 안의 id다. */
   selectedId: NodeId | null;
+  /**
+   * 페이지별 실행 취소 스택(#40). 페이지마다 독립적이다 — 다른 페이지를 편집해도
+   * 이 페이지의 undo/redo에는 안 걸린다. setNodeField가 성공할 때마다 여기에
+   * 쌓인다. 아직 없는 페이지 id는 history가 없다는 뜻이지 에러가 아니다 —
+   * undo/redo가 조용히 아무 일도 안 한다.
+   */
+  history: Record<PageId, HistoryState<ScreenSpec>>;
   /** 노드 선택/해제. 트리·캔버스가 호출한다. */
   select: (id: NodeId | null) => void;
   /**
@@ -42,6 +59,11 @@ export interface EditorState {
    * 활성 페이지에 있는 노드의 값 하나를 점 표기 경로로 변경한다(불변 업데이트).
    * 예: setNodeField("cardA", "layout.gap", 16)
    * 패널(편집)과 캔버스(드래그)가 호출한다.
+   *
+   * #40: 내부적으로 command/applyCommand.ts의 updateNode Command를 만들어
+   * 적용한다 — "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다"는
+   * 02-mvp-scope.md 제약을 이 함수 안에서 충족한다. 시그니처는 그대로라
+   * 호출부는 이 변화를 모른다. 성공한 변경마다 history에도 쌓인다.
    */
   setNodeField: (id: NodeId, path: string, value: unknown) => void;
   /**
@@ -68,8 +90,17 @@ export interface EditorState {
    * 새 노드를 활성 페이지의 parentId(frame) 자식 목록 끝에 추가하고 선택한다(Import).
    * parentId가 없거나 frame이 아니면 아무 것도 하지 않는다 — 호출자가
    * resolveImportParent 등으로 유효한 frame id를 먼저 골라서 넘겨야 한다.
+   *
+   * #40: 아직 history에 안 쌓인다 — insertNode는 이 PR 범위 밖이다(변경 범위
+   * 참고, 이슈 본문). 그래서 insertNode 직후 setNodeField를 부르면 history의
+   * 직전 스냅샷이 그 삽입 이전 상태가 되는데, undo 구현이 그 경우도 다루도록
+   * 방어해뒀다 — 아래 setNodeField 구현의 주석 참고.
    */
   insertNode: (parentId: NodeId, id: NodeId, node: Node) => void;
+  /** 활성 페이지를 한 단계 되돌린다. 되돌릴 것이 없으면 아무 일도 안 한다. */
+  undo: () => void;
+  /** 활성 페이지를 한 단계 다시 실행한다. 다시 실행할 것이 없으면 아무 일도 안 한다. */
+  redo: () => void;
 }
 
 function hasKey(target: object, key: string): boolean {
@@ -93,10 +124,38 @@ function asPageOrder(ids: PageId[]): ProjectSpec["pageOrder"] {
   return ids as ProjectSpec["pageOrder"];
 }
 
+/**
+ * 페이지의 히스토리 항목을 가져오되, present를 실제 현재 페이지로 맞춰서 준다.
+ * setNodeField(push 직전)와 undo/redo(점프 직전) 양쪽에서 쓴다.
+ *
+ * insertNode처럼 history를 안 거치는 다른 액션이 그 사이에 페이지를 바꿨을 수
+ * 있다(#40 — insertNode는 이 PR 범위 밖이라 손대지 않았다). 그러면
+ * history.present가 실제 현재 페이지보다 낡은 채로 남는다.
+ *
+ * **알려진 한계 — 이 함수로 전부 고쳐지지 않는다.** setNodeField 직전에 맞추면
+ * "그다음 setNodeField"부터는 past 사슬이 정확해져서(예: 필드를 두 번 고치는
+ * 동안 그 사이의 insertNode도 한 단계는 undo에서 살아남는다), 되짚어 갈 스냅숏
+ * 자체가 필요하다는 점은 못 없앤다. **insertNode 하나만 하고 바로 undo를 부르면
+ * (그 사이·이후에 setNodeField가 한 번도 없었으면) past에 남아 있는 마지막
+ * 스냅숏은 insertNode 이전 것뿐이라, 그 삽입까지 함께 되돌아간다.** insertNode
+ * 자체를 추적하는 건 이 PR 범위 밖이다 — 필요해지면 별도 이슈로 다룬다.
+ */
+function reconciledHistory(
+  history: Record<PageId, HistoryState<ScreenSpec>>,
+  pageId: PageId,
+  currentPage: ScreenSpec,
+): HistoryState<ScreenSpec> {
+  const existing = history[pageId];
+  if (existing === undefined) return initHistory(currentPage);
+  if (existing.present === currentPage) return existing;
+  return { ...existing, present: currentPage };
+}
+
 export const useEditorStore = create<EditorState>((set) => ({
   spec: initialSpec,
   activePageId: initialSpec.pageOrder[0],
   selectedId: null,
+  history: {},
   select: (id) => set({ selectedId: id }),
   selectPage: (id) =>
     set((state) => {
@@ -114,11 +173,20 @@ export const useEditorStore = create<EditorState>((set) => ({
         return state;
       }
 
+      // #40: setByPath를 직접 부르는 대신 updateNode Command를 만들어
+      // applyCommand로 적용한다 — 결과는 이전과 동일하지만(둘 다 setByPath를
+      // 쓴다) 이제 Command Engine을 거친다.
+      const nextPage = applyCommand(page, { type: "updateNode", id, path, value });
+      if (nextPage === page) return state;
+
+      const nextHistory = pushHistory(
+        reconciledHistory(state.history, state.activePageId, page),
+        nextPage,
+      );
+
       return {
-        spec: withPage(state.spec, state.activePageId, {
-          ...page,
-          nodes: { ...page.nodes, [id]: setByPath(node, path, value) },
-        }),
+        spec: withPage(state.spec, state.activePageId, nextPage),
+        history: { ...state.history, [state.activePageId]: nextHistory },
       };
     }),
   setPageField: (pageId, path, value) =>
@@ -182,6 +250,12 @@ export const useEditorStore = create<EditorState>((set) => ({
       spec: project,
       activePageId: project.pageOrder[0],
       selectedId: null,
+      // #40: 완전히 다른 프로젝트로 갈아 끼우는 시점이라 history도 비운다.
+      // 안 비우면 새 프로젝트가 옛 프로젝트와 우연히 같은 페이지 id를 써서
+      // (예: 마이그레이션이 항상 만드는 "page1") 남의 히스토리를 이어받는
+      // 사고가 난다 — undo 한 번이 방금 연 파일이 아니라 전에 열려 있던
+      // 파일의 옛 상태로 튀어버린다.
+      history: {},
     });
   },
   insertNode: (parentId, id, node) =>
@@ -202,6 +276,35 @@ export const useEditorStore = create<EditorState>((set) => ({
           },
         }),
         selectedId: id,
+      };
+    }),
+  undo: () =>
+    set((state) => {
+      const page = state.spec.pages[state.activePageId];
+      const pageHistory = reconciledHistory(state.history, state.activePageId, page);
+      if (!historyCanUndo(pageHistory)) return state;
+
+      const nextHistory = historyUndo(pageHistory);
+      return {
+        spec: withPage(state.spec, state.activePageId, nextHistory.present),
+        history: { ...state.history, [state.activePageId]: nextHistory },
+        // 되돌린 뒤의 트리에는 지금 선택된 id가 없을 수 있다(예: undo가 방금
+        // 만든 노드를 지운 상태로 되돌림) — select 로직을 새로 만드는 대신
+        // loadSpec/selectPage와 같은 원칙(불확실하면 선택을 비운다)을 따른다.
+        selectedId: null,
+      };
+    }),
+  redo: () =>
+    set((state) => {
+      const page = state.spec.pages[state.activePageId];
+      const pageHistory = reconciledHistory(state.history, state.activePageId, page);
+      if (!historyCanRedo(pageHistory)) return state;
+
+      const nextHistory = historyRedo(pageHistory);
+      return {
+        spec: withPage(state.spec, state.activePageId, nextHistory.present),
+        history: { ...state.history, [state.activePageId]: nextHistory },
+        selectedId: null,
       };
     }),
 }));

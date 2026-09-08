@@ -5,7 +5,10 @@ import { applyCommand, applyTransaction } from "@/features/editor/command/applyC
 import type { Command } from "@/features/editor/command/types";
 import type { VisualSpec } from "@/features/editor/schema";
 
-const BASE = dashboardCards as VisualSpec;
+// applyCommand는 ScreenSpec을 받는다(#40) — v0.1 예제 JSON은 VisualSpec이라
+// .screen만 떼어서 쓴다. v0.2 ProjectSpec의 pages[id]도 같은 ScreenSpec 모양이라
+// 이 테스트가 그대로 그쪽 검증도 겸한다.
+const BASE = (dashboardCards as VisualSpec).screen;
 
 const NEW_TEXT_NODE = {
   type: "text",
@@ -33,8 +36,8 @@ describe("applyCommand — createNode", () => {
     };
     const next = applyCommand(BASE, command);
 
-    expect(next.screen.nodes.newText).toEqual(NEW_TEXT_NODE);
-    expect(next.screen.nodes.header).toMatchObject({
+    expect(next.nodes.newText).toEqual(NEW_TEXT_NODE);
+    expect(next.nodes.header).toMatchObject({
       children: [{ node: "headerTitle" }, { node: "newText" }],
     });
     expect(next).not.toBe(BASE); // 불변
@@ -79,9 +82,9 @@ describe("applyCommand — updateNode", () => {
     };
     const next = applyCommand(BASE, command);
 
-    const cardA = next.screen.nodes.cardA;
+    const cardA = next.nodes.cardA;
     expect(cardA.type === "frame" && cardA.layout.gap).toBe(40);
-    expect(BASE.screen.nodes.cardA.type === "frame" && BASE.screen.nodes.cardA.layout.gap).toBe(8);
+    expect(BASE.nodes.cardA.type === "frame" && BASE.nodes.cardA.layout.gap).toBe(8);
   });
 
   it("없는 노드는 아무 것도 하지 않는다", () => {
@@ -94,22 +97,22 @@ describe("applyCommand — deleteNode", () => {
   it("부모의 children 참조와 노드 정의를 함께 지운다", () => {
     const next = applyCommand(BASE, { type: "deleteNode", id: "cardA" });
 
-    expect(next.screen.nodes.cardA).toBeUndefined();
-    expect(next.screen.nodes.content).toMatchObject({ children: [{ node: "cardB" }] });
+    expect(next.nodes.cardA).toBeUndefined();
+    expect(next.nodes.content).toMatchObject({ children: [{ node: "cardB" }] });
   });
 
   it("자손까지 연쇄로 지운다 — orphan을 남기지 않는다", () => {
     const next = applyCommand(BASE, { type: "deleteNode", id: "content" });
 
-    expect(next.screen.nodes.content).toBeUndefined();
-    expect(next.screen.nodes.cardA).toBeUndefined();
-    expect(next.screen.nodes.cardALabel).toBeUndefined();
-    expect(next.screen.nodes.cardAValue).toBeUndefined();
-    expect(next.screen.nodes.cardB).toBeUndefined();
+    expect(next.nodes.content).toBeUndefined();
+    expect(next.nodes.cardA).toBeUndefined();
+    expect(next.nodes.cardALabel).toBeUndefined();
+    expect(next.nodes.cardAValue).toBeUndefined();
+    expect(next.nodes.cardB).toBeUndefined();
   });
 
   it("root는 지울 수 없다", () => {
-    expect(applyCommand(BASE, { type: "deleteNode", id: BASE.screen.root })).toBe(BASE);
+    expect(applyCommand(BASE, { type: "deleteNode", id: BASE.root })).toBe(BASE);
   });
 
   it("없는 노드는 아무 것도 하지 않는다", () => {
@@ -126,8 +129,8 @@ describe("applyCommand — moveNode", () => {
       index: 0,
     });
 
-    expect(next.screen.nodes.content).toMatchObject({ children: [{ node: "cardB" }] });
-    expect(next.screen.nodes.header).toMatchObject({
+    expect(next.nodes.content).toMatchObject({ children: [{ node: "cardB" }] });
+    expect(next.nodes.header).toMatchObject({
       children: [{ node: "cardA" }, { node: "headerTitle" }],
     });
   });
@@ -140,7 +143,7 @@ describe("applyCommand — moveNode", () => {
       index: 0,
     });
 
-    expect(next.screen.nodes.content).toMatchObject({
+    expect(next.nodes.content).toMatchObject({
       children: [{ node: "cardB" }, { node: "cardA" }],
     });
   });
@@ -158,7 +161,7 @@ describe("applyCommand — moveNode", () => {
   it("root는 옮길 수 없다", () => {
     const command: Command = {
       type: "moveNode",
-      id: BASE.screen.root,
+      id: BASE.root,
       newParentId: "header",
       index: 0,
     };
@@ -187,7 +190,7 @@ describe("applyCommand — setLayout", () => {
     } as const;
     const next = applyCommand(BASE, { type: "setLayout", id: "cardA", layout: newLayout });
 
-    const cardA = next.screen.nodes.cardA;
+    const cardA = next.nodes.cardA;
     expect(cardA.type === "frame" && cardA.layout).toEqual(newLayout);
   });
 
@@ -221,11 +224,11 @@ describe("applyTransaction", () => {
     ];
     const next = applyTransaction(BASE, commands);
 
-    const cardA = next.screen.nodes.cardA;
+    const cardA = next.nodes.cardA;
     expect(cardA.type === "frame" && cardA.layout.gap).toBe(1);
-    expect(next.screen.nodes.cardB).toBeUndefined();
-    expect(next.screen.nodes.cardC).toEqual(NEW_TEXT_NODE);
-    expect(next.screen.nodes.content).toMatchObject({
+    expect(next.nodes.cardB).toBeUndefined();
+    expect(next.nodes.cardC).toEqual(NEW_TEXT_NODE);
+    expect(next.nodes.content).toMatchObject({
       children: [{ node: "cardA" }, { node: "cardC" }],
     });
   });
