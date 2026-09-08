@@ -1,13 +1,15 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
-> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전)
+> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조)
 >
 > 부분 갱신은 **문서 전체 재검증이 아니다.** 각 갱신에서 실제로 확인한 항목만 아래에 적는다.
 > 확인하지 않은 항목의 날짜는 올리지 않는다.
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
+> | 2026-09-08 (3차, a3fb385) | 1절 IR·스키마 행의 테스트 집계 · 4절 테스트 행 · 아래 "확인 방법" | 이 브랜치를 `develop` a3fb385(PR #81 Ticket 스키마 머지) 위로 리베이스한 뒤 `pnpm install --frozen-lockfile` · `pnpm run typecheck`(exit 0) · `pnpm test`(**25파일 250케이스**) 출력에서 파일 수·케이스 수를 다시 읽음 |
+> | 2026-09-08 (3차, a3fb385) | 1절 Ticket Compiler·Agent 행의 케이스 수 · 2절 Ticket 스키마 v0.1 행 | `ls src/features/editor/ticket/`(3파일) · 세 파일의 `export` 목록과 `ticket/types.ts` 전문 열람(`Ticket` 은 `id`·`componentName`·`kind`·`instances`·`dependsOn`·`status` — 2절 서술과 일치) · `git grep "compileTickets" src/ test/` 로 **`ticket/` 밖 `src/` 호출자 0건**(히트는 `test/compile-tickets.test.ts` 뿐)을 재확인. **케이스 수만 어긋나 고쳤다** — #81 이 적은 14케이스는 그 뒤 같은 브랜치의 4179c93·f93a102 가 케이스를 늘리면서 **18개**가 됐다 |
 > | 2026-09-08 (2차) | 4절 유효 예제 행 · 4절 끝의 구조 오류 코드 종류 | `ls examples/*.json` **8개**(`examples/invalid/` 하위 8개는 별도 집계) · `schema/validate.ts:7` 의 `IssueCode` 유니온 멤버를 세어 **8종** 확인 |
 > | 2026-09-08 (2차) | "GUI 각 영역의 실제 동작" 표의 `ui/PropertiesPanel.tsx`/`ui/properties/` 행 · 같은 표 `store/measureStore.ts` 행 괄호 안의 계약 멤버 수 서술 | `find src/features/editor/ui/properties -type f` **23개**. `ui/PropertiesPanel.tsx` · `properties/PageProperties.tsx` · `properties/resolutionPresets.ts` · `properties/fields/index.ts` 전문 열람 |
 > | 2026-09-08 (2차) | 1절 표 아래 `setNodeField` 문단 · 6절 제안 1 의 호출 지점·필드 수 | `git grep -n "setNodeField" src/` 로 **실제 호출 지점 2곳**(`properties/useNodeField.ts:28` · `ui/LayerTree.tsx:116`) 실측 — 나머지 히트는 정의와 주석이다. `git grep -n "useNodeField" src/` 로 훅 호출 지점 실측(`ui/PropertiesPanel.tsx` 2 · `properties/EffectsSection.tsx` 3 · `properties/FrameProperties.tsx` 12 · `properties/TextProperties.tsx` 10 = **27**), `git grep -n "setPageField(" src/features/editor/ui/`(`properties/PageProperties.tsx` 4칸) |
@@ -45,15 +47,19 @@
 > | 2026-08-29 | 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck` · `pnpm test` |
 > | 2026-08-25 | 5.2 검증기 메시지 | `src/features/editor/schema/validate.ts` 수정과 테스트 |
 >
-> **2026-09-08에 재확인하지 않은 항목** — 위 표의 "2026-09-08" 두 행 묶음(1차·2차)에 없는 모든 항목.
-> 이 갱신은 `develop` f583647 위에서 **07의 서술이 코드와 어긋난 것으로 지목된 항목만** 다시 봤다.
+> **2026-09-08에 재확인하지 않은 항목** — 위 표의 "2026-09-08" 세 행 묶음(1차·2차·3차)에 없는 모든 항목.
+> 이 갱신은 **07의 서술이 코드와 어긋난 것으로 지목된 항목만** 다시 봤다.
+> 1차·2차는 `develop` f583647 위에서, 3차는 `develop` a3fb385(PR #81 머지) 위로 리베이스한 뒤에 봤다.
 > 1차는 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·테스트 집계와 스키마 v0.1/v0.2 병행 상태를,
-> 2차는 예제·오류 코드 개수, 패널 파일·필드 집계, `setNodeField` 호출 지점, 5.2 의 실측 수치를 봤다.
+> 2차는 예제·오류 코드 개수, 패널 파일·필드 집계, `setNodeField` 호출 지점, 5.2 의 실측 수치를,
+> 3차는 테스트 집계 재실측과 Ticket 관련 두 행의 코드 대조를 봤다.
 > `ui/Canvas.tsx`(도구 관련 부분 제외)·`ui/canvasLayout.ts` 행의 본문 서술, `ui/MenuBar.tsx` 행,
 > 1절 자연어 변환·Export 행, 2절의 나머지 행, 4절의 스킬·CI 행, 5.1·5.3, 6절 제안 2·3 은
 > 이전 확인 상태 그대로이며 날짜를 올리지 않았다.
-> Command Engine · Command 스키마 · Ticket 스키마 · Undo/Redo 관련 행도 이번에 보지 않았다 —
-> 그 항목들은 다른 작업이 같은 줄을 고치는 중이라 손대지 않았다.
+> Command Engine · Command 스키마 · Undo/Redo 관련 행도 이번에 보지 않았다 — 그 셋은 PR #79 가
+> 스스로 갱신한 내용 그대로다(위 표의 "2026-09-02"(Command Engine) 행).
+> **Ticket 관련 두 행은 PR #81 이 써 넣은 것이라 리베이스로 딸려 들어왔다** — 3차에 코드와 대조해
+> 케이스 수 한 곳만 고쳤고, 나머지 서술은 #81 의 기록 그대로다.
 >
 > **2026-09-02(#75)에 재확인하지 않은 항목** — 위 표의 "#75" 행에 없는 모든 항목.
 > 이 갱신은 `develop` 020be51 위에 올린 이슈 #75 브랜치(`75--button-input-grid-nodes`)에서
@@ -62,6 +68,12 @@
 > 있던 PR #77(홈 화면)·PR #79(Command Engine)·PR #81(Ticket 스키마)도 마찬가지로 `develop`에
 > 없으므로, 이 문서의 Command Engine·Ticket Compiler·홈 화면 관련 서술은 여전히 020be51
 > 기준 그대로이며 날짜를 올리지 않았다. 그 세 항목은 각 PR이 머지된 뒤 별도로 갱신한다.
+>
+> > **2026-09-08 덧붙임 — 위 문단은 그때의 기록이고, 셋 다 그 뒤 `develop`에 머지됐다.**
+> > PR #77(홈 화면) → b3f14bf · PR #79(Command Engine) → f583647 · PR #81(Ticket 스키마) → a3fb385.
+> > Command Engine·Ticket Compiler 관련 서술은 각 PR이 스스로 갱신했고(위 표의 "2026-09-02" 두 행),
+> > 홈 화면은 2026-09-08 1차에 이 문서가 갱신했다. **"`develop`에 없다"는 위 서술을 지금 상태로
+> > 읽으면 안 된다.**
 >
 > **2026-09-02(Command Engine)에 재확인하지 않은 항목** — 위 "2026-09-02"(Command Engine) 행에
 > 적은 것 말고는 전부 이전 확인 상태 그대로다. 이번 갱신은 재검증이 아니라 **새 코드
@@ -120,10 +132,10 @@
 
 | 단위 | 상태 | 근거 / 무엇이 되고 무엇이 안 되는가 |
 |---|---|---|
-| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). **다만 지금은 v0.1과 v0.2(`ProjectSpec`)가 병행한다** — **정본 스키마의 루트는 아직 v0.1이다**(`version` 이 `const: "0.1"`, `required` 가 `["version", "screen"]`). v0.2 는 `$defs` 에 `ProjectSpec`(`version: "0.2"` · `name` · `pages` · `pageOrder`)·`PageId` 가 추가된 형태로만 들어와 있고, 각 페이지는 v0.1 의 `ScreenSpec` 그대로다. **반면 런타임 상태는 v0.2 다** — `store/editorStore.ts` 의 초기값이 `migrateV01(seedSpec)`(`schema/migrate.ts`)이라 스토어는 `spec: ProjectSpec` + `activePageId` 를 들고, `ui/Canvas.tsx`·`ui/LayerTree.tsx` 는 `spec.pages[activePageId]` 로 읽는다. **저장되는 파일도 v0.2 다** — `store/exportSpec.ts` 가 `validateProjectSpec`(`schema/validate.ts` — `$defs.ProjectSpec` 로 검증하고 `pageOrder` 불일치를 `page-order-mismatch` 로 잡는다)을 거쳐 `ProjectSpec` 을 그대로 내려받는다. v0.1 문서를 열면 `loadSpec` 이 `migrateV01` 로 넓히므로 **예전 파일도 그대로 열린다**(반대 방향 `toVisualSpec` 도 있지만 그걸 고르는 UI 는 없다). 즉 **아직 v0.2 로 옮겨지지 않은 것은 정본 스키마의 루트 선언과 동결 문서**이고, 코드와 실제 데이터는 이미 v0.2 다. `test/` 24파일 232케이스 통과(2026-09-08) |
+| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). **다만 지금은 v0.1과 v0.2(`ProjectSpec`)가 병행한다** — **정본 스키마의 루트는 아직 v0.1이다**(`version` 이 `const: "0.1"`, `required` 가 `["version", "screen"]`). v0.2 는 `$defs` 에 `ProjectSpec`(`version: "0.2"` · `name` · `pages` · `pageOrder`)·`PageId` 가 추가된 형태로만 들어와 있고, 각 페이지는 v0.1 의 `ScreenSpec` 그대로다. **반면 런타임 상태는 v0.2 다** — `store/editorStore.ts` 의 초기값이 `migrateV01(seedSpec)`(`schema/migrate.ts`)이라 스토어는 `spec: ProjectSpec` + `activePageId` 를 들고, `ui/Canvas.tsx`·`ui/LayerTree.tsx` 는 `spec.pages[activePageId]` 로 읽는다. **저장되는 파일도 v0.2 다** — `store/exportSpec.ts` 가 `validateProjectSpec`(`schema/validate.ts` — `$defs.ProjectSpec` 로 검증하고 `pageOrder` 불일치를 `page-order-mismatch` 로 잡는다)을 거쳐 `ProjectSpec` 을 그대로 내려받는다. v0.1 문서를 열면 `loadSpec` 이 `migrateV01` 로 넓히므로 **예전 파일도 그대로 열린다**(반대 방향 `toVisualSpec` 도 있지만 그걸 고르는 UI 는 없다). 즉 **아직 v0.2 로 옮겨지지 않은 것은 정본 스키마의 루트 선언과 동결 문서**이고, 코드와 실제 데이터는 이미 v0.2 다. `test/` 25파일 250케이스 통과(2026-09-08 3차, `develop` a3fb385 기준) |
 | Command Engine | **부분** | `src/features/editor/command/`에 Command 타입 5종(`types.ts` — createNode/updateNode/deleteNode/moveNode/setLayout), 순수 적용기(`applyCommand.ts` — 규칙 위반 시 예외 없이 원본 spec 참조를 그대로 돌려준다), 범용 undo/redo 스택(`history.ts`)이 생겼다(`test/apply-command.test.ts` 18케이스 · `test/history.test.ts` 6케이스). **다만 아무도 이걸 안 쓴다.** `editorStore`도 `PropertiesPanel`도 여전히 `setNodeField`를 직접 호출한다 — 아래 §의 이슈 #40 서술 그대로다. `docs/EDITOR_STORE_CONTRACT.md`가 `setNodeField`를 이미 팀 계약(규칙 1, 4)으로 못박아 둔 상태라, GUI를 이 위로 옮기는 건 별도 팀 합의 없이는 하지 않기로 했다(#73 논의) |
 | 자연어 변환 | **미착수** | 관련 코드 없음 |
-| Ticket Compiler · Agent | **부분** | 코드 생성은 여전히 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다("컴포넌트 단위로 분리 생성한다" 절). **다만 그 지시문이 정한 규칙(컴포넌트 경계·반복 형제 그룹화·의존성 순서)이 이제 `src/features/editor/ticket/`에 순수 함수로도 존재한다**(`compileTickets` — `test/compile-tickets.test.ts` 14케이스, `toPascalCase` 포함). 최소 상태 관리(`ticketStatus.ts` — pending/in-progress/done/failed, `isReady`/`readyTickets`)도 있다. **다만 이 코드를 실제로 부르는 곳이 없다** — Agent 실행 루프도, GUI 상태 패널도 아직 이 함수들을 쓰지 않는다. 스킬 지시문과 이 코드가 같은 규칙을 따르는지는 사람이 대조해서 맞춘 것이지 하나가 다른 하나를 생성하는 관계가 아니다 |
+| Ticket Compiler · Agent | **부분** | 코드 생성은 여전히 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다("컴포넌트 단위로 분리 생성한다" 절). **다만 그 지시문이 정한 규칙(컴포넌트 경계·반복 형제 그룹화·의존성 순서)이 이제 `src/features/editor/ticket/`에 순수 함수로도 존재한다**(`compileTickets` — `test/compile-tickets.test.ts` **18케이스**, `toPascalCase` 포함. #81 이 쓸 당시 14케이스였는데 같은 브랜치의 4179c93·f93a102 가 `structuralKey` 의 비교 기준과 순환 방어를 더하면서 늘었다 — 2026-09-08 3차 실측). 최소 상태 관리(`ticketStatus.ts` — pending/in-progress/done/failed, `isReady`/`readyTickets`)도 있다. **다만 이 코드를 실제로 부르는 곳이 없다** — Agent 실행 루프도, GUI 상태 패널도 아직 이 함수들을 쓰지 않는다. 스킬 지시문과 이 코드가 같은 규칙을 따르는지는 사람이 대조해서 맞춘 것이지 하나가 다른 하나를 생성하는 관계가 아니다 |
 | localhost GUI · Canvas | **부분** | 캔버스가 스토어의 스펙을 실제로 그리고 클릭으로 노드를 선택할 수 있으며, 세부설정 패널 편집이 즉시 반영되고, Ctrl+휠 줌·휠 팬이 동작한다(`src/features/editor/ui/Canvas.tsx`, `ui/canvasLayout.ts`, `ui/PropertiesPanel.tsx`, `store/editorStore.ts`). File 메뉴로 **새 문서·열기·저장(JSON 파일 다운로드)도 된다**(`ui/MenuBar.tsx`, `ui/openSpecFromFile.ts`, `ui/exportSpecAsJson.ts` — 이슈 #41이 지적한 것 중 New·Open·Save·Save as가 해소됐다). **Import 도 된다** — 이미지를 골라 선택된 프레임(없으면 root)의 자식으로 `image` 노드를 삽입한다(`ui/importImageFromFile.ts`, 2026-09-01 PR #69). 이로써 **File 메뉴에 미구현 항목이 없다.** **레이어 트리와 도구 모음도 스토어에 연결됐다** — 트리가 활성 페이지의 실제 노드 트리를 그리고(이슈 #43 해소), frame·text 도구로 캔버스를 클릭하면 노드가 실제로 만들어진다(이슈 #44 해소). 아래 표의 `ui/LayerTree.tsx`·`ui/Toolbar.tsx` 행 참고. **안 되는 것 — 캔버스 드래그·리사이즈 편집, 그리고 지속성**: 앱을 열면 여전히 `store/seedSpec.ts` 의 하드코딩 스펙에서 시작하고 새로고침하면 편집 내용이 사라진다(`src/` 의 `localStorage` 사용처는 테마뿐 — `ui/theme-storage.ts`). 아래 표 참고 |
 | Export · 검증 | **미착수** | [02-mvp-scope.md](02-mvp-scope.md)가 정의한 Export는 "생성된 React 코드를 결과 폴더로 내보내기"인데 그 코드는 없다. GUI에 내보내기 경로가 둘 생겼지만(File > Export·Save·Save as — `src/features/editor/ui/MenuBar.tsx`, 패널 하단의 `ui/properties/ExportJsonButton.tsx`) 둘 다 `store/exportSpec.ts` 의 `buildExportPayload` 를 거쳐 **스펙 JSON을 검증 후 내려받는 것**이라 02의 Export와 다르다 |
 
@@ -248,7 +260,7 @@
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
 | 유효 예제 8개 | `examples/*.json` | 검증 통과(2026-09-08 실측 — `ls examples/*.json` 8개. **7개는 `version: "0.1"` 이라 `validateVisualSpec` 이, `two-page-project.json` 만 `version: "0.2"` 라 `validateProjectSpec` 이 받는다**). `examples/image-hero.json` 이 2026-09-01(PR #67)에, `examples/form-grid.json`(button·input·grid)이 2026-09-02(이슈 #75)에, `examples/card-effects.json`(그림자·불투명도·블러)이 2026-09-04(이슈 #78)에, **`examples/two-page-project.json`(v0.2 `ProjectSpec` — 페이지 2장)**이 그사이 추가됐다 |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
-| 테스트 | `test/editor-store.test.ts`(28) · `test/canvas-layout.test.ts`(26) · `test/validate.test.ts`(21) · `test/apply-command.test.ts`(18) · `test/project-spec.test.ts`(15) · `test/resolution-presets.test.ts`(13) · `test/canvas-selection.test.ts`(12) · `test/radius-patch.test.ts`(12) · `test/schema.test.ts`(10) · `test/fit-zoom.test.ts`(10) · `test/view-store.test.ts`(9) · `test/effect-patch.test.ts`(8) · `test/export-spec.test.ts`(6) · `test/history.test.ts`(6) · `test/border-patch.test.ts`(5) · `test/shadow-patch.test.ts`(5) · `test/create-node.test.ts`(4) · `test/node-id.test.ts`(4) · `test/public-api.test.ts`(4) · `test/resolve-import-parent.test.ts`(4) · `test/load-spec.test.ts`(3) · `test/home-preview.test.ts`(3) · `test/navigation-store.test.ts`(3) · `test/tool-store.test.ts`(3) | **24파일 232케이스 전부 통과** (2026-09-08, `develop` f583647 기준 확인) |
+| 테스트 | `test/editor-store.test.ts`(28) · `test/canvas-layout.test.ts`(26) · `test/validate.test.ts`(21) · `test/apply-command.test.ts`(18) · `test/compile-tickets.test.ts`(18) · `test/project-spec.test.ts`(15) · `test/resolution-presets.test.ts`(13) · `test/canvas-selection.test.ts`(12) · `test/radius-patch.test.ts`(12) · `test/schema.test.ts`(10) · `test/fit-zoom.test.ts`(10) · `test/view-store.test.ts`(9) · `test/effect-patch.test.ts`(8) · `test/export-spec.test.ts`(6) · `test/history.test.ts`(6) · `test/border-patch.test.ts`(5) · `test/shadow-patch.test.ts`(5) · `test/create-node.test.ts`(4) · `test/node-id.test.ts`(4) · `test/public-api.test.ts`(4) · `test/resolve-import-parent.test.ts`(4) · `test/load-spec.test.ts`(3) · `test/home-preview.test.ts`(3) · `test/navigation-store.test.ts`(3) · `test/tool-store.test.ts`(3) | **25파일 250케이스 전부 통과** (2026-09-08 3차, `develop` a3fb385 기준 확인 — `test/compile-tickets.test.ts` 가 PR #81 과 함께 들어왔다) |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 5종 | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 5개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33) |
 
@@ -365,6 +377,6 @@
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm run typecheck   # 통과 (2026-09-08, `develop` f583647 기준 확인)
-pnpm test            # 24파일 232케이스 통과 (2026-09-08, `develop` f583647 기준 확인)
+pnpm run typecheck   # 통과 (2026-09-08 3차, `develop` a3fb385 기준 확인)
+pnpm test            # 25파일 250케이스 통과 (2026-09-08 3차, `develop` a3fb385 기준 확인)
 ```
