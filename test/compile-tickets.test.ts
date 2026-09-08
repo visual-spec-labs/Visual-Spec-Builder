@@ -1,0 +1,431 @@
+import { describe, expect, it } from "vitest";
+
+import dashboardCards from "../examples/dashboard-cards.json";
+import emptyTitleScreen from "../examples/empty-title-screen.json";
+import loginScreen from "../examples/login-screen.json";
+import { compileTickets, toPascalCase } from "@/features/editor/ticket/compileTickets";
+import type { Node, ScreenSpec, VisualSpec } from "@/features/editor/schema";
+
+function screenOf(spec: VisualSpec): ScreenSpec {
+  return spec.screen;
+}
+
+describe("toPascalCase", () => {
+  it("한 단어는 첫 글자만 올린다", () => {
+    expect(toPascalCase("Login")).toBe("Login");
+    expect(toPascalCase("card")).toBe("Card");
+  });
+
+  it("공백·기호를 단어 경계로 본다", () => {
+    expect(toPascalCase("dashboard page")).toBe("DashboardPage");
+    expect(toPascalCase("stat-card_grid")).toBe("StatCardGrid");
+  });
+
+  it("숫자로 시작하면 Screen을 붙인다", () => {
+    expect(toPascalCase("404 page")).toBe("Screen404Page");
+  });
+
+  it("단어가 하나도 안 남으면 Screen이다", () => {
+    expect(toPascalCase("!!!")).toBe("Screen");
+    expect(toPascalCase("")).toBe("Screen");
+  });
+});
+
+describe("compileTickets", () => {
+  it("반복되는 형제(cardA/cardB)를 하나의 컴포넌트 티켓으로 묶는다", () => {
+    const tickets = compileTickets(screenOf(dashboardCards as VisualSpec));
+
+    const card = tickets.find((t) => t.id === "Card");
+    expect(card).toBeDefined();
+    expect(card?.instances.sort()).toEqual(["cardA", "cardB"]);
+    expect(card?.kind).toBe("component");
+    expect(card?.dependsOn).toEqual([]);
+  });
+
+  it("반복 컴포넌트를 쓰는 부모는 그 티켓에 의존한다", () => {
+    const tickets = compileTickets(screenOf(dashboardCards as VisualSpec));
+    const content = tickets.find((t) => t.id === "Content");
+
+    expect(content?.dependsOn).toEqual(["Card"]);
+    expect(content?.instances).toEqual(["content"]);
+  });
+
+  it("반복이 없는 root 자식(Header)도 자기 컴포넌트 티켓을 받는다", () => {
+    const tickets = compileTickets(screenOf(dashboardCards as VisualSpec));
+    const header = tickets.find((t) => t.id === "Header");
+
+    expect(header).toBeDefined();
+    expect(header?.dependsOn).toEqual([]);
+    expect(header?.instances).toEqual(["header"]);
+  });
+
+  it("screen.root는 page 티켓이 되어 root 직계 자식 전부에 의존한다", () => {
+    const tickets = compileTickets(screenOf(dashboardCards as VisualSpec));
+    const page = tickets.find((t) => t.kind === "page");
+
+    expect(page?.id).toBe("DashboardPage");
+    expect(page?.instances).toEqual(["root"]);
+    expect(page?.dependsOn).toEqual(["Header", "Content"]);
+  });
+
+  it("배열 순서가 이미 유효한 실행 순서다 — 의존 티켓이 항상 먼저 나온다", () => {
+    const tickets = compileTickets(screenOf(dashboardCards as VisualSpec));
+    const indexOf = (id: string) => tickets.findIndex((t) => t.id === id);
+
+    for (const ticket of tickets) {
+      for (const dep of ticket.dependsOn) {
+        expect(indexOf(dep)).toBeLessThan(indexOf(ticket.id));
+      }
+    }
+  });
+
+  it("모든 티켓은 pending으로 시작한다", () => {
+    const tickets = compileTickets(screenOf(dashboardCards as VisualSpec));
+    expect(tickets.every((t) => t.status === "pending")).toBe(true);
+  });
+
+  it("반복이 전혀 없는 화면은 root 자식마다 티켓 하나씩만 만든다(중첩 티켓 없음)", () => {
+    const tickets = compileTickets(screenOf(loginScreen as VisualSpec));
+
+    // root(Screen)의 직계 자식: title, card. 각각 컴포넌트 티켓 + page 티켓 1개.
+    expect(tickets).toHaveLength(3);
+    expect(tickets.map((t) => t.id).sort()).toEqual(["Card", "Login", "Title"]);
+    const card = tickets.find((t) => t.id === "Card");
+    expect(card?.dependsOn).toEqual([]); // card 안의 hint는 하나뿐이라 반복 아님
+  });
+
+  it("자식이 텍스트 하나뿐인 최소 화면도 page 티켓 하나는 만든다", () => {
+    const tickets = compileTickets(screenOf(emptyTitleScreen as VisualSpec));
+    const page = tickets.find((t) => t.kind === "page");
+
+    expect(page).toBeDefined();
+    expect(tickets.some((t) => t.kind === "component")).toBe(true); // title
+  });
+
+  it("root가 frame이 아니거나 없으면 빈 배열을 반환한다", () => {
+    const broken: ScreenSpec = {
+      name: "Broken",
+      size: { width: 100, height: 100 },
+      root: "missing",
+      nodes: {},
+    };
+    expect(compileTickets(broken)).toEqual([]);
+  });
+
+  it("root 직계 자식은 서로 반복 판정을 하지 않는다 — 완전히 같아도 각자 티켓, id만 -2로 구분", () => {
+    // a, b는 완전히 동일한 모양(내용만 다름)이지만 root의 "직계 자식"이라 규칙 1이
+    // 적용된다 — 규칙 2(형제 반복 그룹화)는 어떤 노드의 "자식들" 사이에서만 보므로
+    // root 자신의 자식끼리는 절대 하나로 묶이지 않는다. 그래서 티켓이 1개(Card처럼
+    // 묶임)가 아니라 2개(Section, Section-2) 나와야 한다.
+    const screen: ScreenSpec = {
+      name: "Dup",
+      size: { width: 100, height: 100 },
+      root: "root",
+      nodes: {
+        root: {
+          type: "frame",
+          name: "Root",
+          box: { width: "fill", height: "fill" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "a" }, { node: "b" }],
+        },
+        a: {
+          type: "text",
+          name: "Section",
+          box: { width: "auto", height: "auto" },
+          content: "A",
+          color: "#000000",
+          typography: {
+            fontFamily: "Pretendard",
+            fontSize: 12,
+            fontWeight: 400,
+            lineHeight: 16,
+            letterSpacing: 0,
+            textAlign: "left",
+          },
+        },
+        b: {
+          type: "text",
+          name: "Section",
+          box: { width: "auto", height: "auto" },
+          content: "B",
+          color: "#000000",
+          typography: {
+            fontFamily: "Pretendard",
+            fontSize: 12,
+            fontWeight: 400,
+            lineHeight: 16,
+            letterSpacing: 0,
+            textAlign: "left",
+          },
+        },
+      },
+    };
+
+    const tickets = compileTickets(screen);
+    const componentIds = tickets.filter((t) => t.kind === "component").map((t) => t.id);
+    expect(componentIds).toEqual(["Section", "Section-2"]);
+  });
+
+  it("구조가 같은 button 형제(라벨만 다름)를 하나의 컴포넌트 티켓으로 묶는다", () => {
+    // structuralKey가 button/input을 frame으로 착각해 .layout/.children에 접근하려다
+    // 터지지 않는지 확인한다(#75로 Node 유니언이 늘면서 실제로 깨졌던 지점).
+    const button = (name: string, content: string): Node => ({
+      type: "button",
+      name,
+      box: { width: "fill", height: 44 },
+      content,
+      color: "#FFFFFF",
+      typography: {
+        fontFamily: "Pretendard",
+        fontSize: 14,
+        fontWeight: 600,
+        lineHeight: 20,
+        letterSpacing: 0,
+        textAlign: "center" as const,
+      },
+      background: { color: "#4F46E5" },
+    });
+
+    const screen: ScreenSpec = {
+      name: "ButtonList",
+      size: { width: 100, height: 100 },
+      root: "root",
+      nodes: {
+        root: {
+          type: "frame",
+          name: "Root",
+          box: { width: "fill", height: "fill" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "list" }],
+        },
+        list: {
+          type: "frame",
+          name: "List",
+          box: { width: "fill", height: "auto" },
+          layout: {
+            direction: "column",
+            gap: 8,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "stretch",
+          },
+          children: [{ node: "buttonA" }, { node: "buttonB" }],
+        },
+        buttonA: button("ButtonA", "저장"),
+        buttonB: button("ButtonB", "취소"),
+      },
+    };
+
+    const tickets = compileTickets(screen);
+    const buttonTicket = tickets.find((t) => t.instances.includes("buttonA"));
+
+    expect(buttonTicket).toBeDefined();
+    expect(buttonTicket?.instances.sort()).toEqual(["buttonA", "buttonB"]);
+  });
+
+  it("shadow만 다른 형제는 반복으로 묶지 않는다", () => {
+    // structuralKey가 #88(Shadow/Opacity/Blur 추가)에서 이 필드들을 비교 기준에서
+    // 빠뜨리면, 그림자만 다른 형제를 조용히 같은 컴포넌트로 합쳐버린다 — 이 파일이
+    // 스스로 밝힌 "잘못 합치는 것보다 안 합치는 게 안전하다" 원칙이 깨지는 지점이다.
+    const frame = (
+      name: string,
+      shadow?: { x: number; y: number; blur: number; spread: number; color: string },
+    ): Node => ({
+      type: "frame",
+      name,
+      box: { width: "fill", height: 100 },
+      layout: {
+        direction: "column",
+        gap: 0,
+        padding: { top: 0, right: 0, bottom: 0, left: 0 },
+        mainAxis: "start",
+        crossAxis: "start" as const,
+      },
+      shadow,
+      children: [],
+    });
+
+    const screen: ScreenSpec = {
+      name: "ShadowDiff",
+      size: { width: 100, height: 100 },
+      root: "root",
+      nodes: {
+        root: {
+          type: "frame",
+          name: "Root",
+          box: { width: "fill", height: "fill" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "list" }],
+        },
+        list: {
+          type: "frame",
+          name: "List",
+          box: { width: "fill", height: "auto" },
+          layout: {
+            direction: "column",
+            gap: 8,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "stretch",
+          },
+          children: [{ node: "cardA" }, { node: "cardB" }],
+        },
+        cardA: frame("CardA", { x: 0, y: 2, blur: 4, spread: 0, color: "#00000040" }),
+        cardB: frame("CardB", undefined),
+      },
+    };
+
+    const tickets = compileTickets(screen);
+
+    // shadow가 달라 반복 그룹으로 안 묶인다 — 묶였다면 어느 티켓의 instances에
+    // cardA와 cardB가 함께 들어 있었을 것이다. 안 묶인 형제는 그룹화 규칙 자체가
+    // 별도 티켓을 안 만들고 부모("List")에 인라인하므로(2개 미만은 "반복" 아님),
+    // cardA/cardB를 instances로 가진 티켓이 하나도 없어야 한다.
+    expect(tickets.some((t) => t.instances.includes("cardA"))).toBe(false);
+    expect(tickets.some((t) => t.instances.includes("cardB"))).toBe(false);
+    expect(tickets.filter((t) => t.kind === "component").map((t) => t.id)).toEqual(["List"]);
+  });
+
+  it("visible만 다른 형제는 반복으로 묶지 않는다", () => {
+    // 리뷰(Yumesa2025, PR #81)에서 지적된 지점 — structuralKey가 visible을 비교
+    // 기준에서 빠뜨리면, visible: false인 형제와 true인 형제가 구조만 같으면
+    // 같은 컴포넌트로 묶인다. skills/visual-spec-to-react/SKILL.md의 매핑표는
+    // "visible: false면 해당 노드와 자식은 코드에서 아예 제외한다"고 정하고
+    // 있어서, 묶인 티켓이 "2개 인스턴스"라고 말하는 게 실제로는 거짓말이 된다.
+    const text = (name: string, visible?: boolean): Node => ({
+      type: "text",
+      name,
+      visible,
+      box: { width: "auto", height: "auto" },
+      content: name,
+      color: "#000000",
+      typography: {
+        fontFamily: "Pretendard",
+        fontSize: 12,
+        fontWeight: 400,
+        lineHeight: 16,
+        letterSpacing: 0,
+        textAlign: "left",
+      },
+    });
+
+    const screen: ScreenSpec = {
+      name: "VisibleDiff",
+      size: { width: 100, height: 100 },
+      root: "root",
+      nodes: {
+        root: {
+          type: "frame",
+          name: "Root",
+          box: { width: "fill", height: "fill" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "list" }],
+        },
+        list: {
+          type: "frame",
+          name: "List",
+          box: { width: "fill", height: "auto" },
+          layout: {
+            direction: "column",
+            gap: 8,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "stretch",
+          },
+          children: [{ node: "labelA" }, { node: "labelB" }],
+        },
+        labelA: text("LabelA", true),
+        labelB: text("LabelB", false),
+      },
+    };
+
+    const tickets = compileTickets(screen);
+
+    expect(tickets.some((t) => t.instances.includes("labelA"))).toBe(false);
+    expect(tickets.some((t) => t.instances.includes("labelB"))).toBe(false);
+    expect(tickets.filter((t) => t.kind === "component").map((t) => t.id)).toEqual(["List"]);
+  });
+
+  it("순환 참조가 있어도 스택 오버플로 없이 끝난다", () => {
+    // 리뷰(Yumesa2025, PR #81)에서 지적된 지점 — structuralKey의 재귀에 순환
+    // 방어가 없으면 검증 안 된 스펙(cycle)이 들어왔을 때 무한 재귀로 죽는다.
+    // 정상 경로에서는 compileTickets를 부르기 전에 항상 validateVisualSpec이
+    // cycle을 걸러내지만, 이 함수 자체는 그 전제에 기대지 않고 방어해야 한다
+    // (command/applyCommand.ts의 collectSubtreeIds와 같은 방어 수준).
+    const screen: ScreenSpec = {
+      name: "Cycle",
+      size: { width: 100, height: 100 },
+      root: "root",
+      nodes: {
+        root: {
+          type: "frame",
+          name: "Root",
+          box: { width: "fill", height: "fill" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "a" }],
+        },
+        // a -> b -> a 순환. validateVisualSpec이라면 cycle로 거부하겠지만,
+        // 여기서는 compileTickets가 검증을 거치지 않고 직접 받았다고 가정한다.
+        a: {
+          type: "frame",
+          name: "A",
+          box: { width: "fill", height: "auto" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "b" }],
+        },
+        b: {
+          type: "frame",
+          name: "B",
+          box: { width: "fill", height: "auto" },
+          layout: {
+            direction: "column",
+            gap: 0,
+            padding: { top: 0, right: 0, bottom: 0, left: 0 },
+            mainAxis: "start",
+            crossAxis: "start",
+          },
+          children: [{ node: "a" }],
+        },
+      },
+    };
+
+    expect(() => compileTickets(screen)).not.toThrow();
+  });
+});
