@@ -90,6 +90,18 @@ export function effectStyle(
   };
 }
 
+/**
+ * 리사이즈 드래그의 새 크기를 계산한다.
+ *
+ * 캔버스 전체가 `transform: scale(zoom)`으로 확대돼 있어 마우스가 움직인 화면
+ * px과 스펙이 쓰는 px이 다르다 — 화면 이동량을 줌 배율로 나눠야 실제 스펙
+ * px 변화량이 나온다. 결과는 최소 1px로 자른다 — 0 이하 크기는 노드가 안
+ * 보이거나(0) 스키마의 `Size` 제약(`minimum: 0`) 경계에 걸린다.
+ */
+export function resizedValue(start: number, deltaScreenPx: number, zoom: number): number {
+  return Math.max(1, Math.round(start + deltaScreenPx / zoom));
+}
+
 /** Size를 그대로 CSS 길이 문자열로 옮긴다(퍼센트 해석은 호출부 책임). */
 export function sizeToCss(size: Size): string {
   if (size === "fill") return "100%";
