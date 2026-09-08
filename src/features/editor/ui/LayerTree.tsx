@@ -51,12 +51,12 @@ function blankFrameNode(): FrameNode {
 function LayerRow({
   id,
   depth,
-  collapsed,
+  isCollapsed,
   onToggleCollapse,
 }: {
   id: NodeId;
   depth: number;
-  collapsed: Set<NodeId>;
+  isCollapsed: (id: NodeId) => boolean;
   onToggleCollapse: (id: NodeId) => void;
 }) {
   const node = useEditorStore(
@@ -69,7 +69,7 @@ function LayerRow({
   if (node === undefined) return null;
 
   const hasChildren = node.type === "frame" && node.children.length > 0;
-  const isOpen = !collapsed.has(id);
+  const isOpen = !isCollapsed(id);
   const isSelected = selectedId === id;
   const isVisible = node.visible !== false;
   const Icon = TYPE_ICON[node.type];
@@ -136,7 +136,7 @@ function LayerRow({
               key={child.node}
               id={child.node}
               depth={depth + 1}
-              collapsed={collapsed}
+              isCollapsed={isCollapsed}
               onToggleCollapse={onToggleCollapse}
             />
           ))
@@ -147,11 +147,11 @@ function LayerRow({
 
 function PageFolderRow({
   pageId,
-  collapsed,
+  isCollapsed,
   onToggleCollapse,
 }: {
   pageId: PageId;
-  collapsed: Set<NodeId>;
+  isCollapsed: (id: NodeId) => boolean;
   onToggleCollapse: (id: NodeId) => void;
 }) {
   const page = useEditorStore((state) => state.spec.pages[pageId]);
@@ -201,7 +201,7 @@ function PageFolderRow({
           <LayerRow
             id={page.root}
             depth={1}
-            collapsed={collapsed}
+            isCollapsed={isCollapsed}
             onToggleCollapse={onToggleCollapse}
           />
         </ul>
@@ -216,18 +216,29 @@ function PageFolderRow({
  */
 export function LayerTree() {
   const pageOrder = useEditorStore((state) => state.spec.pageOrder);
+  const activePageId = useEditorStore((state) => state.activePageId);
   const nodeCount = useEditorStore(
     (state) => Object.keys(state.spec.pages[state.activePageId].nodes).length,
   );
-  const [collapsed, setCollapsed] = useState<Set<NodeId>>(new Set());
+  /** 페이지마다 노드 id가 겹칠 수 있어 "페이지id:노드id" 합성 키로 접힘 상태를 분리한다. */
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  function collapseKey(id: NodeId) {
+    return `${activePageId}:${id}`;
+  }
+
+  function isCollapsed(id: NodeId) {
+    return collapsed.has(collapseKey(id));
+  }
 
   function toggleCollapse(id: NodeId) {
+    const key = collapseKey(id);
     setCollapsed((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(id);
+        next.add(key);
       }
       return next;
     });
@@ -253,7 +264,7 @@ export function LayerTree() {
           <PageFolderRow
             key={pageId}
             pageId={pageId}
-            collapsed={collapsed}
+            isCollapsed={isCollapsed}
             onToggleCollapse={toggleCollapse}
           />
         ))}
