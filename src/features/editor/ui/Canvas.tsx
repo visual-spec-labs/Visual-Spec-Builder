@@ -221,8 +221,9 @@ function useReportMeasuredSize(
  *   1. 선택·확대율·페이지·해상도가 바뀔 때 — 전부 Canvas 리렌더로 들어오므로 매
  *      렌더마다 잰다. 값이 그대로면 상태를 바꾸지 않아 렌더가 반복되지 않는다.
  *   2. 스펙 편집으로 배치가 밀릴 때 — Canvas는 노드를 하나하나 구독하지 않는다
- *      (각 RenderNode가 자기 노드만 구독한다). 그래서 패널에서 형제의 패딩을 바꿔도
- *      여기는 다시 렌더되지 않는다. DOM 쪽 신호(MutationObserver)로 받아야 한다.
+ *      (각 RenderNode가 자기 노드만 구독한다). 그래서 패널에서 형제의 패딩이나
+ *      글자를 바꿔도 여기는 다시 렌더되지 않는다. DOM 쪽 신호(MutationObserver)로
+ *      받아야 한다 — 무엇을 보는지는 아래 observe 옵션 주석 참고.
  *   3. 이미지·폰트가 늦게 로드돼 대상 크기가 변할 때 — ResizeObserver로 본다.
  *
  * 스크롤은 목록에 없다. 대상과 기준을 같은 순간에 재면 오프셋이 상쇄된다.
@@ -267,11 +268,18 @@ function useSelectionRect(
 
     // style 속성만 본다 — 캔버스의 배치 변화는 전부 인라인 스타일로 나타난다.
     // childList는 노드 추가·삭제, subtree는 형제/조상의 변화를 잡기 위해서다.
+    //
+    // characterData가 필요한 이유는 React의 텍스트 갱신 경로 때문이다. 자식이
+    // 문자열 하나뿐인 엘리먼트를 고칠 때 setTextContent가 firstChild.nodeValue에
+    // 직접 대입한다(react-dom의 빠른 경로). 이건 childList도 attributes도 아니라
+    // 없으면 안 잡힌다 — 형제 텍스트가 길어지며 선택 노드를 밀어내는 경우가 그렇다
+    // (선택 노드 자신은 크기가 안 변해 ResizeObserver도 울지 않는다).
     const mutation = new MutationObserver(measure);
     mutation.observe(artboard, {
       attributes: true,
       attributeFilter: ["style"],
       childList: true,
+      characterData: true,
       subtree: true,
     });
 
