@@ -17,9 +17,11 @@ import {
   StretchVertical,
 } from "lucide-react";
 
+import { useState } from "react";
+
 import type { Border } from "@/features/editor/schema";
 
-import { mergeBorder } from "./borderPatch";
+import { isBlankBorder, mergeBorder } from "./borderPatch";
 import { EffectsSection } from "./EffectsSection";
 import { PropertySection } from "./PropertySection";
 import {
@@ -113,15 +115,32 @@ export function FrameProperties() {
 
   const [bgColor, setBgColor] = useNodeField<string>("background.color");
 
-  const [border, setBorder] = useNodeField<Border>("border");
+  const [border, setBorder] = useNodeField<Border | undefined>("border");
+
+  // 모서리 모드를 스펙에서 파생하지 않고 따로 든다.
+  //
+  // 아무것도 그리지 않는 border를 지우게 되면서(isBlankBorder) 파생이 성립하지
+  // 않는다 — 테두리 없는 노드에서 "개별"을 눌러도 남는 값이 없어 모드가 곧바로
+  // "전체"로 되돌아오고, 값을 넣을 네 칸이 뜨질 않는다. 화면 상태로 기억해야 한다.
+  //
+  // 다른 노드를 고르면 초기화돼야 하는데, PropertiesPanel이 selectedId를 key로
+  // 걸어 이 컴포넌트를 다시 마운트한다.
+  const [perCornerMode, setPerCornerMode] = useState(false);
 
   const dir: Direction = direction ?? "column";
-  // 불리언만으로는 아래 JSX에서 border?.radius가 좁혀지지 않는다 — 좁힌 값을 들고 간다.
   const radius = border?.radius;
-  const corners = isPerCorner(radius) ? radius : undefined;
+  // 스펙에 모서리별 값이 있으면 모드와 무관하게 개별이다. 모드는 "아직 값이 없지만
+  // 개별로 넣겠다"는 의사만 담는다.
+  const showCorners = isPerCorner(radius) || perCornerMode;
+  const corners: CornerRadius | undefined = showCorners
+    ? toPerCorner(radius)
+    : undefined;
 
   function updateBorder(patch: Partial<Border>) {
-    setBorder(mergeBorder(border, patch));
+    const next = mergeBorder(border, patch);
+    // 아무것도 그리지 않는 객체는 스펙에 남기지 않는다 — 효과 필드가 항등값에서
+    // 필드를 지우는 것과 같은 기준이다.
+    setBorder(isBlankBorder(next) ? undefined : next);
   }
 
   function updateCornerRadius(patch: Partial<CornerRadius>) {
@@ -181,7 +200,7 @@ export function FrameProperties() {
             min={0}
             unit="px"
           />
-          {corners === undefined && (
+          {!showCorners && (
             <NumberField
               label="모서리 반경"
               // toUniform은 모드 전환용이다 — 여기서 쓰면 테두리가 없는 노드에도 0이
@@ -195,17 +214,15 @@ export function FrameProperties() {
         </FieldRow>
         <SegmentedControl
           label="모서리"
-          value={corners === undefined ? "uniform" : "corner"}
+          value={showCorners ? "corner" : "uniform"}
           options={RADIUS_MODE_OPTIONS}
           // 전환 순간에 모양이 바뀌지 않도록 지금 값을 그대로 옮긴다.
-          onChange={(mode) =>
+          onChange={(mode) => {
+            setPerCornerMode(mode === "corner");
             updateBorder({
-              radius:
-                mode === "corner"
-                  ? toPerCorner(radius)
-                  : toUniform(radius),
-            })
-          }
+              radius: mode === "corner" ? toPerCorner(radius) : toUniform(radius),
+            });
+          }}
         />
         {corners !== undefined && (
           <FieldRow>
