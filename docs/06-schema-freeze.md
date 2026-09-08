@@ -206,7 +206,7 @@ import {
 ### 알아둘 것
 
 - **`shadow`를 `text`에 두지 않았다.** 글자 모양을 따라가는 그림자는 `box-shadow`가 아니라 `filter: drop-shadow`라 성격이 다르다. 텍스트 그림자가 필요하면 별도 필드로 정의해야 한다.
-- **`border.align`을 `outline`으로 그리지 않는다.** 캔버스가 선택 표시에 이미 `outline`을 쓰고 있어(`Canvas.tsx`의 `RenderNode`) 노드를 고르는 순간 둘 중 하나가 사라진다. `inside`는 CSS `border` 속성 그대로, `center`/`outside`는 `box-shadow` 고리로 그린다. `shadow`와 같은 칸을 쓰므로 `canvasLayout.strokeAndShadowStyle`이 한 문자열로 합성한다.
+- **`border.align`을 `outline`으로 그리지 않는다.** 브라우저 포커스 링과 겹치고, `box-shadow`로 그려야 `shadow`와 한 문자열에 합칠 수 있다. `inside`는 CSS `border` 속성 그대로, `center`/`outside`는 `box-shadow` 고리로 그린다. `shadow`와 같은 칸을 쓰므로 `canvasLayout.strokeAndShadowStyle`이 한 문자열로 합성한다. (2026-09-04 이 규칙을 정할 때의 이유는 "캔버스가 선택 표시에 이미 `outline`을 쓰고 있어서"였다. 2026-09-08·이슈 #90으로 선택 표시가 캔버스 오버레이로 빠져 그 충돌은 없어졌지만, 위 두 이유가 남아 규칙은 그대로다.)
 - **`inside`만 CSS `border` 속성을 유지하는 이유.** `box-shadow`는 레이아웃 박스를 차지하지 않는데, 기존 문서가 전부 `border` + `box-sizing: border-box`(= `inside`)로 그려져 있다. 여기서 갈아타면 안쪽 여백이 달라진다.
 - **`blur`는 Layer blur만이다.** 자기 자신과 자식이 함께 흐려진다. 뒤 배경을 흐리는 Background blur(`backdrop-filter`)는 다른 기능이라 포함하지 않았다.
 - **`opacity`/`blur`가 걸린 프레임 안에서는 선택 표시도 함께 흐려진다.** CSS `opacity`·`filter`가 자식 전체에 걸리기 때문이다. 선택 표시를 캔버스 오버레이로 분리해야 풀리는 구조적 문제라 별도 이슈로 둔다.

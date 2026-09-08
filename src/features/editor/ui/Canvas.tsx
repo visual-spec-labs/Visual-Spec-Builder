@@ -658,6 +658,11 @@ export function Canvas() {
 
           border가 아니라 outline인 이유는 경계 바깥에 그리기 위해서다 — border는
           사각형 안쪽을 2px 먹어 노드의 가장자리를 가린다.
+
+          모서리 반경은 일부러 따라가지 않는다. outline은 요소의 border-radius를
+          따라 그려지므로 반경을 얹으면 둥글게 만들 수 있지만, 선택 표시는 노드가
+          차지한 영역을 알려주는 편집기 UI라 직사각형 바운딩 박스가 낫다(Figma도
+          반경과 무관하게 직사각형으로 그린다).
         */}
         {selectionRect !== null && (
           <div
