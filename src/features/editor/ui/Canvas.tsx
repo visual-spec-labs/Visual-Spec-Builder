@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -30,6 +32,12 @@ import {
   type Direction,
 } from "./canvasLayout";
 import { resolveClickTarget, resolveInsertParent } from "./selection";
+import {
+  nodeSelector,
+  relativeRect,
+  sameRect,
+  type Rect,
+} from "./selectionRect";
 
 /**
  * 중앙 캔버스.
@@ -203,6 +211,87 @@ function useReportMeasuredSize(
   }, [ref, active]);
 }
 
+/**
+ * 선택된 노드가 화면에서 차지하는 사각형을 재서 오버레이가 쓸 좌표로 돌려준다.
+ *
+ * 노드에 직접 표시를 얹지 않는 이유는 selectionRect.ts 주석에 있다.
+ *
+ * 다시 재야 하는 순간이 세 갈래다.
+ *
+ *   1. 선택·확대율·페이지·해상도가 바뀔 때 — 전부 Canvas 리렌더로 들어오므로 매
+ *      렌더마다 잰다. 값이 그대로면 상태를 바꾸지 않아 렌더가 반복되지 않는다.
+ *   2. 스펙 편집으로 배치가 밀릴 때 — Canvas는 노드를 하나하나 구독하지 않는다
+ *      (각 RenderNode가 자기 노드만 구독한다). 그래서 패널에서 형제의 패딩이나
+ *      글자를 바꿔도 여기는 다시 렌더되지 않는다. DOM 쪽 신호(MutationObserver)로
+ *      받아야 한다 — 무엇을 보는지는 아래 observe 옵션 주석 참고.
+ *   3. 이미지·폰트가 늦게 로드돼 대상 크기가 변할 때 — ResizeObserver로 본다.
+ *
+ * 스크롤은 목록에 없다. 대상과 기준을 같은 순간에 재면 오프셋이 상쇄된다.
+ */
+function useSelectionRect(
+  outerRef: RefObject<HTMLDivElement | null>,
+  artboardRef: RefObject<HTMLDivElement | null>,
+  selectedId: NodeId | null,
+): Rect | null {
+  const [rect, setRect] = useState<Rect | null>(null);
+
+  const measure = useCallback(() => {
+    const outer = outerRef.current;
+    const artboard = artboardRef.current;
+    // 숨긴 노드(visible: false)는 아예 그려지지 않아 여기서 null이 되고,
+    // 표시도 함께 사라진다 — 안 보이는 것에 테두리만 남는 것보다 낫다.
+    const target =
+      outer === null || artboard === null || selectedId === null
+        ? null
+        : artboard.querySelector(nodeSelector(selectedId));
+
+    const next =
+      outer === null || target === null
+        ? null
+        : relativeRect(
+            target.getBoundingClientRect(),
+            outer.getBoundingClientRect(),
+          );
+
+    setRect((prev) => (sameRect(prev, next) ? prev : next));
+  }, [outerRef, artboardRef, selectedId]);
+
+  useLayoutEffect(measure);
+
+  useLayoutEffect(() => {
+    const artboard = artboardRef.current;
+    if (artboard === null || selectedId === null) return;
+
+    const target = artboard.querySelector(nodeSelector(selectedId));
+    const resize = new ResizeObserver(measure);
+    if (target !== null) resize.observe(target);
+
+    // style 속성만 본다 — 캔버스의 배치 변화는 전부 인라인 스타일로 나타난다.
+    // childList는 노드 추가·삭제, subtree는 형제/조상의 변화를 잡기 위해서다.
+    //
+    // characterData가 필요한 이유는 React의 텍스트 갱신 경로 때문이다. 자식이
+    // 문자열 하나뿐인 엘리먼트를 고칠 때 setTextContent가 firstChild.nodeValue에
+    // 직접 대입한다(react-dom의 빠른 경로). 이건 childList도 attributes도 아니라
+    // 없으면 안 잡힌다 — 형제 텍스트가 길어지며 선택 노드를 밀어내는 경우가 그렇다
+    // (선택 노드 자신은 크기가 안 변해 ResizeObserver도 울지 않는다).
+    const mutation = new MutationObserver(measure);
+    mutation.observe(artboard, {
+      attributes: true,
+      attributeFilter: ["style"],
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+
+    return () => {
+      resize.disconnect();
+      mutation.disconnect();
+    };
+  }, [artboardRef, measure, selectedId]);
+
+  return rect;
+}
+
 /** 새 노드를 만들어 부모에 붙이고, 도구를 Select로 되돌린다. */
 function insertNewNode(kind: NodeKind, parentId: NodeId) {
   const { spec, activePageId, insertNode } = useEditorStore.getState();
@@ -280,8 +369,6 @@ function RenderNode({
     return null;
   }
 
-  const outline = selected ? { outline: "2px solid #F97316", outlineOffset: 1 } : {};
-
   if (node.type === "text") {
     return (
       <div
@@ -289,7 +376,7 @@ function RenderNode({
         // 스펙상의 노드 id를 DOM에 그대로 남긴다 — 중첩 안쪽을 상세 지정했을 때
         // 어떤 item이 잡혔는지 개발자 도구에서 바로 확인할 수 있다.
         data-node-id={id}
-        style={{ ...textStyle(node, parentDirection), ...outline }}
+        style={textStyle(node, parentDirection)}
         onClick={(event) => handleNodeClick(id, event)}
       >
         {node.content}
@@ -302,7 +389,7 @@ function RenderNode({
       <div
         ref={ref}
         data-node-id={id}
-        style={{ ...imageStyle(node, parentDirection), ...outline }}
+        style={imageStyle(node, parentDirection)}
         onClick={(event) => handleNodeClick(id, event)}
       />
     );
@@ -313,7 +400,7 @@ function RenderNode({
       <div
         ref={ref}
         data-node-id={id}
-        style={{ ...buttonStyle(node, parentDirection), ...outline }}
+        style={buttonStyle(node, parentDirection)}
         onClick={(event) => handleNodeClick(id, event)}
       >
         {node.content}
@@ -326,7 +413,7 @@ function RenderNode({
       <div
         ref={ref}
         data-node-id={id}
-        style={{ ...inputStyle(node, parentDirection), ...outline }}
+        style={inputStyle(node, parentDirection)}
         onClick={(event) => handleNodeClick(id, event)}
       >
         {node.placeholder}
@@ -338,7 +425,7 @@ function RenderNode({
     <div
       ref={ref}
       data-node-id={id}
-      style={{ ...frameStyle(node, parentDirection), ...outline }}
+      style={frameStyle(node, parentDirection)}
       onClick={(event) => handleNodeClick(id, event)}
     >
       {node.children.map((child) => (
@@ -364,7 +451,10 @@ export function Canvas() {
   const fillViewport = useViewStore((s) => s.fillViewport);
   const viewport = useViewStore((s) => s.viewport);
   const mainRef = useRef<HTMLElement>(null);
+  const outerRef = useRef<HTMLDivElement>(null);
+  const artboardRef = useRef<HTMLDivElement>(null);
   const [panning, setPanning] = useState(false);
+  const selectionRect = useSelectionRect(outerRef, artboardRef, selectedId);
 
   useEffect(() => {
     const node = mainRef.current;
@@ -528,6 +618,7 @@ export function Canvas() {
         확대율과 어긋난다(25%인데도 100% 크기의 빈 공간이 남는 식).
       */}
       <div
+        ref={outerRef}
         className="relative mx-auto"
         style={{ width: size.width * scale, height: size.height * scale }}
       >
@@ -555,6 +646,7 @@ export function Canvas() {
           docs/DESIGN-TOKEN-RULES.md의 인라인 스타일 금지 예외에 해당한다.
         */}
         <div
+          ref={artboardRef}
           className={`relative bg-surface-raised origin-top-left ${
             fillViewport ? "" : "shadow-modal"
           }`}
@@ -566,6 +658,27 @@ export function Canvas() {
         >
           <RenderNode id={root} />
         </div>
+
+        {/*
+          선택 표시. 아트보드 안이 아니라 옆에 둔다 — 안에 두면 선택한 노드의
+          opacity·blur를 이 표시까지 함께 받아 흐려진다(#90). 바깥 상자는 확대되지
+          않으므로 좌표를 실측값 그대로 쓰고, 테두리도 어느 확대율에서나 2px이다.
+
+          border가 아니라 outline인 이유는 경계 바깥에 그리기 위해서다 — border는
+          사각형 안쪽을 2px 먹어 노드의 가장자리를 가린다.
+
+          모서리 반경은 일부러 따라가지 않는다. outline은 요소의 border-radius를
+          따라 그려지므로 반경을 얹으면 둥글게 만들 수 있지만, 선택 표시는 노드가
+          차지한 영역을 알려주는 편집기 UI라 직사각형 바운딩 박스가 낫다(Figma도
+          반경과 무관하게 직사각형으로 그린다).
+        */}
+        {selectionRect !== null && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute outline-2 outline-offset-1 outline-primary"
+            style={selectionRect}
+          />
+        )}
       </div>
 
       {/*
