@@ -62,9 +62,13 @@ function LayerRow({
   const node = useEditorStore(
     (state) => state.spec.pages[state.activePageId].nodes[id],
   );
+  const isRoot = useEditorStore(
+    (state) => state.spec.pages[state.activePageId].root === id,
+  );
   const selectedId = useEditorStore((state) => state.selectedId);
   const select = useEditorStore((state) => state.select);
   const setNodeField = useEditorStore((state) => state.setNodeField);
+  const removeNode = useEditorStore((state) => state.removeNode);
 
   if (node === undefined) return null;
 
@@ -127,6 +131,21 @@ function LayerRow({
               <EyeOff size={13} aria-hidden="true" />
             )}
           </button>
+
+          {isRoot ? null : (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`"${node.name}" 레이어를 삭제할까요?`)) {
+                  removeNode(id);
+                }
+              }}
+              aria-label="레이어 삭제"
+              className="flex size-5 shrink-0 items-center justify-center opacity-0 group-hover:opacity-100"
+            >
+              <Trash2 size={13} aria-hidden="true" />
+            </button>
+          )}
         </div>
       </li>
 
