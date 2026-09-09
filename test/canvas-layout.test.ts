@@ -4,6 +4,7 @@ import {
   boxStyle,
   effectStyle,
   radiusCss,
+  resizedValue,
   strokeAndShadowStyle,
 } from "@/features/editor/ui/canvasLayout";
 
@@ -210,5 +211,29 @@ describe("radiusCss", () => {
     expect(radiusCss({ topLeft: 6, topRight: 6, bottomRight: 6, bottomLeft: 6 })).toBe(
       "6px 6px 6px 6px",
     );
+  });
+});
+
+describe("resizedValue", () => {
+  it("100% 줌에서는 화면 이동량이 그대로 더해진다", () => {
+    expect(resizedValue(200, 50, 1)).toBe(250);
+    expect(resizedValue(200, -50, 1)).toBe(150);
+  });
+
+  it("줌 배율만큼 나눠서 스펙 px로 바꾼다", () => {
+    // 50% 줌에서 화면 100px 이동은 스펙 200px 이동과 같다 — 확대된 만큼
+    // 화면에서는 적게 움직여도 스펙 값은 크게 바뀐다.
+    expect(resizedValue(200, 100, 0.5)).toBe(400);
+    // 200% 줌에서는 반대로 화면 100px 이동이 스펙 50px 이동일 뿐이다.
+    expect(resizedValue(200, 100, 2)).toBe(250);
+  });
+
+  it("결과가 정수가 아니면 반올림한다", () => {
+    expect(resizedValue(100, 10, 3)).toBe(Math.round(100 + 10 / 3));
+  });
+
+  it("0 이하로 줄어들지 않는다 — 최소 1px", () => {
+    expect(resizedValue(10, -100, 1)).toBe(1);
+    expect(resizedValue(0, 0, 1)).toBe(1);
   });
 });
