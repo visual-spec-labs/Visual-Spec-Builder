@@ -70,7 +70,10 @@ export function PropertiesPanel() {
             노드를 선택하면 그 노드의 속성이 여기에 표시됩니다.
           </p>
         ) : node.type === "frame" ? (
-          <FrameProperties />
+          // key는 노드를 바꿀 때 이 컴포넌트를 다시 마운트시킨다. 모서리 모드처럼
+          // 스펙이 아닌 화면 상태를 들고 있어서, 다른 노드로 옮길 때 그 상태가
+          // 따라오면 안 된다.
+          <FrameProperties key={selectedId} />
         ) : node.type === "text" ? (
           <TextProperties />
         ) : (
