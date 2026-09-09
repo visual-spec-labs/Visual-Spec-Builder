@@ -3,11 +3,13 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  Folder,
   Frame as FrameIcon,
   Image as ImageIcon,
   MousePointerClick as ButtonIcon,
   Plus,
   TextCursorInput as InputIcon,
+  Trash2,
   Type as TypeIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -16,7 +18,7 @@ import { useState } from "react";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
 import { resolveImportParent } from "@/features/editor/store/resolveImportParent";
-import type { FrameNode, Node, NodeId } from "@/features/editor/schema";
+import type { FrameNode, Node, NodeId, PageId } from "@/features/editor/schema";
 
 /** 깊이별 들여쓰기 — Tailwind 스페이싱 스케일만 사용(임의값 금지). */
 const INDENT_BY_DEPTH = ["pl-2", "pl-5", "pl-8", "pl-11", "pl-14"];
@@ -49,12 +51,12 @@ function blankFrameNode(): FrameNode {
 function LayerRow({
   id,
   depth,
-  collapsed,
+  isCollapsed,
   onToggleCollapse,
 }: {
   id: NodeId;
   depth: number;
-  collapsed: Set<NodeId>;
+  isCollapsed: (id: NodeId) => boolean;
   onToggleCollapse: (id: NodeId) => void;
 }) {
   const node = useEditorStore(
@@ -67,7 +69,7 @@ function LayerRow({
   if (node === undefined) return null;
 
   const hasChildren = node.type === "frame" && node.children.length > 0;
-  const isOpen = !collapsed.has(id);
+  const isOpen = !isCollapsed(id);
   const isSelected = selectedId === id;
   const isVisible = node.visible !== false;
   const Icon = TYPE_ICON[node.type];
@@ -134,7 +136,7 @@ function LayerRow({
               key={child.node}
               id={child.node}
               depth={depth + 1}
-              collapsed={collapsed}
+              isCollapsed={isCollapsed}
               onToggleCollapse={onToggleCollapse}
             />
           ))
@@ -143,23 +145,100 @@ function LayerRow({
   );
 }
 
-/** 좌측 레이어 트리 — editorStore의 활성 페이지를 root부터 재귀 렌더링한다. */
-export function LayerTree() {
-  const root = useEditorStore(
-    (state) => state.spec.pages[state.activePageId].root,
+function PageFolderRow({
+  pageId,
+  isCollapsed,
+  onToggleCollapse,
+}: {
+  pageId: PageId;
+  isCollapsed: (id: NodeId) => boolean;
+  onToggleCollapse: (id: NodeId) => void;
+}) {
+  const page = useEditorStore((state) => state.spec.pages[pageId]);
+  const isActive = useEditorStore((state) => state.activePageId === pageId);
+  const canDelete = useEditorStore((state) => state.spec.pageOrder.length > 1);
+  const selectPage = useEditorStore((state) => state.selectPage);
+  const removePage = useEditorStore((state) => state.removePage);
+
+  return (
+    <li>
+      <div
+        className={`group flex w-full items-center gap-1 rounded-control py-1 pr-1 pl-2 ${
+          isActive
+            ? "bg-primary-subtle text-primary"
+            : "text-content-muted hover:bg-hover hover:text-content"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => selectPage(pageId)}
+          aria-current={isActive ? "true" : undefined}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        >
+          <Folder size={13} className="shrink-0 text-content-subtle" aria-hidden="true" />
+          <span className="truncate font-medium">{page.name}</span>
+        </button>
+
+        {canDelete ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (window.confirm(`"${page.name}" 페이지를 삭제할까요?`)) {
+                removePage(pageId);
+              }
+            }}
+            aria-label="페이지 삭제"
+            className="flex size-5 shrink-0 items-center justify-center opacity-0 group-hover:opacity-100"
+          >
+            <Trash2 size={13} aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+
+      {isActive ? (
+        <ul>
+          <LayerRow
+            id={page.root}
+            depth={1}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={onToggleCollapse}
+          />
+        </ul>
+      ) : null}
+    </li>
   );
+}
+
+/**
+ * 좌측 레이어 트리 — 프로젝트의 페이지를 폴더로 나열하고, 활성 페이지
+ * 폴더 아래에 그 페이지의 노드 트리를 root부터 재귀 렌더링한다.
+ */
+export function LayerTree() {
+  const pageOrder = useEditorStore((state) => state.spec.pageOrder);
+  const activePageId = useEditorStore((state) => state.activePageId);
   const nodeCount = useEditorStore(
     (state) => Object.keys(state.spec.pages[state.activePageId].nodes).length,
   );
-  const [collapsed, setCollapsed] = useState<Set<NodeId>>(new Set());
+  /** 페이지마다 노드 id가 겹칠 수 있어 "페이지id:노드id" 합성 키로 접힘 상태를 분리한다. */
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  function collapseKey(id: NodeId) {
+    return `${activePageId}:${id}`;
+  }
+
+  function isCollapsed(id: NodeId) {
+    return collapsed.has(collapseKey(id));
+  }
 
   function toggleCollapse(id: NodeId) {
+    const key = collapseKey(id);
     setCollapsed((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(id);
+        next.add(key);
       }
       return next;
     });
@@ -181,7 +260,25 @@ export function LayerTree() {
       </h2>
 
       <ul className="flex-1 overflow-auto px-1 pb-2 text-sm">
-        <LayerRow id={root} depth={0} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
+        {pageOrder.map((pageId) => (
+          <PageFolderRow
+            key={pageId}
+            pageId={pageId}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={toggleCollapse}
+          />
+        ))}
+
+        <li>
+          <button
+            type="button"
+            onClick={() => useEditorStore.getState().addPage()}
+            className="flex w-full items-center gap-1.5 rounded-control py-1 pr-1 pl-2 text-left text-content-subtle hover:bg-hover hover:text-content"
+          >
+            <Plus size={13} className="shrink-0" aria-hidden="true" />
+            <span>새 페이지</span>
+          </button>
+        </li>
       </ul>
 
       <footer className="flex items-center justify-between border-t border-line px-3 py-2">
