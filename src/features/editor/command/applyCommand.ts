@@ -1,7 +1,7 @@
 import type { FrameNode, Node, NodeId, ScreenSpec } from "@/features/editor/schema";
 import { setByPath } from "@/features/editor/store/path";
 
-import type { Command, CreateNodeCommand, DeleteNodeCommand, MoveNodeCommand, SetLayoutCommand, UpdateNodeCommand } from "./types";
+import type { Command, CreateNodeCommand, DeleteNodeCommand, MoveNodeCommand, SetLayoutCommand, UpdateNodeCommand, UpdateScreenCommand } from "./types";
 
 function isFrameNode(node: Node): node is FrameNode {
   return node.type === "frame";
@@ -161,6 +161,10 @@ function applySetLayout(screen: ScreenSpec, command: SetLayoutCommand): ScreenSp
   return withNodes(screen, { ...nodes, [command.id]: { ...node, layout: command.layout } });
 }
 
+function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): ScreenSpec {
+  return setByPath(screen, command.path, command.value);
+}
+
 /**
  * Command 하나를 화면(ScreenSpec) 하나에 적용해 새 화면을 반환한다(불변, 순수 함수).
  *
@@ -185,6 +189,8 @@ export function applyCommand(screen: ScreenSpec, command: Command): ScreenSpec {
       return applyMoveNode(screen, command);
     case "setLayout":
       return applySetLayout(screen, command);
+    case "updateScreen":
+      return applyUpdateScreen(screen, command);
   }
 }
 

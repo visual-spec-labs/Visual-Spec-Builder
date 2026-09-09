@@ -93,6 +93,24 @@ describe("applyCommand — updateNode", () => {
   });
 });
 
+describe("applyCommand — updateScreen", () => {
+  it("노드가 아니라 화면 자신의 필드를 점 표기 경로로 바꾼다(불변)", () => {
+    const command: Command = { type: "updateScreen", path: "size.width", value: 1920 };
+    const next = applyCommand(BASE, command);
+
+    expect(next.size).toEqual({ width: 1920, height: 900 });
+    expect(BASE.size.width).toBe(1440); // 원본 불변
+    expect(next.nodes).toBe(BASE.nodes); // 안 건드린 가지는 동일 참조
+  });
+
+  it("이름도 같은 방식으로 바꾼다", () => {
+    const command: Command = { type: "updateScreen", path: "name", value: "Renamed" };
+    const next = applyCommand(BASE, command);
+
+    expect(next.name).toBe("Renamed");
+  });
+});
+
 describe("applyCommand — deleteNode", () => {
   it("부모의 children 참조와 노드 정의를 함께 지운다", () => {
     const next = applyCommand(BASE, { type: "deleteNode", id: "cardA" });

@@ -225,6 +225,32 @@ describe("editorStore", () => {
       useEditorStore.getState().removePage("does-not-exist");
       expect(useEditorStore.getState().spec).toBe(before);
     });
+
+    it("지운 페이지의 history를 지운다 — id가 재사용돼도 안 샌다(#40 리뷰, GAMMJ, PR #102)", () => {
+      // generateNodeId는 빈 순번을 재사용한다. 페이지를 지우고 새로 만들면
+      // 같은 id를 다시 받을 수 있는데, 그때 지운 페이지의 history가 안
+      // 지워져 있으면 새 빈 페이지가 남의 undo 스택을 이어받는다 — 결정적
+      // 재현이었다(리뷰 원문 참고). setNodeField로 history를 쌓아야 한다 —
+      // setPageField는 이 케이스를 못 잡는다(이 리뷰에서야 history를 타기
+      // 시작했으니 "지운 페이지의 흔적"이 될 과거가 애초에 없었을 수 있다).
+      useEditorStore.getState().addPage();
+      const removedId = useEditorStore.getState().activePageId;
+      useEditorStore.getState().setNodeField(
+        useEditorStore.getState().spec.pages[removedId].root,
+        "name",
+        "흔적1",
+      );
+
+      useEditorStore.getState().removePage(removedId);
+      useEditorStore.getState().addPage();
+      const reusedId = useEditorStore.getState().activePageId;
+
+      expect(reusedId).toBe(removedId); // 전제 확인 — 실제로 id가 재사용됐다
+
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().undo(); // 방금 만든 빈 페이지엔 되돌릴 게 없어야 한다
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
   });
 
   describe("insertNode", () => {
@@ -398,6 +424,32 @@ describe("editorStore", () => {
       expect(activePage().nodes["image-1"]).toBeUndefined(); // 삽입도 함께 사라짐
       // 그래도 spec 자체는 여전히 유효해야 한다 — 되돌아간 상태가 깨진 트리는 아니다.
       expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+    });
+
+    it("setPageField 하나를 되돌린다 — 페이지 필드도 이제 Command Engine을 거친다(#40 리뷰, GAMMJ, PR #102)", () => {
+      const pageId = useEditorStore.getState().activePageId;
+      const before = activePage().size; // 시드 원래 값: { width: 1440, height: 900 }
+
+      useEditorStore.getState().setPageField(pageId, "size.width", 1920);
+      useEditorStore.getState().undo();
+
+      expect(activePage().size).toEqual(before);
+    });
+
+    it("노드 편집 뒤의 해상도 변경은 그 해상도만 되돌린다 — 둘 다 되돌아가지 않는다(#40 리뷰, GAMMJ, PR #102)", () => {
+      // setPageField가 history를 안 거치던 시절엔, "노드 편집 → 해상도 변경 →
+      // undo" 한 번이 둘 다 되돌렸다(해상도가 ScreenSpec 필드라 노드 편집의
+      // 스냅숏에도 같이 담겨서). 이제 setPageField도 자기 체크포인트를 남기므로
+      // undo 한 번은 해상도만 되돌리고 노드 편집은 남아야 한다.
+      const pageId = useEditorStore.getState().activePageId;
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+      useEditorStore.getState().setPageField(pageId, "size.width", 1920);
+
+      useEditorStore.getState().undo();
+
+      expect(activePage().size.width).toBe(1440); // 시드 원래 해상도로 복귀
+      const cardA = activePage().nodes.cardA;
+      expect(cardA.type === "frame" && cardA.layout.gap).toBe(40); // 노드 편집은 남아 있다
     });
 
     it("loadSpec은 history를 비운다", () => {

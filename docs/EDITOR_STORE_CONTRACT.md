@@ -40,17 +40,19 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `undo` | `() => void` | 활성 페이지를 한 단계 되돌림(#40) | 아직 아무도 안 부름 — 버튼·단축키는 범위 밖 |
 | `redo` | `() => void` | 활성 페이지를 한 단계 다시 실행(#40) | 위와 같음 |
 
-### setNodeField는 이제 Command Engine을 거친다 (#40)
+### setNodeField·setPageField는 이제 Command Engine을 거친다 (#40)
 
-`setNodeField`의 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`, 트리의 "표시" 토글)는 하나도 안 바뀐다. 달라진 건 내부뿐이다: 이전엔 `setByPath`를 직접 불렀지만, 이제 `command/applyCommand.ts`의 `updateNode` Command를 만들어 적용한다. `02-mvp-scope.md`가 못박은 "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다" 제약을 이 함수 안에서 충족한다 — 이슈 #40 참고.
+둘 다 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`·`PageProperties.tsx`, 트리의 "표시" 토글)는 하나도 안 바뀐다. 달라진 건 내부뿐이다: 이전엔 `setByPath`를 직접 불렀지만, 이제 `command/applyCommand.ts`의 `updateNode`(노드 대상)·`updateScreen`(화면 자신의 `name`·`size` 대상 — #40 리뷰, GAMMJ, PR #102에서 추가) Command를 만들어 적용한다. `02-mvp-scope.md`가 못박은 "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다" 제약을 이 함수 안에서 충족한다 — 이슈 #40 참고.
 
-부수 효과로 성공한 변경마다 `history`에도 쌓인다. `insertNode`·`setPageField`·`addPage`·`removePage`는 **아직 이 경로를 안 거친다** — #40의 변경 범위 밖이다. 그래서 이런 액션 뒤에 바로 `undo`를 부르면, 그 액션의 결과까지 함께 되돌아갈 수 있다(직전 tracked 체크포인트로 점프하므로). `editorStore.ts`의 `reconciledHistory` 주석에 이 한계가 자세히 적혀 있다.
+부수 효과로 성공한 변경마다 `history`에도 쌓인다. `insertNode`·`addPage`·`removePage`는 **아직 이 경로를 안 거친다** — #40의 변경 범위 밖이다. 그래서 이런 액션 뒤에 바로 `undo`를 부르면, 그 액션의 결과까지 함께 되돌아갈 수 있다(직전 tracked 체크포인트로 점프하므로). `editorStore.ts`의 `reconciledHistory` 주석에 이 한계가 자세히 적혀 있다. `removePage`는 지운 페이지의 `history` 항목도 함께 지운다 — 안 그러면 `generateNodeId`가 빈 순번을 재사용할 때 새 페이지가 지운 페이지의 undo 스택을 이어받는다(#40 리뷰, GAMMJ, PR #102 — 결정적으로 재현됨).
 
 ### Undo/Redo는 페이지별로 독립이다
 
 `history`는 페이지 id로 나뉘어 있다 — 페이지 A를 고쳐도 페이지 B의 undo 스택에는 안 걸린다. 아직 한 번도 안 고친 페이지는 `history`에 항목이 없고, `undo`/`redo`는 그 경우 조용히 아무 일도 안 한다.
 
 `loadSpec`(New/Open)은 `history`를 통째로 비운다 — 안 비우면 새로 연 프로젝트가 이전 프로젝트와 우연히 같은 페이지 id(예: 마이그레이션이 항상 만드는 `"page1"`)를 써서 남의 undo 스택을 이어받는 사고가 난다.
+
+**스냅숏은 트랜잭션이 아니라 호출 한 번 단위로 쌓인다.** `ui/properties/fields/useDraftInput.ts`(패널 소유)는 파싱 가능한 키 입력마다 즉시 커밋하므로, 예를 들어 간격 칸에 "16"을 타이핑하면 history에 두 단계가 쌓인다(#40 리뷰, GAMMJ, PR #102). Undo/Redo UI가 없는 지금은 체감되지 않지만, UI가 생기면 debounce나 실제 Transaction 묶음이 필요해진다.
 
 **아직 없는 것 — Undo/Redo를 실제로 부를 UI.** 버튼도 단축키(Cmd/Ctrl+Z)도 없다. 스토어 액션만 있고 아무도 호출하지 않는다 — Command Engine PR(#79)이 `applyCommand`/`history.ts`만 만들고 GUI 연결은 범위 밖으로 남긴 것과 같은 패턴이다.
 

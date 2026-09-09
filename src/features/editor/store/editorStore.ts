@@ -22,7 +22,6 @@ import type {
 
 import { blankSpec } from "./blankSpec";
 import { generateNodeId } from "./nodeId";
-import { setByPath } from "./path";
 import { seedSpec } from "./seedSpec";
 
 /** 시드는 v0.1 예제라 페이지 1개짜리 프로젝트로 넓혀 시작한다. */
@@ -70,6 +69,10 @@ export interface EditorState {
    * 페이지 자체의 값을 바꾼다. 이름과 크기(해상도)가 대상이다.
    * 예: setPageField("home", "size.width", 1920)
    * 패널이 호출한다.
+   *
+   * #40 리뷰(GAMMJ, PR #102): setNodeField와 같은 이유로 이것도 Command
+   * Engine(updateScreen)을 거치고 history에 쌓인다 — 시그니처는 그대로다.
+   * 안 그러면 "노드 편집 → 해상도 변경 → undo"가 둘 다 되돌리는 놀람이 있었다.
    */
   setPageField: (pageId: PageId, path: string, value: unknown) => void;
   /** 빈 페이지를 끝에 추가하고 그 페이지로 이동한다. 트리가 호출한다. */
@@ -139,6 +142,17 @@ function asPageOrder(ids: PageId[]): ProjectSpec["pageOrder"] {
  * (그 사이·이후에 setNodeField가 한 번도 없었으면) past에 남아 있는 마지막
  * 스냅숏은 insertNode 이전 것뿐이라, 그 삽입까지 함께 되돌아간다.** insertNode
  * 자체를 추적하는 건 이 PR 범위 밖이다 — 필요해지면 별도 이슈로 다룬다.
+ *
+ * **또 다른 알려진 한계 — 스냅숏이 트랜잭션이 아니라 setNodeField/setPageField
+ * 호출 한 번 단위로 쌓인다.** `ui/properties/fields/useDraftInput.ts`(패널
+ * 소유 — 이 PR에서 안 건드림)는 숫자 입력칸에서 파싱 가능한 키 입력마다 즉시
+ * onCommit을 부른다. 즉 "16"을 타이핑하면 "1" 커밋 → "16" 커밋으로 history에
+ * 두 단계가 쌓인다(#40 리뷰, GAMMJ, PR #102). `history.ts`가 원래 의도한
+ * "트랜잭션 하나당 한 번"(PRD 13장)과는 다르다. Undo/Redo를 실제로 부를 UI가
+ * 아직 없어서(EDITOR_STORE_CONTRACT.md 참고) 지금 당장 체감되는 문제는 아니라
+ * 이 PR에서 고치지 않는다 — UI가 생길 때 debounce/commit-on-blur 같은 처리를
+ * useDraftInput 쪽에 넣거나, Command 자체를 묶는 방식(Transaction)을 실제로
+ * 쓰기 시작해야 한다.
  */
 function reconciledHistory(
   history: Record<PageId, HistoryState<ScreenSpec>>,
@@ -196,7 +210,15 @@ export const useEditorStore = create<EditorState>((set) => ({
         return state;
       }
 
-      return { spec: withPage(state.spec, pageId, setByPath(page, path, value)) };
+      const nextPage = applyCommand(page, { type: "updateScreen", path, value });
+      if (nextPage === page) return state;
+
+      const nextHistory = pushHistory(reconciledHistory(state.history, pageId, page), nextPage);
+
+      return {
+        spec: withPage(state.spec, pageId, nextPage),
+        history: { ...state.history, [pageId]: nextHistory },
+      };
     }),
   addPage: () =>
     set((state) => {
@@ -230,6 +252,14 @@ export const useEditorStore = create<EditorState>((set) => ({
       const nextPages = { ...state.spec.pages };
       delete nextPages[id];
 
+      // #40 리뷰(GAMMJ, PR #102): 여기서 history[id]를 안 지우면 loadSpec이
+      // 막은 것과 똑같은 사고가 난다 — generateNodeId가 빈 순번을 재사용해서
+      // (지운 페이지가 "page-1"이면 다음 addPage도 "page-1"을 받는다) 새로 만든
+      // 빈 페이지가 지운 페이지의 history를 그대로 이어받는다. 그 페이지에서
+      // undo 한 번이 "지워진 페이지의 옛 내용"을 불러온다 — 결정적으로 재현됨.
+      const nextHistory = { ...state.history };
+      delete nextHistory[id];
+
       // 지운 자리에 올라온 페이지로 옮긴다. 마지막 장을 지웠으면 그 앞으로.
       const isActive = state.activePageId === id;
       const fallback = nextOrder[Math.min(removedAt, nextOrder.length - 1)];
@@ -240,6 +270,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           pages: nextPages,
           pageOrder: asPageOrder(nextOrder),
         },
+        history: nextHistory,
         activePageId: isActive ? fallback : state.activePageId,
         selectedId: isActive ? null : state.selectedId,
       };

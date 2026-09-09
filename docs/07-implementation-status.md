@@ -1,14 +1,16 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
-> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조) · **2026-09-09**(CLI `bin`/`init` — 이슈 #42, `42--cli-workspace` 브랜치, PR #106, 머지됨) · **2026-09-09**(setNodeField가 실제로 Command Engine을 거치도록 — 이슈 #40, `40--command-engine-panel-wiring` 브랜치, PR 작성 전, `develop` e776088(PR #106 포함) 위로 리베이스)
+> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조) · **2026-09-09**(CLI `bin`/`init` — 이슈 #42, `42--cli-workspace` 브랜치, PR #106, 머지됨) · **2026-09-11**(setNodeField·setPageField가 Command Engine을 거치도록, PR #102 리뷰(GAMMJ) 반영 포함 — 이슈 #40, `40--command-engine-panel-wiring` 브랜치, PR 작성 전, `develop` e776088(PR #106 포함) 위로 리베이스)
 >
 > 부분 갱신은 **문서 전체 재검증이 아니다.** 각 갱신에서 실제로 확인한 항목만 아래에 적는다.
 > 확인하지 않은 항목의 날짜는 올리지 않는다.
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
-> | 2026-09-09 (#42) | 2절 CLI 행 · `.visual-spec/` 작업공간 행 | `package.json` 에 `bin` 필드 추가, `bin/visual-spec.mjs`(`init` 명령) 신설·전문 열람. `develop` db6bea1(PR #96·#97·#98·#99·#100·#103 전부 포함) 위로 리베이스. `pnpm test`(**27파일 281케이스**) |
+> | 2026-09-11 (#40, 리뷰 반영) | 1절 표 아래 `setNodeField`·`setPageField` 문단, `EDITOR_STORE_CONTRACT.md`, 4절 테스트 행, 아래 "확인 방법" | PR #102 리뷰(GAMMJ)의 🔴 `removePage` history 누수 · 🟡 `setPageField` Command Engine 미적용 두 가지를 코드로 고치고, 고치기 전에 실패하는 테스트로 먼저 확인(`removePage`는 `setPageField`가 아니라 `setNodeField`로 history를 쌓아야 실제로 재현됨을 검증 과정에서 확인). PR #106(이슈 #42)이 머지된 `develop` e776088 위로 리베이스. `pnpm test`(**27파일 295케이스** — e776088이 `test/cli-init.test.ts` 6케이스를 이미 포함한다) |
+> | 2026-09-09 (#40) | 1절 표 아래 `setNodeField` 문단, `EDITOR_STORE_CONTRACT.md`, 4절 테스트 행 | `editorStore.setNodeField`가 `command/applyCommand.ts`(#73)를 거치도록 내부 구현만 바꿈 — 시그니처는 그대로라 호출부(패널·트리) 무변경. `develop` f768bb4 위로 리베이스. `pnpm test`(26파일 275케이스) |
+> | 2026-09-09 (#42) | 2절 CLI 행 · `.visual-spec/` 작업공간 행 | `package.json` 에 `bin` 필드 추가, `bin/visual-spec.mjs`(`init` 명령) 신설·전문 열람. `develop` db6bea1(PR #96·#97·#98·#99·#100·#103 전부 포함) 위로 리베이스. `pnpm test`(**27파일 281케이스**). **머지됨(PR #106).** |
 > | 2026-09-08 (#89) | "GUI 각 영역의 실제 동작" 표의 `ui/PropertiesPanel.tsx` 와 `ui/properties/` 행 | `properties/borderPatch.ts`·`properties/FrameProperties.tsx`·`ui/PropertiesPanel.tsx` 편집·열람. `background` 도 같은 구조인지 정본 스키마에서 확인 — `Background` 는 칸이 `color` 하나뿐이고 `required` 라 반쪽 객체도 지울 항등값도 없다(고칠 것 없음). `border: undefined` 가 Ajv 검증을 통과하는지 실측(통과). `pnpm test`(**26파일 275케이스** — `develop` f768bb4(PR #96·#100·#99 머지) 위로 리베이스한 기준. 그 시점 `develop` 의 26파일 266케이스에 이 브랜치가 `test/border-patch.test.ts` 에 더한 9케이스가 붙은 값이다) |
 > | 2026-09-08 (#90) | "GUI 각 영역의 실제 동작" 표의 `ui/Canvas.tsx`·`ui/canvasLayout.ts` 행, `ui/selectionRect.ts` 행 신규 | 선택 표시를 노드 인라인 `outline` 에서 캔버스 오버레이로 옮기며 두 파일 편집·열람. `pnpm test`(**26파일 262케이스** — `develop` 87f6bad 위로 리베이스한 기준. 바로 아래 3차 행이 잰 25파일 250케이스에 이 브랜치의 `test/selection-rect.test.ts` 12케이스가 더해진 값이다. #97·#98 은 문서 전용이라 집계를 바꾸지 않았다) |
 > | 2026-09-08 (3차, a3fb385) | 1절 IR·스키마 행의 테스트 집계 · 4절 테스트 행 · 아래 "확인 방법" | 이 브랜치를 `develop` a3fb385(PR #81 Ticket 스키마 머지) 위로 리베이스한 뒤 `pnpm install --frozen-lockfile` · `pnpm run typecheck`(exit 0) · `pnpm test`(**25파일 250케이스**) 출력에서 파일 수·케이스 수를 다시 읽음 |
@@ -73,6 +75,15 @@
 > 스스로 갱신한 내용 그대로다(위 표의 "2026-09-02"(Command Engine) 행).
 > **Ticket 관련 두 행은 PR #81 이 써 넣은 것이라 리베이스로 딸려 들어왔다** — 3차에 코드와 대조해
 > 케이스 수 한 곳만 고쳤고, 나머지 서술은 #81 의 기록 그대로다.
+>
+> **2026-09-09(#40, 리뷰 반영)에 재확인하지 않은 항목** — 바로 위 "setNodeField·setPageField는
+> 이제 Command Engine을 거친다" 절과 `removePage`의 history 정리 서술 말고는 다시 안 봤다.
+> `develop`이 PR #103(테두리 정리)까지 머지돼 db6bea1이 됐길래 그 위로 다시 리베이스했다 —
+> `docs/07-implementation-status.md`만 충돌 없이 자동 병합됐고 코드는 전부 무충돌이었다.
+> **이 브랜치는 이 문단을 쓴 시점엔 아직 `develop`에 머지되지 않았다.** GAMMJ가 PR #102에
+> 남긴 리뷰(🔴 `removePage`가 history를 안 지움 · 🟡 `setPageField`도 Command Engine을
+> 태워야 `Closes #40`이 정확함 · 🟡 `useDraftInput` 키 입력 단위 스냅숏은 주석으로만 남김)를
+> 반영했다.
 >
 > **2026-09-09(#40)에 재확인하지 않은 항목** — 위 표의 "#40" 행에 없는 모든 항목.
 > 이 갱신은 `develop` f768bb4(PR #98 07 재실측·PR #96 선택 오버레이·PR #97 05 갱신·PR #100 레이어
@@ -155,7 +166,7 @@
 
 | 단위 | 상태 | 근거 / 무엇이 되고 무엇이 안 되는가 |
 |---|---|---|
-| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). **다만 지금은 v0.1과 v0.2(`ProjectSpec`)가 병행한다** — **정본 스키마의 루트는 아직 v0.1이다**(`version` 이 `const: "0.1"`, `required` 가 `["version", "screen"]`). v0.2 는 `$defs` 에 `ProjectSpec`(`version: "0.2"` · `name` · `pages` · `pageOrder`)·`PageId` 가 추가된 형태로만 들어와 있고, 각 페이지는 v0.1 의 `ScreenSpec` 그대로다. **반면 런타임 상태는 v0.2 다** — `store/editorStore.ts` 의 초기값이 `migrateV01(seedSpec)`(`schema/migrate.ts`)이라 스토어는 `spec: ProjectSpec` + `activePageId` 를 들고, `ui/Canvas.tsx`·`ui/LayerTree.tsx` 는 `spec.pages[activePageId]` 로 읽는다. **저장되는 파일도 v0.2 다** — `store/exportSpec.ts` 가 `validateProjectSpec`(`schema/validate.ts` — `$defs.ProjectSpec` 로 검증하고 `pageOrder` 불일치를 `page-order-mismatch` 로 잡는다)을 거쳐 `ProjectSpec` 을 그대로 내려받는다. v0.1 문서를 열면 `loadSpec` 이 `migrateV01` 로 넓히므로 **예전 파일도 그대로 열린다**(반대 방향 `toVisualSpec` 도 있지만 그걸 고르는 UI 는 없다). 즉 **아직 v0.2 로 옮겨지지 않은 것은 정본 스키마의 루트 선언과 동결 문서**이고, 코드와 실제 데이터는 이미 v0.2 다. `test/` 26파일 275케이스 통과(2026-09-09, 이슈 #40 브랜치가 `develop` f768bb4 위로 리베이스한 기준 — `pnpm test` 실행 결과로 확인) |
+| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). **다만 지금은 v0.1과 v0.2(`ProjectSpec`)가 병행한다** — **정본 스키마의 루트는 아직 v0.1이다**(`version` 이 `const: "0.1"`, `required` 가 `["version", "screen"]`). v0.2 는 `$defs` 에 `ProjectSpec`(`version: "0.2"` · `name` · `pages` · `pageOrder`)·`PageId` 가 추가된 형태로만 들어와 있고, 각 페이지는 v0.1 의 `ScreenSpec` 그대로다. **반면 런타임 상태는 v0.2 다** — `store/editorStore.ts` 의 초기값이 `migrateV01(seedSpec)`(`schema/migrate.ts`)이라 스토어는 `spec: ProjectSpec` + `activePageId` 를 들고, `ui/Canvas.tsx`·`ui/LayerTree.tsx` 는 `spec.pages[activePageId]` 로 읽는다. **저장되는 파일도 v0.2 다** — `store/exportSpec.ts` 가 `validateProjectSpec`(`schema/validate.ts` — `$defs.ProjectSpec` 로 검증하고 `pageOrder` 불일치를 `page-order-mismatch` 로 잡는다)을 거쳐 `ProjectSpec` 을 그대로 내려받는다. v0.1 문서를 열면 `loadSpec` 이 `migrateV01` 로 넓히므로 **예전 파일도 그대로 열린다**(반대 방향 `toVisualSpec` 도 있지만 그걸 고르는 UI 는 없다). 즉 **아직 v0.2 로 옮겨지지 않은 것은 정본 스키마의 루트 선언과 동결 문서**이고, 코드와 실제 데이터는 이미 v0.2 다. `test/` 27파일 295케이스 통과(2026-09-11, 이슈 #40 브랜치 · GAMMJ 리뷰 반영 · PR #106(이슈 #42) 머지 후 `develop` e776088 위로 리베이스한 기준 — `pnpm test` 실행 결과로 확인) |
 | Command Engine | **부분** | `src/features/editor/command/`에 Command 타입 5종(`types.ts` — createNode/updateNode/deleteNode/moveNode/setLayout), 순수 적용기(`applyCommand.ts` — 규칙 위반 시 예외 없이 원본 spec 참조를 그대로 돌려준다), 범용 undo/redo 스택(`history.ts`)이 있다(`test/apply-command.test.ts` 18케이스 · `test/history.test.ts` 6케이스). **이제 실제로 쓰인다** — `editorStore.setNodeField`가 내부적으로 `updateNode` Command를 만들어 `applyCommand`로 적용한다(2026-09-09, 이슈 #40). 시그니처는 그대로라 호출부(패널의 `useNodeField.ts`, 트리의 "표시" 토글 — 두 곳이다, 아래 §의 실측 참고)는 안 바뀌었다. **다만 `insertNode`는 아직 이 경로를 안 거친다** — #40의 변경 범위 밖이라 여전히 스토어가 직접 노드를 만든다. `applyCommand.ts`는 v0.2 `ProjectSpec.pages[id]`에도 쓸 수 있도록 `VisualSpec` 대신 `ScreenSpec`을 받게 바뀌었다 |
 | 자연어 변환 | **미착수** | 관련 코드 없음 |
 | Ticket Compiler · Agent | **부분** | 코드 생성은 여전히 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다("컴포넌트 단위로 분리 생성한다" 절). **다만 그 지시문이 정한 규칙(컴포넌트 경계·반복 형제 그룹화·의존성 순서)이 이제 `src/features/editor/ticket/`에 순수 함수로도 존재한다**(`compileTickets` — `test/compile-tickets.test.ts` **18케이스**, `toPascalCase` 포함. #81 이 쓸 당시 14케이스였는데 같은 브랜치의 4179c93·f93a102 가 `structuralKey` 의 비교 기준과 순환 방어를 더하면서 늘었다 — 2026-09-08 3차 실측). 최소 상태 관리(`ticketStatus.ts` — pending/in-progress/done/failed, `isReady`/`readyTickets`)도 있다. **다만 이 코드를 실제로 부르는 곳이 없다** — Agent 실행 루프도, GUI 상태 패널도 아직 이 함수들을 쓰지 않는다. 스킬 지시문과 이 코드가 같은 규칙을 따르는지는 사람이 대조해서 맞춘 것이지 하나가 다른 하나를 생성하는 관계가 아니다 |
@@ -213,7 +224,12 @@
 한 곳이 아니라 두 곳이다.
 
 페이지 자체(이름·해상도)는 `setNodeField` 가 아니라 `setPageField` 로 고친다 —
-`ui/properties/PageProperties.tsx` 한 곳에서 4칸이 부른다. 이쪽도 Command Engine을 거치지 않는 건 같다.
+`ui/properties/PageProperties.tsx` 한 곳에서 4칸이 부른다. **이쪽도 이제 Command Engine을
+거친다**(2026-09-09, #40 리뷰 — GAMMJ, PR #102). 처음엔 범위 밖으로 남겨뒀었는데, 리뷰에서
+"페이지 이름·해상도도 IR인데 `Closes #40`이 과하다"는 지적을 받고 `updateScreen` Command를
+새로 만들어 태웠다 — 노드 대상 `updateNode`와 대상만 다르고 나머지는 같다. 부수 효과로
+"노드 편집 → 해상도 변경 → undo"가 둘 다 되돌리던 것도 해소됐다 — 이제 각자 자기 체크포인트를
+남긴다.
 
 **남은 것 — `insertNode` 는 아직 이 경로 밖이다.** Import(이미지 삽입)와 도구 모음(Frame/Text
 생성, PR #68)이 부르는 `insertNode` 는 여전히 스토어가 직접 노드를 만든다 — #40의 변경 범위가
@@ -293,7 +309,7 @@
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
 | 유효 예제 8개 | `examples/*.json` | 검증 통과(2026-09-08 실측 — `ls examples/*.json` 8개. **7개는 `version: "0.1"` 이라 `validateVisualSpec` 이, `two-page-project.json` 만 `version: "0.2"` 라 `validateProjectSpec` 이 받는다**). `examples/image-hero.json` 이 2026-09-01(PR #67)에, `examples/form-grid.json`(button·input·grid)이 2026-09-02(이슈 #75)에, `examples/card-effects.json`(그림자·불투명도·블러)이 2026-09-04(이슈 #78)에, **`examples/two-page-project.json`(v0.2 `ProjectSpec` — 페이지 2장)**이 그사이 추가됐다 |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
-| 테스트 | `test/editor-store.test.ts`(37) · `test/canvas-layout.test.ts`(30) · `test/validate.test.ts`(21) · `test/apply-command.test.ts`(18) · `test/compile-tickets.test.ts`(18) · `test/project-spec.test.ts`(15) · `test/resolution-presets.test.ts`(13) · `test/canvas-selection.test.ts`(12) · `test/radius-patch.test.ts`(12) · `test/selection-rect.test.ts`(12) · `test/schema.test.ts`(10) · `test/fit-zoom.test.ts`(10) · `test/view-store.test.ts`(9) · `test/effect-patch.test.ts`(8) · `test/export-spec.test.ts`(6) · `test/history.test.ts`(6) · `test/border-patch.test.ts`(5) · `test/shadow-patch.test.ts`(5) · `test/create-node.test.ts`(4) · `test/node-id.test.ts`(4) · `test/public-api.test.ts`(4) · `test/resolve-import-parent.test.ts`(4) · `test/load-spec.test.ts`(3) · `test/home-preview.test.ts`(3) · `test/navigation-store.test.ts`(3) · `test/tool-store.test.ts`(3) | **26파일 275케이스 전부 통과** (2026-09-09, 이슈 #40 브랜치가 `develop` f768bb4 위로 리베이스한 기준 `pnpm test` 확인 — `test/selection-rect.test.ts` 가 PR #96 과, `canvas-layout.test.ts`의 리사이즈 관련 4케이스가 PR #99 와, `editorStore.test.ts`의 undo/redo 9케이스가 이슈 #40과 함께 들어왔다) |
+| 테스트 | `test/editor-store.test.ts`(40) · `test/canvas-layout.test.ts`(30) · `test/validate.test.ts`(21) · `test/apply-command.test.ts`(20) · `test/compile-tickets.test.ts`(18) · `test/project-spec.test.ts`(15) · `test/border-patch.test.ts`(14) · `test/resolution-presets.test.ts`(13) · `test/canvas-selection.test.ts`(12) · `test/radius-patch.test.ts`(12) · `test/selection-rect.test.ts`(12) · `test/cli-init.test.ts`(6) · `test/schema.test.ts`(10) · `test/fit-zoom.test.ts`(10) · `test/view-store.test.ts`(9) · `test/effect-patch.test.ts`(8) · `test/export-spec.test.ts`(6) · `test/history.test.ts`(6) · `test/shadow-patch.test.ts`(5) · `test/create-node.test.ts`(4) · `test/node-id.test.ts`(4) · `test/public-api.test.ts`(4) · `test/resolve-import-parent.test.ts`(4) · `test/load-spec.test.ts`(3) · `test/home-preview.test.ts`(3) · `test/navigation-store.test.ts`(3) · `test/tool-store.test.ts`(3) | **27파일 295케이스 전부 통과** (2026-09-11, 이슈 #40 브랜치 · GAMMJ 리뷰(PR #102) 반영 후 PR #106(이슈 #42) 머지된 `develop` e776088 위로 리베이스한 기준 `pnpm test` 확인 — `editor-store.test.ts`의 undo/redo 12케이스(이슈 #40 9 + 리뷰 반영 3), `apply-command.test.ts`의 `updateScreen` 2케이스, `border-patch.test.ts`의 9케이스(PR #103), `cli-init.test.ts`의 6케이스(PR #106)가 새로 들어왔다) |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 5종 | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 5개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33) |
 
@@ -373,13 +389,15 @@
 남은 것을 사실만 적는다.
 
 - `Canvas.tsx` 는 스스로를 임시 스탠드인이라고 밝히고 있고 드래그·리사이즈 편집이 없다.
-- **해소됨(2026-09-09, 이슈 #40)** — `editorStore.setNodeField` 가 이제 내부적으로 Command
-  Engine(`applyCommand`)을 거친다. **걷어낼 호출 지점은 두 곳이었다**(2026-09-08 재실측으로 갱신된
-  집계 — `ui/properties/useNodeField.ts:28` 과 `ui/LayerTree.tsx:116`(표시 토글)) — 두 곳 모두
-  시그니처가 그대로라 훅·트리 쪽 코드는 손대지 않고 `setNodeField` 내부만 바꿔서 끝났다. 페이지
-  이름·해상도를 고치는 `setPageField` 경로(`ui/properties/PageProperties.tsx`)는 이 범위 밖이라
-  여전히 Command Engine을 거치지 않는다. 남은 것은 `insertNode`(Import·도구 모음)가 아직 이 경로
-  밖이라는 것과, Undo/Redo를 부를 UI가 없다는 것 두 가지다(1절 표 아래·2절 Undo/Redo 행 참고).
+- **해소됨(2026-09-09, 이슈 #40)** — `editorStore.setNodeField`·`setPageField` 가 이제 내부적으로
+  Command Engine(`applyCommand`)을 거친다. **걷어낼 호출 지점은 두 곳이었다**(2026-09-08 재실측으로
+  갱신된 집계 — `ui/properties/useNodeField.ts:28` 과 `ui/LayerTree.tsx:116`(표시 토글)) — 두 곳 모두
+  시그니처가 그대로라 훅·트리 쪽 코드는 손대지 않고 `setNodeField`/`setPageField` 내부만 바꿔서
+  끝났다. **페이지 이름·해상도를 고치는 `setPageField` 경로도 처음엔 범위 밖으로 남겼다가, #40 리뷰
+  (GAMMJ, PR #102)에서 "그것도 IR인데 `Closes #40`이 과하다"는 지적을 받고 `updateScreen` Command를
+  새로 만들어 태웠다** — `updateNode`와 대상(노드 vs 화면 자신)만 다르고 나머지는 같다. 남은 것은
+  `insertNode`(Import·도구 모음)가 아직 이 경로 밖이라는 것과, Undo/Redo를 부를 UI가 없다는 것 두
+  가지다(1절 표 아래·2절 Undo/Redo 행 참고).
 - 06이 남겨 둔 **`"fill"` 의 교차축 의미**는 `ui/canvasLayout.ts` 의 `boxStyle()` 이 교차축 `"fill"` 을
   `align-self: stretch` 로 옮기는 방식으로 사실상 한 가지 해석을 쓰고 있다(주축 `"fill"` 은 `flex: 1 1 0`,
   부모가 없는 최상위 노드만 `100%`). 06에 반영할지는 정해지지 않았다(이슈 #46).
@@ -409,6 +427,6 @@
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm run typecheck   # 통과 (2026-09-09, 이슈 #40 브랜치가 `develop` f768bb4 위로 리베이스한 기준 확인)
-pnpm test            # 26파일 275케이스 통과 (2026-09-09, 이슈 #40 브랜치가 `develop` f768bb4 위로 리베이스한 기준 확인)
+pnpm run typecheck   # 통과 (2026-09-11, 이슈 #40 브랜치가 `develop` e776088 위로 리베이스한 기준 확인)
+pnpm test            # 27파일 295케이스 통과 (2026-09-11, 이슈 #40 브랜치 · GAMMJ 리뷰(PR #102) 반영 후 확인)
 ```
