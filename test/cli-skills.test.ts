@@ -103,8 +103,8 @@ describe("visual-spec skills (#104)", () => {
     expect(result.exitCode).not.toBe(0);
   });
 
-  it("사용법에 skills 명령이 나온다", () => {
-    const result = runCli([], projectDir);
+  it("사용법에 skills 명령이 나온다 — 인자 없는 경우는 GUI를 띄운다(이슈 #105, test/cli-gui.test.ts 참고)", () => {
+    const result = runCli(["help"], projectDir);
 
     expect(result.stdout).toContain("skills");
   });
