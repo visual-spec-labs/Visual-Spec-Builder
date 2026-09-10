@@ -1,13 +1,14 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
-> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조)
+> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조) · **2026-09-09**(CLI `bin`/`init` — 이슈 #42, `42--cli-workspace` 브랜치, PR 작성 전)
 >
 > 부분 갱신은 **문서 전체 재검증이 아니다.** 각 갱신에서 실제로 확인한 항목만 아래에 적는다.
 > 확인하지 않은 항목의 날짜는 올리지 않는다.
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
+> | 2026-09-09 (#42) | 2절 CLI 행 · `.visual-spec/` 작업공간 행 | `package.json` 에 `bin` 필드 추가, `bin/visual-spec.mjs`(`init` 명령) 신설·전문 열람. `develop` db6bea1(PR #96·#97·#98·#99·#100·#103 전부 포함) 위로 리베이스. `pnpm test`(**27파일 281케이스**) |
 > | 2026-09-08 (#89) | "GUI 각 영역의 실제 동작" 표의 `ui/PropertiesPanel.tsx` 와 `ui/properties/` 행 | `properties/borderPatch.ts`·`properties/FrameProperties.tsx`·`ui/PropertiesPanel.tsx` 편집·열람. `background` 도 같은 구조인지 정본 스키마에서 확인 — `Background` 는 칸이 `color` 하나뿐이고 `required` 라 반쪽 객체도 지울 항등값도 없다(고칠 것 없음). `border: undefined` 가 Ajv 검증을 통과하는지 실측(통과). `pnpm test`(**26파일 275케이스** — `develop` f768bb4(PR #96·#100·#99 머지) 위로 리베이스한 기준. 그 시점 `develop` 의 26파일 266케이스에 이 브랜치가 `test/border-patch.test.ts` 에 더한 9케이스가 붙은 값이다) |
 > | 2026-09-08 (#90) | "GUI 각 영역의 실제 동작" 표의 `ui/Canvas.tsx`·`ui/canvasLayout.ts` 행, `ui/selectionRect.ts` 행 신규 | 선택 표시를 노드 인라인 `outline` 에서 캔버스 오버레이로 옮기며 두 파일 편집·열람. `pnpm test`(**26파일 262케이스** — `develop` 87f6bad 위로 리베이스한 기준. 바로 아래 3차 행이 잰 25파일 250케이스에 이 브랜치의 `test/selection-rect.test.ts` 12케이스가 더해진 값이다. #97·#98 은 문서 전용이라 집계를 바꾸지 않았다) |
 > | 2026-09-08 (3차, a3fb385) | 1절 IR·스키마 행의 테스트 집계 · 4절 테스트 행 · 아래 "확인 방법" | 이 브랜치를 `develop` a3fb385(PR #81 Ticket 스키마 머지) 위로 리베이스한 뒤 `pnpm install --frozen-lockfile` · `pnpm run typecheck`(exit 0) · `pnpm test`(**25파일 250케이스**) 출력에서 파일 수·케이스 수를 다시 읽음 |
@@ -48,6 +49,15 @@
 > | 2026-08-29 | 5.3(이번에 추가) 검증 실패 알림 경로 | `store/exportSpec.ts`·`store/loadSpec.ts`·`ui/exportSpecAsJson.ts`·`ui/openSpecFromFile.ts`·`ui/MenuBar.tsx`·`ui/properties/ExportJsonButton.tsx` 열람 |
 > | 2026-08-29 | 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck` · `pnpm test` |
 > | 2026-08-25 | 5.2 검증기 메시지 | `src/features/editor/schema/validate.ts` 수정과 테스트 |
+>
+> **2026-09-09(#42)에 재확인하지 않은 항목** — 위 표의 "#42" 행에 없는 모든 항목.
+> 이 갱신은 이슈 #42 브랜치(`42--cli-workspace`)에서 새로 만든 `bin/visual-spec.mjs`·
+> `package.json`의 `bin` 필드·`test/cli-init.test.ts`만 봤다. **이 브랜치는 이 문단을 쓴
+> 시점엔 아직 `develop`에 머지되지 않았다.** `develop` db6bea1(PR #96·#97·#98·#99·#100·#103
+> 전부 포함) 위로 리베이스했고, 코드는 무충돌이었다(이 문서만 표 순서 충돌 — 해소함).
+> `init`만 구현했고, 이슈 #42 본문이 나열한 나머지 세 단계(`package.json`의 `main` 필드 정리는
+> 별도 이슈, `npx visual-spec skills`(이슈 #104로 분리), 인자 없는 `npx visual-spec`(이슈 #105로
+> 분리))는 이번에 손대지 않았다 — 위 2절 CLI 행 참고.
 >
 > **2026-09-08에 재확인하지 않은 항목** — 위 표의 "2026-09-08" 세 행 묶음(1차·2차·3차)에 없는 모든 항목.
 > 이 갱신은 **07의 서술이 코드와 어긋난 것으로 지목된 항목만** 다시 봤다.
@@ -197,8 +207,8 @@
 
 | 항목 | 02-mvp-scope.md의 요구 | 상태 | 근거 |
 |---|---|---|---|
-| CLI | `npx visual-spec init` / `npx visual-spec` | **미착수** | `package.json` 에 `bin` 필드 없음. CLI 진입점 파일 없음 (이슈 #42) |
-| `.visual-spec/` 작업공간 | `specs/` `generated/` `preview/` `assets/` `runtime/` | **미착수** | 작업공간을 만들거나 읽는 코드 0줄. `git grep "\.visual-spec"` 히트는 전부 문서와 스킬 지시문이고 `src/`·`test/`·`scripts/` 는 여전히 0건(2026-08-29 재확인). `skills/visual-spec-to-react/SKILL.md` 가 생성 위치를 `.visual-spec/generated/` 고정 경로로 정했지만 **경로 약속이지 구현이 아니다.** GUI 에 생긴 Open/Save 는 브라우저 파일 다이얼로그와 다운로드를 쓰는 것이라(`ui/openSpecFromFile.ts`, `ui/exportSpecAsJson.ts`) **작업공간과는 다른 물건이다** (이슈 #42). **2026-09-01 재확인 — PR #69 의 Import 도 작업공간을 만들지 않는다.** `ui/importImageFromFile.ts` 는 고른 이미지를 base64 data URI 로 바꿔 `ImageNode.src` 에 그대로 넣는다. 즉 `assets/` 디렉터리를 쓰는 대신 **파일 내용을 스펙 안에 인라인해 우회한 것**이므로 이 행은 **미착수 그대로**다 |
+| CLI | `npx visual-spec init` / `npx visual-spec` | **부분(2026-09-09, 이슈 #42)** | `package.json` 에 `bin` 필드가 생겼고(`{ "visual-spec": "./bin/visual-spec.mjs" }`), `bin/visual-spec.mjs` 가 진입점이다(빌드 없는 순수 Node 스크립트 — `scripts/generate-types.mjs` 와 같은 방식). **`init` 한 명령만 있다.** 인자 없는 `npx visual-spec`(GUI 실행)과 `npx visual-spec skills`(스킬 설치)는 이슈 #42 본문이 스스로 미룬 항목이라 아직 없다 — 별도 후속 이슈 필요 |
+| `.visual-spec/` 작업공간 | `specs/` `generated/` `preview/` `assets/` `runtime/` | **부분(2026-09-09, 이슈 #42)** | `visual-spec init` 이 실행된 폴더 아래 다섯 폴더를 전부 만든다(`bin/visual-spec.mjs` 의 `initWorkspace()`) — 멱등적이라 이미 있으면 건드리지 않고, `.visual-spec` 자리에 폴더 아닌 파일이 있으면 조용히 덮어쓰지 않고 에러로 끝난다(`test/cli-init.test.ts` 6케이스, 자식 프로세스로 실제 실행해 검증). **다만 폴더만 만들 뿐 아직 아무도 그 안을 읽거나 쓰지 않는다** — GUI 의 Open/Save/Import(`ui/openSpecFromFile.ts`·`ui/exportSpecAsJson.ts`·`ui/importImageFromFile.ts`)는 여전히 브라우저 파일 다이얼로그/다운로드/base64 인라인을 쓰고, `skills/visual-spec-to-react/SKILL.md` 가 쓰기로 한 `generated/pages/`·`generated/components/` 하위 폴더도 스킬이 파일을 쓸 때 알아서 만드는 것으로 남겨뒀다(이슈 #42 본문의 범위 — 다섯 최상위 폴더만). 이 폴더들을 실제로 채우는 건 별도 작업이다 |
 | Command 스키마 v0.1 | "v0.1로 고정한다"고 선언한 3개 스키마 중 하나 | **부분** | `src/features/editor/command/types.ts`에 TypeScript 타입으로 존재한다. IR 스키마처럼 JSON Schema 정본 + `06-schema-freeze.md` 같은 동결 절차를 거친 **"v0.1로 고정"은 아직 아니다** — 내부 구현 타입일 뿐 공개 계약으로 확정된 게 아니다 |
 | Ticket 스키마 v0.1 | 같음 | **부분** | `src/features/editor/ticket/types.ts`에 TypeScript 타입으로 존재한다(`Ticket`: id/componentName/kind/instances/dependsOn/status). Command 스키마와 마찬가지로 JSON Schema 정본 + 동결 절차를 거친 "v0.1로 고정"은 아직 아니다 |
 | Undo / Redo | MVP 포함 범위 표 "편집" 행 | **부분** | `command/history.ts`에 범용 undo/redo 스택(순수 함수)이 생겼다. **다만 아무 데도 연결돼 있지 않다** — `editorStore`가 이 history를 쓰지 않고, Undo/Redo를 누를 UI 버튼·단축키도 없다. 사용자가 실제로 되돌리기를 쓸 방법은 지금 없다 |
