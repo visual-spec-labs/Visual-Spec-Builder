@@ -91,7 +91,11 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
             reject(new Error(`${GUI_START_TIMEOUT_MS}ms 안에 뜨지 않음 — 지금까지 출력:\n${output}`));
           }, GUI_START_TIMEOUT_MS);
           const poll = setInterval(() => {
-            if (/VITE v\d/.test(output) || /Local:/.test(output)) {
+            // 아래 단언과 **같은** 패턴을 기다린다. 배너("VITE v8...")가 먼저 찍히고
+            // "Local: http://..." 줄은 조금 뒤에 오기 때문에, 배너만 보고 빠져나가면
+            // 단언이 아직 안 온 줄을 보고 실패한다 — #115 수정 전에는 서버가 아예 안
+            // 떠서 이 경합이 드러나지 않았다.
+            if (/Local:\s*http/.test(output)) {
               clearTimeout(timer);
               clearInterval(poll);
               resolvePromise();
@@ -106,7 +110,19 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
 
         expect(output).toMatch(/Local:\s*http/);
       } finally {
+        // kill()만 하고 빠져나가면 afterEach의 rmSync가 CLI 프로세스보다 먼저 돈다.
+        // 이 CLI는 cwd가 projectDir이고, Windows는 어떤 프로세스의 cwd인 폴더를 지우지
+        // 못한다(EPERM) — kill()은 종료를 예약만 할 뿐 기다려주지 않아서 경합이 난다.
+        // 실제로 죽는 걸 보고 나가야 정리가 안전하다. (#115 수정 전에는 CLI가 spawn
+        // EINVAL로 진작 죽어 있어서 이 경합이 드러나지 않았다.)
         child.kill();
+        await new Promise<void>((resolveExit) => {
+          if (child.exitCode !== null || child.signalCode !== null) {
+            resolveExit();
+            return;
+          }
+          child.once("exit", () => resolveExit());
+        });
       }
     },
     GUI_START_TIMEOUT_MS + 5000,
