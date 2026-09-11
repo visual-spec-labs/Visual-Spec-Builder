@@ -63,8 +63,8 @@ describe("visual-spec init (#42)", () => {
     expect(result.exitCode).not.toBe(0);
   });
 
-  it("인자 없이 실행하면 사용법을 보여주고 성공으로 끝난다", () => {
-    const result = runCli([], projectDir);
+  it("`help`은 사용법을 보여주고 성공으로 끝난다 — 인자 없는 경우는 GUI를 띄운다(이슈 #105, test/cli-gui.test.ts 참고)", () => {
+    const result = runCli(["help"], projectDir);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("init");
