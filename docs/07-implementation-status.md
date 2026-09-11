@@ -1,7 +1,7 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
-> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조) · **2026-09-09**(CLI `bin`/`init` — 이슈 #42, PR #106, 머지됨) · **2026-09-11**(setNodeField·setPageField가 Command Engine을 거치도록, PR #102 리뷰(GAMMJ) 반영 포함 — 이슈 #40, PR #102, 머지됨) · **2026-09-10**(CLI `skills` — 이슈 #104, PR #107, 머지됨) · **2026-09-11**(CLI GUI 실행 — 이슈 #105, PR #108, 머지됨) · **2026-09-11**(`package.json`의 `main` 필드 제거 — 이슈 #45, `45--package-main-fix` 브랜치, PR 작성 전, `develop` 1b3d5f3(PR #108 포함) 위로 리베이스)
+> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조) · **2026-09-09**(CLI `bin`/`init` — 이슈 #42, PR #106, 머지됨) · **2026-09-11**(setNodeField·setPageField가 Command Engine을 거치도록, PR #102 리뷰(GAMMJ) 반영 포함 — 이슈 #40, PR #102, 머지됨) · **2026-09-10**(CLI `skills` — 이슈 #104, PR #107, 머지됨) · **2026-09-11**(CLI GUI 실행 — 이슈 #105, PR #108, 머지됨) · **2026-09-11**(`package.json`의 `main` 필드 제거 — 이슈 #45, `45--package-main-fix` 브랜치, PR 작성 전, `develop` 1b3d5f3(PR #108 포함) 위로 리베이스) · **2026-09-11**(`fill`의 교차축 의미를 06에 결정으로 옮김 — 이슈 #46, `46--fill-cross-axis-decision` 브랜치, PR #119, 리뷰 대기, `develop` cb1e76d(PR #113 포함) 위로 리베이스)
 >
 > 부분 갱신은 **문서 전체 재검증이 아니다.** 각 갱신에서 실제로 확인한 항목만 아래에 적는다.
 > 확인하지 않은 항목의 날짜는 올리지 않는다.
@@ -10,6 +10,7 @@
 > |---|---|---|
 > | 2026-09-11 (#45, 리뷰 반영) | 5.1 `package.json`의 `files` 행 신규, 위 표의 `#40` 행(리베이스 중 실수로 옛 버전으로 되돌아간 것 복구) | Yumesa2025 리뷰(PR #113/#114 — 같은 이슈를 6분 차이로 중복 작업해 #114는 닫고 이 PR로 이어감) 두 가지 반영: 🔴 리베이스 충돌 해결 중 `#40` 행이 `develop`의 최신 버전이 아니라 그 이전 버전으로 잘못 되돌아간 걸 `git show origin/develop`과 대조해 복구, 🟡 `package.json`에 `"files": ["bin", "skills"]` 추가·`npm pack --dry-run`으로 9파일·21.9 kB 확인(`src/`·`test/`·`docs/` 등 0건) |
 > | 2026-09-11 (#45) | 5.1 `package.json`의 `main` 행 | `main` 필드 제거. 패키지 이름으로 import하는 곳이 `src/`·`test/`·`scripts/` 어디에도 없음을 `git grep` 로 확인. `develop` 1b3d5f3(PR #108, 이슈 #105 머지 포함) 위로 리베이스. `pnpm run typecheck`·`pnpm test`·`pnpm run build` 전부 영향 없음 확인 |
+> | 2026-09-11 (#46) | 3절 크기 항목의 `fill` 서술, 6절 관련 없음(제안 아님) | `docs/06-schema-freeze.md`의 "이 계약이 보장하지 않는 것"에서 `Size`의 `fill` 항목을 빼고 새 절("`fill`의 교차축 의미 확정")로 옮김 — 코드는 안 바꿈, `ui/canvasLayout.ts`의 기존 `boxStyle()` 구현·`test/canvas-layout.test.ts` 8케이스를 근거로 씀. `skills/visual-spec-to-react/SKILL.md`의 매핑 참고표에 `fill` 행이 이미 있음을 확인(이슈 본문의 "표에 없다"는 지적은 최신 스킬 상태와 안 맞았다). `visual-spec.schema.json`의 `Size.description`에 06 참고 문구 한 줄 추가 후 `pnpm run generate:types`(생성된 주석 한 줄만 바뀜, 구조 변경 없음). `pnpm run typecheck`·`pnpm test`(31파일 347케이스)·`pnpm run lint` 전부 영향 없음 확인 |
 > | 2026-09-11 (#105) | 2절 CLI 행 | `bin/visual-spec.mjs` 에 인자 없는 실행(GUI) 추가·전문 열람 · `test/cli-gui.test.ts` 신설(실제로 이 패키지의 Vite 개발 서버를 자식 프로세스로 띄우고 준비 로그를 확인한 뒤 종료하는 케이스 포함). `develop` 7803cdf(PR #111, 이슈 #92 머지 포함) 위로 리베이스. `pnpm test`(**31파일 339케이스**). 셀프 리뷰 중 두 가지를 직접 잡음 — (1) `test/cli-skills.test.ts`의 기존 "사용법" 테스트가 인자 없이 CLI를 불러서 GUI(무한정 떠 있는 서버)가 뜨는 바람에 그 테스트가 영원히 안 끝나 전체 `pnpm test`가 멈췄다(`help`로 고침), (2) `process.on("SIGTERM"/"SIGINT", ...)`을 등록하면 Node의 기본 종료 동작이 사라져서, 신호를 자식(vite)에 전달만 하고 부모 자신은 안 죽어 vite가 고아로 남았다(`process.exit()` 명시 호출 + 3초 뒤 강제 `SIGKILL` 승격으로 고침). **머지됨(PR #108).** |
 > | 2026-09-11 (#92) | "GUI 각 영역의 실제 동작" 표의 `ui/PropertiesPanel.tsx` 와 `ui/properties/` 행 | `PropertiesPanel.tsx` 와 `properties/` 신규 8파일(`nodeSections.ts`·`imageSrc.ts`·`NodeSectionList.tsx`·Layout/Background/Border/Typography/Color/Content Section) 편집·열람. `FrameProperties.tsx`·`TextProperties.tsx` 삭제. `find src/features/editor/ui/properties -type f` **30개** 실측. `pnpm test`(**30파일 336케이스** — `develop` 3c3e434(PR #107 머지) 의 28파일 311케이스에 이 브랜치의 25케이스가 붙은 값이다. 양쪽 다 실제로 돌려 확인했다) |
 > | 2026-09-10 (#104) | 2절 CLI 행 | `bin/visual-spec.mjs` 에 `skills` 명령 추가·전문 열람 · `test/cli-skills.test.ts` 신설. `develop` 15edf1f(PR #102, 이슈 #40 머지 포함) 위로 리베이스. `pnpm test`(**28파일 302케이스**). **머지됨(PR #107).** |
@@ -65,6 +66,16 @@
 > 1b3d5f3(PR #108 포함, `bin` 필드가 이미 들어와 있다) 위로 리베이스했다 — `package.json`에서
 > `bin` 추가와 `main` 제거가 만나는 자리라 매번 리베이스마다 충돌이 났지만, 둘 다 반영해서
 > 해소했다. **이 브랜치는 이 문단을 쓴 시점엔 아직 `develop`에 머지되지 않았다.**
+>
+> **2026-09-11(#46)에 재확인하지 않은 항목** — 위 표의 "#46" 행에 없는 모든 항목.
+> 이슈 #46은 코드 변경이 없는 문서 작업이다 — `docs/06-schema-freeze.md`가 동결 당시
+> "미정"으로 남겨뒀던 `Size`의 `fill` 교차축 의미를, 그 사이 `ui/canvasLayout.ts`의
+> `boxStyle()`이 이미 정해서 동작 중이던 걸 문서로 옮겼을 뿐이다. 이슈 본문이 "매핑
+> 참고표에 이 경우가 없다"고 지적한 `skills/visual-spec-to-react/SKILL.md`를 확인해보니
+> 이미 `fill` 행 3개(주축·교차축·root)가 들어와 있어서 그 파일은 고치지 않았다 — 이슈가
+> 참고한 상태가 최신이 아니었던 것으로 보인다. `visual-spec.schema.json`의 `Size.description`에
+> 06 참고 문구만 덧붙이고 `pnpm run generate:types`로 재생성했다(구조 변경 없음, 생성된
+> 주석 한 줄만 바뀜). **이 브랜치는 이 문단을 쓴 시점엔 아직 `develop`에 머지되지 않았다.**
 >
 > **2026-09-11(#105)에 재확인하지 않은 항목** — 위 표의 "#105" 행에 없는 모든 항목.
 > `bin/visual-spec.mjs`를 인자 없이 실행하면 이 패키지 자신의 Vite 개발 서버(`node_modules/.bin/vite --open`)를 띄운다 — `init`·`skills`와 달리 대상은 사용자 프로젝트가 아니라 이 저장소 자신이다(에디터 소스가 여기 있으니까). 이슈 #105 본문이 남긴 "이 작업의 일부인지, 별도인지 정해야 한다"는 질문에는 **별도로 남긴다**로 답했다 — GUI가 뜨긴 하지만 `.visual-spec/` 작업공간을 읽거나 쓰진 않는다(1절 GUI·Canvas 행이 여전히 맞다). 이걸로 이슈 #42가 나열한 4단계(`bin` 필드·`init`·`skills`·GUI 실행)가 전부 끝났다 — 각각 #42·#42·#104·#105로 나눠 처리했다. **이후 PR #108로 `develop`에 머지됨.**
@@ -315,7 +326,7 @@
 ### 크기
 
 02의 `Fixed / Fill / Hug` 는 v0.1의 `Size = number | "fill" | "auto"` 로 전부 충족된다.
-다만 06이 밝힌 대로 **`"fill"` 이 교차축에서 무엇을 의미하는지는 계약에 포함되지 않았다.** Renderer 구현 시점에 정해야 한다.
+**`"fill"` 이 교차축에서 무엇을 의미하는지도 이제 06에 결정으로 올라갔다(2026-09-11, 이슈 #46)** — `ui/canvasLayout.ts`의 `boxStyle()`이 이미 그렇게 동작하고 있었는데(주축 `flex: 1 1 0`, 교차축 `align-self: stretch`, 최상위·grid 아이템은 `100%`) 그 결정이 06을 거치지 않았던 것뿐이다. 코드는 이번에 바꾸지 않았다 — 06-schema-freeze.md 참고.
 
 > Button · Input · Grid 3건은 "구현이 안 됐다"기보다 **02와 05·06 사이가 정리되지 않은 상태**였다.
 > **Image 는 2026-09-01 에, Button · Input · Grid 는 2026-09-02(이슈 #75)에 이 목록에서 빠졌다** —

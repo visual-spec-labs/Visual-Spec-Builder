@@ -125,13 +125,40 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 
 ## 이 계약이 보장하지 않는 것
 
-- **`Size`의 `"fill"` 의미.** 교차축에서 어떻게 해석할지 정하지 않았다. 스키마는 값만 허용한다. Renderer 구현 시점에 정한다.
 - **v0.1 문서의 멀티 스크린.** `VisualSpec`은 여전히 파일 1개 = Screen 1개다. 여러 페이지가 필요하면 v0.2의 `ProjectSpec`을 쓴다(아래 참고).
 - **`fontWeight`의 100 단위 제약.** JSON Schema는 강제하지만 생성된 TS 타입은 `number`다. 타입만으로는 못 막으니 `validateVisualSpec`을 거쳐야 한다.
 - **편집 연산.** 노드 추가·삭제·이동·재부모화 함수는 없다. 지금은 각 화면이 직접 `nodes`를 다루므로 불변조건을 깨뜨릴 수 있다. `validateVisualSpec`은 예방 수단이 아니라 최후 방어선이다.
 - **`ImageNode.src`가 가리키는 워크스페이스 assets 저장소.** 스키마는 문자열 참조만 정의한다. 실제로 파일을 어디에 저장하고 `src` 값을 어떻게 채우는지는 Import 기능(별도 이슈) 쪽 책임이며, 아직 워크스페이스 계층 자체가 저장소에 없다.
 - **Grid의 셀 배치.** `layout.columns`만큼 균등한 열로 자동 배치할 뿐, 특정 자식을 특정 셀·여러 칸에 놓는 기능은 없다. `mainAxis`/`crossAxis`는 grid에서 무시된다. Canvas.tsx가 "임시 스탠드인"이라 정식 grid 배치는 그 교체 작업과 함께 다시 다룬다.
 - **Button/Input의 상호작용.** `content`/`placeholder`는 표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은 이벤트·바인딩은 정의하지 않는다. props/bindings는 MVP 제외 범위(`docs/05-schema.md`)에 그대로 속한다.
+
+---
+
+## `fill`의 교차축 의미 확정 (2026-09-11 추가, 이슈 #46)
+
+동결 당시 "이 계약이 보장하지 않는 것"에 있던 항목이다 — 원문은 이랬다.
+
+> `Size`의 `"fill"` 의미. 교차축에서 어떻게 해석할지 정하지 않았다. 스키마는 값만 허용한다. Renderer 구현 시점에 정한다.
+
+그 Renderer(`src/features/editor/ui/canvasLayout.ts`의 `boxStyle()`)가 이미 만들어졌고, 해석도 이미 정해져 동작하고 있었다 — 다만 그 결정이 이 문서를 거치지 않았다. 여기서 그 결정을 문서로 옮긴다. **코드는 바꾸지 않는다** — 지금 구현이 맞다.
+
+```
+주축(부모 layout.direction과 같은 축) fill  →  flex-grow: 1; flex-shrink: 1; flex-basis: 0
+교차축 fill                                →  align-self: stretch
+부모가 없는 최상위 노드(flex 아이템이 아님)   →  width/height: 100%
+grid 아이템(flex 배분 자체가 뜻이 없음)      →  width/height: 100%(교차축과 동일 취급)
+```
+
+### 왜 이 해석인가
+
+- **주축을 `width: 100%`로 옮기면 안 되는 이유.** flex 아이템의 기본값 `min-width: auto`(row 기준) 때문에 각 아이템이 자기 콘텐츠의 최소 크기 밑으로 줄어들지 않는다. 그러면 **한 자식의 패딩·폰트를 키우면 형제의 너비까지 끌려간다** — 실제로 이슈 #54로 제보된 "형제 요소에 간섭" 버그가 이것이었고, #55에서 `flex: 1 1 0` + `min-width/height: 0`으로 고쳤다.
+- **교차축을 퍼센트로 옮기면 안 되는 이유.** 부모 크기가 `auto`(Hug)일 때 CSS 규격상 퍼센트 값이 무시되어 아무 일도 일어나지 않는다. `align-self: stretch`는 부모 크기와 무관하게 동작한다.
+
+`test/canvas-layout.test.ts`가 이 동작을 케이스로 고정하고 있다 — 결정은 실패를 겪고 나온 것이라 근거가 코드와 테스트 양쪽에 있다.
+
+### 매핑 참고표는 이미 맞았다
+
+`skills/visual-spec-to-react/SKILL.md`의 매핑 참고표(`box.width`/`height` = `"fill"` 행 3개 — 주축/교차축/root)는 이 결정과 이미 일치한다. 이슈 본문은 "매핑 참고표에 이 경우가 없다"고 지적했지만, 확인해보니 이미 들어와 있었다(스킬이 먼저 맞고, 06 문서만 못 따라간 상태였다) — 그래서 이 PR은 스킬 파일을 고치지 않았다.
 
 ---
 
