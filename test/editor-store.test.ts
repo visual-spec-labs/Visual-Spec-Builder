@@ -464,4 +464,78 @@ describe("editorStore", () => {
       expect(useEditorStore.getState().spec).toBe(before);
     });
   });
+
+  describe("removeNode", () => {
+    it("부모의 children에서 빼고 노드를 지운다", () => {
+      useEditorStore.getState().removeNode("cardB");
+
+      expect(activePage().nodes.cardB).toBeUndefined();
+      const content = activePage().nodes.content;
+      expect(content.type === "frame" && content.children).toEqual([{ node: "cardA" }]);
+    });
+
+    it("프레임을 지우면 자손까지 연쇄 삭제한다", () => {
+      useEditorStore.getState().removeNode("cardA");
+
+      expect(activePage().nodes.cardA).toBeUndefined();
+      expect(activePage().nodes.cardALabel).toBeUndefined();
+      expect(activePage().nodes.cardAValue).toBeUndefined();
+    });
+
+    it("결과가 여전히 유효한 프로젝트다", () => {
+      useEditorStore.getState().removeNode("cardA");
+      expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+    });
+
+    it("삭제한 노드가 선택 중이었으면 선택을 해제한다", () => {
+      useEditorStore.getState().select("cardAValue"); // cardA의 자손
+      useEditorStore.getState().removeNode("cardA");
+
+      expect(useEditorStore.getState().selectedId).toBeNull();
+    });
+
+    it("삭제 대상과 무관한 선택은 유지한다", () => {
+      useEditorStore.getState().select("cardB");
+      useEditorStore.getState().removeNode("cardA");
+
+      expect(useEditorStore.getState().selectedId).toBe("cardB");
+    });
+
+    it("root는 지우지 않는다", () => {
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().removeNode("root");
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("없는 노드 id는 무시한다", () => {
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().removeNode("does-not-exist");
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("한 페이지에서 지워도 다른 페이지는 참조가 그대로다", () => {
+      useEditorStore.getState().addPage();
+      const before = useEditorStore.getState().spec;
+      const [original, blank] = before.pageOrder;
+
+      useEditorStore.getState().selectPage(original);
+      useEditorStore.getState().removeNode("cardB");
+
+      const after = useEditorStore.getState().spec;
+      expect(after.pages[blank]).toBe(before.pages[blank]);
+    });
+
+    it("결과가 undo 대상이다 — 삭제 뒤 undo하면 노드가 되살아난다", () => {
+      useEditorStore.getState().removeNode("cardB");
+
+      useEditorStore.getState().undo();
+
+      expect(activePage().nodes.cardB).toBeDefined();
+      const content = activePage().nodes.content;
+      expect(content.type === "frame" && content.children).toEqual([
+        { node: "cardA" },
+        { node: "cardB" },
+      ]);
+    });
+  });
 });

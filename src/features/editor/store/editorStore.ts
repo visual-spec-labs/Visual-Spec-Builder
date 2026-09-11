@@ -100,6 +100,15 @@ export interface EditorState {
    * 방어해뒀다 — 아래 setNodeField 구현의 주석 참고.
    */
   insertNode: (parentId: NodeId, id: NodeId, node: Node) => void;
+  /**
+   * 활성 페이지에서 노드 하나를 지운다. command/applyCommand.ts의 deleteNode
+   * Command를 통해 적용된다 — 그 노드가 프레임이면 자손까지 연쇄 삭제하고,
+   * 페이지 root는 지우지 않는다(스키마가 root를 필수로 요구하므로 —
+   * removePage가 마지막 페이지를 막는 것과 같은 이유). setNodeField와 같은
+   * 이유로 history에도 쌓인다. 지운 노드나 그 자손이 선택 중이었으면
+   * selectedId를 비운다. 레이어 트리가 호출한다.
+   */
+  removeNode: (id: NodeId) => void;
   /** 활성 페이지를 한 단계 되돌린다. 되돌릴 것이 없으면 아무 일도 안 한다. */
   undo: () => void;
   /** 활성 페이지를 한 단계 다시 실행한다. 다시 실행할 것이 없으면 아무 일도 안 한다. */
@@ -307,6 +316,31 @@ export const useEditorStore = create<EditorState>((set) => ({
           },
         }),
         selectedId: id,
+      };
+    }),
+  removeNode: (id) =>
+    set((state) => {
+      const page = state.spec.pages[state.activePageId];
+      if (page === undefined) return state;
+
+      // #40과 같은 이유로 deleteNode Command를 통해 적용한다 — root 보호와
+      // 연쇄 삭제는 applyDeleteNode(command/applyCommand.ts)가 이미 한다.
+      const nextPage = applyCommand(page, { type: "deleteNode", id });
+      if (nextPage === page) return state;
+
+      const nextHistory = pushHistory(
+        reconciledHistory(state.history, state.activePageId, page),
+        nextPage,
+      );
+
+      return {
+        spec: withPage(state.spec, state.activePageId, nextPage),
+        history: { ...state.history, [state.activePageId]: nextHistory },
+        // 지운 노드나 그 자손이 선택 중이었으면 nextPage.nodes에 더 이상 없다.
+        selectedId:
+          state.selectedId !== null && nextPage.nodes[state.selectedId] === undefined
+            ? null
+            : state.selectedId,
       };
     }),
   undo: () =>
