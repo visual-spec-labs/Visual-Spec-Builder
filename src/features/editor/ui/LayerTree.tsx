@@ -48,16 +48,30 @@ function blankFrameNode(): FrameNode {
   };
 }
 
+/** 같은 부모 안에서 드래그로 순서를 바꿀 때 뜨는 상태 — 드래그 중인 노드와 그 부모. */
+type DragState = { id: NodeId; parentId: NodeId };
+
 function LayerRow({
   id,
   depth,
+  parentId,
   isCollapsed,
   onToggleCollapse,
+  dragState,
+  onDragStart,
+  onDrop,
+  onDragEnd,
 }: {
   id: NodeId;
   depth: number;
+  /** 이 노드의 부모 id. root는 부모가 없어 null — 드래그·드롭 대상 모두에서 제외한다. */
+  parentId: NodeId | null;
   isCollapsed: (id: NodeId) => boolean;
   onToggleCollapse: (id: NodeId) => void;
+  dragState: DragState | null;
+  onDragStart: (id: NodeId, parentId: NodeId) => void;
+  onDrop: (targetId: NodeId, targetParentId: NodeId) => void;
+  onDragEnd: () => void;
 }) {
   const node = useEditorStore(
     (state) => state.spec.pages[state.activePageId].nodes[id],
@@ -69,6 +83,7 @@ function LayerRow({
   const select = useEditorStore((state) => state.select);
   const setNodeField = useEditorStore((state) => state.setNodeField);
   const removeNode = useEditorStore((state) => state.removeNode);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   if (node === undefined) return null;
 
@@ -79,14 +94,60 @@ function LayerRow({
   const Icon = TYPE_ICON[node.type];
   const indent = INDENT_BY_DEPTH[Math.min(depth, INDENT_BY_DEPTH.length - 1)];
 
+  // root는 부모가 없어 옮길 수 없다(moveNode도 store에서 막는다) — 드래그 자체를 안 건다.
+  const isDraggable = !isRoot && parentId !== null;
+  // 같은 부모의 형제끼리만 드롭을 받는다 — 이번 범위는 순서 변경뿐, 다른 프레임으로
+  // 옮기는 재부모화는 별도 이슈로 미뤘다(이슈 #110 본문 참고).
+  const isDropTarget =
+    dragState !== null && parentId !== null && dragState.parentId === parentId && dragState.id !== id;
+  const isBeingDragged = dragState?.id === id;
+
   return (
     <>
       <li>
         <div
+          draggable={isDraggable}
+          onDragStart={
+            isDraggable
+              ? (event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  // Firefox는 dragstart에서 setData를 안 부르면 드래그 자체를 취소한다.
+                  // 실제 이동 로직은 dataTransfer가 아니라 아래 dragState(React 상태)로 한다 —
+                  // dragover 중에는 브라우저가 getData 값을 안 내준다(types만 보인다).
+                  event.dataTransfer.setData("text/plain", id);
+                  onDragStart(id, parentId);
+                }
+              : undefined
+          }
+          onDragEnd={onDragEnd}
+          onDragEnter={
+            isDropTarget
+              ? (event) => {
+                  // dragover뿐 아니라 dragenter에도 preventDefault가 필요하다 — 안 그러면
+                  // 마우스가 자식 요소(이름 <span> 등) 경계를 넘나들 때마다 브라우저가
+                  // "여기 드롭 가능" 상태를 잃어버려 drop 자체가 취소된다(실측 확인, 이슈 #110).
+                  event.preventDefault();
+                  setIsDragOver(true);
+                }
+              : undefined
+          }
+          onDragLeave={isDropTarget ? () => setIsDragOver(false) : undefined}
+          onDragOver={isDropTarget ? (event) => event.preventDefault() : undefined}
+          onDrop={
+            isDropTarget
+              ? (event) => {
+                  event.preventDefault();
+                  setIsDragOver(false);
+                  onDrop(id, parentId);
+                }
+              : undefined
+          }
           className={`group flex w-full items-center gap-1 rounded-control py-1 pr-1 ${indent} ${
             isSelected
               ? "bg-primary-subtle text-primary"
               : "text-content-muted hover:bg-hover hover:text-content"
+          } ${isBeingDragged ? "opacity-40" : ""} ${
+            isDragOver ? "outline outline-2 -outline-offset-2 outline-primary" : ""
           }`}
         >
           {hasChildren ? (
@@ -155,8 +216,13 @@ function LayerRow({
               key={child.node}
               id={child.node}
               depth={depth + 1}
+              parentId={id}
               isCollapsed={isCollapsed}
               onToggleCollapse={onToggleCollapse}
+              dragState={dragState}
+              onDragStart={onDragStart}
+              onDrop={onDrop}
+              onDragEnd={onDragEnd}
             />
           ))
         : null}
@@ -168,10 +234,18 @@ function PageFolderRow({
   pageId,
   isCollapsed,
   onToggleCollapse,
+  dragState,
+  onDragStart,
+  onDrop,
+  onDragEnd,
 }: {
   pageId: PageId;
   isCollapsed: (id: NodeId) => boolean;
   onToggleCollapse: (id: NodeId) => void;
+  dragState: DragState | null;
+  onDragStart: (id: NodeId, parentId: NodeId) => void;
+  onDrop: (targetId: NodeId, targetParentId: NodeId) => void;
+  onDragEnd: () => void;
 }) {
   const page = useEditorStore((state) => state.spec.pages[pageId]);
   const isActive = useEditorStore((state) => state.activePageId === pageId);
@@ -220,8 +294,13 @@ function PageFolderRow({
           <LayerRow
             id={page.root}
             depth={1}
+            parentId={null}
             isCollapsed={isCollapsed}
             onToggleCollapse={onToggleCollapse}
+            dragState={dragState}
+            onDragStart={onDragStart}
+            onDrop={onDrop}
+            onDragEnd={onDragEnd}
           />
         </ul>
       ) : null}
@@ -241,6 +320,44 @@ export function LayerTree() {
   );
   /** 페이지마다 노드 id가 겹칠 수 있어 "페이지id:노드id" 합성 키로 접힘 상태를 분리한다. */
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  /** 지금 드래그 중인 노드 — 드롭받을 수 있는 곳은 같은 parentId를 가진 형제뿐이다. */
+  const [dragState, setDragState] = useState<DragState | null>(null);
+
+  function handleDragStart(id: NodeId, parentId: NodeId) {
+    setDragState({ id, parentId });
+  }
+
+  function handleDragEnd() {
+    setDragState(null);
+  }
+
+  /**
+   * 형제 목록에서 드래그한 노드를 targetId 자리로 옮긴다. dragState.parentId와
+   * targetParentId가 다르면(LayerRow가 isDropTarget으로 이미 걸러내지만 방어적으로
+   * 한 번 더 확인한다) 아무 일도 안 한다 — 이번 범위는 같은 부모 안 순서 변경뿐이다.
+   *
+   * moveNode는 대상 노드를 먼저 children에서 뺀 뒤 index에 끼워 넣으므로, 드래그한
+   * 노드가 목표보다 앞에 있었으면 제거로 인해 목표 자리가 한 칸 당겨진다 — 그만큼
+   * 보정해야 "드롭한 자리에 정확히 들어간다."
+   */
+  function handleDrop(targetId: NodeId, targetParentId: NodeId) {
+    if (dragState !== null && dragState.parentId === targetParentId && dragState.id !== targetId) {
+      const { spec, activePageId, moveNode } = useEditorStore.getState();
+      const parent = spec.pages[activePageId].nodes[targetParentId];
+
+      if (parent !== undefined && parent.type === "frame") {
+        const fromIndex = parent.children.findIndex((child) => child.node === dragState.id);
+        const toIndex = parent.children.findIndex((child) => child.node === targetId);
+
+        if (fromIndex !== -1 && toIndex !== -1) {
+          const index = fromIndex < toIndex ? toIndex - 1 : toIndex;
+          moveNode(dragState.id, targetParentId, index);
+        }
+      }
+    }
+
+    setDragState(null);
+  }
 
   function collapseKey(id: NodeId) {
     return `${activePageId}:${id}`;
@@ -285,6 +402,10 @@ export function LayerTree() {
             pageId={pageId}
             isCollapsed={isCollapsed}
             onToggleCollapse={toggleCollapse}
+            dragState={dragState}
+            onDragStart={handleDragStart}
+            onDrop={handleDrop}
+            onDragEnd={handleDragEnd}
           />
         ))}
 
