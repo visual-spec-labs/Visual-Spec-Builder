@@ -31,6 +31,24 @@ export function describeImageSrc(src: string | undefined): ImageSrcDisplay {
 }
 
 /**
+ * src를 CSS `background-image` 값으로 만든다.
+ *
+ * **따옴표가 필수다.** 따옴표 없는 `url(...)` 토큰에는 공백·괄호·따옴표가 들어갈 수
+ * 없다(CSS 명세). `assets/hero (1).png` 처럼 흔한 파일명이 그대로 들어가면 값 전체가
+ * 무효가 되고, React가 CSSOM에 넣는 순간 조용히 버려져 **이미지가 아무 오류 없이
+ * 사라진다.**
+ *
+ * 지금까지는 src가 손으로 쓴 스펙이나 Import(data URI)로만 들어와 드러나기 어려웠는데,
+ * #92로 패널에서 경로를 직접 타이핑할 수 있게 되면서 바로 닿는 자리가 됐다.
+ */
+export function imageUrlCss(src: string): string {
+  // 따옴표 안에서 뜻을 갖는 두 글자만 막으면 된다. 역슬래시를 먼저 바꿔야
+  // 따옴표 이스케이프가 무효화되지 않는다.
+  const escaped = src.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `url("${escaped}")`;
+}
+
+/**
  * 바이트 수를 읽기 쉬운 크기로. data URI 문자열 길이를 그대로 넣는다 —
  * base64라 실제 파일보다 3분의 1쯤 크지만, 스펙 JSON에 실리는 건 이 길이다.
  */

@@ -55,11 +55,25 @@ function ImageFields() {
         // 입력칸에 그대로 띄우면 수백 KB짜리 한 줄이 되어 칸이 먹통이 되고,
         // 손으로 고칠 수 있는 값도 아니라 요약만 보여준다.
         <Field label="경로 (src)">
-          <p className="rounded-control border border-line bg-surface-inset px-2 py-1.5 text-sm text-content-muted">
-            {display.label}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="min-w-0 flex-1 truncate rounded-control border border-line bg-surface-inset px-2 py-1.5 text-sm text-content-muted">
+              {display.label}
+            </p>
+            {/*
+              지우기가 없으면 빠져나올 길이 없다 — 잘못 가져온 이미지를 경로로
+              돌려놓을 수도, 비울 수도 없어 노드를 지웠다 다시 만드는 수밖에 없고
+              그동안 수백 KB가 Export마다 따라다닌다.
+            */}
+            <button
+              type="button"
+              onClick={() => setSrc("")}
+              className="shrink-0 rounded-control border border-line px-2 py-1.5 text-sm text-content-muted hover:text-content"
+            >
+              지우기
+            </button>
+          </div>
           <FieldLabel>
-            가져온 이미지는 스펙 안에 직접 담겨 있어 경로를 고칠 수 없다.
+            가져온 이미지는 스펙 안에 직접 담겨 있다. 지우면 경로를 직접 넣을 수 있다.
           </FieldLabel>
         </Field>
       )}

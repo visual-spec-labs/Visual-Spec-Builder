@@ -63,17 +63,13 @@ export function PropertiesPanel() {
       <div className="flex-1 overflow-auto">
         {showPage ? <PageProperties /> : null}
 
-        {node === undefined ? (
+        {node === undefined || selectedId === null ? (
           <p className="p-4 text-sm text-content-subtle">
             노드를 선택하면 그 노드의 속성이 여기에 표시됩니다.
           </p>
         ) : (
           // 타입별 분기는 여기 없다 — properties/nodeSections.ts 의 표가 정한다(#92).
-          //
-          // key는 노드를 바꿀 때 섹션들을 다시 마운트시킨다. 테두리의 모서리 모드처럼
-          // 스펙이 아닌 화면 상태를 든 섹션이 있어서, 다른 노드로 옮길 때 그 상태가
-          // 따라오면 안 된다.
-          <NodeSectionList key={selectedId} type={node.type} />
+          <NodeSectionList type={node.type} selectedId={selectedId} />
         )}
       </div>
 

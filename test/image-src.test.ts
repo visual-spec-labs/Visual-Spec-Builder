@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { describeImageSrc } from "@/features/editor/ui/properties/imageSrc";
+import {
+  describeImageSrc,
+  imageUrlCss,
+} from "@/features/editor/ui/properties/imageSrc";
 
 describe("describeImageSrc", () => {
   it("assets 상대 경로는 그대로 편집칸에 준다", () => {
@@ -54,5 +57,36 @@ describe("describeImageSrc", () => {
     // assets/data-2026.png 같은 파일명이 걸리면 안 된다.
     expect(describeImageSrc("assets/data-2026.png").kind).toBe("path");
     expect(describeImageSrc("data/hero.png").kind).toBe("path");
+  });
+});
+
+describe("imageUrlCss", () => {
+  it("항상 따옴표로 감싼다", () => {
+    expect(imageUrlCss("assets/hero.png")).toBe('url("assets/hero.png")');
+  });
+
+  it("공백이 든 파일명이 살아남는다", () => {
+    // 따옴표 없는 url() 토큰에는 공백이 들어갈 수 없다(CSS 명세). 감싸지 않으면
+    // 값 전체가 무효가 되어 CSSOM이 조용히 버리고, 이미지가 오류 없이 사라진다.
+    expect(imageUrlCss("assets/my image.png")).toBe('url("assets/my image.png")');
+  });
+
+  it("괄호가 든 파일명도 살아남는다 — assets/hero (1).png 같은 흔한 이름이다", () => {
+    expect(imageUrlCss("assets/hero (1).png")).toBe('url("assets/hero (1).png")');
+  });
+
+  it("따옴표는 이스케이프해 감싸기를 깨뜨리지 않게 한다", () => {
+    expect(imageUrlCss('a"b.png')).toBe('url("a\\"b.png")');
+  });
+
+  it("역슬래시를 먼저 이스케이프해 따옴표 이스케이프를 무효화하지 않는다", () => {
+    expect(imageUrlCss("a\\b.png")).toBe('url("a\\\\b.png")');
+    expect(imageUrlCss('a\\"b.png')).toBe('url("a\\\\\\"b.png")');
+  });
+
+  it("data URI도 그대로 감싼다 — 쉼표·세미콜론이 들어 있다", () => {
+    expect(imageUrlCss("data:image/png;base64,AAA")).toBe(
+      'url("data:image/png;base64,AAA")',
+    );
   });
 });
