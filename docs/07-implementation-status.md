@@ -1,16 +1,18 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
-> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조) · **2026-09-09**(CLI `bin`/`init` — 이슈 #42, `42--cli-workspace` 브랜치, PR #106, 머지됨) · **2026-09-11**(setNodeField·setPageField가 Command Engine을 거치도록, PR #102 리뷰(GAMMJ) 반영 포함 — 이슈 #40, PR #102, 머지됨) · **2026-09-10**(CLI `skills` — 이슈 #104, PR #107, 머지됨) · **2026-09-11**(CLI GUI 실행 — 이슈 #105, `105--cli-gui-launch` 브랜치, PR 작성 전, `develop` 3c3e434(PR #107 포함) 위로 리베이스 — git이 이미 머지된 커밋을 자동으로 걸러내 이제 이 브랜치엔 이 작업의 커밋 하나만 남는다)
+> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조) · **2026-09-09**(CLI `bin`/`init` — 이슈 #42, PR #106, 머지됨) · **2026-09-11**(setNodeField·setPageField가 Command Engine을 거치도록, PR #102 리뷰(GAMMJ) 반영 포함 — 이슈 #40, PR #102, 머지됨) · **2026-09-10**(CLI `skills` — 이슈 #104, PR #107, 머지됨) · **2026-09-11**(CLI GUI 실행 — 이슈 #105, PR #108, 머지됨) · **2026-09-11**(`package.json`의 `main` 필드 제거 — 이슈 #45, `45--package-main-fix` 브랜치, PR 작성 전, `develop` 1b3d5f3(PR #108 포함) 위로 리베이스)
 >
 > 부분 갱신은 **문서 전체 재검증이 아니다.** 각 갱신에서 실제로 확인한 항목만 아래에 적는다.
 > 확인하지 않은 항목의 날짜는 올리지 않는다.
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
-> | 2026-09-11 (#105) | 2절 CLI 행 | `bin/visual-spec.mjs` 에 인자 없는 실행(GUI) 추가·전문 열람 · `test/cli-gui.test.ts` 신설(실제로 이 패키지의 Vite 개발 서버를 자식 프로세스로 띄우고 준비 로그를 확인한 뒤 종료하는 케이스 포함). `develop` 7803cdf(PR #111, 이슈 #92 머지 포함) 위로 리베이스. `pnpm test`(**31파일 339케이스**). 셀프 리뷰 중 두 가지를 직접 잡음 — (1) `test/cli-skills.test.ts`의 기존 "사용법" 테스트가 인자 없이 CLI를 불러서 GUI(무한정 떠 있는 서버)가 뜨는 바람에 그 테스트가 영원히 안 끝나 전체 `pnpm test`가 멈췄다(`help`로 고침), (2) `process.on("SIGTERM"/"SIGINT", ...)`을 등록하면 Node의 기본 종료 동작이 사라져서, 신호를 자식(vite)에 전달만 하고 부모 자신은 안 죽어 vite가 고아로 남았다(`process.exit()` 명시 호출 + 3초 뒤 강제 `SIGKILL` 승격으로 고침) |
+> | 2026-09-11 (#45, 리뷰 반영) | 5.1 `package.json`의 `files` 행 신규, 위 표의 `#40` 행(리베이스 중 실수로 옛 버전으로 되돌아간 것 복구) | Yumesa2025 리뷰(PR #113/#114 — 같은 이슈를 6분 차이로 중복 작업해 #114는 닫고 이 PR로 이어감) 두 가지 반영: 🔴 리베이스 충돌 해결 중 `#40` 행이 `develop`의 최신 버전이 아니라 그 이전 버전으로 잘못 되돌아간 걸 `git show origin/develop`과 대조해 복구, 🟡 `package.json`에 `"files": ["bin", "skills"]` 추가·`npm pack --dry-run`으로 9파일·21.9 kB 확인(`src/`·`test/`·`docs/` 등 0건) |
+> | 2026-09-11 (#45) | 5.1 `package.json`의 `main` 행 | `main` 필드 제거. 패키지 이름으로 import하는 곳이 `src/`·`test/`·`scripts/` 어디에도 없음을 `git grep` 로 확인. `develop` 1b3d5f3(PR #108, 이슈 #105 머지 포함) 위로 리베이스. `pnpm run typecheck`·`pnpm test`·`pnpm run build` 전부 영향 없음 확인 |
+> | 2026-09-11 (#105) | 2절 CLI 행 | `bin/visual-spec.mjs` 에 인자 없는 실행(GUI) 추가·전문 열람 · `test/cli-gui.test.ts` 신설(실제로 이 패키지의 Vite 개발 서버를 자식 프로세스로 띄우고 준비 로그를 확인한 뒤 종료하는 케이스 포함). `develop` 7803cdf(PR #111, 이슈 #92 머지 포함) 위로 리베이스. `pnpm test`(**31파일 339케이스**). 셀프 리뷰 중 두 가지를 직접 잡음 — (1) `test/cli-skills.test.ts`의 기존 "사용법" 테스트가 인자 없이 CLI를 불러서 GUI(무한정 떠 있는 서버)가 뜨는 바람에 그 테스트가 영원히 안 끝나 전체 `pnpm test`가 멈췄다(`help`로 고침), (2) `process.on("SIGTERM"/"SIGINT", ...)`을 등록하면 Node의 기본 종료 동작이 사라져서, 신호를 자식(vite)에 전달만 하고 부모 자신은 안 죽어 vite가 고아로 남았다(`process.exit()` 명시 호출 + 3초 뒤 강제 `SIGKILL` 승격으로 고침). **머지됨(PR #108).** |
 > | 2026-09-11 (#92) | "GUI 각 영역의 실제 동작" 표의 `ui/PropertiesPanel.tsx` 와 `ui/properties/` 행 | `PropertiesPanel.tsx` 와 `properties/` 신규 8파일(`nodeSections.ts`·`imageSrc.ts`·`NodeSectionList.tsx`·Layout/Background/Border/Typography/Color/Content Section) 편집·열람. `FrameProperties.tsx`·`TextProperties.tsx` 삭제. `find src/features/editor/ui/properties -type f` **30개** 실측. `pnpm test`(**30파일 336케이스** — `develop` 3c3e434(PR #107 머지) 의 28파일 311케이스에 이 브랜치의 25케이스가 붙은 값이다. 양쪽 다 실제로 돌려 확인했다) |
-> | 2026-09-10 (#104) | 2절 CLI 행 | `bin/visual-spec.mjs` 에 `skills` 명령 추가·전문 열람 · `test/cli-skills.test.ts` 신설. `develop` 15edf1f(PR #102, 이슈 #40 머지 포함) 위로 리베이스. `pnpm test`(**28파일 302케이스**) |
+> | 2026-09-10 (#104) | 2절 CLI 행 | `bin/visual-spec.mjs` 에 `skills` 명령 추가·전문 열람 · `test/cli-skills.test.ts` 신설. `develop` 15edf1f(PR #102, 이슈 #40 머지 포함) 위로 리베이스. `pnpm test`(**28파일 302케이스**). **머지됨(PR #107).** |
 > | 2026-09-11 (#40, 리뷰 반영) | 1절 표 아래 `setNodeField`·`setPageField` 문단, `EDITOR_STORE_CONTRACT.md`, 4절 테스트 행, 아래 "확인 방법" | PR #102 리뷰(GAMMJ)의 🔴 `removePage` history 누수 · 🟡 `setPageField` Command Engine 미적용 두 가지를 코드로 고치고, 고치기 전에 실패하는 테스트로 먼저 확인(`removePage`는 `setPageField`가 아니라 `setNodeField`로 history를 쌓아야 실제로 재현됨을 검증 과정에서 확인). PR #106(이슈 #42)이 머지된 `develop` e776088 위로 리베이스. `pnpm test`(**27파일 295케이스** — e776088이 `test/cli-init.test.ts` 6케이스를 이미 포함한다). **머지됨(PR #102).** |
 > | 2026-09-09 (#42) | 2절 CLI 행 · `.visual-spec/` 작업공간 행 | `package.json` 에 `bin` 필드 추가, `bin/visual-spec.mjs`(`init` 명령) 신설·전문 열람. `develop` db6bea1(PR #96·#97·#98·#99·#100·#103 전부 포함) 위로 리베이스. `pnpm test`(**27파일 281케이스**). **머지됨(PR #106).** |
 > | 2026-09-08 (#89) | "GUI 각 영역의 실제 동작" 표의 `ui/PropertiesPanel.tsx` 와 `ui/properties/` 행 | `properties/borderPatch.ts`·`properties/FrameProperties.tsx`·`ui/PropertiesPanel.tsx` 편집·열람. `background` 도 같은 구조인지 정본 스키마에서 확인 — `Background` 는 칸이 `color` 하나뿐이고 `required` 라 반쪽 객체도 지울 항등값도 없다(고칠 것 없음). `border: undefined` 가 Ajv 검증을 통과하는지 실측(통과). `pnpm test`(**26파일 275케이스** — `develop` f768bb4(PR #96·#100·#99 머지) 위로 리베이스한 기준. 그 시점 `develop` 의 26파일 266케이스에 이 브랜치가 `test/border-patch.test.ts` 에 더한 9케이스가 붙은 값이다) |
@@ -55,8 +57,17 @@
 > | 2026-08-29 | 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck` · `pnpm test` |
 > | 2026-08-25 | 5.2 검증기 메시지 | `src/features/editor/schema/validate.ts` 수정과 테스트 |
 >
-> **2026-09-10(#105)에 재확인하지 않은 항목** — 위 표의 "#105" 행에 없는 모든 항목.
-> `bin/visual-spec.mjs`를 인자 없이 실행하면 이 패키지 자신의 Vite 개발 서버(`node_modules/.bin/vite --open`)를 띄운다 — `init`·`skills`와 달리 대상은 사용자 프로젝트가 아니라 이 저장소 자신이다(에디터 소스가 여기 있으니까). 이슈 #105 본문이 남긴 "이 작업의 일부인지, 별도인지 정해야 한다"는 질문에는 **별도로 남긴다**로 답했다 — GUI가 뜨긴 하지만 `.visual-spec/` 작업공간을 읽거나 쓰진 않는다(1절 GUI·Canvas 행이 여전히 맞다). 이걸로 이슈 #42가 나열한 4단계(`bin` 필드·`init`·`skills`·GUI 실행)가 전부 끝났다 — 각각 #42·#42·#104·#105로 나눠 처리했다.
+> **2026-09-11(#45)에 재확인하지 않은 항목** — 위 표의 "#45" 행에 없는 모든 항목.
+> `package.json`의 `main` 필드만 지웠다 — 이슈 본문이 "이 저장소가 앱인가 라이브러리인가"를
+> #42와 함께 결정하라고 남겨뒀는데, #42·#104·#105가 `bin` 필드로 답을 냈다(CLI 앱, PR #106·
+> #107·#108로 전부 이미 `develop`에 머지됨). `main`이 가리킬 실제 빌드 산출물이 없고, 패키지
+> 이름으로 이 저장소를 import하는 곳도 없어서 필드 자체를 지웠다 — 5.1 참고. `develop`
+> 1b3d5f3(PR #108 포함, `bin` 필드가 이미 들어와 있다) 위로 리베이스했다 — `package.json`에서
+> `bin` 추가와 `main` 제거가 만나는 자리라 매번 리베이스마다 충돌이 났지만, 둘 다 반영해서
+> 해소했다. **이 브랜치는 이 문단을 쓴 시점엔 아직 `develop`에 머지되지 않았다.**
+>
+> **2026-09-11(#105)에 재확인하지 않은 항목** — 위 표의 "#105" 행에 없는 모든 항목.
+> `bin/visual-spec.mjs`를 인자 없이 실행하면 이 패키지 자신의 Vite 개발 서버(`node_modules/.bin/vite --open`)를 띄운다 — `init`·`skills`와 달리 대상은 사용자 프로젝트가 아니라 이 저장소 자신이다(에디터 소스가 여기 있으니까). 이슈 #105 본문이 남긴 "이 작업의 일부인지, 별도인지 정해야 한다"는 질문에는 **별도로 남긴다**로 답했다 — GUI가 뜨긴 하지만 `.visual-spec/` 작업공간을 읽거나 쓰진 않는다(1절 GUI·Canvas 행이 여전히 맞다). 이걸로 이슈 #42가 나열한 4단계(`bin` 필드·`init`·`skills`·GUI 실행)가 전부 끝났다 — 각각 #42·#42·#104·#105로 나눠 처리했다. **이후 PR #108로 `develop`에 머지됨.**
 >
 > **2026-09-10(#104)에 재확인하지 않은 항목** — 위 표의 "#104" 행에 없는 모든 항목.
 > PR #106(이슈 #42)이 머지된 `develop` 위로 리베이스했다 — git이 이미 머지된 커밋을
@@ -69,15 +80,15 @@
 > 파일이 있는 경우는 `init`의 `.visual-spec` 검사와 같은 방식으로 막는다(`test/cli-skills.test.ts`
 > 7케이스로 설치·멱등·갱신·에러 네 가지 다 검증). 이슈 #42 본문이 나열한 나머지 한 단계
 > (인자 없는 `npx visual-spec`, GUI 실행)는 이슈 #105로 분리해 아직 손대지 않았다.
+> **이후 PR #107로 `develop`에 머지됨.**
 >
-> **2026-09-09(#42)에 재확인하지 않은 항목** — 위 표의 "#42" 행에 없는 모든 항목.
 > 이 갱신은 이슈 #42 브랜치(`42--cli-workspace`)에서 새로 만든 `bin/visual-spec.mjs`·
-> `package.json`의 `bin` 필드·`test/cli-init.test.ts`만 봤다. **이 브랜치는 이 문단을 쓴
-> 시점엔 아직 `develop`에 머지되지 않았다.** `develop` db6bea1(PR #96·#97·#98·#99·#100·#103
-> 전부 포함) 위로 리베이스했고, 코드는 무충돌이었다(이 문서만 표 순서 충돌 — 해소함).
-> `init`만 구현했고, 이슈 #42 본문이 나열한 나머지 세 단계(`package.json`의 `main` 필드 정리는
-> 별도 이슈, `npx visual-spec skills`(이슈 #104로 분리), 인자 없는 `npx visual-spec`(이슈 #105로
-> 분리))는 이번에 손대지 않았다 — 위 2절 CLI 행 참고.
+> `package.json`의 `bin` 필드·`test/cli-init.test.ts`만 봤다. `develop` db6bea1(PR #96·#97·
+> #98·#99·#100·#103 전부 포함) 위로 리베이스했고, 코드는 무충돌이었다(이 문서만 표 순서
+> 충돌 — 해소함). `init`만 구현했고, 이슈 #42 본문이 나열한 나머지 세 단계(`package.json`의
+> `main` 필드 정리는 별도 이슈 — #45, `npx visual-spec skills`는 이슈 #104, 인자 없는
+> `npx visual-spec`은 이슈 #105)는 이번에 손대지 않았다 — 위 2절 CLI 행 참고.
+> **이후 PR #106으로 `develop`에 머지됨.**
 >
 > **2026-09-08에 재확인하지 않은 항목** — 위 표의 "2026-09-08" 세 행 묶음(1차·2차·3차)에 없는 모든 항목.
 > 이 갱신은 **07의 서술이 코드와 어긋난 것으로 지목된 항목만** 다시 봤다.
@@ -183,7 +194,7 @@
 
 | 단위 | 상태 | 근거 / 무엇이 되고 무엇이 안 되는가 |
 |---|---|---|
-| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). **다만 지금은 v0.1과 v0.2(`ProjectSpec`)가 병행한다** — **정본 스키마의 루트는 아직 v0.1이다**(`version` 이 `const: "0.1"`, `required` 가 `["version", "screen"]`). v0.2 는 `$defs` 에 `ProjectSpec`(`version: "0.2"` · `name` · `pages` · `pageOrder`)·`PageId` 가 추가된 형태로만 들어와 있고, 각 페이지는 v0.1 의 `ScreenSpec` 그대로다. **반면 런타임 상태는 v0.2 다** — `store/editorStore.ts` 의 초기값이 `migrateV01(seedSpec)`(`schema/migrate.ts`)이라 스토어는 `spec: ProjectSpec` + `activePageId` 를 들고, `ui/Canvas.tsx`·`ui/LayerTree.tsx` 는 `spec.pages[activePageId]` 로 읽는다. **저장되는 파일도 v0.2 다** — `store/exportSpec.ts` 가 `validateProjectSpec`(`schema/validate.ts` — `$defs.ProjectSpec` 로 검증하고 `pageOrder` 불일치를 `page-order-mismatch` 로 잡는다)을 거쳐 `ProjectSpec` 을 그대로 내려받는다. v0.1 문서를 열면 `loadSpec` 이 `migrateV01` 로 넓히므로 **예전 파일도 그대로 열린다**(반대 방향 `toVisualSpec` 도 있지만 그걸 고르는 UI 는 없다). 즉 **아직 v0.2 로 옮겨지지 않은 것은 정본 스키마의 루트 선언과 동결 문서**이고, 코드와 실제 데이터는 이미 v0.2 다. `test/` 31파일 339케이스 통과(2026-09-11, 이슈 #105 브랜치 · PR #111(이슈 #92, 속성 패널 재구성) 머지된 `develop` 7803cdf 위로 리베이스한 기준 — `pnpm test` 실행 결과로 확인) |
+| IR · 스키마 | **완료** | `src/features/editor/schema/` — JSON Schema 정본, 생성 타입, 검증기, 공개 index. v0.1로 동결([06-schema-freeze.md](06-schema-freeze.md)). **다만 지금은 v0.1과 v0.2(`ProjectSpec`)가 병행한다** — **정본 스키마의 루트는 아직 v0.1이다**(`version` 이 `const: "0.1"`, `required` 가 `["version", "screen"]`). v0.2 는 `$defs` 에 `ProjectSpec`(`version: "0.2"` · `name` · `pages` · `pageOrder`)·`PageId` 가 추가된 형태로만 들어와 있고, 각 페이지는 v0.1 의 `ScreenSpec` 그대로다. **반면 런타임 상태는 v0.2 다** — `store/editorStore.ts` 의 초기값이 `migrateV01(seedSpec)`(`schema/migrate.ts`)이라 스토어는 `spec: ProjectSpec` + `activePageId` 를 들고, `ui/Canvas.tsx`·`ui/LayerTree.tsx` 는 `spec.pages[activePageId]` 로 읽는다. **저장되는 파일도 v0.2 다** — `store/exportSpec.ts` 가 `validateProjectSpec`(`schema/validate.ts` — `$defs.ProjectSpec` 로 검증하고 `pageOrder` 불일치를 `page-order-mismatch` 로 잡는다)을 거쳐 `ProjectSpec` 을 그대로 내려받는다. v0.1 문서를 열면 `loadSpec` 이 `migrateV01` 로 넓히므로 **예전 파일도 그대로 열린다**(반대 방향 `toVisualSpec` 도 있지만 그걸 고르는 UI 는 없다). 즉 **아직 v0.2 로 옮겨지지 않은 것은 정본 스키마의 루트 선언과 동결 문서**이고, 코드와 실제 데이터는 이미 v0.2 다. `test/` 31파일 347케이스 통과(2026-09-11, 이슈 #45 브랜치 · PR #116(이슈 #110, 레이어 트리 드래그 재정렬) 머지된 `develop` 2783151 위로 리베이스한 기준 — `pnpm test` 실행 결과로 확인) |
 | Command Engine | **부분** | `src/features/editor/command/`에 Command 타입 5종(`types.ts` — createNode/updateNode/deleteNode/moveNode/setLayout), 순수 적용기(`applyCommand.ts` — 규칙 위반 시 예외 없이 원본 spec 참조를 그대로 돌려준다), 범용 undo/redo 스택(`history.ts`)이 있다(`test/apply-command.test.ts` 18케이스 · `test/history.test.ts` 6케이스). **이제 실제로 쓰인다** — `editorStore.setNodeField`가 내부적으로 `updateNode` Command를 만들어 `applyCommand`로 적용한다(2026-09-09, 이슈 #40). 시그니처는 그대로라 호출부(패널의 `useNodeField.ts`, 트리의 "표시" 토글 — 두 곳이다, 아래 §의 실측 참고)는 안 바뀌었다. **다만 `insertNode`는 아직 이 경로를 안 거친다** — #40의 변경 범위 밖이라 여전히 스토어가 직접 노드를 만든다. `applyCommand.ts`는 v0.2 `ProjectSpec.pages[id]`에도 쓸 수 있도록 `VisualSpec` 대신 `ScreenSpec`을 받게 바뀌었다 |
 | 자연어 변환 | **미착수** | 관련 코드 없음 |
 | Ticket Compiler · Agent | **부분** | 코드 생성은 여전히 `skills/visual-spec-to-react/SKILL.md`가 에이전트 지시문 형태로 대신한다("컴포넌트 단위로 분리 생성한다" 절). **다만 그 지시문이 정한 규칙(컴포넌트 경계·반복 형제 그룹화·의존성 순서)이 이제 `src/features/editor/ticket/`에 순수 함수로도 존재한다**(`compileTickets` — `test/compile-tickets.test.ts` **18케이스**, `toPascalCase` 포함. #81 이 쓸 당시 14케이스였는데 같은 브랜치의 4179c93·f93a102 가 `structuralKey` 의 비교 기준과 순환 방어를 더하면서 늘었다 — 2026-09-08 3차 실측). 최소 상태 관리(`ticketStatus.ts` — pending/in-progress/done/failed, `isReady`/`readyTickets`)도 있다. **다만 이 코드를 실제로 부르는 곳이 없다** — Agent 실행 루프도, GUI 상태 패널도 아직 이 함수들을 쓰지 않는다. 스킬 지시문과 이 코드가 같은 규칙을 따르는지는 사람이 대조해서 맞춘 것이지 하나가 다른 하나를 생성하는 관계가 아니다 |
@@ -327,7 +338,7 @@
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
 | 유효 예제 8개 | `examples/*.json` | 검증 통과(2026-09-08 실측 — `ls examples/*.json` 8개. **7개는 `version: "0.1"` 이라 `validateVisualSpec` 이, `two-page-project.json` 만 `version: "0.2"` 라 `validateProjectSpec` 이 받는다**). `examples/image-hero.json` 이 2026-09-01(PR #67)에, `examples/form-grid.json`(button·input·grid)이 2026-09-02(이슈 #75)에, `examples/card-effects.json`(그림자·불투명도·블러)이 2026-09-04(이슈 #78)에, **`examples/two-page-project.json`(v0.2 `ProjectSpec` — 페이지 2장)**이 그사이 추가됐다 |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
-| 테스트 | `test/editor-store.test.ts`(49) · `test/canvas-layout.test.ts`(30) · `test/validate.test.ts`(21) · `test/apply-command.test.ts`(20) · `test/compile-tickets.test.ts`(18) · `test/project-spec.test.ts`(15) · `test/border-patch.test.ts`(14) · `test/resolution-presets.test.ts`(13) · `test/image-src.test.ts`(13) · `test/canvas-selection.test.ts`(12) · `test/radius-patch.test.ts`(12) · `test/selection-rect.test.ts`(12) · `test/node-sections.test.ts`(12) · `test/cli-skills.test.ts`(7) · `test/cli-gui.test.ts`(3) · `test/cli-init.test.ts`(6) · `test/schema.test.ts`(10) · `test/fit-zoom.test.ts`(10) · `test/view-store.test.ts`(9) · `test/effect-patch.test.ts`(8) · `test/export-spec.test.ts`(6) · `test/history.test.ts`(6) · `test/shadow-patch.test.ts`(5) · `test/create-node.test.ts`(4) · `test/node-id.test.ts`(4) · `test/public-api.test.ts`(4) · `test/resolve-import-parent.test.ts`(4) · `test/load-spec.test.ts`(3) · `test/home-preview.test.ts`(3) · `test/navigation-store.test.ts`(3) · `test/tool-store.test.ts`(3) | **31파일 339케이스 전부 통과** (2026-09-11, 이슈 #105 브랜치 · PR #111(이슈 #92) 머지된 `develop` 7803cdf 위로 리베이스한 기준 `pnpm test` 확인 — `image-src.test.ts`·`node-sections.test.ts`(PR #111, 속성 패널 재구성)가 새로 들어왔다) |
+| 테스트 | `test/editor-store.test.ts`(57) · `test/canvas-layout.test.ts`(30) · `test/validate.test.ts`(21) · `test/apply-command.test.ts`(20) · `test/compile-tickets.test.ts`(18) · `test/project-spec.test.ts`(15) · `test/border-patch.test.ts`(14) · `test/resolution-presets.test.ts`(13) · `test/image-src.test.ts`(13) · `test/canvas-selection.test.ts`(12) · `test/radius-patch.test.ts`(12) · `test/selection-rect.test.ts`(12) · `test/node-sections.test.ts`(12) · `test/cli-skills.test.ts`(7) · `test/cli-gui.test.ts`(3) · `test/cli-init.test.ts`(6) · `test/schema.test.ts`(10) · `test/fit-zoom.test.ts`(10) · `test/view-store.test.ts`(9) · `test/effect-patch.test.ts`(8) · `test/export-spec.test.ts`(6) · `test/history.test.ts`(6) · `test/shadow-patch.test.ts`(5) · `test/create-node.test.ts`(4) · `test/node-id.test.ts`(4) · `test/public-api.test.ts`(4) · `test/resolve-import-parent.test.ts`(4) · `test/load-spec.test.ts`(3) · `test/home-preview.test.ts`(3) · `test/navigation-store.test.ts`(3) · `test/tool-store.test.ts`(3) | **31파일 347케이스 전부 통과** (2026-09-11, 이슈 #45 브랜치 · PR #116(이슈 #110) 머지된 `develop` 2783151 위로 리베이스한 기준 `pnpm test` 확인 — `editor-store.test.ts`의 드래그 재정렬 관련 8케이스(PR #116)가 새로 들어왔다) |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 5종 | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 5개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33) |
 
@@ -337,7 +348,7 @@
 
 ## 5. 확인된 결함과 개선 여지
 
-### 5.1 `package.json` 의 `main` 이 없는 파일을 가리킨다 (이슈 #45)
+### 5.1 `package.json` 의 `main` 이 없는 파일을 가리킨다 — **해결됨 (2026-09-10, 이슈 #45)**
 
 ```json
 "main": "src/index.ts"
@@ -346,9 +357,12 @@
 `src/index.ts` 는 저장소에 존재하지 않는다. 스키마를 `src/features/editor/schema/` 로 옮기면서 파일은 사라졌는데 필드가 남았다.
 
 `private: true` 인 Vite 앱이라 지금 당장 깨지는 것은 없다. 다만 **끊긴 참조**이고, 나중에 이 패키지를 실제로 배포하거나 `bin` 을 추가할 때 문제가 된다.
-(이 문서는 관찰 기록이므로 수정하지 않았다.)
 
 2026-08-29 재확인: `package.json` 의 `"main"` 은 그대로 `src/index.ts` 이고 그 파일은 여전히 없다. **미해결이다.**
+
+**2026-09-10 — `main` 필드 자체를 지웠다.** 이슈 본문이 남긴 판단("이 저장소가 앱인가 라이브러리인가")은 그 사이 이슈 #42·#104·#105가 답을 내놨다 — `bin` 필드가 생겨 **CLI 앱**이 됐지, `require("visual-spec")`으로 가져다 쓰는 라이브러리가 된 게 아니다. `src/features/editor/schema/`의 공개 표면(`test/public-api.test.ts`가 지키는 것)은 지금도 이 저장소 **안에서만** `@/` 경로 별칭으로 쓰인다 — 패키지 이름으로 import하는 곳이 `src/`·`test/`·`scripts/`·`bin/` 어디에도 없다(`git grep` 확인). `main`이 가리킬 실제 빌드된 JS 산출물도 없다(`vite build`는 브라우저용 번들만 만들고, 라이브러리용 `main` 산출물은 안 만든다). 그래서 **없는 파일을 가리키는 것도, TS 소스를 가리켜 거짓으로 "가져다 쓸 수 있다"고 하는 것도 아닌, 필드 자체를 지우는 쪽**을 택했다 — `private: true`가 이미 "npm에 배포 안 한다"를 못박고 있어서 자연스럽다. `pnpm run typecheck`·`pnpm test`·`pnpm run build`(Vite 앱 빌드는 `main`을 안 쓴다) 전부 영향 없음을 확인했다.
+
+**2026-09-11(#45 리뷰, Yumesa2025) — `files` 필드도 추가했다.** `main`만 지운 걸로는 "패키지 메타데이터가 실제 구조와 어긋난 채로 배포된다"가 절반만 풀린다는 지적을 받았다 — `files`가 없어서 배포 tarball에 뭐가 담길지 통제가 없었다. `bin/visual-spec.mjs`가 패키지 루트에서 실제로 읽는 건 `skills/` 하나뿐이라(`init`은 cwd 아래만 건드리고, `runGui`가 보는 `node_modules/`는 `files`와 무관하다) `"files": ["bin", "skills"]`로 좁혔다. `examples/`·정본 스키마 JSON은 스킬 문서가 참조하긴 하지만 전부 저장소 기준 GitHub raw URL이라(`skills/visual-spec-docs/SKILL.md` 참고) 패키지에 넣어도 그 경로로는 안 닿는다 — 일부러 뺐다. `npm pack --dry-run`으로 **9파일 · 21.9 kB**(`bin/visual-spec.mjs` + `SKILL.md` 5종 + `package.json`·`README.md`·`LICENSE`)를 확인했고 `src/`·`test/`·`docs/`·`tsconfig*`·`vite.config.ts`는 0건이다.
 
 ### 5.2 검증기의 `schema` 이슈에 정보가 없었다 — **해결됨 (2026-08-21)**
 
@@ -446,5 +460,5 @@
 ```bash
 pnpm install --frozen-lockfile
 pnpm run typecheck   # 통과 (2026-09-11, 이슈 #40 브랜치가 `develop` e776088 위로 리베이스한 기준 확인)
-pnpm test            # 31파일 339케이스 통과 (2026-09-11, 이슈 #105 브랜치 · PR #111(이슈 #92) 머지 후 확인)
+pnpm test            # 31파일 347케이스 통과 (2026-09-11, 이슈 #45 브랜치 · PR #116(이슈 #110) 머지 후 확인)
 ```
