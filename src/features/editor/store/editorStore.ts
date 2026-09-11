@@ -109,6 +109,14 @@ export interface EditorState {
    * selectedId를 비운다. 레이어 트리가 호출한다.
    */
   removeNode: (id: NodeId) => void;
+  /**
+   * 활성 페이지에서 노드를 newParentId(frame)의 children 중 index 위치로
+   * 옮긴다. command/applyCommand.ts의 moveNode Command를 통해 적용된다 —
+   * root는 옮기지 않고, 자기 자신이나 자기 자손 밑으로는 못 옮긴다(순환
+   * 방지, applyMoveNode가 이미 한다). setNodeField와 같은 이유로 history에도
+   * 쌓인다. 레이어 트리가 드래그로 순서를 바꿀 때 호출한다.
+   */
+  moveNode: (id: NodeId, newParentId: NodeId, index: number) => void;
   /** 활성 페이지를 한 단계 되돌린다. 되돌릴 것이 없으면 아무 일도 안 한다. */
   undo: () => void;
   /** 활성 페이지를 한 단계 다시 실행한다. 다시 실행할 것이 없으면 아무 일도 안 한다. */
@@ -341,6 +349,25 @@ export const useEditorStore = create<EditorState>((set) => ({
           state.selectedId !== null && nextPage.nodes[state.selectedId] === undefined
             ? null
             : state.selectedId,
+      };
+    }),
+  moveNode: (id, newParentId, index) =>
+    set((state) => {
+      const page = state.spec.pages[state.activePageId];
+      if (page === undefined) return state;
+
+      // root 보호와 순환 방지는 applyMoveNode(command/applyCommand.ts)가 이미 한다.
+      const nextPage = applyCommand(page, { type: "moveNode", id, newParentId, index });
+      if (nextPage === page) return state;
+
+      const nextHistory = pushHistory(
+        reconciledHistory(state.history, state.activePageId, page),
+        nextPage,
+      );
+
+      return {
+        spec: withPage(state.spec, state.activePageId, nextPage),
+        history: { ...state.history, [state.activePageId]: nextHistory },
       };
     }),
   undo: () =>
