@@ -33,6 +33,7 @@ import {
   strokeAndShadowStyle,
   type Direction,
 } from "./canvasLayout";
+import { imageUrlCss } from "./properties/imageSrc";
 import { resolveClickTarget, resolveInsertParent } from "./selection";
 import {
   nodeSelector,
@@ -124,7 +125,7 @@ function imageStyle(
 ): CSSProperties {
   return {
     ...boxStyle(node.box, parentDirection),
-    backgroundImage: `url(${node.src})`,
+    backgroundImage: imageUrlCss(node.src),
     backgroundSize: node.fit === "fill" ? "100% 100%" : node.fit,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
@@ -159,7 +160,14 @@ function buttonStyle(
   };
 }
 
-/** placeholder 텍스트만 흐리게 보여준다 — 실제 입력 상호작용은 없다(value/onChange는 스키마에 없음). */
+/**
+ * placeholder 텍스트만 흐리게 보여준다 — 실제 입력 상호작용은 없다(value/onChange는
+ * 스키마에 없음).
+ *
+ * 흐리게 만드는 opacity는 요소가 아니라 글자에 건다(아래 render의 span). 요소에 걸면
+ * 배경색·테두리색까지 60%로 섞여 패널에서 고른 색이 그대로 안 나오고, 자식으로 들어가는
+ * 리사이즈 핸들까지 흐려진다.
+ */
 function inputStyle(
   node: InputNode,
   parentDirection: Direction | undefined,
@@ -170,7 +178,6 @@ function inputStyle(
     display: "flex",
     alignItems: "center",
     color: node.color,
-    opacity: 0.6,
     fontFamily: typography.fontFamily,
     fontSize: typography.fontSize,
     fontWeight: typography.fontWeight,
@@ -561,7 +568,7 @@ function RenderNode({
         style={{ ...inputStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
       >
-        {node.placeholder}
+        <span style={{ opacity: 0.6 }}>{node.placeholder}</span>
         {selected && <ResizeHandles id={id} box={node.box} />}
       </div>
     );
