@@ -1,13 +1,14 @@
 # 07. 구현 현황
 
 > 확인 기준일: **2026-08-20** / 확인 대상 브랜치: `Yumesa2025/roadmap`
-> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조) · **2026-09-09**(CLI `bin`/`init` — 이슈 #42, `42--cli-workspace` 브랜치, PR #106, 머지됨) · **2026-09-11**(setNodeField·setPageField가 Command Engine을 거치도록, PR #102 리뷰(GAMMJ) 반영 포함 — 이슈 #40, PR #102, 머지됨) · **2026-09-10**(CLI `skills` — 이슈 #104, `104--cli-skills-install` 브랜치, PR 작성 전, `develop` 15edf1f(PR #102 포함) 위로 리베이스)
+> 부분 갱신: **2026-08-25**(검증기 메시지 — 5.2) · **2026-08-28**(`develop` 1b3e82a 머지 후) · **2026-08-29**(`develop` db7f8f4 머지 후) · **2026-09-01**(`develop` a807bc4 머지 후) · **2026-09-01**(`develop` 1b73ccd 머지 후 — 같은 날 2차) · **2026-09-01**(`develop` 020be51 머지 후 — 같은 날 3차) · **2026-09-02**(이슈 #75, PR 작성 전 — `75--button-input-grid-nodes` 브랜치) · **2026-09-02**(Command Engine 타입/적용기/history — 이슈 #73, `73--command-engine` 브랜치, PR 작성 전) · **2026-09-02**(Ticket 스키마/컴파일러 — 이슈 #74, `74--ticket-schema` 브랜치, PR 작성 전) · **2026-09-08**(`develop` f583647 머지 후 — 홈 화면·레이어 트리·도구 모음·`editorStore` 계약·스키마 v0.1/v0.2 병행 상태) · **2026-09-08**(같은 날 2차 — 예제·오류 코드·패널 파일/필드 집계·`setNodeField` 호출 지점·5.2 실측치) · **2026-09-08**(`develop` a3fb385 머지 후 — 같은 날 3차, 테스트 집계 재실측과 Ticket 서술 대조) · **2026-09-09**(CLI `bin`/`init` — 이슈 #42, `42--cli-workspace` 브랜치, PR #106, 머지됨) · **2026-09-11**(setNodeField·setPageField가 Command Engine을 거치도록, PR #102 리뷰(GAMMJ) 반영 포함 — 이슈 #40, PR #102, 머지됨) · **2026-09-10**(CLI `skills` — 이슈 #104, `104--cli-skills-install` 브랜치, PR 작성 전, `develop` 15edf1f(PR #102 포함) 위로 리베이스) · **2026-09-11**(패키지 메타데이터 — `main` 삭제·`files` 추가, 이슈 #45, `Yumesa2025/pkg-meta-45` 브랜치, PR 작성 전, `develop` 7803cdf(PR #111 머지) 기준)
 >
 > 부분 갱신은 **문서 전체 재검증이 아니다.** 각 갱신에서 실제로 확인한 항목만 아래에 적는다.
 > 확인하지 않은 항목의 날짜는 올리지 않는다.
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
+> | 2026-09-11 (#45) | 5.1 `package.json` 의 `main` | `package.json` 에서 `"main": "src/index.ts"` 삭제하고 `"files": ["bin", "skills"]` 추가(`private: true` 는 유지). `ls src/index.*` 로 `src/index.css` 만 있음을 재확인, `git grep "src/index"` 히트가 `package.json` 자신과 `docs/` 뿐임을 확인. `bin/visual-spec.mjs` 17~18행(`PACKAGE_ROOT` → `SKILLS_SRC_DIR`)으로 런타임에 읽는 패키지 경로가 `skills/` 하나뿐임을 확인. `git grep -n "examples/" skills/`(13건) · `git grep -n "visual-spec.schema.json" skills/`(4건)을 세어 봤지만 전부 **저장소 기준 경로**이고 `skills/visual-spec-docs/SKILL.md` 가 raw URL 해결 경로를 이미 명시해 둬서 제외 판단. **`npm pack --dry-run` 출력으로 대조**(9파일 / 20.6 kB, 펼치면 58.1 kB — `bin/visual-spec.mjs` + 스킬 5종 `SKILL.md` + `package.json`·`LICENSE`·`README.md`, `src/`·`test/`·`docs/`·`tsconfig*`·`vite.config.ts` 0건). `pnpm install --frozen-lockfile` · `pnpm run typecheck`(exit 0) · `pnpm test`(**30파일 336케이스**) · `pnpm run build`(vite 8.2.1, 1952 모듈, exit 0) |
 > | 2026-09-11 (#92) | "GUI 각 영역의 실제 동작" 표의 `ui/PropertiesPanel.tsx` 와 `ui/properties/` 행 | `PropertiesPanel.tsx` 와 `properties/` 신규 8파일(`nodeSections.ts`·`imageSrc.ts`·`NodeSectionList.tsx`·Layout/Background/Border/Typography/Color/Content Section) 편집·열람. `FrameProperties.tsx`·`TextProperties.tsx` 삭제. `find src/features/editor/ui/properties -type f` **30개** 실측. `pnpm test`(**30파일 336케이스** — `develop` 3c3e434(PR #107 머지) 의 28파일 311케이스에 이 브랜치의 25케이스가 붙은 값이다. 양쪽 다 실제로 돌려 확인했다) |
 > | 2026-09-10 (#104) | 2절 CLI 행 | `bin/visual-spec.mjs` 에 `skills` 명령 추가·전문 열람 · `test/cli-skills.test.ts` 신설. `develop` 15edf1f(PR #102, 이슈 #40 머지 포함) 위로 리베이스. `pnpm test`(**28파일 302케이스**) |
 > | 2026-09-11 (#40, 리뷰 반영) | 1절 표 아래 `setNodeField`·`setPageField` 문단, `EDITOR_STORE_CONTRACT.md`, 4절 테스트 행, 아래 "확인 방법" | PR #102 리뷰(GAMMJ)의 🔴 `removePage` history 누수 · 🟡 `setPageField` Command Engine 미적용 두 가지를 코드로 고치고, 고치기 전에 실패하는 테스트로 먼저 확인(`removePage`는 `setPageField`가 아니라 `setNodeField`로 history를 쌓아야 실제로 재현됨을 검증 과정에서 확인). PR #106(이슈 #42)이 머지된 `develop` e776088 위로 리베이스. `pnpm test`(**27파일 295케이스** — e776088이 `test/cli-init.test.ts` 6케이스를 이미 포함한다). **머지됨(PR #102).** |
@@ -53,6 +54,15 @@
 > | 2026-08-29 | 5.3(이번에 추가) 검증 실패 알림 경로 | `store/exportSpec.ts`·`store/loadSpec.ts`·`ui/exportSpecAsJson.ts`·`ui/openSpecFromFile.ts`·`ui/MenuBar.tsx`·`ui/properties/ExportJsonButton.tsx` 열람 |
 > | 2026-08-29 | 아래 "확인 방법" | `pnpm install --frozen-lockfile` · `pnpm run typecheck` · `pnpm test` |
 > | 2026-08-25 | 5.2 검증기 메시지 | `src/features/editor/schema/validate.ts` 수정과 테스트 |
+>
+> **2026-09-11(#45)에 재확인하지 않은 항목** — 위 표의 "#45" 행에 없는 모든 항목.
+> 이 갱신이 건드린 파일은 `package.json` 과 이 문서 둘뿐이다. 5.1 이 기록하던 끊긴 `main`
+> 참조를 없애고, 이 저장소를 CLI 로 배송되는 패키지로 확정해 `files` 로 배송 범위를 못박았다.
+> `pnpm test` 의 **30파일 336케이스**는 바로 위 #92 행이 잰 값과 같다 — 이 작업은 테스트를
+> 늘리거나 줄이지 않았고, `main` 을 지워도 `pnpm run build` 가 깨지지 않는지 확인하려고
+> 돌렸다. **`private: true` 는 그대로다 — npm 배포는 여전히 불가능하고, 공개 배포 전환은
+> 별도 이슈로 분리했다.** 5.1 밖의 어떤 절도 재검증하지 않았으므로 다른 항목의 날짜는
+> 올리지 않았다.
 >
 > **2026-09-10(#104)에 재확인하지 않은 항목** — 위 표의 "#104" 행에 없는 모든 항목.
 > PR #106(이슈 #42)이 머지된 `develop` 위로 리베이스했다 — git이 이미 머지된 커밋을
@@ -333,7 +343,7 @@
 
 ## 5. 확인된 결함과 개선 여지
 
-### 5.1 `package.json` 의 `main` 이 없는 파일을 가리킨다 (이슈 #45)
+### 5.1 `package.json` 의 `main` 이 없는 파일을 가리킨다 (이슈 #45) — **해결됨 (2026-09-11)**
 
 ```json
 "main": "src/index.ts"
@@ -345,6 +355,34 @@
 (이 문서는 관찰 기록이므로 수정하지 않았다.)
 
 2026-08-29 재확인: `package.json` 의 `"main"` 은 그대로 `src/index.ts` 이고 그 파일은 여전히 없다. **미해결이다.**
+
+2026-09-11(이슈 #45) 해결: `main` 필드를 **삭제**했다. 라이브러리 진입점을 다른 파일로
+고쳐 가리키게 한 것이 아니라, 이 저장소를 **CLI 로 배송되는 패키지**로 확정했다 —
+`exports`·`module`·`types` 는 두지 않는다. 대신 배포 tarball 에 무엇이 담기는지를
+`files` 로 못박았다:
+
+```json
+"files": ["bin", "skills"]
+```
+
+두 항목뿐인 근거는 `bin/visual-spec.mjs` 가 패키지 루트에서 실제로 읽는 것이
+`skills/` 하나뿐이기 때문이다(`PACKAGE_ROOT` → `SKILLS_SRC_DIR`, 17~18행). `init` 은
+cwd 아래 `.visual-spec/` 을 만들 뿐 패키지 파일을 읽지 않는다. `examples/` 와 정본
+스키마 JSON 은 **일부러 뺐다** — `skills/*/SKILL.md` 가 두 경로를 가리키기는 하지만
+그 경로는 **저장소 기준**이고, 스킬은 사용자 프로젝트의 `.claude/skills/` 로 복사되므로
+패키지 안에 같이 넣어도 스킬이 쓰는 상대 경로로는 닿지 않는다.
+`skills/visual-spec-docs/SKILL.md` 자신이 "사용자 프로젝트에는 `.claude/skills/` 아래
+스킬만 설치되고 `docs/` 와 `src/` 는 없다. 원문이 필요하면 GitHub raw URL 로 가져온다"고
+해결 경로를 이미 명시하고 있다 — 즉 빠져도 깨지는 지시문이 없다.
+`LICENSE` 와 `README.md` 는 `files` 와 무관하게 npm 이 항상 넣으므로 적지 않았다.
+`.npmignore` 는 만들지 않았다 — `files` 와 같이 쓰면 규칙이 헷갈린다.
+
+`npm pack --dry-run` 으로 대조한 결과 tarball 은 **9파일 / 20.6 kB(펼치면 58.1 kB)** 이고,
+`bin/visual-spec.mjs` 와 스킬 5종 `SKILL.md` 가 전부 들어가며
+`src/`·`test/`·`docs/`·`tsconfig*`·`vite.config.ts` 는 하나도 들어가지 않는다.
+
+다만 **`private: true` 는 그대로 뒀다 — npm 배포는 아직 불가능하다.** 이 작업은 끊긴
+참조를 없애고 배송 범위를 확정한 것까지이고, 공개 배포 전환은 별도 이슈로 분리했다.
 
 ### 5.2 검증기의 `schema` 이슈에 정보가 없었다 — **해결됨 (2026-08-21)**
 
