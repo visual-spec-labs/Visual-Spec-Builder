@@ -538,4 +538,78 @@ describe("editorStore", () => {
       ]);
     });
   });
+
+  describe("moveNode", () => {
+    it("같은 부모 안에서 순서를 바꾼다", () => {
+      useEditorStore.getState().moveNode("cardB", "content", 0);
+
+      const content = activePage().nodes.content;
+      expect(content.type === "frame" && content.children).toEqual([
+        { node: "cardB" },
+        { node: "cardA" },
+      ]);
+    });
+
+    it("다른 부모로 옮긴다", () => {
+      useEditorStore.getState().moveNode("cardA", "header", 0);
+
+      const content = activePage().nodes.content;
+      const header = activePage().nodes.header;
+      expect(content.type === "frame" && content.children).toEqual([{ node: "cardB" }]);
+      expect(header.type === "frame" && header.children).toEqual([
+        { node: "cardA" },
+        { node: "headerTitle" },
+      ]);
+    });
+
+    it("결과가 여전히 유효한 프로젝트다", () => {
+      useEditorStore.getState().moveNode("cardA", "header", 0);
+      expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+    });
+
+    it("자기 자손 밑으로는 옮길 수 없다(순환 방지)", () => {
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().moveNode("content", "cardA", 0); // cardA는 content의 자손
+
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("root는 옮기지 않는다", () => {
+      const before = useEditorStore.getState().spec;
+      const rootId = activePage().root;
+      useEditorStore.getState().moveNode(rootId, "header", 0);
+
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("없는 노드 id는 무시한다", () => {
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().moveNode("does-not-exist", "header", 0);
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("한 페이지에서 옮겨도 다른 페이지는 참조가 그대로다", () => {
+      useEditorStore.getState().addPage();
+      const before = useEditorStore.getState().spec;
+      const [original, blank] = before.pageOrder;
+
+      useEditorStore.getState().selectPage(original);
+      useEditorStore.getState().moveNode("cardB", "content", 0);
+
+      const after = useEditorStore.getState().spec;
+      expect(after.pages[blank]).toBe(before.pages[blank]);
+    });
+
+    it("결과가 undo 대상이다 — 이동 뒤 undo하면 원래 순서로 되돌아간다", () => {
+      useEditorStore.getState().moveNode("cardB", "content", 0);
+
+      useEditorStore.getState().undo();
+
+      const content = activePage().nodes.content;
+      expect(content.type === "frame" && content.children).toEqual([
+        { node: "cardA" },
+        { node: "cardB" },
+      ]);
+    });
+  });
 });

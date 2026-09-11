@@ -19,7 +19,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 ---
 
-## 2. 스토어가 제공하는 것 — 계약의 전부 (15개)
+## 2. 스토어가 제공하는 것 — 계약의 전부 (16개)
 
 **파일 1개 = 프로젝트 1개**다. 프로젝트는 페이지 여러 장을 담고, 캔버스에는 그중 한 장만 뜬다. 그 한 장을 가리키는 것이 `activePageId`다.
 
@@ -38,14 +38,15 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제 + history 초기화(New/Open) | **MenuBar**가 호출 |
 | `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import) | **MenuBar**가 호출 |
 | `removeNode` | `(id: NodeId) => void` | 노드 삭제. 프레임이면 자손까지 연쇄 삭제, root는 지우지 않음 | **트리**가 호출 |
+| `moveNode` | `(id: NodeId, newParentId: NodeId, index: number) => void` | 노드를 newParentId의 children 중 index 위치로 옮김. root 이동 불가, 순환 방지 | **트리**가 호출(드래그) |
 | `undo` | `() => void` | 활성 페이지를 한 단계 되돌림(#40) | 아직 아무도 안 부름 — 버튼·단축키는 범위 밖 |
 | `redo` | `() => void` | 활성 페이지를 한 단계 다시 실행(#40) | 위와 같음 |
 
-### setNodeField·setPageField·removeNode는 이제 Command Engine을 거친다 (#40, #101)
+### setNodeField·setPageField·removeNode·moveNode는 이제 Command Engine을 거친다 (#40, #101, #110)
 
-셋 다 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`·`PageProperties.tsx`, 트리의 "표시" 토글·삭제 버튼)는 하나도 안 바뀐다. 달라진 건 내부뿐이다: 이전엔 `setByPath`를 직접 불렀지만, 이제 `command/applyCommand.ts`의 `updateNode`(노드 대상)·`updateScreen`(화면 자신의 `name`·`size` 대상 — #40 리뷰, GAMMJ, PR #102에서 추가)·`deleteNode`(노드 삭제 대상 — #101, `removeNode`가 이 경로로 옮겨오면서 Command Engine이 이미 갖고 있던 연쇄 삭제·root 보호 로직을 그대로 재사용했다) Command를 만들어 적용한다. `02-mvp-scope.md`가 못박은 "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다" 제약을 이 함수 안에서 충족한다 — 이슈 #40 참고.
+넷 다 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`·`PageProperties.tsx`, 트리의 "표시" 토글·삭제 버튼·드래그)는 하나도 안 바뀐다. 달라진 건 내부뿐이다: 이전엔 `setByPath`를 직접 불렀지만, 이제 `command/applyCommand.ts`의 `updateNode`(노드 대상)·`updateScreen`(화면 자신의 `name`·`size` 대상 — #40 리뷰, GAMMJ, PR #102에서 추가)·`deleteNode`(노드 삭제 대상 — #101, `removeNode`가 이 경로로 옮겨오면서 Command Engine이 이미 갖고 있던 연쇄 삭제·root 보호 로직을 그대로 재사용했다)·`moveNode`(노드 위치 이동 — #110, 순환 방지 로직을 이미 갖고 있던 Command를 그대로 재사용했다) Command를 만들어 적용한다. `02-mvp-scope.md`가 못박은 "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다" 제약을 이 함수 안에서 충족한다 — 이슈 #40 참고.
 
-부수 효과로 성공한 변경마다 `history`에도 쌓인다 — `removeNode`도 이제 undo 대상이다. `insertNode`·`addPage`·`removePage`는 **아직 이 경로를 안 거친다** — #40의 변경 범위 밖이다. 그래서 이런 액션 뒤에 바로 `undo`를 부르면, 그 액션의 결과까지 함께 되돌아갈 수 있다(직전 tracked 체크포인트로 점프하므로). `editorStore.ts`의 `reconciledHistory` 주석에 이 한계가 자세히 적혀 있다. `removePage`는 지운 페이지의 `history` 항목도 함께 지운다 — 안 그러면 `generateNodeId`가 빈 순번을 재사용할 때 새 페이지가 지운 페이지의 undo 스택을 이어받는다(#40 리뷰, GAMMJ, PR #102 — 결정적으로 재현됨).
+부수 효과로 성공한 변경마다 `history`에도 쌓인다 — `removeNode`·`moveNode`도 이제 undo 대상이다. `insertNode`·`addPage`·`removePage`는 **아직 이 경로를 안 거친다** — #40의 변경 범위 밖이다. 그래서 이런 액션 뒤에 바로 `undo`를 부르면, 그 액션의 결과까지 함께 되돌아갈 수 있다(직전 tracked 체크포인트로 점프하므로). `editorStore.ts`의 `reconciledHistory` 주석에 이 한계가 자세히 적혀 있다. `removePage`는 지운 페이지의 `history` 항목도 함께 지운다 — 안 그러면 `generateNodeId`가 빈 순번을 재사용할 때 새 페이지가 지운 페이지의 undo 스택을 이어받는다(#40 리뷰, GAMMJ, PR #102 — 결정적으로 재현됨).
 
 ### Undo/Redo는 페이지별로 독립이다
 
@@ -97,6 +98,10 @@ const node = useEditorStore((s) => s.spec.pages[s.activePageId].nodes[id]);
 
 `removeNode`는 `command/applyCommand.ts`의 `deleteNode` Command로 적용된다. 페이지 `root`를 넘기면 무시한다 — `removePage`가 마지막 페이지를 막는 것과 같은 이유로, root가 없으면 스키마가 깨진다. 지우려는 노드가 프레임이면 그 자손까지 전부 지운다(고아 노드를 남기지 않기 위해서). 지운 노드나 그 자손이 `selectedId`였으면 선택을 해제한다 — 없는 노드를 계속 선택 상태로 두면 패널이 그 노드를 못 찾는다. `setNodeField`와 같은 이유로 `history`에도 쌓이므로 `undo`로 되돌릴 수 있다.
 
+### moveNode는 root를 옮기지 않고, 자기 자손 밑으로는 못 옮긴다
+
+`moveNode`는 `command/applyCommand.ts`의 `moveNode` Command로 적용된다. 페이지 `root`를 넘기면 무시한다 — 옮길 수 없는 노드라 옮기면 트리 구조 자체가 깨진다. `newParentId`가 옮기려는 노드 자신이거나 그 자손이면 무시한다(순환 방지 — `applyMoveNode`가 `collectSubtreeIds`로 판정한다). `index`는 `newParentId`의 children 길이로 clamp되므로 범위를 벗어나도 안전하다. `setNodeField`와 같은 이유로 `history`에도 쌓이므로 `undo`로 되돌릴 수 있다.
+
 `setNodeField`의 `path`는 노드 내부 경로를 점(`.`)으로 표기한다.
 
 ```ts
@@ -117,7 +122,7 @@ setNodeField("headerTitle", "typography.fontSize", 24);
 |---|---|---|---|
 | **담당** | 팀원 | 팀원 | 나 |
 | **읽기** | `spec`, `activePageId`, `selectedId` | `spec`, `activePageId`, `selectedId` | `spec`, `activePageId`, `selectedId` |
-| **호출** | 노드 클릭 → `select(id)`<br>**페이지 폴더 클릭 → `selectPage(id)`**<br>페이지 추가/삭제 → `addPage` / `removePage`<br>노드 삭제 → `removeNode(id)` | 노드 클릭 → `select(id)`<br>드래그/리사이즈 → `setNodeField` | 값 편집 → `setNodeField`<br>페이지 이름·해상도 → `setPageField` |
+| **호출** | 노드 클릭 → `select(id)`<br>**페이지 폴더 클릭 → `selectPage(id)`**<br>페이지 추가/삭제 → `addPage` / `removePage`<br>노드 삭제 → `removeNode(id)`<br>드래그로 순서 변경 → `moveNode(id, newParentId, index)` | 노드 클릭 → `select(id)`<br>드래그/리사이즈 → `setNodeField` | 값 편집 → `setNodeField`<br>페이지 이름·해상도 → `setPageField` |
 | **역할** | 루트에 페이지 폴더, 그 아래 계층 트리 + 선택 표시 | **활성 페이지** 렌더 + 선택 표시 | 선택 노드 · 활성 페이지 속성 편집 |
 
 **연결은 이게 전부다.** 트리/캔버스가 `select(id)`만 불러주면 패널이 그 노드에 맞게 알아서 바뀌고,
