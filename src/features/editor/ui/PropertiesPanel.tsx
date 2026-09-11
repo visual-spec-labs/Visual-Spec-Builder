@@ -1,10 +1,8 @@
 import { useEditorStore } from "@/features/editor/store/editorStore";
 
 import { ExportJsonButton } from "./properties/ExportJsonButton";
-import { FrameProperties } from "./properties/FrameProperties";
+import { NodeSectionList } from "./properties/NodeSectionList";
 import { PageProperties } from "./properties/PageProperties";
-import { PropertySection } from "./properties/PropertySection";
-import { TextProperties } from "./properties/TextProperties";
 import { useNodeField } from "./properties/useNodeField";
 import { ToggleField } from "./properties/fields";
 
@@ -69,19 +67,13 @@ export function PropertiesPanel() {
           <p className="p-4 text-sm text-content-subtle">
             노드를 선택하면 그 노드의 속성이 여기에 표시됩니다.
           </p>
-        ) : node.type === "frame" ? (
-          // key는 노드를 바꿀 때 이 컴포넌트를 다시 마운트시킨다. 모서리 모드처럼
-          // 스펙이 아닌 화면 상태를 들고 있어서, 다른 노드로 옮길 때 그 상태가
-          // 따라오면 안 된다.
-          <FrameProperties key={selectedId} />
-        ) : node.type === "text" ? (
-          <TextProperties />
         ) : (
-          <PropertySection title={TYPE_LABEL[node.type] ?? node.type}>
-            <p className="text-sm text-content-subtle">
-              이 노드 타입의 속성 편집은 아직 지원하지 않습니다.
-            </p>
-          </PropertySection>
+          // 타입별 분기는 여기 없다 — properties/nodeSections.ts 의 표가 정한다(#92).
+          //
+          // key는 노드를 바꿀 때 섹션들을 다시 마운트시킨다. 테두리의 모서리 모드처럼
+          // 스펙이 아닌 화면 상태를 든 섹션이 있어서, 다른 노드로 옮길 때 그 상태가
+          // 따라오면 안 된다.
+          <NodeSectionList key={selectedId} type={node.type} />
         )}
       </div>
 
