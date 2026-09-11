@@ -1,14 +1,14 @@
-import type { FrameNode, Node, NodeId, VisualSpec } from "@/features/editor/schema";
+import type { FrameNode, Node, NodeId, ScreenSpec } from "@/features/editor/schema";
 import { setByPath } from "@/features/editor/store/path";
 
-import type { Command, CreateNodeCommand, DeleteNodeCommand, MoveNodeCommand, SetLayoutCommand, UpdateNodeCommand } from "./types";
+import type { Command, CreateNodeCommand, DeleteNodeCommand, MoveNodeCommand, SetLayoutCommand, UpdateNodeCommand, UpdateScreenCommand } from "./types";
 
 function isFrameNode(node: Node): node is FrameNode {
   return node.type === "frame";
 }
 
-function withNodes(spec: VisualSpec, nodes: Record<NodeId, Node>): VisualSpec {
-  return { ...spec, screen: { ...spec.screen, nodes } };
+function withNodes(screen: ScreenSpec, nodes: Record<NodeId, Node>): ScreenSpec {
+  return { ...screen, nodes };
 }
 
 /** children 참조로 targetId를 갖고 있는 frame의 id. 없으면 undefined(= root이거나 고아). */
@@ -80,13 +80,13 @@ function insertChildReference(
   return { ...nodes, [parentId]: { ...parent, children } };
 }
 
-function applyCreateNode(spec: VisualSpec, command: CreateNodeCommand): VisualSpec {
-  const { nodes } = spec.screen;
+function applyCreateNode(screen: ScreenSpec, command: CreateNodeCommand): ScreenSpec {
+  const { nodes } = screen;
   const parent = nodes[command.parentId];
-  if (parent === undefined || !isFrameNode(parent)) return spec;
+  if (parent === undefined || !isFrameNode(parent)) return screen;
   // 이미 있는 id는 덮어쓰지 않는다 — 호출자가 store/nodeId.ts의 generateNodeId로
   // 겹치지 않는 id를 먼저 만들어서 넘겨야 한다.
-  if (Object.prototype.hasOwnProperty.call(nodes, command.id)) return spec;
+  if (Object.prototype.hasOwnProperty.call(nodes, command.id)) return screen;
 
   const nextNodes: Record<NodeId, Node> = {
     ...nodes,
@@ -97,22 +97,22 @@ function applyCreateNode(spec: VisualSpec, command: CreateNodeCommand): VisualSp
     [command.id]: command.node,
   };
 
-  return withNodes(spec, nextNodes);
+  return withNodes(screen, nextNodes);
 }
 
-function applyUpdateNode(spec: VisualSpec, command: UpdateNodeCommand): VisualSpec {
-  const { nodes } = spec.screen;
+function applyUpdateNode(screen: ScreenSpec, command: UpdateNodeCommand): ScreenSpec {
+  const { nodes } = screen;
   const node = nodes[command.id];
-  if (node === undefined) return spec;
+  if (node === undefined) return screen;
 
   const nextNode = setByPath(node, command.path, command.value);
-  return withNodes(spec, { ...nodes, [command.id]: nextNode });
+  return withNodes(screen, { ...nodes, [command.id]: nextNode });
 }
 
-function applyDeleteNode(spec: VisualSpec, command: DeleteNodeCommand): VisualSpec {
-  const { nodes, root } = spec.screen;
-  if (command.id === root) return spec; // root는 지울 수 없다 — root-missing이 된다
-  if (nodes[command.id] === undefined) return spec;
+function applyDeleteNode(screen: ScreenSpec, command: DeleteNodeCommand): ScreenSpec {
+  const { nodes, root } = screen;
+  if (command.id === root) return screen; // root는 지울 수 없다 — root-missing이 된다
+  if (nodes[command.id] === undefined) return screen;
 
   const parentId = findParentId(nodes, command.id);
   // 자식까지 함께 지운다. 부모 참조만 지우면 자손이 nodes에 남아 orphan-node가 된다.
@@ -126,22 +126,22 @@ function applyDeleteNode(spec: VisualSpec, command: DeleteNodeCommand): VisualSp
     Object.entries(nextNodes).filter(([id]) => !toRemove.has(id)),
   );
 
-  return withNodes(spec, nextNodes);
+  return withNodes(screen, nextNodes);
 }
 
-function applyMoveNode(spec: VisualSpec, command: MoveNodeCommand): VisualSpec {
-  const { nodes, root } = spec.screen;
-  if (command.id === root) return spec; // root는 옮길 수 없다
+function applyMoveNode(screen: ScreenSpec, command: MoveNodeCommand): ScreenSpec {
+  const { nodes, root } = screen;
+  if (command.id === root) return screen; // root는 옮길 수 없다
 
   const node = nodes[command.id];
   const newParent = nodes[command.newParentId];
   if (node === undefined || newParent === undefined || !isFrameNode(newParent)) {
-    return spec;
+    return screen;
   }
 
   // 자기 자신이나 자기 자손 밑으로는 옮길 수 없다 — cycle이 생긴다.
   const subtree = collectSubtreeIds(nodes, command.id);
-  if (subtree.has(command.newParentId)) return spec;
+  if (subtree.has(command.newParentId)) return screen;
 
   const oldParentId = findParentId(nodes, command.id);
   let nextNodes = nodes;
@@ -150,36 +150,47 @@ function applyMoveNode(spec: VisualSpec, command: MoveNodeCommand): VisualSpec {
   }
   nextNodes = insertChildReference(nextNodes, command.newParentId, command.id, command.index);
 
-  return withNodes(spec, nextNodes);
+  return withNodes(screen, nextNodes);
 }
 
-function applySetLayout(spec: VisualSpec, command: SetLayoutCommand): VisualSpec {
-  const { nodes } = spec.screen;
+function applySetLayout(screen: ScreenSpec, command: SetLayoutCommand): ScreenSpec {
+  const { nodes } = screen;
   const node = nodes[command.id];
-  if (node === undefined || !isFrameNode(node)) return spec; // text/image는 layout이 없다
+  if (node === undefined || !isFrameNode(node)) return screen; // text/image/button/input은 layout이 없다
 
-  return withNodes(spec, { ...nodes, [command.id]: { ...node, layout: command.layout } });
+  return withNodes(screen, { ...nodes, [command.id]: { ...node, layout: command.layout } });
+}
+
+function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): ScreenSpec {
+  return setByPath(screen, command.path, command.value);
 }
 
 /**
- * Command 하나를 spec에 적용해 새 spec을 반환한다(불변, 순수 함수).
+ * Command 하나를 화면(ScreenSpec) 하나에 적용해 새 화면을 반환한다(불변, 순수 함수).
+ *
+ * v0.1의 VisualSpec.screen이든 v0.2 ProjectSpec.pages[id]든 같은 ScreenSpec
+ * 모양이라 이 함수 하나로 둘 다 쓴다 — 어느 페이지에 적용할지는 호출자(editorStore)
+ * 책임이다. 이 함수 자신은 "페이지가 여러 장"이라는 개념을 아예 모른다.
+ *
  * 대상이 없거나 규칙을 어기면(root 삭제/이동, frame 아닌 곳에 자식 추가, 순환 등)
- * 아무것도 하지 않고 같은 spec 참조를 그대로 돌려준다 — 예외를 던지지 않는다.
+ * 아무것도 하지 않고 같은 screen 참조를 그대로 돌려준다 — 예외를 던지지 않는다.
  * IR 불변조건(schema/validate.ts의 root-missing/orphan-node/cycle/multiple-parents)을
  * 깨는 조합은 애초에 만들어지지 않도록 여기서 막는다.
  */
-export function applyCommand(spec: VisualSpec, command: Command): VisualSpec {
+export function applyCommand(screen: ScreenSpec, command: Command): ScreenSpec {
   switch (command.type) {
     case "createNode":
-      return applyCreateNode(spec, command);
+      return applyCreateNode(screen, command);
     case "updateNode":
-      return applyUpdateNode(spec, command);
+      return applyUpdateNode(screen, command);
     case "deleteNode":
-      return applyDeleteNode(spec, command);
+      return applyDeleteNode(screen, command);
     case "moveNode":
-      return applyMoveNode(spec, command);
+      return applyMoveNode(screen, command);
     case "setLayout":
-      return applySetLayout(spec, command);
+      return applySetLayout(screen, command);
+    case "updateScreen":
+      return applyUpdateScreen(screen, command);
   }
 }
 
@@ -188,6 +199,6 @@ export function applyCommand(spec: VisualSpec, command: Command): VisualSpec {
  * 통째로 적용할 때 쓴다 — 결과를 history.pushHistory에 한 번만 넘기면
  * PRD 13장이 요구하는 "요청 하나 = Undo 한 번" 트랜잭션이 된다.
  */
-export function applyTransaction(spec: VisualSpec, commands: Command[]): VisualSpec {
-  return commands.reduce((current, command) => applyCommand(current, command), spec);
+export function applyTransaction(screen: ScreenSpec, commands: Command[]): ScreenSpec {
+  return commands.reduce((current, command) => applyCommand(current, command), screen);
 }
