@@ -120,7 +120,17 @@ function LayerRow({
               : undefined
           }
           onDragEnd={onDragEnd}
-          onDragEnter={isDropTarget ? () => setIsDragOver(true) : undefined}
+          onDragEnter={
+            isDropTarget
+              ? (event) => {
+                  // dragover뿐 아니라 dragenter에도 preventDefault가 필요하다 — 안 그러면
+                  // 마우스가 자식 요소(이름 <span> 등) 경계를 넘나들 때마다 브라우저가
+                  // "여기 드롭 가능" 상태를 잃어버려 drop 자체가 취소된다(실측 확인, 이슈 #110).
+                  event.preventDefault();
+                  setIsDragOver(true);
+                }
+              : undefined
+          }
           onDragLeave={isDropTarget ? () => setIsDragOver(false) : undefined}
           onDragOver={isDropTarget ? (event) => event.preventDefault() : undefined}
           onDrop={
