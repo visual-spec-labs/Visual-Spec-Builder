@@ -183,25 +183,27 @@ export function installSkills(cwd) {
 }
 
 /**
- * 이 패키지 자신의 Vite 개발 서버 바이너리 경로. 없으면(=이 저장소에서 아직
+ * 이 패키지 자신의 Vite 개발 서버 **JS 진입점** 경로. 없으면(=이 저장소에서 아직
  * `pnpm install`을 안 한 상태) 에러를 던진다 — spawn이 raw ENOENT를 던지기 전에
  * 여기서 먼저 걸러서 친절한 메시지로 바꾼다(init·installSkills의 ENOTDIR 선점 검사와
  * 같은 패턴).
  *
+ * `node_modules/.bin/vite`가 아니라 `node_modules/vite/bin/vite.js`를 가리키는 이유는
+ * 아래 runGui의 spawn 주석에 적었다 — 이슈 #115.
+ *
  * @returns {string}
  */
-function resolveViteBin() {
-  const binName = process.platform === "win32" ? "vite.cmd" : "vite";
-  const viteBin = join(PACKAGE_ROOT, "node_modules", ".bin", binName);
+function resolveViteEntry() {
+  const viteEntry = join(PACKAGE_ROOT, "node_modules", "vite", "bin", "vite.js");
 
-  if (!existsAsFile(viteBin)) {
+  if (!existsAsFile(viteEntry)) {
     throw new Error(
-      `${viteBin}를 찾을 수 없습니다 — 이 저장소에서 먼저 \`pnpm install\`을 실행해주세요.\n` +
+      `${viteEntry}를 찾을 수 없습니다 — 이 저장소에서 먼저 \`pnpm install\`을 실행해주세요.\n` +
         "(GUI는 지금 사용자 프로젝트가 아니라 이 패키지 자신의 개발 서버로 뜬다 — 이슈 #105 참고)",
     );
   }
 
-  return viteBin;
+  return viteEntry;
 }
 
 function printUsage() {
@@ -270,8 +272,22 @@ function runSkills() {
  * 끝나고 vite도 고아로 남는다. 3초는 임의로 정한 값이다 — 정상 종료는 훨씬 빨리 끝난다.
  */
 function runGui() {
-  const viteBin = resolveViteBin();
-  const child = spawn(viteBin, ["--open"], { cwd: PACKAGE_ROOT, stdio: "inherit" });
+  const viteEntry = resolveViteEntry();
+  // **`node_modules/.bin/`의 런처가 아니라 vite의 JS 진입점을 지금 도는 node로 직접 돌린다.**
+  // Windows에서 `.bin/`에 깔리는 건 확장자가 `.cmd`인 배치 런처인데, Node는
+  // CVE-2024-27980 완화(18.20.2 / 20.12.2 이후) 이래 `.cmd`·`.bat`를 `shell: true` 없이
+  // spawn하는 걸 거부한다 — 그대로 넘기면 `spawn EINVAL`로 죽는다(이슈 #115). CI가
+  // ubuntu라 확장자 없는 런처를 골라 리눅스에서는 안 걸렸고, 그래서 체크는 초록인데
+  // Windows 사용자만 깨졌다.
+  //
+  // `shell: true`로 막는 방법도 있지만, 그러면 인자가 셸을 한 번 거치고 플랫폼 분기도
+  // 남는다. JS 진입점을 `process.execPath`(= 이 CLI를 돌리고 있는 바로 그 node)로 직접
+  // 실행하면 분기 자체가 사라져서 이 종류의 버그가 다시 생길 자리가 없다 — 셸을 안 거치니
+  // 주입 위험도 없다.
+  const child = spawn(process.execPath, [viteEntry, "--open"], {
+    cwd: PACKAGE_ROOT,
+    stdio: "inherit",
+  });
 
   const forwardSignal = (signal) => {
     child.kill(signal);
