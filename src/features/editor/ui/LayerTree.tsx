@@ -8,13 +8,16 @@ import {
   Image as ImageIcon,
   MousePointerClick as ButtonIcon,
   Plus,
+  Redo2,
   TextCursorInput as InputIcon,
   Trash2,
   Type as TypeIcon,
+  Undo2,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { canRedo, canUndo } from "@/features/editor/command/history";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
 import { resolveImportParent } from "@/features/editor/store/resolveImportParent";
@@ -322,6 +325,48 @@ export function LayerTree() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   /** 지금 드래그 중인 노드 — 드롭받을 수 있는 곳은 같은 parentId를 가진 형제뿐이다. */
   const [dragState, setDragState] = useState<DragState | null>(null);
+  /** 활성 페이지를 아직 한 번도 안 고쳤으면 history에 항목이 없다 — 그럴 땐 둘 다 false. */
+  const canUndoNow = useEditorStore((state) => {
+    const pageHistory = state.history[state.activePageId];
+    return pageHistory !== undefined && canUndo(pageHistory);
+  });
+  const canRedoNow = useEditorStore((state) => {
+    const pageHistory = state.history[state.activePageId];
+    return pageHistory !== undefined && canRedo(pageHistory);
+  });
+
+  useEffect(() => {
+    function isEditableTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      return (
+        target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable
+      );
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      // 패널의 입력칸 등에서는 브라우저 기본 되돌리기(텍스트 편집 undo)를 그대로 둔다 —
+      // 여기서 가로채면 "방금 타이핑한 글자"가 아니라 "직전 노드 편집"이 되돌아간다.
+      if (isEditableTarget(event.target)) return;
+      if (!(event.metaKey || event.ctrlKey)) return;
+
+      const key = event.key.toLowerCase();
+      const { undo, redo } = useEditorStore.getState();
+
+      if (key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+      } else if (key === "y" && event.ctrlKey && !event.shiftKey) {
+        // Ctrl+Y는 Windows 관례의 다시 실행이다. metaKey(Cmd+Y)는 안 건드린다 —
+        // macOS에는 이 조합에 대응하는 다시 실행 관례가 없다.
+        event.preventDefault();
+        redo();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   function handleDragStart(id: NodeId, parentId: NodeId) {
     setDragState({ id, parentId });
@@ -422,14 +467,34 @@ export function LayerTree() {
       </ul>
 
       <footer className="flex items-center justify-between border-t border-line px-3 py-2">
-        <button
-          type="button"
-          onClick={handleAddFrame}
-          aria-label="레이어 추가"
-          className="rounded-control p-0.5 text-content-muted hover:bg-hover hover:text-content"
-        >
-          <Plus className="size-4" aria-hidden="true" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleAddFrame}
+            aria-label="레이어 추가"
+            className="rounded-control p-0.5 text-content-muted hover:bg-hover hover:text-content"
+          >
+            <Plus className="size-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => useEditorStore.getState().undo()}
+            disabled={!canUndoNow}
+            aria-label="되돌리기"
+            className="rounded-control p-0.5 text-content-muted hover:bg-hover hover:text-content disabled:pointer-events-none disabled:opacity-30"
+          >
+            <Undo2 className="size-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => useEditorStore.getState().redo()}
+            disabled={!canRedoNow}
+            aria-label="다시 실행"
+            className="rounded-control p-0.5 text-content-muted hover:bg-hover hover:text-content disabled:pointer-events-none disabled:opacity-30"
+          >
+            <Redo2 className="size-4" aria-hidden="true" />
+          </button>
+        </div>
         <span className="font-mono text-xs text-content-subtle">{nodeCount} layers</span>
       </footer>
     </aside>
