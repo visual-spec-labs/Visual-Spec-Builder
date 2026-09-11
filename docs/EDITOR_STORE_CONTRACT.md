@@ -39,8 +39,8 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import) | **MenuBar**가 호출 |
 | `removeNode` | `(id: NodeId) => void` | 노드 삭제. 프레임이면 자손까지 연쇄 삭제, root는 지우지 않음 | **트리**가 호출 |
 | `moveNode` | `(id: NodeId, newParentId: NodeId, index: number) => void` | 노드를 newParentId의 children 중 index 위치로 옮김. root 이동 불가, 순환 방지 | **트리**가 호출(드래그) |
-| `undo` | `() => void` | 활성 페이지를 한 단계 되돌림(#40) | 아직 아무도 안 부름 — 버튼·단축키는 범위 밖 |
-| `redo` | `() => void` | 활성 페이지를 한 단계 다시 실행(#40) | 위와 같음 |
+| `undo` | `() => void` | 활성 페이지를 한 단계 되돌림(#40) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Z, #118) |
+| `redo` | `() => void` | 활성 페이지를 한 단계 다시 실행(#40) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Shift+Z · Ctrl+Y, #118) |
 
 ### setNodeField·setPageField·removeNode·moveNode는 이제 Command Engine을 거친다 (#40, #101, #110)
 
@@ -54,9 +54,11 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 `loadSpec`(New/Open)은 `history`를 통째로 비운다 — 안 비우면 새로 연 프로젝트가 이전 프로젝트와 우연히 같은 페이지 id(예: 마이그레이션이 항상 만드는 `"page1"`)를 써서 남의 undo 스택을 이어받는 사고가 난다.
 
-**스냅숏은 트랜잭션이 아니라 호출 한 번 단위로 쌓인다.** `ui/properties/fields/useDraftInput.ts`(패널 소유)는 파싱 가능한 키 입력마다 즉시 커밋하므로, 예를 들어 간격 칸에 "16"을 타이핑하면 history에 두 단계가 쌓인다(#40 리뷰, GAMMJ, PR #102). Undo/Redo UI가 없는 지금은 체감되지 않지만, UI가 생기면 debounce나 실제 Transaction 묶음이 필요해진다.
+**스냅숏은 트랜잭션이 아니라 호출 한 번 단위로 쌓인다.** `ui/properties/fields/useDraftInput.ts`(패널 소유)는 파싱 가능한 키 입력마다 즉시 커밋하므로, 예를 들어 간격 칸에 "16"을 타이핑하면 history에 두 단계가 쌓인다(#40 리뷰, GAMMJ, PR #102). **#118로 Undo/Redo UI가 생기면서 이게 더는 가상의 문제가 아니다** — 지금 숫자 칸에서 한 글자씩 여러 번 고치면 `undo` 한 번이 그중 마지막 한 글자만 되돌린다. debounce나 실제 Transaction 묶음은 여전히 이 PR 범위 밖이다.
 
-**아직 없는 것 — Undo/Redo를 실제로 부를 UI.** 버튼도 단축키(Cmd/Ctrl+Z)도 없다. 스토어 액션만 있고 아무도 호출하지 않는다 — Command Engine PR(#79)이 `applyCommand`/`history.ts`만 만들고 GUI 연결은 범위 밖으로 남긴 것과 같은 패턴이다.
+### Undo/Redo UI (#118)
+
+`ui/LayerTree.tsx` footer에 Undo/Redo 버튼이 있다(비활성화는 `command/history.ts`의 `canUndo`/`canRedo`로 판단 — `history[activePageId]`가 없으면, 즉 그 페이지를 아직 한 번도 안 고쳤으면 둘 다 꺼진다). 같은 파일이 `document`에 `keydown` 리스너를 걸어 Cmd/Ctrl+Z(되돌리기)·Cmd/Ctrl+Shift+Z·Ctrl+Y(다시 실행, Windows 관례라 `metaKey`는 안 본다)도 받는다. `event.target`이 input·textarea·`contenteditable`이면 아무 것도 안 한다 — 안 그러면 텍스트 칸에서 브라우저 기본 되돌리기(방금 타이핑한 글자)를 가로채 버린다.
 
 ### 노드를 다루는 함수는 활성 페이지를 알아서 찾는다
 
@@ -122,7 +124,7 @@ setNodeField("headerTitle", "typography.fontSize", 24);
 |---|---|---|---|
 | **담당** | 팀원 | 팀원 | 나 |
 | **읽기** | `spec`, `activePageId`, `selectedId` | `spec`, `activePageId`, `selectedId` | `spec`, `activePageId`, `selectedId` |
-| **호출** | 노드 클릭 → `select(id)`<br>**페이지 폴더 클릭 → `selectPage(id)`**<br>페이지 추가/삭제 → `addPage` / `removePage`<br>노드 삭제 → `removeNode(id)`<br>드래그로 순서 변경 → `moveNode(id, newParentId, index)` | 노드 클릭 → `select(id)`<br>드래그/리사이즈 → `setNodeField` | 값 편집 → `setNodeField`<br>페이지 이름·해상도 → `setPageField` |
+| **호출** | 노드 클릭 → `select(id)`<br>**페이지 폴더 클릭 → `selectPage(id)`**<br>페이지 추가/삭제 → `addPage` / `removePage`<br>노드 삭제 → `removeNode(id)`<br>드래그로 순서 변경 → `moveNode(id, newParentId, index)`<br>되돌리기/다시 실행 → `undo` / `redo` | 노드 클릭 → `select(id)`<br>드래그/리사이즈 → `setNodeField` | 값 편집 → `setNodeField`<br>페이지 이름·해상도 → `setPageField` |
 | **역할** | 루트에 페이지 폴더, 그 아래 계층 트리 + 선택 표시 | **활성 페이지** 렌더 + 선택 표시 | 선택 노드 · 활성 페이지 속성 편집 |
 
 **연결은 이게 전부다.** 트리/캔버스가 `select(id)`만 불러주면 패널이 그 노드에 맞게 알아서 바뀌고,
