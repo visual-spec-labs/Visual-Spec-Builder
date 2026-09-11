@@ -64,7 +64,7 @@
       "pattern": "^[A-Za-z0-9_-]+$"
     },
     "Size": {
-      "description": "number | \"auto\" | \"fill\". number는 minimum 0, px로 해석.",
+      "description": "number | \"auto\" | \"fill\". number는 minimum 0, px로 해석. \"fill\"의 교차축 해석(align-self: stretch)은 docs/06-schema-freeze.md 참고.",
       "oneOf": [
         { "type": "number", "minimum": 0 },
         { "type": "string", "enum": ["auto", "fill"] }

@@ -4,7 +4,7 @@
 export type NodeId = string;
 export type Node = FrameNode | TextNode | ImageNode | ButtonNode | InputNode;
 /**
- * number | "auto" | "fill". number는 minimum 0, px로 해석.
+ * number | "auto" | "fill". number는 minimum 0, px로 해석. "fill"의 교차축 해석(align-self: stretch)은 docs/06-schema-freeze.md 참고.
  */
 export type Size = number | ("auto" | "fill");
 /**
