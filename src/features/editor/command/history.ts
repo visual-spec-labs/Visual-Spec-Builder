@@ -37,6 +37,19 @@ export function pushHistory<T>(history: HistoryState<T>, next: T): HistoryState<
   return { past: [...history.past, history.present], present: next, future: [] };
 }
 
+/**
+ * present만 새 값으로 갈아 끼운다. past/future는 그대로 둔다 — pushHistory와
+ * 달리 새 undo 체크포인트를 만들지 않는다.
+ *
+ * 같은 편집을 잇는 중간 상태(예: 숫자 칸에 두 번째 글자를 타이핑한 결과)에 쓴다 —
+ * 그 편집의 undo 체크포인트는 이미 첫 글자를 커밋할 때 pushHistory로 찍어뒀으므로,
+ * 이어지는 글자들은 그 체크포인트를 다시 밀지 않고 present 값만 최신으로 유지하면
+ * 된다. 이슈 #121 참고 — editorStore.ts의 setNodeField/setPageField가 호출한다.
+ */
+export function replacePresent<T>(history: HistoryState<T>, next: T): HistoryState<T> {
+  return { ...history, present: next };
+}
+
 export function canUndo<T>(history: HistoryState<T>): boolean {
   return history.past.length > 0;
 }

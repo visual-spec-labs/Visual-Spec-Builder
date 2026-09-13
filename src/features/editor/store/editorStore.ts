@@ -7,6 +7,7 @@ import {
   initHistory,
   pushHistory,
   redo as historyRedo,
+  replacePresent,
   undo as historyUndo,
   type HistoryState,
 } from "@/features/editor/command/history";
@@ -62,9 +63,16 @@ export interface EditorState {
    * #40: 내부적으로 command/applyCommand.ts의 updateNode Command를 만들어
    * 적용한다 — "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다"는
    * 02-mvp-scope.md 제약을 이 함수 안에서 충족한다. 시그니처는 그대로라
-   * 호출부는 이 변화를 모른다. 성공한 변경마다 history에도 쌓인다.
+   * 대부분의 호출부는 이 변화를 모른다. 성공한 변경마다 history에도 쌓인다.
+   *
+   * `continueEdit`(#121, 기본 false)이 true면 새 단계를 쌓지 않고 present만
+   * 갈아 끼운다 — 직전 호출이 만든 undo 체크포인트에 이번 값을 겹쳐 쓴다.
+   * **호출하는 쪽이 "이건 같은 편집의 다음 글자다"를 알 때만 true를 넘긴다**
+   * (`ui/properties/fields/useDraftInput.ts`가 타이핑 burst를 추적해서 넘긴다).
+   * 기본값 false라 캔버스 드래그·레이어 트리 표시 토글처럼 이 매개변수를
+   * 모르는 기존 호출부는 전과 똑같이 호출마다 새 단계를 쌓는다.
    */
-  setNodeField: (id: NodeId, path: string, value: unknown) => void;
+  setNodeField: (id: NodeId, path: string, value: unknown, continueEdit?: boolean) => void;
   /**
    * 페이지 자체의 값을 바꾼다. 이름과 크기(해상도)가 대상이다.
    * 예: setPageField("home", "size.width", 1920)
@@ -73,8 +81,9 @@ export interface EditorState {
    * #40 리뷰(GAMMJ, PR #102): setNodeField와 같은 이유로 이것도 Command
    * Engine(updateScreen)을 거치고 history에 쌓인다 — 시그니처는 그대로다.
    * 안 그러면 "노드 편집 → 해상도 변경 → undo"가 둘 다 되돌리는 놀람이 있었다.
+   * `continueEdit`도 setNodeField와 같다(#121) — 기본 false.
    */
-  setPageField: (pageId: PageId, path: string, value: unknown) => void;
+  setPageField: (pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => void;
   /** 빈 페이지를 끝에 추가하고 그 페이지로 이동한다. 트리가 호출한다. */
   addPage: () => void;
   /**
@@ -160,16 +169,18 @@ function asPageOrder(ids: PageId[]): ProjectSpec["pageOrder"] {
  * 스냅숏은 insertNode 이전 것뿐이라, 그 삽입까지 함께 되돌아간다.** insertNode
  * 자체를 추적하는 건 이 PR 범위 밖이다 — 필요해지면 별도 이슈로 다룬다.
  *
- * **또 다른 알려진 한계 — 스냅숏이 트랜잭션이 아니라 setNodeField/setPageField
- * 호출 한 번 단위로 쌓인다.** `ui/properties/fields/useDraftInput.ts`(패널
- * 소유 — 이 PR에서 안 건드림)는 숫자 입력칸에서 파싱 가능한 키 입력마다 즉시
- * onCommit을 부른다. 즉 "16"을 타이핑하면 "1" 커밋 → "16" 커밋으로 history에
- * 두 단계가 쌓인다(#40 리뷰, GAMMJ, PR #102). `history.ts`가 원래 의도한
- * "트랜잭션 하나당 한 번"(PRD 13장)과는 다르다. Undo/Redo를 실제로 부를 UI가
- * 아직 없어서(EDITOR_STORE_CONTRACT.md 참고) 지금 당장 체감되는 문제는 아니라
- * 이 PR에서 고치지 않는다 — UI가 생길 때 debounce/commit-on-blur 같은 처리를
- * useDraftInput 쪽에 넣거나, Command 자체를 묶는 방식(Transaction)을 실제로
- * 쓰기 시작해야 한다.
+ * **해소됨(2026-09-13, 이슈 #121) — 스냅숏이 setNodeField/setPageField 호출
+ * 한 번 단위로 쌓이던 문제.** `ui/properties/fields/useDraftInput.ts`(패널
+ * 소유)는 숫자 입력칸에서 파싱 가능한 키 입력마다 즉시 onCommit을 부른다.
+ * 그 훅이 "지금 타이핑 burst가 이어지는 중인지"를 로컬로 기억해뒀다가, 이어지는
+ * 중이면 setNodeField/setPageField의 `continueEdit` 인자를 true로 넘긴다 —
+ * 그러면 pushHistory 대신 replacePresent로 present만 갈아 끼운다(아래 구현
+ * 참고). `continueEdit`은 **기본값이 false다** — 이 인자를 모르는 기존
+ * 호출부(캔버스 드래그, 레이어 트리 표시 토글)는 그대로 호출마다 새 단계를
+ * 쌓는다. 스토어가 "직전 호출과 같은 키인지" 스스로 추측하는 방식(예: 노드
+ * id·경로가 같으면 병합)은 일부러 안 썼다 — 표시 토글처럼 같은 경로를 여러 번
+ * 눌러도 매번 별개의 편집인 호출부까지 잘못 병합해버리기 때문이다. 병합 여부는
+ * 그걸 실제로 아는 호출부(useDraftInput)만 결정한다.
  */
 function reconciledHistory(
   history: Record<PageId, HistoryState<ScreenSpec>>,
@@ -196,7 +207,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
       return { activePageId: id, selectedId: null };
     }),
-  setNodeField: (id, path, value) =>
+  setNodeField: (id, path, value, continueEdit = false) =>
     set((state) => {
       const page = state.spec.pages[state.activePageId];
       const node = page?.nodes[id];
@@ -210,17 +221,17 @@ export const useEditorStore = create<EditorState>((set) => ({
       const nextPage = applyCommand(page, { type: "updateNode", id, path, value });
       if (nextPage === page) return state;
 
-      const nextHistory = pushHistory(
-        reconciledHistory(state.history, state.activePageId, page),
-        nextPage,
-      );
+      const reconciled = reconciledHistory(state.history, state.activePageId, page);
+      const nextHistory = continueEdit
+        ? replacePresent(reconciled, nextPage)
+        : pushHistory(reconciled, nextPage);
 
       return {
         spec: withPage(state.spec, state.activePageId, nextPage),
         history: { ...state.history, [state.activePageId]: nextHistory },
       };
     }),
-  setPageField: (pageId, path, value) =>
+  setPageField: (pageId, path, value, continueEdit = false) =>
     set((state) => {
       const page = state.spec.pages[pageId];
       if (page === undefined) {
@@ -230,7 +241,10 @@ export const useEditorStore = create<EditorState>((set) => ({
       const nextPage = applyCommand(page, { type: "updateScreen", path, value });
       if (nextPage === page) return state;
 
-      const nextHistory = pushHistory(reconciledHistory(state.history, pageId, page), nextPage);
+      const reconciled = reconciledHistory(state.history, pageId, page);
+      const nextHistory = continueEdit
+        ? replacePresent(reconciled, nextPage)
+        : pushHistory(reconciled, nextPage);
 
       return {
         spec: withPage(state.spec, pageId, nextPage),

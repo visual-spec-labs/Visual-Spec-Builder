@@ -31,8 +31,8 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `history` | `Record<PageId, HistoryState<ScreenSpec>>` | 페이지별 실행 취소 스택(#40) | 보통 안 읽는다 — `undo`/`redo`가 대신 씀 |
 | `select` | `(id: NodeId \| null) => void` | 노드 선택 / 해제 | **트리 · 캔버스**가 호출 |
 | `selectPage` | `(id: PageId) => void` | 캔버스에 띄울 페이지 전환 | **트리**가 호출 |
-| `setNodeField` | `(id: NodeId, path: string, value: unknown) => void` | 노드 값 하나 변경 | **패널 · 캔버스(드래그)**가 호출 |
-| `setPageField` | `(pageId: PageId, path: string, value: unknown) => void` | 페이지 이름 · 크기(해상도) 변경 | **패널**이 호출 |
+| `setNodeField` | `(id: NodeId, path: string, value: unknown, continueEdit?: boolean) => void` | 노드 값 하나 변경 | **패널 · 캔버스(드래그)**가 호출 |
+| `setPageField` | `(pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => void` | 페이지 이름 · 크기(해상도) 변경 | **패널**이 호출 |
 | `addPage` | `() => void` | 빈 페이지를 끝에 추가하고 이동 | **트리**가 호출 |
 | `removePage` | `(id: PageId) => void` | 페이지 삭제 | **트리**가 호출 |
 | `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제 + history 초기화(New/Open) | **MenuBar**가 호출 |
@@ -54,7 +54,11 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 `loadSpec`(New/Open)은 `history`를 통째로 비운다 — 안 비우면 새로 연 프로젝트가 이전 프로젝트와 우연히 같은 페이지 id(예: 마이그레이션이 항상 만드는 `"page1"`)를 써서 남의 undo 스택을 이어받는 사고가 난다.
 
-**스냅숏은 트랜잭션이 아니라 호출 한 번 단위로 쌓인다.** `ui/properties/fields/useDraftInput.ts`(패널 소유)는 파싱 가능한 키 입력마다 즉시 커밋하므로, 예를 들어 간격 칸에 "16"을 타이핑하면 history에 두 단계가 쌓인다(#40 리뷰, GAMMJ, PR #102). **#118로 Undo/Redo UI가 생기면서 이게 더는 가상의 문제가 아니다** — 지금 숫자 칸에서 한 글자씩 여러 번 고치면 `undo` 한 번이 그중 마지막 한 글자만 되돌린다. debounce나 실제 Transaction 묶음은 여전히 이 PR 범위 밖이다.
+**스냅숏은 호출 한 번 단위로 쌓이지만, `continueEdit: true`로 부른 호출은 병합된다(#121).** `ui/properties/fields/useDraftInput.ts`(패널 소유)는 파싱 가능한 키 입력마다 즉시 커밋한다 — 예를 들어 간격 칸에 "16"을 타이핑하면 `setNodeField("cardA", "layout.gap", 1)` → `setNodeField("cardA", "layout.gap", 16, true)`가 연달아 불린다. 두 번째 호출처럼 `continueEdit`이 `true`면 `pushHistory` 대신 `replacePresent`(`command/history.ts`)로 present만 갈아 끼운다 — history에 새 단계를 안 쌓고 직전 체크포인트에 이번 값을 덮어쓴다. **기본값은 `false`다** — 이 매개변수를 모르는 기존 호출부(캔버스 드래그, 레이어 트리 표시 토글)는 그대로 호출마다 새 단계를 쌓는다.
+
+**"같은 편집을 잇는 중인지"는 스토어가 추측하지 않는다.** 노드 id·경로가 같다고 병합하면, 레이어 트리의 "표시" 토글처럼 같은 경로를 반복 호출해도 매번 별개 편집이어야 하는 호출부까지 잘못 합쳐진다. 그래서 병합 여부는 **그걸 실제로 아는 호출부만** 판단한다 — `useDraftInput`이 "지금 이 커밋이 방금 그 타이핑 burst의 다음 글자인지"를 로컬 상태로 추적해뒀다가 `continueEdit`으로 넘긴다. 입력칸이 포커스를 잃으면(`handleBlur`) burst가 끝나서 다음 편집(같은 칸이라도)은 `continueEdit: false`로 새 단계를 만든다. `NumberField`/`SizeField`/`ColorField`의 `onChange` prop이 이 두 번째 인자를 받아 그대로 전달해야 병합이 동작한다 — 무시하고 `(value) => ...`처럼 한 인자만 받아도 값 반영 자체는 되지만 그 필드는 키 입력마다 undo 단계가 쌓이는 예전 동작으로 돌아간다.
+
+**`TextField`(노드 이름 · 텍스트 content 등)는 아직 이 대상이 아니다.** `useDraftInput`을 안 쓰고 타이핑을 즉시 커밋하므로 같은 종류의 문제가 남아 있다 — #121의 범위는 신고된 숫자/색상 칸(`useDraftInput` 기반)까지였다.
 
 ### Undo/Redo UI (#118)
 

@@ -334,6 +334,8 @@ describe("editorStore", () => {
     });
 
     it("연속된 변경을 순서대로 되돌린다", () => {
+      // continueEdit을 안 넘기면(기본 false) 매 호출이 별개 단계다(#121) — 이
+      // 둘은 서로 다른 두 번의 편집을 흉내 낸다.
       const original = activePage().nodes.cardA;
       useEditorStore.getState().setNodeField("cardA", "layout.gap", 10);
       const first = activePage().nodes.cardA;
@@ -462,6 +464,94 @@ describe("editorStore", () => {
       const before = useEditorStore.getState().spec;
       useEditorStore.getState().undo();
       expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    describe("continueEdit로 이어지는 편집을 history 한 단계로 합친다 (#121)", () => {
+      // continueEdit은 호출하는 쪽(useDraftInput, ui/properties/fields/useDraftInput.ts)이
+      // "이건 방금 그 편집의 다음 글자다"를 알 때만 넘긴다 — 스토어가 노드·경로가
+      // 같다고 스스로 추측해서 병합하지 않는다(레이어 트리 표시 토글처럼 같은
+      // 경로를 반복 호출해도 매번 별개 편집인 호출부가 있어서다). 그래서 여기서는
+      // 그 플래그를 직접 넘겨 스토어 쪽 병합 메커니즘만 검증한다 — burst를 실제로
+      // 추적하는 useDraftInput의 로직은 이 저장소에 컴포넌트/훅 테스트 도구가 없어
+      // (다른 UI 코드와 마찬가지로) 여기서 단위 테스트하지 않는다.
+      it("continueEdit=true로 두 번째를 부르면 history 한 단계로 합쳐진다", () => {
+        const before = activePage(); // 시드 원래 페이지(gap: 8)
+
+        // useDraftInput이 "1" 커밋(continueEdit: false) → "16" 커밋(continueEdit: true)을
+        // 만드는 상황을 그대로 재현한다.
+        useEditorStore.getState().setNodeField("cardA", "layout.gap", 1);
+        useEditorStore.getState().setNodeField("cardA", "layout.gap", 16, true);
+
+        const pageId = useEditorStore.getState().activePageId;
+        expect(useEditorStore.getState().history[pageId]?.past).toEqual([before]); // 1단계뿐
+
+        useEditorStore.getState().undo();
+
+        const cardA = activePage().nodes.cardA;
+        expect(cardA.type === "frame" && cardA.layout.gap).toBe(8); // 시드 원래 값으로 한 번에 복귀
+      });
+
+      it("continueEdit을 안 넘기면(기본 false) 같은 id·path라도 매번 새 단계가 쌓인다", () => {
+        useEditorStore.getState().setNodeField("cardA", "layout.gap", 16);
+        useEditorStore.getState().setNodeField("cardA", "layout.gap", 32); // continueEdit 없음
+
+        const pageId = useEditorStore.getState().activePageId;
+        expect(useEditorStore.getState().history[pageId]?.past.length).toBe(2);
+
+        useEditorStore.getState().undo();
+        let cardA = activePage().nodes.cardA;
+        expect(cardA.type === "frame" && cardA.layout.gap).toBe(16); // 한 단계만 되돌아감
+
+        useEditorStore.getState().undo();
+        cardA = activePage().nodes.cardA;
+        expect(cardA.type === "frame" && cardA.layout.gap).toBe(8);
+      });
+
+      it("continueEdit=true라도 다른 노드·경로에 대한 첫 편집이면 무조건 새 단계다", () => {
+        // continueEdit은 "present만 갈아 끼운다"는 무조건 지시일 뿐 노드·경로
+        // 일치를 스스로 확인하지 않는다 — 그 책임은 호출자(useDraftInput, 같은
+        // burst 안에서만 true를 보낸다)에 있다. 정상적인 첫 호출은 항상 false다.
+        useEditorStore.getState().setNodeField("cardA", "layout.gap", 16);
+        useEditorStore.getState().setNodeField("cardA", "box.width", 999); // 경로가 다름, continueEdit 없음
+        useEditorStore.getState().setNodeField("cardB", "layout.gap", 16); // 노드가 다름, continueEdit 없음
+
+        const pageId = useEditorStore.getState().activePageId;
+        expect(useEditorStore.getState().history[pageId]?.past.length).toBe(3); // 셋 다 별개 단계
+      });
+
+      it("편집 사이에 다른 액션(removeNode)이 껴도 그 액션은 별개 단계로 남는다", () => {
+        useEditorStore.getState().setNodeField("cardA", "layout.gap", 16);
+        useEditorStore.getState().removeNode("cardB");
+        useEditorStore.getState().setNodeField("cardA", "layout.gap", 32); // continueEdit 없음 — 새 단계
+
+        expect(activePage().nodes.cardB).toBeUndefined();
+
+        useEditorStore.getState().undo(); // gap=32 → gap=16으로만 돌아가야 한다
+        let cardA = activePage().nodes.cardA;
+        expect(cardA.type === "frame" && cardA.layout.gap).toBe(16);
+        expect(activePage().nodes.cardB).toBeUndefined(); // 삭제는 아직 안 되돌아감
+
+        useEditorStore.getState().undo(); // 이제 삭제가 되돌아간다 — gap은 여전히 16(첫 편집은 남아 있다)
+        expect(activePage().nodes.cardB).toBeDefined();
+        cardA = activePage().nodes.cardA;
+        expect(cardA.type === "frame" && cardA.layout.gap).toBe(16);
+
+        useEditorStore.getState().undo(); // 마지막으로 첫 편집도 되돌아간다
+        cardA = activePage().nodes.cardA;
+        expect(cardA.type === "frame" && cardA.layout.gap).toBe(8);
+      });
+
+      it("setPageField도 같은 continueEdit 규칙을 따른다", () => {
+        const pageId = useEditorStore.getState().activePageId;
+
+        useEditorStore.getState().setPageField(pageId, "size.width", 1900);
+        useEditorStore.getState().setPageField(pageId, "size.width", 1920, true);
+
+        expect(useEditorStore.getState().history[pageId]?.past.length).toBe(1);
+
+        useEditorStore.getState().undo();
+        expect(activePage().size.width).toBe(1440); // 시드 원래 값으로 한 번에 복귀
+      });
     });
   });
 

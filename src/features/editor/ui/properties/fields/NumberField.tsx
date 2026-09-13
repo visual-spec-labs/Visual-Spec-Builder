@@ -4,7 +4,14 @@ import { useDraftInput } from "./useDraftInput";
 interface NumberFieldProps {
   label: string;
   value: number | undefined;
-  onChange: (value: number) => void;
+  /**
+   * `continueEdit`(#121)은 지금 커밋이 직전 커밋과 같은 타이핑 burst를 잇는
+   * 것이면 true다 — 그대로 setNodeField/setPageField에 넘겨야 새 undo 단계가
+   * 안 쌓이고 병합된다. 무시하고 `(value) => ...` 한 인자만 받아도 동작은
+   * 하지만(값은 여전히 맞게 반영된다) 그 필드는 키 입력마다 undo 단계가
+   * 쌓이는 예전 동작으로 돌아간다.
+   */
+  onChange: (value: number, continueEdit?: boolean) => void;
   min?: number;
   max?: number;
   step?: number;
@@ -22,7 +29,7 @@ export function NumberField({
   step,
   unit,
 }: NumberFieldProps) {
-  const { draft, invalid, handleChange } = useDraftInput(value, {
+  const { draft, invalid, handleChange, handleBlur } = useDraftInput(value, {
     toDraft: (v) => (v === undefined ? "" : String(v)),
     parse: (raw) => {
       const parsed = Number(raw);
@@ -49,6 +56,7 @@ export function NumberField({
           max={max}
           step={step}
           onChange={(event) => handleChange(event.target.value)}
+          onBlur={handleBlur}
         />
         {unit ? (
           <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-subtle">

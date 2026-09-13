@@ -10,7 +10,9 @@ import { getByPath } from "@/features/editor/store/path";
  * 나중에 필드를 추가할 때(예: rotation) 이 훅으로 한 줄이면 연결된다:
  *   const [rotation, setRotation] = useNodeField<number>("rotation");
  */
-export function useNodeField<T>(path: string): [T | undefined, (value: T) => void] {
+export function useNodeField<T>(
+  path: string,
+): [T | undefined, (value: T, continueEdit?: boolean) => void] {
   const selectedId = useEditorStore((state) => state.selectedId);
   const value = useEditorStore((state) => {
     if (selectedId === null) {
@@ -23,9 +25,11 @@ export function useNodeField<T>(path: string): [T | undefined, (value: T) => voi
   const setNodeField = useEditorStore((state) => state.setNodeField);
 
   const setValue = useCallback(
-    (next: T) => {
+    // continueEdit(#121)은 그대로 setNodeField에 넘긴다 — useDraftInput이
+    // 타이핑 burst를 잇는 중임을 표시할 때 쓴다.
+    (next: T, continueEdit?: boolean) => {
       if (selectedId !== null) {
-        setNodeField(selectedId, path, next);
+        setNodeField(selectedId, path, next, continueEdit);
       }
     },
     [selectedId, path, setNodeField],

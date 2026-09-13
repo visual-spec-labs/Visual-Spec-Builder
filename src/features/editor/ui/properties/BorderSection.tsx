@@ -54,15 +54,17 @@ export function BorderSection() {
     ? toPerCorner(radius)
     : undefined;
 
-  function updateBorder(patch: Partial<Border>) {
+  // continueEdit(#121)은 그대로 setBorder에 넘긴다 — 안 그러면 두께·반경·색
+  // 칸은 타이핑 burst가 병합되지 않고 키 입력마다 undo 단계가 쌓인다.
+  function updateBorder(patch: Partial<Border>, continueEdit?: boolean) {
     const next = mergeBorder(border, patch);
     // 아무것도 그리지 않는 객체는 스펙에 남기지 않는다 — 효과 필드가 항등값에서
     // 필드를 지우는 것과 같은 기준이다.
-    setBorder(isBlankBorder(next) ? undefined : next);
+    setBorder(isBlankBorder(next) ? undefined : next, continueEdit);
   }
 
-  function updateCornerRadius(patch: Partial<CornerRadius>) {
-    updateBorder({ radius: mergeCornerRadius(radius, patch) });
+  function updateCornerRadius(patch: Partial<CornerRadius>, continueEdit?: boolean) {
+    updateBorder({ radius: mergeCornerRadius(radius, patch) }, continueEdit);
   }
 
   return (
@@ -71,7 +73,7 @@ export function BorderSection() {
         <NumberField
           label="두께"
           value={border?.width}
-          onChange={(width) => updateBorder({ width })}
+          onChange={(width, continueEdit) => updateBorder({ width }, continueEdit)}
           min={0}
           unit="px"
         />
@@ -81,7 +83,7 @@ export function BorderSection() {
             // toUniform은 모드 전환용이다 — 여기서 쓰면 테두리가 없는 노드에도 0이
             // 찍혀 옆 "두께" 칸(빈칸)과 기준이 어긋난다. 값이 없으면 비워 둔다.
             value={typeof radius === "number" ? radius : undefined}
-            onChange={(radius) => updateBorder({ radius })}
+            onChange={(radius, continueEdit) => updateBorder({ radius }, continueEdit)}
             min={0}
             unit="px"
           />
@@ -104,28 +106,32 @@ export function BorderSection() {
           <NumberField
             label="좌상"
             value={corners.topLeft}
-            onChange={(topLeft) => updateCornerRadius({ topLeft })}
+            onChange={(topLeft, continueEdit) => updateCornerRadius({ topLeft }, continueEdit)}
             min={0}
             unit="px"
           />
           <NumberField
             label="우상"
             value={corners.topRight}
-            onChange={(topRight) => updateCornerRadius({ topRight })}
+            onChange={(topRight, continueEdit) => updateCornerRadius({ topRight }, continueEdit)}
             min={0}
             unit="px"
           />
           <NumberField
             label="우하"
             value={corners.bottomRight}
-            onChange={(bottomRight) => updateCornerRadius({ bottomRight })}
+            onChange={(bottomRight, continueEdit) =>
+              updateCornerRadius({ bottomRight }, continueEdit)
+            }
             min={0}
             unit="px"
           />
           <NumberField
             label="좌하"
             value={corners.bottomLeft}
-            onChange={(bottomLeft) => updateCornerRadius({ bottomLeft })}
+            onChange={(bottomLeft, continueEdit) =>
+              updateCornerRadius({ bottomLeft }, continueEdit)
+            }
             min={0}
             unit="px"
           />
@@ -134,7 +140,7 @@ export function BorderSection() {
       <ColorField
         label="테두리색"
         value={border?.color}
-        onChange={(color) => updateBorder({ color })}
+        onChange={(color, continueEdit) => updateBorder({ color }, continueEdit)}
       />
       <SegmentedControl
         label="정렬"
