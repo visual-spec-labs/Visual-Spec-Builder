@@ -27,8 +27,9 @@ function findParentId(
 /**
  * id 자신 + 모든 자손의 id 집합.
  * deleteNode의 연쇄 삭제, moveNode의 순환 방지(자기 자신/자손 밑으로 옮기는 것 차단)에 쓴다.
+ * ui/layerDrop.ts(#123)도 레이어 트리 드래그의 순환 방지에 그대로 재사용한다.
  */
-function collectSubtreeIds(nodes: Record<NodeId, Node>, id: NodeId): Set<NodeId> {
+export function collectSubtreeIds(nodes: Record<NodeId, Node>, id: NodeId): Set<NodeId> {
   const result = new Set<NodeId>();
 
   function visit(nodeId: NodeId): void {
