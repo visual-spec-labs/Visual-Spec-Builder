@@ -17,10 +17,12 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { collectSubtreeIds } from "@/features/editor/command/applyCommand";
 import { canRedo, canUndo } from "@/features/editor/command/history";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
 import { resolveImportParent } from "@/features/editor/store/resolveImportParent";
+import { resolveLayerDrop } from "@/features/editor/ui/layerDrop";
 import type { FrameNode, Node, NodeId, PageId } from "@/features/editor/schema";
 
 /** 깊이별 들여쓰기 — Tailwind 스페이싱 스케일만 사용(임의값 금지). */
@@ -51,8 +53,13 @@ function blankFrameNode(): FrameNode {
   };
 }
 
-/** 같은 부모 안에서 드래그로 순서를 바꿀 때 뜨는 상태 — 드래그 중인 노드와 그 부모. */
-type DragState = { id: NodeId; parentId: NodeId };
+/**
+ * 레이어 트리 드래그 중에 뜨는 상태 — 드래그 중인 노드, 그 부모, 그리고 자기 자신+모든
+ * 자손 id(subtreeIds). subtreeIds는 순환 방지용이다 — 자기 자신이나 자기 자손 위로는
+ * 옮길 수 없으므로(#123, resolveLayerDrop이 이 집합으로 드롭 대상 여부를 가른다) 매
+ * dragover마다 다시 계산하지 않도록 드래그 시작 시점에 한 번만 구한다.
+ */
+type DragState = { id: NodeId; parentId: NodeId; subtreeIds: Set<NodeId> };
 
 function LayerRow({
   id,
@@ -67,13 +74,17 @@ function LayerRow({
 }: {
   id: NodeId;
   depth: number;
-  /** 이 노드의 부모 id. root는 부모가 없어 null — 드래그·드롭 대상 모두에서 제외한다. */
+  /**
+   * 이 노드의 부모 id. root는 부모가 없어 null이다 — 드래그 대상에서는 제외되지만
+   * (root는 옮길 수 없다), 드롭 대상에서는 제외되지 않는다. root도 frame이라
+   * resolveLayerDrop이 "안으로 넣기"로 받아, 중첩된 노드를 최상위로 옮기는 통로가 된다.
+   */
   parentId: NodeId | null;
   isCollapsed: (id: NodeId) => boolean;
   onToggleCollapse: (id: NodeId) => void;
   dragState: DragState | null;
   onDragStart: (id: NodeId, parentId: NodeId) => void;
-  onDrop: (targetId: NodeId, targetParentId: NodeId) => void;
+  onDrop: (targetId: NodeId, targetParentId: NodeId | null) => void;
   onDragEnd: () => void;
 }) {
   const node = useEditorStore(
@@ -99,11 +110,18 @@ function LayerRow({
 
   // root는 부모가 없어 옮길 수 없다(moveNode도 store에서 막는다) — 드래그 자체를 안 건다.
   const isDraggable = !isRoot && parentId !== null;
-  // 같은 부모의 형제끼리만 드롭을 받는다 — 이번 범위는 순서 변경뿐, 다른 프레임으로
-  // 옮기는 재부모화는 별도 이슈로 미뤘다(이슈 #110 본문 참고).
-  const isDropTarget =
-    dragState !== null && parentId !== null && dragState.parentId === parentId && dragState.id !== id;
+  // 형제 순서 변경과 다른 프레임으로의 재부모화 둘 다 이 행이 받는다(#123) — 어느 쪽인지는
+  // 실제로 놓을 때 resolveLayerDrop(순수 함수, ui/layerDrop.ts)이 이 행이 frame인지 아닌지로
+  // 가른다. 여기서는 자기 자신·자기 자손 위에 놓는 것만 미리 걸러 드롭 표시를 안 띄운다
+  // (subtreeIds는 자기 자신도 포함한다 — 순환 방지의 최종 방어선은 moveNode 쪽에 있다).
+  const isDropTarget = dragState !== null && !dragState.subtreeIds.has(id);
   const isBeingDragged = dragState?.id === id;
+  // resolveLayerDrop과 같은 기준(frame이면 안으로, 아니면 그 앞자리로)으로 드롭 표시를
+  // 나눈다 — frame 위는 테두리(그 안에 들어간다), 그 외는 행 위쪽 선(그 자리 앞에
+  // 끼워진다)이다. 실제로 항상 "그 앞"인 이유는 resolveLayerDrop 주석 참고.
+  const isFrame = node.type === "frame";
+  const showNestOutline = isDragOver && isFrame;
+  const showInsertLine = isDragOver && !isFrame;
 
   return (
     <>
@@ -145,14 +163,21 @@ function LayerRow({
                 }
               : undefined
           }
-          className={`group flex w-full items-center gap-1 rounded-control py-1 pr-1 ${indent} ${
+          className={`group relative flex w-full items-center gap-1 rounded-control py-1 pr-1 ${indent} ${
             isSelected
               ? "bg-primary-subtle text-primary"
               : "text-content-muted hover:bg-hover hover:text-content"
           } ${isBeingDragged ? "opacity-40" : ""} ${
-            isDragOver ? "outline outline-2 -outline-offset-2 outline-primary" : ""
+            showNestOutline ? "outline outline-2 -outline-offset-2 outline-primary" : ""
           }`}
         >
+          {showInsertLine ? (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 h-0.5 -translate-y-1/2 rounded-full bg-primary"
+            />
+          ) : null}
+
           {hasChildren ? (
             <button
               type="button"
@@ -247,7 +272,7 @@ function PageFolderRow({
   onToggleCollapse: (id: NodeId) => void;
   dragState: DragState | null;
   onDragStart: (id: NodeId, parentId: NodeId) => void;
-  onDrop: (targetId: NodeId, targetParentId: NodeId) => void;
+  onDrop: (targetId: NodeId, targetParentId: NodeId | null) => void;
   onDragEnd: () => void;
 }) {
   const page = useEditorStore((state) => state.spec.pages[pageId]);
@@ -369,7 +394,9 @@ export function LayerTree() {
   }, []);
 
   function handleDragStart(id: NodeId, parentId: NodeId) {
-    setDragState({ id, parentId });
+    const { spec, activePageId } = useEditorStore.getState();
+    const nodes = spec.pages[activePageId].nodes;
+    setDragState({ id, parentId, subtreeIds: collectSubtreeIds(nodes, id) });
   }
 
   function handleDragEnd() {
@@ -377,27 +404,28 @@ export function LayerTree() {
   }
 
   /**
-   * 형제 목록에서 드래그한 노드를 targetId 자리로 옮긴다. dragState.parentId와
-   * targetParentId가 다르면(LayerRow가 isDropTarget으로 이미 걸러내지만 방어적으로
-   * 한 번 더 확인한다) 아무 일도 안 한다 — 이번 범위는 같은 부모 안 순서 변경뿐이다.
-   *
-   * moveNode는 대상 노드를 먼저 children에서 뺀 뒤 index에 끼워 넣으므로, 드래그한
-   * 노드가 목표보다 앞에 있었으면 제거로 인해 목표 자리가 한 칸 당겨진다 — 그만큼
-   * 보정해야 "드롭한 자리에 정확히 들어간다."
+   * 드래그한 노드를 targetId 행에 놓았을 때 무엇을 할지 resolveLayerDrop(순수 함수,
+   * ui/layerDrop.ts)으로 정하고 moveNode로 적용한다(#123) — targetId가 frame이면 그
+   * 자식 끝으로 재부모화하고, 아니면 그 노드가 속한 부모 안에서 그 자리로 순서를
+   * 바꾼다(부모가 dragState의 원래 부모와 달라도 이제 허용하므로 이 경로로도
+   * 재부모화가 일어난다). 순환 등으로 유효한 대상이 아니면 resolveLayerDrop이 null을
+   * 돌려주고 아무 일도 안 한다.
    */
-  function handleDrop(targetId: NodeId, targetParentId: NodeId) {
-    if (dragState !== null && dragState.parentId === targetParentId && dragState.id !== targetId) {
+  function handleDrop(targetId: NodeId, targetParentId: NodeId | null) {
+    if (dragState !== null) {
       const { spec, activePageId, moveNode } = useEditorStore.getState();
-      const parent = spec.pages[activePageId].nodes[targetParentId];
+      const nodes = spec.pages[activePageId].nodes;
 
-      if (parent !== undefined && parent.type === "frame") {
-        const fromIndex = parent.children.findIndex((child) => child.node === dragState.id);
-        const toIndex = parent.children.findIndex((child) => child.node === targetId);
+      const target = resolveLayerDrop({
+        nodes,
+        dragId: dragState.id,
+        dragParentId: dragState.parentId,
+        targetId,
+        targetParentId,
+      });
 
-        if (fromIndex !== -1 && toIndex !== -1) {
-          const index = fromIndex < toIndex ? toIndex - 1 : toIndex;
-          moveNode(dragState.id, targetParentId, index);
-        }
+      if (target !== null) {
+        moveNode(dragState.id, target.newParentId, target.index);
       }
     }
 
