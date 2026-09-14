@@ -62,8 +62,6 @@ export function MenuBar() {
   const toggleGrid = useViewStore((s) => s.toggleGrid);
   const showPanels = useViewStore((s) => s.showPanels);
   const togglePanels = useViewStore((s) => s.togglePanels);
-  const fillViewport = useViewStore((s) => s.fillViewport);
-  const toggleFillViewport = useViewStore((s) => s.toggleFillViewport);
 
   const FILE_MENU: MenuEntry[] = [
     { kind: "action", label: "New", onSelect: () => loadSpec(blankSpec) },
@@ -82,12 +80,6 @@ export function MenuBar() {
     { kind: "separator" },
     { kind: "toggle", label: "Show Grid", checked: showGrid, onToggle: toggleGrid },
     { kind: "toggle", label: "Panels/Sidebars", checked: showPanels, onToggle: togglePanels },
-    {
-      kind: "toggle",
-      label: "Fill Viewport",
-      checked: fillViewport,
-      onToggle: toggleFillViewport,
-    },
   ];
 
   useEffect(() => {
