@@ -24,9 +24,16 @@ import type {
 import { blankSpec } from "./blankSpec";
 import { generateNodeId } from "./nodeId";
 import { seedSpec } from "./seedSpec";
+import { loadStoredSpec } from "./specStorage";
 
-/** 시드는 v0.1 예제라 페이지 1개짜리 프로젝트로 넓혀 시작한다. */
-const initialSpec = migrateV01(seedSpec);
+/**
+ * 이슈 #128 — localStorage에 자동저장된 프로젝트가 있으면 그걸로 시작하고,
+ * 없거나 깨졌으면(검증 실패) 시드로 시작한다. 시드는 v0.1 예제라 페이지
+ * 1개짜리 프로젝트로 넓힌다. 실제 저장은 App.tsx가 spec 변경을 구독해서 한다
+ * (이 파일에 넣지 않은 이유는 그러면 이 스토어를 import하는 모든 테스트가
+ * 매번 디바운스 타이머를 만들게 되기 때문이다).
+ */
+const initialSpec = loadStoredSpec() ?? migrateV01(seedSpec);
 
 /**
  * 캔버스 · 레이어 트리 · 세부설정 패널이 공유하는 단일 스토어.
