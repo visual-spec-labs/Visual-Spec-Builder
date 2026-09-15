@@ -155,7 +155,7 @@ export interface ImageNode {
   visible?: boolean;
   box: Box;
   /**
-   * 워크스페이스 assets에 저장된 이미지를 가리키는 상대 경로 또는 assetId.
+   * 이미지 참조. 세 가지가 들어온다 — 워크스페이스 assets 기준 상대 경로, assetId, 그리고 base64 data URI(data:image/png;base64,...). data URI는 잠정 형태다: 워크스페이스 assets 저장소가 아직 없어 File ▸ Import가 파일 전체를 스펙 안에 담는다(06-schema-freeze.md 참고). 저장소가 생기면 경로/assetId로 되돌린다. 제약은 비지 않은 문자열뿐이라 어느 형태인지는 읽는 쪽이 구분한다.
    */
   src: string;
   /**
