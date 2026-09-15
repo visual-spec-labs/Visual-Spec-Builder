@@ -27,6 +27,12 @@ import type {
 } from "@/features/editor/schema";
 
 import {
+  isScrolledToBottom,
+  shouldDeleteSelection,
+  toolCursorClass,
+} from "./canvasInput";
+import {
+  artboardBoxSize,
   boxStyle,
   effectStyle,
   resizedValue,
@@ -301,6 +307,90 @@ function useSelectionRect(
   return rect;
 }
 
+/**
+ * 아트보드가 실제로 몇 px로 그려졌는지(세로) 잰다.
+ *
+ * 아트보드 높이가 `minHeight` 로 바뀌어 내용에 따라 자라므로(#86), 스크롤 범위를
+ * 정하는 바깥 박스도 그 값을 따라가야 아래쪽 내용까지 스크롤된다.
+ *
+ * `offsetHeight` 는 `transform: scale` 의 영향을 받지 않는 레이아웃 높이라 확대율과
+ * 무관한 값이 나온다 — 배율은 바깥 박스를 계산할 때 곱한다.
+ *
+ * `useLayoutEffect` 인 이유는 같은 파일의 `useSelectionRect` 와 같다 — 첫 측정이
+ * 첫 페인트 뒤로 밀리면, 이미 4000px 인 문서를 열어도 한 프레임 동안 바깥 박스가
+ * `size.height * scale` 로 남는다. File ▸ New/Open 으로 스펙을 갈아 끼울 때도
+ * 이전 문서의 높이가 한 프레임 남는다.
+ *
+ * 자라는 원인이 자식 편집이라 ResizeObserver 만으로 충분하다. 선택 표시처럼
+ * MutationObserver 까지 필요하지 않다 — 저쪽은 "크기는 그대로인데 위치만 밀리는"
+ * 경우를 잡아야 했지만, 여기는 아트보드 자신의 크기 변화만 보면 된다.
+ */
+function useArtboardHeight(ref: RefObject<HTMLDivElement | null>): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (element === null) return;
+
+    function report() {
+      if (element === null) return;
+      const next = Math.round(element.offsetHeight);
+      setHeight((prev) => (prev === next ? prev : next));
+    }
+
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return height;
+}
+
+/**
+ * Delete·Backspace로 선택 노드를 지운다.
+ *
+ * 만들기만 되고 지우는 방법이 없었다(#91) — 잘못 만든 노드를 없애려면 파일을
+ * 저장해 JSON을 손으로 고치는 수밖에 없었다. 레이어 트리에는 삭제 버튼이 생겼지만
+ * (#101), 캔버스에서 고른 노드를 캔버스에서 지울 방법은 여전히 없다.
+ *
+ * window에서 듣는 이유는 캔버스가 포커스를 받을 수 있는 요소가 아니어서다 — div에
+ * tabIndex를 주면 클릭마다 포커스 링이 생기고 탭 순서에도 끼어든다.
+ *
+ * 그래서 "무엇을 받고 무엇을 비켜설지"가 중요해지는데, 그 판단은 전부
+ * canvasInput.shouldDeleteSelection이 한다 — 키 종류·수식키·타이핑 중 여부·선택
+ * 유무를 한 곳에 모아 두고 테스트로 덮었다. 여기 남은 것은 동작뿐이다.
+ *
+ * root 보호 · 자손 연쇄 삭제 · 선택 해제 · history 적재는 editorStore.removeNode
+ * (= deleteNode Command)가 이미 한다. 여기서는 "언제 부를지"만 정한다.
+ */
+function useDeleteKey() {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const { selectedId, removeNode } = useEditorStore.getState();
+
+      const shouldDelete = shouldDeleteSelection({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        tagName: target?.tagName,
+        contentEditable: target?.isContentEditable ?? false,
+        hasSelection: selectedId !== null,
+      });
+      if (!shouldDelete || selectedId === null) return;
+
+      // Backspace는 브라우저에 따라 "뒤로 가기"가 남아 있다.
+      event.preventDefault();
+      removeNode(selectedId);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+}
+
 /** 새 노드를 만들어 부모에 붙이고, 도구를 Select로 되돌린다. */
 function insertNewNode(kind: NodeKind, parentId: NodeId) {
   const { spec, activePageId, insertNode } = useEditorStore.getState();
@@ -381,8 +471,27 @@ function startResize(event: ReactMouseEvent, id: NodeId, edge: ResizeEdge, box: 
 
   const zoom = useViewStore.getState().zoom / 100;
   const measured = useMeasureStore.getState().size;
-  const startWidth = typeof box.width === "number" ? box.width : (measured?.width ?? 100);
-  const startHeight = typeof box.height === "number" ? box.height : (measured?.height ?? 100);
+
+  // root 를 끌면 노드의 box 가 아니라 **페이지 해상도(page.size)** 를 바꾼다.
+  //
+  // root 는 곧 페이지이고 크기를 정하는 곳은 page.size 하나다(boxStyle 이 root 의
+  // box 를 보지 않는 것과 같은 이유). box 에 쓰면 스펙만 바뀌고 화면은 그대로여서
+  // 끌어도 아무 일이 안 일어난 것처럼 보인다. 해상도에 쓰면 아트보드가 실제로
+  // 커지고 패널의 해상도 칸도 함께 움직인다 — Figma 에서 아트보드를 끄는 것과 같다.
+  const { spec, activePageId } = useEditorStore.getState();
+  const page = spec.pages[activePageId];
+  const isRoot = page.root === id;
+
+  const startWidth = isRoot
+    ? page.size.width
+    : typeof box.width === "number"
+      ? box.width
+      : (measured?.width ?? 100);
+  const startHeight = isRoot
+    ? page.size.height
+    : typeof box.height === "number"
+      ? box.height
+      : (measured?.height ?? 100);
   const startX = event.clientX;
   const startY = event.clientY;
 
@@ -393,13 +502,17 @@ function startResize(event: ReactMouseEvent, id: NodeId, edge: ResizeEdge, box: 
       return;
     }
 
-    const { setNodeField } = useEditorStore.getState();
+    const { setNodeField, setPageField } = useEditorStore.getState();
 
     if (edge === "e" || edge === "se") {
-      setNodeField(id, "box.width", resizedValue(startWidth, moveEvent.clientX - startX, zoom));
+      const width = resizedValue(startWidth, moveEvent.clientX - startX, zoom);
+      if (isRoot) setPageField(activePageId, "size.width", width);
+      else setNodeField(id, "box.width", width);
     }
     if (edge === "s" || edge === "se") {
-      setNodeField(id, "box.height", resizedValue(startHeight, moveEvent.clientY - startY, zoom));
+      const height = resizedValue(startHeight, moveEvent.clientY - startY, zoom);
+      if (isRoot) setPageField(activePageId, "size.height", height);
+      else setNodeField(id, "box.height", height);
     }
   }
 
@@ -608,6 +721,8 @@ export function Canvas() {
   const artboardRef = useRef<HTMLDivElement>(null);
   const [panning, setPanning] = useState(false);
   const selectionRect = useSelectionRect(outerRef, artboardRef, selectedId);
+  const artboardHeight = useArtboardHeight(artboardRef);
+  useDeleteKey();
 
   useEffect(() => {
     const node = mainRef.current;
@@ -717,11 +832,37 @@ export function Canvas() {
     return () => observer.disconnect();
   }, []);
 
+  // 실측 높이가 아니라 스펙 size를 올린다 — Fit이 맞추는 대상은 **첫 화면**이다.
+  // size.height가 "첫 화면 높이"가 된 지금(#86) 4000px짜리 문서를 통째로 맞추면
+  // 아무것도 안 보일 만큼 축소된다. 아래로 이어지는 내용은 스크롤이 맡는다.
   useEffect(() => {
     useViewStore.getState().setContent(size);
   }, [size]);
 
-  // 처음 열었을 때는 Figma처럼 아트보드 전체가 보이도록 맞춘다.
+  // 캔버스가 맨 아래까지 내려가 있는지 스토어에 올린다 — 채우기 모드에서 하단
+  // 도구 모음이 잠깐 비켜주는 신호다(Toolbar.tsx).
+  //
+  // 스크롤 말고도 아트보드가 자라거나 배율이 바뀌면 "맨 밑"인지가 달라지므로,
+  // 그 값들이 바뀔 때도 다시 잰다.
+  useEffect(() => {
+    const node = mainRef.current;
+    if (node === null) return;
+
+    function report() {
+      if (node === null) return;
+      useViewStore
+        .getState()
+        .setCanvasAtBottom(
+          isScrolledToBottom(node.scrollTop, node.clientHeight, node.scrollHeight),
+        );
+    }
+
+    report();
+    node.addEventListener("scroll", report, { passive: true });
+    return () => node.removeEventListener("scroll", report);
+  }, [zoom, artboardHeight, size]);
+
+  // 처음 열었을 때는 Figma처럼 첫 화면(page.size)이 한눈에 들어오도록 맞춘다.
   // 100%로 시작하면 아트보드가 뷰포트보다 커서 캔버스 바탕이 안 보이고,
   // 아트보드가 "캔버스 위에 얹힌 오브젝트"로 읽히지 않는다.
   //
@@ -736,30 +877,41 @@ export function Canvas() {
   }, [viewport, activePageId, size]);
 
   const scale = zoom / 100;
-  const cursorClass =
-    activeTool === "hand" ? (panning ? "cursor-grabbing" : "cursor-grab") : "";
+  const cursorClass = toolCursorClass(activeTool, panning);
 
   // scrollbar-gutter는 세로 스크롤바 자리를 항상 비워둔다. 없으면 채우기 모드에서
   // 되먹임 진동이 난다: 스크롤바 등장 → clientWidth 감소 → 배율 축소 → 내용이 짧아져
   // 스크롤바 소멸 → clientWidth 복귀 → 다시 등장…이 무한 반복된다.
   return (
-    <main
-      ref={mainRef}
-      className={`relative overflow-auto bg-surface-canvas p-8 [grid-area:canvas] [scrollbar-gutter:stable] ${cursorClass}`}
-      onClick={handleBackgroundClick}
-    >
+    // 배율 배지처럼 "스크롤을 따라가면 안 되는" 것을 얹으려면 스크롤 컨테이너
+    // 바깥에 자리가 필요하다. overflow-auto 안의 absolute 는 내용과 함께 흘러간다.
+    //
+    // main 은 h-full 이 아니라 absolute inset-0 으로 이 상자를 덮는다. 퍼센트 높이는
+    // 부모 높이가 확정돼야 풀리는데, 그게 어긋나면 main 이 캔버스 영역을 다 덮지
+    // 못한다 — 안 덮인 자리에서는 Ctrl+휠이 main 에 닿지 않아 캔버스 줌 대신
+    // 브라우저 페이지 줌이 일어난다. inset-0 은 그 조건을 안 탄다.
+    <div className="relative overflow-hidden bg-surface-canvas [grid-area:canvas]">
       {/*
+        격자는 스크롤 컨테이너 **바깥**이다. 안에 두면 absolute 라도 내용과 함께
+        흘러가, 확대하거나 아래로 내리는 순간 격자가 화면 밖으로 빠져나가 맨바닥이
+        드러난다(#86 으로 아트보드가 길어지면서 눈에 띄게 됐다). 여기 두면 뷰포트에
+        붙어 있고, 캔버스 바탕색도 이 상자가 칠하므로 main 은 투명하게 둔다.
+
         TODO(캔버스 담당): 격자를 Figma처럼 "캔버스 평면에 깔린" 배경으로 바꿀 것.
-        지금은 absolute inset-0으로 뷰포트에 고정돼 있어, 스크롤·줌을 해도 격자가
-        따라 움직이지 않고 벽지처럼 제자리에 머문다. 그래서 아트보드가 캔버스 위에
-        놓여 있다는 느낌이 깨진다. 격자는 아트보드와 같은 변환(스크롤 오프셋 + 줌)을
-        받는 레이어에 그려야 하고, 칸 크기도 줌에 비례해야 한다
-        (--canvas-grid-size * scale). 스냅 기능은 아직 없으며 순수 배경 표시다.
+        지금은 벽지처럼 제자리에 머물러 아트보드가 캔버스 위에 놓여 있다는 느낌이
+        깨진다. 격자는 아트보드와 같은 변환(스크롤 오프셋 + 줌)을 받아야 하고, 칸
+        크기도 줌에 비례해야 한다(--canvas-grid-size * scale). 스냅 기능은 아직
+        없으며 순수 배경 표시다.
       */}
       {showGrid && (
         <div className="canvas-grid pointer-events-none absolute inset-0" />
       )}
 
+      <main
+        ref={mainRef}
+        className={`absolute inset-0 overflow-auto p-8 [scrollbar-gutter:stable] ${cursorClass}`}
+        onClick={handleBackgroundClick}
+      >
       {/*
         바깥 박스는 "확대된 크기만큼의 자리"를 차지한다. transform: scale은 보이는
         크기만 바꾸고 레이아웃 박스는 그대로라, 이 박스가 없으면 스크롤 범위가
@@ -768,7 +920,7 @@ export function Canvas() {
       <div
         ref={outerRef}
         className="relative mx-auto"
-        style={{ width: size.width * scale, height: size.height * scale }}
+        style={artboardBoxSize(size, artboardHeight, scale)}
       >
         {/*
           Figma처럼 아트보드 위에 화면 이름을 띄운다. 경계를 알려주는 가장 강한
@@ -782,8 +934,26 @@ export function Canvas() {
           {screenName}
         </span>
         {/*
-          아트보드. 페이지 size로 고정하고 좌상단 기준으로 확대해 바깥 박스를 정확히 채운다.
-          자식이 커져도 아트보드는 그대로고 넘치는 만큼 밖으로 삐져나온다(Figma와 동일).
+          아트보드. **자기 배경을 칠하지 않는다** — 페이지 네모를 그리는 것은 root
+          프레임의 background 이고, 여기는 크기·배율만 잡는 껍데기다. 둘 다 칠하면
+          root 가 아트보드를 꽉 채우지 않는 순간(예: 캔버스에서 root 를 리사이즈해
+          box.width 가 Fixed 로 바뀐 경우) 아트보드의 흰 네모가 root 네모 뒤로 드러나
+          격자 위에 네모가 둘 겹쳐 보인다.
+
+          폭은 페이지 size로 고정하고, **높이는 minHeight로만 잡아 내용에
+          따라 세로로 자란다**(2026-09-11·이슈 #86).
+
+          page.size.height 를 height 로 잠그면 내용이 넘칠 때 흰 아트보드는 거기서
+          끝나고 자식만 밖으로 삐져나온다 — 랜딩페이지처럼 첫 화면보다 긴 문서를
+          아예 만들 수 없었다. 스키마의 size 설명도 원래 "Screen 크기"(= 창 크기)라
+          문서 높이를 뜻한 적이 없다. 코드를 그 문구에 맞춘 것이다.
+
+          가로는 그대로 고정이다. 자식이 넘치면 Figma처럼 밖으로 삐져나가게 둔다.
+
+          display: flex + column 인 이유는 root 때문이다. root 의 box.height 가
+          "fill" 일 때 퍼센트로 옮기면 부모가 auto 높이라 CSS 규격상 무효가 되는데,
+          flex 아이템으로 두면 canvasLayout.boxStyle 이 flex: 1 0 auto 로 번역해
+          "짧으면 첫 화면을 채우고 길면 내용만큼" 이 둘 다 된다.
 
           scale은 Tailwind 클래스가 아니라 인라인 transform이다 — 확대율이 25% 배수가
           아닌 임의값(예: 57%)까지 가야 Fit/채우기가 여백 없이 정확히 맞는다. 바로 위
@@ -792,10 +962,10 @@ export function Canvas() {
         */}
         <div
           ref={artboardRef}
-          className="relative bg-surface-raised shadow-modal origin-top-left"
+          className="relative flex flex-col bg-transparent shadow-modal origin-top-left"
           style={{
             width: size.width,
-            height: size.height,
+            minHeight: size.height,
             transform: `scale(${scale})`,
           }}
         >
@@ -824,31 +994,19 @@ export function Canvas() {
         )}
       </div>
 
+      </main>
+
       {/*
-        표시 전용 배지. main의 자식이라 클릭이 바탕 핸들러까지 올라가는데, 생성
-        도구가 켜져 있으면 배지를 눌렀을 뿐인데 노드가 생긴다. 클릭을 통과시키면
-        (pointer-events-none) 결국 바탕을 누른 것이 되므로 여기서 삼킨다.
+        표시 전용 배지. 스크롤 컨테이너 **바깥**에 둔다 — 안에 두면 absolute 라도
+        내용과 함께 흘러가서, 아트보드가 길어진 뒤(#86) 스크롤을 내리면 배율이
+        화면 밖으로 사라진다. pointer-events-none 이라 클릭은 캔버스로 내려가고,
+        바깥에 있으니 바탕 클릭 핸들러(노드 생성)에도 닿지 않는다.
       */}
-      <div
-        onClick={(event) => event.stopPropagation()}
-        className="absolute bottom-3 left-3 flex items-center gap-2"
-      >
+      <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2">
         <span className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
           {Math.round(zoom)}%
         </span>
-        {/*
-          선택된 노드의 id. Cmd/Ctrl+클릭으로 중첩 안쪽을 상세 지정했을 때
-          의도한 item이 잡혔는지 눈으로 바로 확인하는 용도다.
-        */}
-        {selectedId !== null && (
-          <span
-            aria-label="선택한 노드 id"
-            className="rounded-control bg-surface-raised px-2 py-1 font-mono text-xs text-content shadow-card"
-          >
-            #{selectedId}
-          </span>
-        )}
       </div>
-    </main>
+    </div>
   );
 }
