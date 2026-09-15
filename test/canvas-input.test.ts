@@ -1,0 +1,168 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  TOOLBAR_CLEARANCE_PX,
+  isScrolledToBottom,
+  isTypingTarget,
+  shouldDeleteSelection,
+  toolCursorClass,
+  type DeleteKeyInput,
+} from "@/features/editor/ui/canvasInput";
+
+/** 캔버스에서 노드를 고른 채 Delete를 누른 상태. 케이스마다 필요한 칸만 덮어쓴다. */
+function deleteKey(patch: Partial<DeleteKeyInput> = {}): DeleteKeyInput {
+  return {
+    key: "Delete",
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    tagName: "DIV",
+    contentEditable: false,
+    hasSelection: true,
+    ...patch,
+  };
+}
+
+describe("isTypingTarget — Delete 키를 비켜설 자리", () => {
+  it("입력칸에서 온 키는 캔버스가 받지 않는다", () => {
+    // 노드 이름이나 텍스트를 고치다 누른 Backspace로 노드가 지워지면 안 된다.
+    expect(isTypingTarget("INPUT", false)).toBe(true);
+    expect(isTypingTarget("TEXTAREA", false)).toBe(true);
+    expect(isTypingTarget("SELECT", false)).toBe(true);
+  });
+
+  it("소문자 태그 이름도 같게 본다", () => {
+    // DOM의 tagName은 대문자지만 값의 출처를 하나로 가정하지 않는다.
+    expect(isTypingTarget("input", false)).toBe(true);
+    expect(isTypingTarget("textarea", false)).toBe(true);
+  });
+
+  it("contentEditable이면 태그와 무관하게 타이핑 중으로 본다", () => {
+    expect(isTypingTarget("DIV", true)).toBe(true);
+    expect(isTypingTarget(undefined, true)).toBe(true);
+  });
+
+  it("캔버스의 보통 요소에서 온 키는 받는다", () => {
+    expect(isTypingTarget("DIV", false)).toBe(false);
+    expect(isTypingTarget("SPAN", false)).toBe(false);
+    expect(isTypingTarget("BUTTON", false)).toBe(false);
+  });
+
+  it("태그를 못 읽어도 터지지 않는다", () => {
+    expect(isTypingTarget(undefined, false)).toBe(false);
+    expect(isTypingTarget("", false)).toBe(false);
+  });
+});
+
+describe("toolCursorClass — 활성 도구 표시", () => {
+  it("만들기 도구는 십자선이다 — 찍으면 생긴다는 신호", () => {
+    expect(toolCursorClass("frame", false)).toBe("cursor-crosshair");
+    expect(toolCursorClass("text", false)).toBe("cursor-crosshair");
+  });
+
+  it("Hand는 잡는 손, 끄는 중에는 쥔 손이다", () => {
+    expect(toolCursorClass("hand", false)).toBe("cursor-grab");
+    expect(toolCursorClass("hand", true)).toBe("cursor-grabbing");
+  });
+
+  it("Select는 기본 커서 그대로 둔다", () => {
+    expect(toolCursorClass("select", false)).toBe("");
+  });
+
+  it("panning은 Hand에서만 뜻이 있다", () => {
+    // 다른 도구로 바뀌는 순간 panning이 남아 있어도 커서가 달라지면 안 된다.
+    expect(toolCursorClass("select", true)).toBe("");
+    expect(toolCursorClass("frame", true)).toBe("cursor-crosshair");
+  });
+});
+
+describe("shouldDeleteSelection", () => {
+  it("Delete와 Backspace를 받는다", () => {
+    expect(shouldDeleteSelection(deleteKey({ key: "Delete" }))).toBe(true);
+    expect(shouldDeleteSelection(deleteKey({ key: "Backspace" }))).toBe(true);
+  });
+
+  it("다른 키는 받지 않는다", () => {
+    for (const key of ["a", "Enter", "Escape", "ArrowLeft", " "]) {
+      expect(shouldDeleteSelection(deleteKey({ key }))).toBe(false);
+    }
+  });
+
+  it("고른 노드가 없으면 아무 일도 하지 않는다", () => {
+    expect(shouldDeleteSelection(deleteKey({ hasSelection: false }))).toBe(false);
+  });
+
+  it("입력칸에서 온 키는 받지 않는다", () => {
+    expect(shouldDeleteSelection(deleteKey({ tagName: "INPUT" }))).toBe(false);
+    expect(shouldDeleteSelection(deleteKey({ tagName: "TEXTAREA" }))).toBe(false);
+    expect(shouldDeleteSelection(deleteKey({ contentEditable: true }))).toBe(false);
+  });
+
+  it("Ctrl+Backspace는 받지 않는다 — 앞 단어 삭제 단축키다", () => {
+    // 이걸 노드 삭제로 받으면 글자를 지우려다 노드가 사라진다.
+    expect(shouldDeleteSelection(deleteKey({ key: "Backspace", ctrlKey: true }))).toBe(
+      false,
+    );
+  });
+
+  it("Alt+Backspace는 받지 않는다 — 실행 취소 단축키다", () => {
+    expect(shouldDeleteSelection(deleteKey({ key: "Backspace", altKey: true }))).toBe(
+      false,
+    );
+  });
+
+  it("Cmd(meta)가 눌려도 받지 않는다", () => {
+    expect(shouldDeleteSelection(deleteKey({ metaKey: true }))).toBe(false);
+  });
+
+  it("Ctrl+Delete도 마찬가지다", () => {
+    expect(shouldDeleteSelection(deleteKey({ key: "Delete", ctrlKey: true }))).toBe(
+      false,
+    );
+  });
+
+  it("Shift는 막지 않는다 — 다른 뜻이 없고, 다중 선택이 생기면 함께 동작해야 한다", () => {
+    // DeleteKeyInput에 shiftKey가 없는 것 자체가 이 결정이다. 수식키 가드를
+    // 넓힐 때 Shift까지 끌어오지 않도록 의도를 남긴다.
+    expect(shouldDeleteSelection(deleteKey())).toBe(true);
+  });
+});
+
+describe("isScrolledToBottom — 도구 모음이 비켜줄 순간", () => {
+  it("맨 아래까지 내려가 있으면 참이다", () => {
+    expect(isScrolledToBottom(1100, 900, 2000)).toBe(true);
+  });
+
+  it("소수 오차를 흡수한다 — 배율이 소수라 정확히 안 맞는다", () => {
+    expect(isScrolledToBottom(1099.4, 900, 2000)).toBe(true);
+  });
+
+  it("맨 밑에 닿기 전에 비킨다 — 겹치고 나서 숨으면 이미 못 누른 뒤다", () => {
+    // 남은 스크롤 40px. 핸들은 아래 여백(32px) 위에 있어 바닥에서 72px 지점인데,
+    // 도구 모음이 58px 까지를 덮으므로 곧 겹친다. 그 전에 내려가야 한다.
+    expect(isScrolledToBottom(1060, 900, 2000)).toBe(true);
+  });
+
+  it("충분히 위에 있으면 거짓이다 — 살짝 올리면 도구 모음이 돌아온다", () => {
+    expect(isScrolledToBottom(1000, 900, 2000)).toBe(false);
+    expect(isScrolledToBottom(0, 900, 2000)).toBe(false);
+  });
+
+  it("경계는 TOOLBAR_CLEARANCE_PX 하나로 정해진다", () => {
+    const bottom = 2000 - 900; // scrollTop 의 최대값
+    expect(isScrolledToBottom(bottom - TOOLBAR_CLEARANCE_PX, 900, 2000)).toBe(true);
+    expect(isScrolledToBottom(bottom - TOOLBAR_CLEARANCE_PX - 1, 900, 2000)).toBe(false);
+  });
+
+  it("스크롤이 없으면 거짓이다 — 숨기면 도구를 영영 고를 수 없다", () => {
+    // 내용이 뷰포트보다 짧으면 scrollTop은 늘 0이고 scrollTop+clientHeight가
+    // scrollHeight를 넘는다. 이걸 "맨 밑"으로 보면 도구 모음이 계속 숨는다.
+    expect(isScrolledToBottom(0, 900, 900)).toBe(false);
+    expect(isScrolledToBottom(0, 900, 400)).toBe(false);
+  });
+
+  it("여유 값을 바꿀 수 있다", () => {
+    expect(isScrolledToBottom(1080, 900, 2000, 20)).toBe(true);
+    expect(isScrolledToBottom(1079, 900, 2000, 20)).toBe(false);
+  });
+});
