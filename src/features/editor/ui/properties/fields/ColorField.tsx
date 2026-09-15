@@ -4,7 +4,8 @@ import { useDraftInput } from "./useDraftInput";
 interface ColorFieldProps {
   label: string;
   value: string | undefined;
-  onChange: (value: string) => void;
+  /** `continueEdit`(#121) — NumberField.tsx의 같은 매개변수 설명 참고. */
+  onChange: (value: string, continueEdit?: boolean) => void;
 }
 
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
@@ -43,9 +44,9 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
       const ok = raw.trim() !== "" && Number.isFinite(n) && n >= 0 && n <= 100;
       return ok ? n : undefined;
     },
-    onCommit: (n) => {
+    onCommit: (n, continueEdit) => {
       if (HEX6.test(hex.draft)) {
-        onChange(composeColor(hex.draft, n));
+        onChange(composeColor(hex.draft, n), continueEdit);
       }
     },
   });
@@ -54,9 +55,9 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
     toDraft: (v) => parseColor(v).hex,
     normalize: (raw) => (raw.startsWith("#") ? raw : `#${raw}`),
     parse: (draft) => (HEX6.test(draft) ? draft : undefined),
-    onCommit: (nextHex) => {
+    onCommit: (nextHex, continueEdit) => {
       const n = Number(opacity.draft);
-      onChange(composeColor(nextHex, Number.isFinite(n) ? n : 100));
+      onChange(composeColor(nextHex, Number.isFinite(n) ? n : 100), continueEdit);
     },
   });
 
@@ -71,6 +72,7 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
           className="h-8 w-8 shrink-0 cursor-pointer rounded-control border border-line bg-surface p-0.5"
           value={swatch}
           onChange={(event) => hex.handleChange(event.target.value)}
+          onBlur={hex.handleBlur}
         />
         <input
           type="text"
@@ -78,6 +80,7 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
           value={hex.draft}
           spellCheck={false}
           onChange={(event) => hex.handleChange(event.target.value)}
+          onBlur={hex.handleBlur}
         />
         <div className="relative w-20 shrink-0">
           <input
@@ -89,6 +92,7 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
             className={`${inputClass} pr-6`}
             value={opacity.draft}
             onChange={(event) => opacity.handleChange(event.target.value)}
+            onBlur={opacity.handleBlur}
           />
           <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-subtle">
             %

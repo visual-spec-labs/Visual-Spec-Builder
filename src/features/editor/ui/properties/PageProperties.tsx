@@ -82,14 +82,20 @@ export function PageProperties() {
           value={page.size.width}
           min={1}
           unit="px"
-          onChange={(value) => setPageField(activePageId, "size.width", value)}
+          // continueEdit(#121)을 그대로 넘겨야 타이핑 burst가 병합된다 —
+          // 안 넘기면(1-인자로 받으면) 매 키 입력이 새 undo 단계로 쌓인다.
+          onChange={(value, continueEdit) =>
+            setPageField(activePageId, "size.width", value, continueEdit)
+          }
         />
         <NumberField
           label="높이 (H)"
           value={page.size.height}
           min={1}
           unit="px"
-          onChange={(value) => setPageField(activePageId, "size.height", value)}
+          onChange={(value, continueEdit) =>
+            setPageField(activePageId, "size.height", value, continueEdit)
+          }
         />
       </FieldRow>
     </PropertySection>

@@ -31,8 +31,10 @@ export function EffectsSection({ withShadow = false }: { withShadow?: boolean })
   // 스키마는 0..1이지만 칸에는 %로 보여준다 — 0.35보다 35%가 읽기 쉽다.
   const opacityPercent = percentFromOpacity(opacity);
 
-  function updateShadow(patch: Partial<Shadow>) {
-    setShadow(mergeShadow(shadow, patch));
+  // continueEdit(#121)은 그대로 setShadow에 넘긴다 — 안 그러면 그림자 필드는
+  // 타이핑 burst가 병합되지 않고 키 입력마다 undo 단계가 쌓인다.
+  function updateShadow(patch: Partial<Shadow>, continueEdit?: boolean) {
+    setShadow(mergeShadow(shadow, patch), continueEdit);
   }
 
   return (
@@ -45,7 +47,9 @@ export function EffectsSection({ withShadow = false }: { withShadow?: boolean })
         <NumberField
           label="불투명도"
           value={opacityPercent}
-          onChange={(percent) => setOpacity(opacityFromPercent(percent))}
+          onChange={(percent, continueEdit) =>
+            setOpacity(opacityFromPercent(percent), continueEdit)
+          }
           min={0}
           max={100}
           unit="%"
@@ -53,7 +57,7 @@ export function EffectsSection({ withShadow = false }: { withShadow?: boolean })
         <NumberField
           label="블러"
           value={blur ?? 0}
-          onChange={(value) => setBlur(blurFromInput(value))}
+          onChange={(value, continueEdit) => setBlur(blurFromInput(value), continueEdit)}
           min={0}
           unit="px"
         />
@@ -74,33 +78,33 @@ export function EffectsSection({ withShadow = false }: { withShadow?: boolean })
                 <NumberField
                   label="X"
                   value={shadow.x}
-                  onChange={(x) => updateShadow({ x })}
+                  onChange={(x, continueEdit) => updateShadow({ x }, continueEdit)}
                   unit="px"
                 />
                 <NumberField
                   label="Y"
                   value={shadow.y}
-                  onChange={(y) => updateShadow({ y })}
+                  onChange={(y, continueEdit) => updateShadow({ y }, continueEdit)}
                   unit="px"
                 />
                 <NumberField
                   label="번짐"
                   value={shadow.blur}
-                  onChange={(value) => updateShadow({ blur: value })}
+                  onChange={(value, continueEdit) => updateShadow({ blur: value }, continueEdit)}
                   min={0}
                   unit="px"
                 />
                 <NumberField
                   label="확장"
                   value={shadow.spread}
-                  onChange={(spread) => updateShadow({ spread })}
+                  onChange={(spread, continueEdit) => updateShadow({ spread }, continueEdit)}
                   unit="px"
                 />
               </FieldRow>
               <ColorField
                 label="그림자색"
                 value={shadow.color}
-                onChange={(color) => updateShadow({ color })}
+                onChange={(color, continueEdit) => updateShadow({ color }, continueEdit)}
               />
             </>
           )}

@@ -7,7 +7,8 @@ type Mode = "fixed" | "auto" | "fill";
 interface SizeFieldProps {
   label: string;
   value: Size | undefined;
-  onChange: (value: Size) => void;
+  /** `continueEdit`(#121) — NumberField.tsx의 같은 매개변수 설명 참고. */
+  onChange: (value: Size, continueEdit?: boolean) => void;
   /** 캔버스에서 실제로 그려진 px. Hug/Fill일 때 이 값을 보여준다. */
   measured?: number;
 }
@@ -36,7 +37,7 @@ export function SizeField({ label, value, onChange, measured }: SizeFieldProps) 
    */
   const shown = typeof value === "number" ? value : measured;
 
-  const { draft, invalid, handleChange } = useDraftInput(shown, {
+  const { draft, invalid, handleChange, handleBlur } = useDraftInput(shown, {
     toDraft: (v) => (v === undefined ? "" : String(v)),
     parse: (raw) => {
       const parsed = Number(raw);
@@ -74,6 +75,7 @@ export function SizeField({ label, value, onChange, measured }: SizeFieldProps) 
             className={`${inputClass} ${invalid ? invalidClass : ""} pr-7`}
             value={draft}
             onChange={(event) => handleChange(event.target.value)}
+            onBlur={handleBlur}
           />
           <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-subtle">
             px
