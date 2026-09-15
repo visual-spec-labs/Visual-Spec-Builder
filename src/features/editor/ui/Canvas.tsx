@@ -28,8 +28,10 @@ import type {
 
 import {
   isScrolledToBottom,
+  isSpacePanKey,
   shouldDeleteSelection,
   toolCursorClass,
+  toolForKey,
 } from "./canvasInput";
 import {
   artboardBoxSize,
@@ -348,28 +350,56 @@ function useArtboardHeight(ref: RefObject<HTMLDivElement | null>): number | null
 }
 
 /**
- * Delete·Backspace로 선택 노드를 지운다.
+ * 캔버스의 키보드 입력을 한 곳에서 받는다 — 노드 삭제(#91)와 도구 단축키(#136).
  *
- * 만들기만 되고 지우는 방법이 없었다(#91) — 잘못 만든 노드를 없애려면 파일을
- * 저장해 JSON을 손으로 고치는 수밖에 없었다. 레이어 트리에는 삭제 버튼이 생겼지만
- * (#101), 캔버스에서 고른 노드를 캔버스에서 지울 방법은 여전히 없다.
+ * **리스너를 하나로 둔다.** 둘로 나누면 "무엇을 받고 무엇을 비켜설지" 판단이 두
+ * 군데로 갈라져 반드시 어긋난다 — 한쪽에만 타이핑 검사를 더하는 식으로.
  *
  * window에서 듣는 이유는 캔버스가 포커스를 받을 수 있는 요소가 아니어서다 — div에
- * tabIndex를 주면 클릭마다 포커스 링이 생기고 탭 순서에도 끼어든다.
- *
- * 그래서 "무엇을 받고 무엇을 비켜설지"가 중요해지는데, 그 판단은 전부
- * canvasInput.shouldDeleteSelection이 한다 — 키 종류·수식키·타이핑 중 여부·선택
- * 유무를 한 곳에 모아 두고 테스트로 덮었다. 여기 남은 것은 동작뿐이다.
- *
- * root 보호 · 자손 연쇄 삭제 · 선택 해제 · history 적재는 editorStore.removeNode
- * (= deleteNode Command)가 이미 한다. 여기서는 "언제 부를지"만 정한다.
+ * tabIndex를 주면 클릭마다 포커스 링이 생기고 탭 순서에도 끼어든다. 그래서 비켜설
+ * 조건이 중요해지는데, 그 판단은 전부 canvasInput의 순수 함수가 한다. 여기 남은
+ * 것은 동작과 이벤트 배선뿐이다.
  */
-function useDeleteKey() {
+function useCanvasKeys() {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      const { selectedId, removeNode } = useEditorStore.getState();
+      const keyInput = {
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        tagName: target?.tagName,
+        contentEditable: target?.isContentEditable ?? false,
+        role: target?.getAttribute("role") ?? undefined,
+      };
 
+      // 스페이스 임시 팬 — 누르는 동안만 손 도구. 고정 전환보다 먼저 본다.
+      if (isSpacePanKey(keyInput)) {
+        // 스페이스는 스크롤 키다. 캔버스가 overflow-auto라 한 화면씩 내려간다.
+        event.preventDefault();
+        // 키를 누르고 있으면 keydown이 반복해서 들어온다. 스토어도 멱등이지만
+        // 갇히는 대가가 커서 여기서도 거른다.
+        if (!event.repeat) useToolStore.getState().beginSpacePan();
+        return;
+      }
+
+      // 스페이스를 누르고 있는 동안에는 다른 도구 키를 무시한다. 규칙 하나로 두는
+      // 편이 "복귀 대상을 바꾼다" 같은 영리한 처리보다 예측 가능하다.
+      if (useToolStore.getState().toolBeforeSpace !== null) return;
+
+      const tool = toolForKey(keyInput);
+      if (tool !== null) {
+        event.preventDefault();
+        useToolStore.getState().setActiveTool(tool);
+        return;
+      }
+
+      // 노드 삭제(#91). 만들기만 되고 지우는 방법이 없었다 — 레이어 트리에는 삭제
+      // 버튼이 생겼지만(#101) 캔버스에서 고른 노드를 캔버스에서 지울 수 없었다.
+      // root 보호·자손 연쇄 삭제·선택 해제·history 적재는 editorStore.removeNode
+      // (= deleteNode Command)가 이미 한다. 여기서는 "언제 부를지"만 정한다.
+      const { selectedId, removeNode } = useEditorStore.getState();
       const shouldDelete = shouldDeleteSelection({
         key: event.key,
         ctrlKey: event.ctrlKey,
@@ -386,8 +416,24 @@ function useDeleteKey() {
       removeNode(selectedId);
     }
 
+    function handleKeyUp(event: KeyboardEvent) {
+      if (event.code === "Space") useToolStore.getState().endSpacePan();
+    }
+
+    // **blur가 없으면 갇힌다.** 스페이스를 누른 채 Alt+Tab 하면 keyup이 영영 오지
+    // 않아 손 도구에서 빠져나올 수 없고, 사용자는 이유를 알 수 없다.
+    function releaseSpacePan() {
+      useToolStore.getState().endSpacePan();
+    }
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", releaseSpacePan);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", releaseSpacePan);
+    };
   }, []);
 }
 
@@ -722,7 +768,7 @@ export function Canvas() {
   const [panning, setPanning] = useState(false);
   const selectionRect = useSelectionRect(outerRef, artboardRef, selectedId);
   const artboardHeight = useArtboardHeight(artboardRef);
-  useDeleteKey();
+  useCanvasKeys();
 
   useEffect(() => {
     const node = mainRef.current;
