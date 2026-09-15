@@ -30,9 +30,10 @@ export function radiusCss(radius: Radius | undefined): string | number | undefin
  * 한 함수인 이유는 둘이 `box-shadow` 한 칸을 두고 다투기 때문이다. 따로 쓰면
  * 나중에 쓴 쪽이 앞을 통째로 덮어쓴다.
  *
- * 테두리 정렬을 `outline`으로 구현하지 않는다 — 캔버스가 선택 표시에 이미
- * `outline`을 쓰고 있어(`Canvas.tsx`의 `RenderNode`), 노드를 고르는 순간 테두리와
- * 선택 표시 중 하나가 사라진다.
+ * 테두리 정렬을 `outline`으로 구현하지 않는다 — 브라우저 포커스 링과 겹치고,
+ * `box-shadow`라야 그림자와 한 문자열로 합칠 수 있다. (2026-09-04에 이 규칙을 정할
+ * 때의 이유는 "캔버스가 선택 표시에 이미 `outline`을 쓰고 있어서"였는데, #90으로
+ * 선택 표시가 오버레이로 빠지면서 그 충돌은 없어졌다. 위 두 이유가 남아 결론은 같다.)
  *
  * `inside`만 CSS `border` 속성을 그대로 쓴다. `box-shadow`는 레이아웃 박스를
  * 차지하지 않는데, 지금까지 `border` + `box-sizing: border-box`로 그려온 기존
@@ -124,11 +125,27 @@ export function boxStyle(
   box: Box,
   parentDirection: Direction | undefined,
 ): CSSProperties {
-  // 최상위 노드는 flex 아이템이 아니다 — 고정 크기 래퍼 기준 퍼센트로 처리한다.
-  // grid 아이템도 같은 취급이다: flex-grow/shrink 기반 주축/교차축 배분은 grid에
-  // 뜻이 없다 — grid 컨테이너 쪽(frameStyle)의 최소 구현이라 아이템은 그냥
-  // width/height 그대로 쓴다(fill→100%). 정식 grid 배치는 후속 작업.
-  if (parentDirection === undefined || parentDirection === "grid") {
+  // 최상위 노드는 곧 페이지다 — **자기 box 를 보지 않고 항상 아트보드를 채운다.**
+  //
+  // 페이지 크기를 정하는 것은 `page.size` 하나여야 한다. root 가 box 를 따로 갖고
+  // 둘이 어긋나면 화면에 네모가 둘 겹쳐 보인다 — 아트보드 경계(그림자)와 root 네모가
+  // 따로 논다. 실제로 캔버스에서 root 를 리사이즈하면(PR #99 의 핸들) box.width 가
+  // "fill" 에서 고정 숫자로 바뀌어 그 상태가 만들어졌다. 여기서 box 를 무시하면
+  // 그런 상태가 애초에 생기지 않는다 — examples 9개와 seedSpec·blankSpec 의 root 는
+  // 전부 이미 fill·fill 이라 정상 문서의 렌더는 달라지지 않는다.
+  //
+  // 세로를 퍼센트가 아니라 flex 로 두는 이유는 아트보드가 내용에 따라 자라기
+  // 때문이다(2026-09-11·이슈 #86) — 부모 높이가 auto 면 자식의 퍼센트 높이는 CSS
+  // 규격상 무효라 root 배경이 내용 높이에서 끊긴다. `flex: 1 0 auto` 는 짧으면 첫
+  // 화면을 채우고(grow) 길면 내용 높이를 그대로 쓴다(basis auto + shrink 0).
+  if (parentDirection === undefined) {
+    return { width: "100%", flexGrow: 1, flexShrink: 0, flexBasis: "auto" };
+  }
+
+  // grid 아이템: flex-grow/shrink 기반 주축/교차축 배분은 grid에 뜻이 없다 —
+  // grid 컨테이너 쪽(frameStyle)의 최소 구현이라 아이템은 그냥 width/height
+  // 그대로 쓴다(fill→100%). 정식 grid 배치는 후속 작업.
+  if (parentDirection === "grid") {
     return { width: sizeToCss(box.width), height: sizeToCss(box.height) };
   }
 
@@ -170,4 +187,27 @@ export function boxStyle(
   }
 
   return style;
+}
+
+/**
+ * 아트보드를 감싼 바깥 박스의 크기.
+ *
+ * `transform: scale` 은 레이아웃 박스를 바꾸지 않아, 스크롤 범위를 정하는 것은 이
+ * 바깥 박스다. 예전에는 `page.size` 를 그대로 배율만 곱했는데, 아트보드가 내용에
+ * 따라 세로로 자라게 되면서(#86) 스펙 높이로는 **아래쪽 내용까지 스크롤할 수 없다.**
+ *
+ * 그래서 높이는 실측값을 쓴다. 아직 못 쟀으면 스펙 높이로 시작한다 — 첫 페인트에서
+ * 박스가 튀지 않게 하려는 것이고, 아트보드에 `min-height: size.height` 가 걸려 있어
+ * 실측값은 항상 스펙 높이 이상이다.
+ *
+ * 가로는 실측하지 않는다. 아트보드 폭은 `page.size.width` 로 고정이고, 자식이 넘쳐도
+ * Figma처럼 밖으로 삐져나가게 두는 쪽이 의도다.
+ */
+export function artboardBoxSize(
+  size: { width: number; height: number },
+  measuredHeight: number | null,
+  scale: number,
+): { width: number; height: number } {
+  const height = Math.max(size.height, measuredHeight ?? size.height);
+  return { width: size.width * scale, height: height * scale };
 }

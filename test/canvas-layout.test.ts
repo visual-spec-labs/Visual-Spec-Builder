@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  artboardBoxSize,
   boxStyle,
   effectStyle,
   radiusCss,
@@ -69,20 +70,85 @@ describe("boxStyle — Fixed / Hug", () => {
   });
 });
 
-describe("boxStyle — 최상위 노드", () => {
-  it("부모가 없으면 flex 아이템이 아니므로 퍼센트로 처리한다", () => {
-    const style = boxStyle({ width: "fill", height: "fill" }, undefined);
+describe("boxStyle — 최상위 노드(아트보드의 root)", () => {
+  const FILL = { width: "fill", height: "fill" } as const;
 
-    expect(style).toEqual({ width: "100%", height: "100%" });
+  it("항상 아트보드를 채운다 — 가로 100% + flex: 1 0 auto", () => {
+    expect(boxStyle(FILL, undefined)).toEqual({
+      width: "100%",
+      flexGrow: 1,
+      flexShrink: 0,
+      flexBasis: "auto",
+    });
+  });
+
+  it("root의 box를 보지 않는다 — 어떤 값이 와도 결과가 같다", () => {
+    // 페이지 크기를 정하는 것은 page.size 하나다. root가 box를 따로 갖고 둘이
+    // 어긋나면 아트보드 경계와 root 네모가 따로 놀아 격자 위에 네모가 둘 보인다.
+    // 캔버스에서 root를 리사이즈하면(PR #99) box.width가 Fixed로 바뀌어 실제로
+    // 그 상태가 만들어졌다 — 여기서 box를 무시해 애초에 생기지 않게 한다.
+    const expected = boxStyle(FILL, undefined);
+
+    expect(boxStyle({ width: 984, height: 900 }, undefined)).toEqual(expected);
+    expect(boxStyle({ width: "auto", height: "auto" }, undefined)).toEqual(expected);
+    expect(boxStyle({ width: 320, height: "fill" }, undefined)).toEqual(expected);
+  });
+
+  it("grow는 1이라 내용이 첫 화면보다 짧아도 남은 높이를 채운다", () => {
+    expect(boxStyle(FILL, undefined).flexGrow).toBe(1);
+  });
+
+  it("shrink는 0이라 내용이 첫 화면보다 길면 줄지 않고 아트보드를 밀어낸다", () => {
+    // shrink가 1이면 min-height 안으로 다시 쭈그러들어 문서가 못 자란다.
+    expect(boxStyle(FILL, undefined).flexShrink).toBe(0);
+  });
+
+  it("세로를 퍼센트로 두지 않는다 — 부모가 auto 높이면 CSS 규격상 무효다", () => {
+    expect(boxStyle(FILL, undefined).height).toBeUndefined();
   });
 });
 
 describe("boxStyle — grid 아이템", () => {
-  it("최상위 노드와 동일하게 flex-grow/shrink 없이 width/height 그대로 쓴다", () => {
+  it("flex-grow/shrink 없이 width/height 그대로 쓴다", () => {
     // grid 컨테이너 쪽(displayStyle)의 최소 구현에 맞춘 대칭 — 정식 grid 배치는 후속 작업.
     const style = boxStyle({ width: "fill", height: 120 }, "grid");
 
     expect(style).toEqual({ width: "100%", height: "120px" });
+  });
+
+  it("세로 Fill은 최상위와 달리 퍼센트 그대로다 — grid 아이템은 flex 아이템이 아니다", () => {
+    // #86으로 최상위 분기만 flex로 갈렸다. 둘을 한 분기로 묶어 두면 grid까지
+    // 끌려가므로 여기서 갈라진 것을 고정한다.
+    expect(boxStyle({ width: "fill", height: "fill" }, "grid")).toEqual({
+      width: "100%",
+      height: "100%",
+    });
+  });
+});
+
+describe("artboardBoxSize — 스크롤 범위", () => {
+  const SIZE = { width: 1440, height: 900 };
+
+  it("실측 전에는 스펙 크기로 시작한다 — 첫 페인트에서 박스가 튀지 않게", () => {
+    expect(artboardBoxSize(SIZE, null, 1)).toEqual({ width: 1440, height: 900 });
+  });
+
+  it("아트보드가 자라면 그 높이를 따라간다 — 아래쪽 내용까지 스크롤된다", () => {
+    expect(artboardBoxSize(SIZE, 3200, 1)).toEqual({ width: 1440, height: 3200 });
+  });
+
+  it("확대율을 곱한다 — transform: scale은 레이아웃 박스를 안 바꾼다", () => {
+    expect(artboardBoxSize(SIZE, 3200, 0.5)).toEqual({ width: 720, height: 1600 });
+  });
+
+  it("실측값이 스펙 높이보다 작아도 스펙 높이 밑으로는 안 내려간다", () => {
+    // 아트보드에 min-height가 걸려 있어 실제로는 생기지 않지만, 측정이 한 박자
+    // 늦어 옛 값이 남아 있는 순간에 스크롤 범위가 줄어들면 안 된다.
+    expect(artboardBoxSize(SIZE, 400, 1).height).toBe(900);
+  });
+
+  it("가로는 실측하지 않는다 — 자식이 넘쳐도 Figma처럼 밖으로 삐져나간다", () => {
+    expect(artboardBoxSize(SIZE, 5000, 2).width).toBe(2880);
   });
 });
 

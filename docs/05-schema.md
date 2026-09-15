@@ -39,6 +39,14 @@ v0.1 문서를 열면 `migrateV01`이 페이지 1개짜리 `ProjectSpec`으로 �
 ## MVP 지원 범위
 
 - Screen (`ScreenSpec` — `name` / `size` / `root` / `nodes`)
+  - **`size`는 문서 크기가 아니라 화면(창) 크기다.** 정본 스키마의 설명도 "Screen 크기"라고 적고 있다.
+    `width`는 문서 폭 그대로지만, **`height`는 첫 화면 높이이자 최소 높이**다 — 내용이 그보다 길면
+    문서가 세로로 자라고 캔버스는 스크롤된다(2026-09-11·이슈 #86).
+    **root 노드의 `box`는 여기에 영향을 주지 않는다.** 페이지 크기를 정하는 것은 `size` 하나이고,
+    캔버스는 root 의 `box` 를 보지 않는다(근거는 [`06-schema-freeze.md`](06-schema-freeze.md)의
+    `fill` 절). 그래서 root 를 Fixed 나 Hug 로 바꿔도 페이지 네모가 작아지거나 뚫리지 않는다.
+    1440×900은 1440px 폭의 문서를 900px 창에서 본다는 뜻이지, 900px에서 잘린다는 뜻이 아니다.
+    스키마는 바뀌지 않았다 — 캔버스가 `height`를 문서 높이로 잠가 두던 것을 이 문구에 맞춘 것이다.
 - FrameNode
 - TextNode
 - ImageNode (`src` + `fit`: `cover` | `contain` | `fill`)
