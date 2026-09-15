@@ -3,11 +3,13 @@ import { Frame, Hand, MousePointer2, Type, type LucideIcon } from "lucide-react"
 import { useToolStore, type ToolId } from "@/features/editor/store/toolStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 
-const TOOLS: { id: ToolId; label: string; Icon: LucideIcon }[] = [
-  { id: "select", label: "Select", Icon: MousePointer2 },
-  { id: "frame", label: "Frame", Icon: Frame },
-  { id: "text", label: "Text", Icon: Type },
-  { id: "hand", label: "Hand", Icon: Hand },
+// key 는 표시용 글자다. 실제 판정은 canvasInput.TOOL_KEYS 가 event.code 로 한다
+// (한/영 전환에 죽지 않게). 둘이 어긋나면 툴팁이 거짓말을 하므로 함께 고친다.
+const TOOLS: { id: ToolId; label: string; key: string; Icon: LucideIcon }[] = [
+  { id: "select", label: "Select", key: "V", Icon: MousePointer2 },
+  { id: "frame", label: "Frame", key: "F", Icon: Frame },
+  { id: "text", label: "Text", key: "T", Icon: Type },
+  { id: "hand", label: "Hand", key: "H", Icon: Hand },
 ];
 
 /**
@@ -49,14 +51,18 @@ export function Toolbar() {
           : "-translate-x-1/2 translate-y-0 scale-100 opacity-100 duration-200 ease-out"
       }`}
     >
-      {TOOLS.map(({ id, label, Icon }) => {
+      {TOOLS.map(({ id, label, key, Icon }) => {
         const isActive = activeTool === id;
+        // 단축키를 aria-label 과 title 양쪽에 넣는다. 툴팁이 없으면 단축키가
+        // 있다는 사실 자체를 아무도 모르고, aria-label 에만 넣으면 눈으로 볼 수 없다.
+        const hint = `${label} (${key})`;
         return (
           <button
             key={id}
             type="button"
             onClick={() => setActiveTool(id)}
-            aria-label={label}
+            aria-label={hint}
+            title={hint}
             aria-pressed={isActive}
             className={`flex size-8 items-center justify-center rounded-control ${
               isActive
