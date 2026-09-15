@@ -11,13 +11,6 @@ export const ZOOM_MAX = 400;
 export const ZOOM_STEP = 25;
 export const ZOOM_DEFAULT = 100;
 
-/**
- * 아트보드를 뷰포트에 앉히는 방식.
- * - "contain": 아트보드 전체가 들어오게(Figma식). 비율이 다르면 한쪽에 여백이 남는다.
- * - "width":   가로만 맞추고 세로는 스크롤. 브라우저 창에 띄운 웹페이지와 같은 거동이다.
- */
-export type FitMode = "contain" | "width";
-
 export interface Dimensions {
   width: number;
   height: number;
@@ -34,28 +27,32 @@ export interface ViewState {
   showGrid: boolean;
   /** 좌우 패널(레이어 트리·세부설정) 동시 표시 여부. */
   showPanels: boolean;
-  /**
-   * 채우기 모드. 켜면 아트보드가 캔버스 뷰포트 가로를 꽉 채우고,
-   * 여백·격자·그림자·이름표가 빠져 뷰포트 자체가 한 장의 웹페이지처럼 보인다.
-   * 페이지 해상도는 그대로 남는다 — 논리 크기(CSS px)일 뿐이고 뷰가 배율로 늘린다.
-   */
-  fillViewport: boolean;
   /** 캔버스 뷰포트의 실측 크기(여백 제외). 캔버스가 올려준다. */
   viewport: Dimensions | null;
   /** 화면(아트보드) 크기. 캔버스가 활성 페이지의 size를 올려준다. */
   content: Dimensions | null;
+  /**
+   * 캔버스가 세로로 끝까지 내려가 있는가. 캔버스가 스크롤할 때마다 올린다.
+   * 채우기 모드에서 하단 도구 모음을 잠깐 치우는 데 쓴다 — 맨 아래에서는
+   * 아트보드의 하단 리사이즈 핸들이 도구 모음에 가린다.
+   */
+  canvasAtBottom: boolean;
+  setCanvasAtBottom: (atBottom: boolean) => void;
   setViewport: (viewport: Dimensions) => void;
   setContent: (content: Dimensions) => void;
   zoomIn: () => void;
   zoomOut: () => void;
   /**
-   * 아트보드가 뷰포트에 맞도록 확대율을 다시 계산한다.
+   * `content`가 뷰포트에 맞도록 확대율을 다시 계산한다.
    * 아직 실측값을 못 받았으면 기본 확대율로 리셋한다.
+   *
+   * `content`는 캔버스가 올리는 **페이지 스펙 크기**(= 첫 화면)다. 아트보드는 내용에
+   * 따라 그보다 세로로 길어질 수 있는데(#86), Fit은 그 전체가 아니라 첫 화면을
+   * 맞춘다 — 4000px짜리 문서를 통째로 맞추면 아무것도 안 보일 만큼 축소된다.
    */
   fitToScreen: () => void;
   toggleGrid: () => void;
   togglePanels: () => void;
-  toggleFillViewport: () => void;
 }
 
 function clampZoom(value: number): number {
@@ -75,7 +72,6 @@ function clampZoom(value: number): number {
 export function fitZoom(
   viewport: Dimensions | null,
   content: Dimensions | null,
-  mode: FitMode = "contain",
 ): number {
   if (
     viewport === null ||
@@ -88,10 +84,10 @@ export function fitZoom(
     return ZOOM_DEFAULT;
   }
 
-  const ratio =
-    mode === "width"
-      ? viewport.width / content.width
-      : Math.min(viewport.width / content.width, viewport.height / content.height);
+  const ratio = Math.min(
+    viewport.width / content.width,
+    viewport.height / content.height,
+  );
 
   // 올림하면 아트보드 가장자리가 잘리므로 내림한다.
   return clampZoom(Math.floor(ratio * 10_000) / 100);
@@ -102,21 +98,15 @@ function sameSize(a: Dimensions | null, b: Dimensions): boolean {
   return a !== null && a.width === b.width && a.height === b.height;
 }
 
-function fitZoomFor(state: ViewState): number {
-  return fitZoom(
-    state.viewport,
-    state.content,
-    state.fillViewport ? "width" : "contain",
-  );
-}
-
 export const useViewStore = create<ViewState>((set) => ({
   zoom: ZOOM_DEFAULT,
   showGrid: true,
   showPanels: true,
-  fillViewport: false,
   viewport: null,
   content: null,
+  canvasAtBottom: false,
+  setCanvasAtBottom: (atBottom) =>
+    set((state) => (state.canvasAtBottom === atBottom ? state : { canvasAtBottom: atBottom })),
   setViewport: (viewport) =>
     set((state) => (sameSize(state.viewport, viewport) ? state : { viewport })),
   setContent: (content) =>
@@ -131,13 +121,7 @@ export const useViewStore = create<ViewState>((set) => ({
     set((state) => ({
       zoom: clampZoom((Math.ceil(state.zoom / ZOOM_STEP) - 1) * ZOOM_STEP),
     })),
-  fitToScreen: () => set((state) => ({ zoom: fitZoomFor(state) })),
+  fitToScreen: () => set((state) => ({ zoom: fitZoom(state.viewport, state.content) })),
   toggleGrid: () => set((state) => ({ showGrid: !state.showGrid })),
   togglePanels: () => set((state) => ({ showPanels: !state.showPanels })),
-  // 모드를 바꾸면 맞추는 기준(가로만 ↔ 전체)이 달라지므로 확대율도 같이 다시 잡는다.
-  toggleFillViewport: () =>
-    set((state) => {
-      const next = { ...state, fillViewport: !state.fillViewport };
-      return { fillViewport: next.fillViewport, zoom: fitZoomFor(next) };
-    }),
 }));

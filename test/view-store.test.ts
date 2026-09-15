@@ -14,7 +14,6 @@ describe("viewStore", () => {
       zoom: ZOOM_DEFAULT,
       showGrid: true,
       showPanels: true,
-      fillViewport: false,
       viewport: null,
       content: null,
     });
@@ -66,18 +65,6 @@ describe("viewStore", () => {
     expect(useViewStore.getState().zoom).toBe(82.63);
   });
 
-  it("채우기 모드의 fitToScreen은 세로를 무시하고 가로만 맞춘다", () => {
-    useViewStore.setState({
-      zoom: ZOOM_DEFAULT,
-      fillViewport: true,
-      // contain이면 세로가 이겨 33.33%지만, 채우기는 1440/1440 = 100%다.
-      viewport: { width: 1440, height: 300 },
-      content: { width: 1440, height: 900 },
-    });
-    useViewStore.getState().fitToScreen();
-    expect(useViewStore.getState().zoom).toBe(100);
-  });
-
   it("toggleGrid는 showGrid를 반전한다", () => {
     useViewStore.getState().toggleGrid();
     expect(useViewStore.getState().showGrid).toBe(false);
@@ -92,23 +79,5 @@ describe("viewStore", () => {
 
     useViewStore.getState().togglePanels();
     expect(useViewStore.getState().showPanels).toBe(true);
-  });
-
-  it("toggleFillViewport는 모드를 반전하고 확대율을 새 기준으로 다시 맞춘다", () => {
-    useViewStore.setState({
-      zoom: ZOOM_DEFAULT,
-      viewport: { width: 1440, height: 300 },
-      content: { width: 1440, height: 900 },
-    });
-
-    useViewStore.getState().toggleFillViewport();
-    expect(useViewStore.getState().fillViewport).toBe(true);
-    // 가로 기준 1440/1440 = 100%
-    expect(useViewStore.getState().zoom).toBe(100);
-
-    useViewStore.getState().toggleFillViewport();
-    expect(useViewStore.getState().fillViewport).toBe(false);
-    // 다시 전체 기준 300/900 = 33.33%
-    expect(useViewStore.getState().zoom).toBe(33.33);
   });
 });
