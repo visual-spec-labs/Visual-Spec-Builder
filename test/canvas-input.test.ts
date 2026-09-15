@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   TOOLBAR_CLEARANCE_PX,
   isScrolledToBottom,
+  isSpacePanKey,
   isTypingTarget,
   shouldDeleteSelection,
   toolCursorClass,
+  toolForKey,
   type DeleteKeyInput,
+  type ToolKeyInput,
 } from "@/features/editor/ui/canvasInput";
 
 /** 캔버스에서 노드를 고른 채 Delete를 누른 상태. 케이스마다 필요한 칸만 덮어쓴다. */
@@ -164,5 +167,89 @@ describe("isScrolledToBottom — 도구 모음이 비켜줄 순간", () => {
   it("여유 값을 바꿀 수 있다", () => {
     expect(isScrolledToBottom(1080, 900, 2000, 20)).toBe(true);
     expect(isScrolledToBottom(1079, 900, 2000, 20)).toBe(false);
+  });
+});
+
+/** 캔버스 단축키를 누른 상태. 케이스마다 필요한 칸만 덮어쓴다. */
+function toolKey(patch: Partial<ToolKeyInput> = {}): ToolKeyInput {
+  return {
+    code: "KeyV",
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    tagName: "DIV",
+    contentEditable: false,
+    role: undefined,
+    ...patch,
+  };
+}
+
+describe("toolForKey — 도구 고정 전환", () => {
+  it("V·H·F·T 를 각 도구로 옮긴다", () => {
+    expect(toolForKey(toolKey({ code: "KeyV" }))).toBe("select");
+    expect(toolForKey(toolKey({ code: "KeyH" }))).toBe("hand");
+    expect(toolForKey(toolKey({ code: "KeyF" }))).toBe("frame");
+    expect(toolForKey(toolKey({ code: "KeyT" }))).toBe("text");
+  });
+
+  it("code 로 판정하므로 한/영 전환에 죽지 않는다", () => {
+    // event.key 였다면 한글 상태에서 "ㅍ" 이 와서 안 먹었을 입력이다.
+    // code 는 물리 키 위치라 언제나 "KeyV" 다.
+    expect(toolForKey(toolKey({ code: "KeyV" }))).toBe("select");
+  });
+
+  it("도구에 없는 키는 null 이다", () => {
+    expect(toolForKey(toolKey({ code: "KeyG" }))).toBeNull();
+    expect(toolForKey(toolKey({ code: "Digit1" }))).toBeNull();
+  });
+
+  it("수식키가 켜져 있으면 받지 않는다 — Ctrl+V 는 붙여넣기다", () => {
+    expect(toolForKey(toolKey({ ctrlKey: true }))).toBeNull();
+    expect(toolForKey(toolKey({ metaKey: true }))).toBeNull();
+    expect(toolForKey(toolKey({ code: "KeyF", ctrlKey: true }))).toBeNull();
+    expect(toolForKey(toolKey({ altKey: true }))).toBeNull();
+  });
+
+  it("타이핑 중에는 받지 않는다 — 이름에 Frame 을 치면 도구가 바뀐다", () => {
+    expect(toolForKey(toolKey({ code: "KeyF", tagName: "INPUT" }))).toBeNull();
+    expect(toolForKey(toolKey({ tagName: "TEXTAREA" }))).toBeNull();
+    expect(toolForKey(toolKey({ contentEditable: true }))).toBeNull();
+  });
+
+  it("버튼 위에서는 글자 키를 그대로 받는다 — 버튼이 글자를 소비하지 않는다", () => {
+    expect(toolForKey(toolKey({ tagName: "BUTTON" }))).toBe("select");
+  });
+});
+
+describe("isSpacePanKey — 스페이스 임시 팬", () => {
+  const space = (patch: Partial<ToolKeyInput> = {}) =>
+    isSpacePanKey(toolKey({ code: "Space", ...patch }));
+
+  it("캔버스 위의 스페이스를 받는다", () => {
+    expect(space()).toBe(true);
+  });
+
+  it("스페이스가 아니면 받지 않는다", () => {
+    expect(isSpacePanKey(toolKey({ code: "KeyV" }))).toBe(false);
+  });
+
+  it("버튼·링크 위에서는 받지 않는다 — 스페이스는 그것들의 활성화 키다", () => {
+    // 가로채면 도구 모음 버튼에 포커스가 있을 때 키보드로 도구를 못 고른다.
+    expect(space({ tagName: "BUTTON" })).toBe(false);
+    expect(space({ tagName: "A" })).toBe(false);
+    expect(space({ tagName: "DIV", role: "button" })).toBe(false);
+    expect(space({ tagName: "DIV", role: "link" })).toBe(false);
+  });
+
+  it("입력란에서는 받지 않는다 — 띄어쓰기가 멀쩡해야 한다", () => {
+    expect(space({ tagName: "INPUT" })).toBe(false);
+    expect(space({ tagName: "TEXTAREA" })).toBe(false);
+    expect(space({ contentEditable: true })).toBe(false);
+  });
+
+  it("수식키가 켜져 있으면 받지 않는다", () => {
+    expect(space({ ctrlKey: true })).toBe(false);
+    expect(space({ metaKey: true })).toBe(false);
+    expect(space({ altKey: true })).toBe(false);
   });
 });

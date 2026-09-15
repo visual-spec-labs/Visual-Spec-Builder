@@ -61,6 +61,89 @@ export function shouldDeleteSelection(input: DeleteKeyInput): boolean {
 }
 
 /**
+ * 물리 키 위치 → 도구. 피그마와 같은 배치다.
+ *
+ * `event.key`가 아니라 **`event.code`로 맞춘다.** `key`는 키보드 레이아웃을 타서
+ * 한글 상태에서 V를 누르면 `"ㅍ"`이 오고, IME가 붙으면 `"Process"`가 온다.
+ * 그러면 한/영을 전환할 때마다 단축키가 죽는다. `code`는 물리적인 키 위치라
+ * `"KeyV"`로 고정이다.
+ */
+const TOOL_KEYS: Record<string, ToolId> = {
+  KeyV: "select",
+  KeyH: "hand",
+  KeyF: "frame",
+  KeyT: "text",
+};
+
+/** 도구 단축키 판정이 보는 것 — KeyboardEvent에서 필요한 값만 추린 모양. */
+export interface ToolKeyInput {
+  /** `event.code` — `event.key`가 아니다. 위 TOOL_KEYS 주석 참고. */
+  code: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  /** `event.target`의 태그 이름. 못 읽었으면 undefined. */
+  tagName: string | undefined;
+  contentEditable: boolean;
+  /** `event.target`의 `role` 속성. 없으면 undefined. */
+  role?: string | undefined;
+}
+
+/** 수식키·타이핑 중이면 캔버스 단축키를 받지 않는다. 두 판정이 공유하는 관문. */
+function isCanvasShortcutContext(input: ToolKeyInput): boolean {
+  // Ctrl+V(붙여넣기)·Ctrl+F(찾기)가 도구를 바꾸면 안 된다.
+  if (input.ctrlKey || input.metaKey || input.altKey) return false;
+  // 레이어 이름에 "Frame"을 치면 도구가 두 번 바뀌는 것을 막는다.
+  return !isTypingTarget(input.tagName, input.contentEditable);
+}
+
+/**
+ * 이 키로 바꿀 도구. 해당 없으면 null.
+ *
+ * 고정 전환이다 — 누르면 그 도구가 되고 그대로 있는다. 누르는 동안만 바뀌는
+ * 스페이스는 `isSpacePanKey`가 따로 본다.
+ */
+export function toolForKey(input: ToolKeyInput): ToolId | null {
+  if (!isCanvasShortcutContext(input)) return null;
+  return TOOL_KEYS[input.code] ?? null;
+}
+
+/**
+ * 스페이스가 버튼·링크를 누르는 자리인가.
+ *
+ * 스페이스는 `<button>`과 `role="button"`의 **기본 활성화 키**다. 여기서 가로채
+ * `preventDefault`를 걸면 도구 모음 버튼에 포커스가 있을 때 **키보드로 도구를
+ * 고를 수 없게 된다.** 글자 키(V·H·F·T)에는 이 검사가 필요 없다 — 버튼이 글자를
+ * 소비하지 않는다.
+ */
+function isActivationTarget(
+  tagName: string | undefined,
+  role: string | undefined,
+): boolean {
+  const tag = (tagName ?? "").toUpperCase();
+  if (tag === "BUTTON" || tag === "A" || tag === "SUMMARY") return true;
+  return role === "button" || role === "link";
+}
+
+/**
+ * 스페이스를 임시 팬으로 받아야 하는가.
+ *
+ * 고정 전환과 달리 **누르고 있는 동안만** 손 도구가 되고, 떼면 쓰던 도구로
+ * 돌아온다(피그마·포토샵과 같다). 프레임을 그리다 화면만 살짝 옮기고 다시
+ * 그리는 흐름이 끊기지 않는다.
+ *
+ * 받기로 했으면 호출부가 `preventDefault`를 걸어야 한다 — 스페이스는 스크롤
+ * 키이고 캔버스가 `overflow-auto`라 한 화면씩 내려간다. 입력란에서는 여기서
+ * 먼저 false가 나오므로 띄어쓰기는 멀쩡하다.
+ */
+export function isSpacePanKey(input: ToolKeyInput): boolean {
+  if (input.code !== "Space") return false;
+  if (!isCanvasShortcutContext(input)) return false;
+
+  return !isActivationTarget(input.tagName, input.role);
+}
+
+/**
  * 활성 도구에 맞는 커서 클래스.
  *
  * 도구를 바꿔도 커서가 그대로면 **지금 무슨 도구인지 알려주는 표시가 툴바 버튼
