@@ -28,6 +28,28 @@ export function isTypingTarget(
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
 
+/**
+ * 브라우저 기본 우클릭 메뉴를 막아야 하는가.
+ *
+ * "뒤로 / 새로고침 / 다른 이름으로 저장 / 페이지 소스 보기 / 번역"은 편집기 안에서
+ * 할 일이 하나도 없다. 데스크톱 앱처럼 보이려는 화면에서 브라우저 메뉴가 튀어나오는
+ * 것 자체가 어긋나고, 나중에 캔버스에 커스텀 메뉴를 붙이면 둘이 겹친다(#138).
+ *
+ * **입력란은 예외다.** 여기서는 브라우저 메뉴가 쓸모없기는커녕 유일한 수단이다 —
+ * 복사·붙여넣기·모두 선택·실행 취소·맞춤법 검사가 전부 거기 있다. 속성 패널의
+ * TextField·NumberField·ColorField 와 레이어 이름 바꾸기(#129)가 여기 해당한다.
+ * 이걸 놓치면 우클릭 메뉴를 없앤 게 아니라 텍스트 편집을 망가뜨린 게 된다.
+ *
+ * 판정이 isTypingTarget 의 반대인 것은 우연이 아니다 — 키 입력과 같은 경계다.
+ * "사용자가 지금 글자를 다루고 있는가"가 두 경우 모두의 기준이다.
+ */
+export function shouldSuppressContextMenu(
+  tagName: string | undefined,
+  contentEditable: boolean,
+): boolean {
+  return !isTypingTarget(tagName, contentEditable);
+}
+
 /** `shouldDeleteSelection`이 보는 것 — KeyboardEvent에서 필요한 값만 추린 모양. */
 export interface DeleteKeyInput {
   key: string;
