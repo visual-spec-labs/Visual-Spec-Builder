@@ -19,8 +19,12 @@ export function EditorLayout() {
     : "grid-cols-[var(--layout-tree-width-collapsed)_1fr_var(--layout-props-width-collapsed)]";
 
   return (
+    // overflow-hidden 이 필요하다. transform 은 레이아웃 박스를 바꾸지 않지만
+    // **문서의 스크롤 영역은 넓힌다** — 하단 도구 모음이 숨을 때 아래로 밀려나면서
+    // 페이지 전체가 스크롤 가능해지고, 한 번 더 내리면 앱이 통째로 위로 밀린다.
+    // 앱 셸은 화면 크기에 딱 맞아야 하므로 여기서 잘라낸다.
     <div
-      className={`relative grid h-screen w-screen ${gridColsClass} grid-rows-[var(--layout-menubar-height)_1fr] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'] bg-surface-sunken text-content`}
+      className={`relative grid h-screen w-screen overflow-hidden ${gridColsClass} grid-rows-[var(--layout-menubar-height)_1fr] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'] bg-surface-sunken text-content`}
     >
       <MenuBar />
       {showPanels && <LayerTree />}

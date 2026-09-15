@@ -259,3 +259,20 @@ pnpm lint
 <div className="grid-cols-[240px_1fr_280px]" />
 <div style={{ width: 240 }} />
 ```
+
+**예외 — 스펙에서 계산된 치수**: 편집 중인 문서가 정하는 값은 인라인 스타일로 씁니다.
+`page.size`, 확대율(`transform: scale`), 노드의 `box`·색처럼 **런타임에 사용자 문서가
+정하는 숫자**는 디자인 토큰이 될 수 없습니다 — 값이 무한하고, 제품의 시각 언어가 아니라
+사용자가 그리는 내용이기 때문입니다. 캔버스(`ui/Canvas.tsx`)와 `ui/canvasLayout.ts`가
+여기 해당합니다.
+
+```tsx
+/* ✅ 스펙이 정하는 치수 — 토큰화 대상이 아니다 */
+<div style={{ width: size.width, minHeight: size.height, transform: `scale(${scale})` }} />
+
+/* ❌ 제품 UI 의 치수 — 토큰이어야 한다 */
+<aside style={{ width: 280 }} />
+```
+
+경계는 "이 숫자가 제품 UI 의 것인가, 사용자 문서의 것인가"입니다. 패널 폭·간격·색은
+토큰이고, 아트보드 크기·노드 크기는 인라인입니다.

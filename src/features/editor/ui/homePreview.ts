@@ -9,6 +9,7 @@ import type {
 } from "@/features/editor/schema";
 
 import { boxStyle, radiusCss, type Direction } from "./canvasLayout";
+import { imageUrlCss } from "./properties/imageSrc";
 
 /**
  * 홈 화면 카드가 스펙을 축소해서 즉석 렌더할 때 쓰는 순수 스타일 계산.
@@ -96,7 +97,7 @@ export function previewImageStyle(
 ): CSSProperties {
   return {
     ...boxStyle(node.box, parentDirection),
-    backgroundImage: `url(${node.src})`,
+    backgroundImage: imageUrlCss(node.src),
     backgroundSize: node.fit === "fill" ? "100% 100%" : node.fit,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
