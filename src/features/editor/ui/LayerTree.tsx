@@ -98,8 +98,24 @@ function LayerRow({
   const setNodeField = useEditorStore((state) => state.setNodeField);
   const removeNode = useEditorStore((state) => state.removeNode);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [draftName, setDraftName] = useState("");
 
   if (node === undefined) return null;
+
+  function startRename() {
+    setDraftName(node.name);
+    setIsEditingName(true);
+  }
+
+  /** trim 결과가 비면 이름을 지우지 않고 그대로 되돌린다 — 스키마의 minLength: 1. */
+  function commitRename() {
+    const trimmed = draftName.trim();
+    if (trimmed !== "" && trimmed !== node.name) {
+      setNodeField(id, "name", trimmed);
+    }
+    setIsEditingName(false);
+  }
 
   const hasChildren = node.type === "frame" && node.children.length > 0;
   const isOpen = !isCollapsed(id);
@@ -109,7 +125,8 @@ function LayerRow({
   const indent = INDENT_BY_DEPTH[Math.min(depth, INDENT_BY_DEPTH.length - 1)];
 
   // root는 부모가 없어 옮길 수 없다(moveNode도 store에서 막는다) — 드래그 자체를 안 건다.
-  const isDraggable = !isRoot && parentId !== null;
+  // 이름 편집 중에도 안 건다 — 텍스트 선택 드래그가 노드 이동 드래그와 겹치면 안 된다.
+  const isDraggable = !isRoot && parentId !== null && !isEditingName;
   // 형제 순서 변경과 다른 프레임으로의 재부모화 둘 다 이 행이 받는다(#123) — 어느 쪽인지는
   // 실제로 놓을 때 resolveLayerDrop(순수 함수, ui/layerDrop.ts)이 이 행이 frame인지 아닌지로
   // 가른다. 여기서는 자기 자신·자기 자손 위에 놓는 것만 미리 걸러 드롭 표시를 안 띄운다
@@ -196,15 +213,42 @@ function LayerRow({
             <span className="size-4 shrink-0" aria-hidden="true" />
           )}
 
-          <button
-            type="button"
-            onClick={() => select(id)}
-            aria-current={isSelected ? "true" : undefined}
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-          >
-            <Icon size={13} className="shrink-0 text-content-subtle" aria-hidden="true" />
-            <span className="truncate">{node.name}</span>
-          </button>
+          {isEditingName ? (
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <Icon size={13} className="shrink-0 text-content-subtle" aria-hidden="true" />
+              <input
+                type="text"
+                value={draftName}
+                autoFocus
+                onFocus={(event) => event.currentTarget.select()}
+                onChange={(event) => setDraftName(event.target.value)}
+                onClick={(event) => event.stopPropagation()}
+                onBlur={commitRename}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitRename();
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    setIsEditingName(false);
+                  }
+                }}
+                aria-label="레이어 이름"
+                className="min-w-0 flex-1 truncate rounded-control border border-primary bg-surface px-1 py-0 text-content outline-none"
+              />
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => select(id)}
+              onDoubleClick={startRename}
+              aria-current={isSelected ? "true" : undefined}
+              className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+            >
+              <Icon size={13} className="shrink-0 text-content-subtle" aria-hidden="true" />
+              <span className="truncate">{node.name}</span>
+            </button>
+          )}
 
           <button
             type="button"
