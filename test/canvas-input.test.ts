@@ -6,6 +6,7 @@ import {
   isSpacePanKey,
   isTypingTarget,
   shouldDeleteSelection,
+  shouldSuppressContextMenu,
   toolCursorClass,
   toolForKey,
   type DeleteKeyInput,
@@ -251,5 +252,33 @@ describe("isSpacePanKey — 스페이스 임시 팬", () => {
     expect(space({ ctrlKey: true })).toBe(false);
     expect(space({ metaKey: true })).toBe(false);
     expect(space({ altKey: true })).toBe(false);
+  });
+});
+
+describe("shouldSuppressContextMenu — 브라우저 기본 우클릭 메뉴", () => {
+  it("캔버스·패널·레이어 트리 위에서는 막는다", () => {
+    // "뒤로 / 새로고침 / 페이지 소스 보기"는 편집기 안에서 할 일이 없다.
+    expect(shouldSuppressContextMenu("DIV", false)).toBe(true);
+    expect(shouldSuppressContextMenu("SPAN", false)).toBe(true);
+    expect(shouldSuppressContextMenu("BUTTON", false)).toBe(true);
+    expect(shouldSuppressContextMenu("MAIN", false)).toBe(true);
+  });
+
+  it("입력란에서는 막지 않는다 — 복사·붙여넣기가 거기 있다", () => {
+    // 막으면 우클릭 메뉴를 없앤 게 아니라 텍스트 편집을 망가뜨린 게 된다.
+    // 속성 패널의 TextField·NumberField·ColorField 와 레이어 이름 바꾸기(#129).
+    expect(shouldSuppressContextMenu("INPUT", false)).toBe(false);
+    expect(shouldSuppressContextMenu("TEXTAREA", false)).toBe(false);
+    expect(shouldSuppressContextMenu("SELECT", false)).toBe(false);
+    expect(shouldSuppressContextMenu("DIV", true)).toBe(false);
+  });
+
+  it("태그를 못 읽었으면 막는다 — 기본값은 편집기 쪽이다", () => {
+    expect(shouldSuppressContextMenu(undefined, false)).toBe(true);
+  });
+
+  it("소문자 태그도 같게 본다", () => {
+    expect(shouldSuppressContextMenu("input", false)).toBe(false);
+    expect(shouldSuppressContextMenu("div", false)).toBe(true);
   });
 });
