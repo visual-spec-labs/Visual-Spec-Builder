@@ -576,6 +576,38 @@ describe("editorStore", () => {
       expect(cardA.type === "frame" && cardA.layout.gap).toBe(40); // 노드 편집은 남아 있다
     });
 
+    it("비활성 페이지를 편집한 단계로 redo하면 편집된 페이지로 옮겨 간다(#131 리뷰, wook3964, PR #142)", () => {
+      // 스냅숏의 activePageId는 편집이 일어난 페이지여야 한다 — "이 편집 직후의
+      // 상태"에서 보고 있어야 할 페이지가 그 페이지이기 때문이다. state.activePageId를
+      // 담던 시절엔 여기서 pageA(편집할 때 보고 있던 페이지)로 튀어서, redo가
+      // 바꿔놓은 내용이 화면 밖에 있었다.
+      useEditorStore.getState().addPage();
+      const [pageA, pageB] = useEditorStore.getState().spec.pageOrder;
+      useEditorStore.getState().selectPage(pageA); // pageB는 이제 비활성이다
+
+      useEditorStore.getState().setPageField(pageB, "name", "Login");
+      useEditorStore.getState().undo();
+      useEditorStore.getState().redo();
+
+      expect(useEditorStore.getState().activePageId).toBe(pageB);
+      expect(useEditorStore.getState().spec.pages[pageB].name).toBe("Login");
+    });
+
+    it("비활성 페이지를 두 번 편집한 뒤 undo해도 그 페이지를 가리킨다(#131 리뷰, wook3964, PR #142)", () => {
+      // 위와 같은 이유. 첫 편집의 스냅숏으로 되돌아가므로 거기 담긴 activePageId도
+      // 편집 대상인 pageB여야 한다.
+      useEditorStore.getState().addPage();
+      const [pageA, pageB] = useEditorStore.getState().spec.pageOrder;
+      useEditorStore.getState().selectPage(pageA);
+
+      useEditorStore.getState().setPageField(pageB, "size.width", 1920);
+      useEditorStore.getState().setPageField(pageB, "size.width", 1280);
+      useEditorStore.getState().undo();
+
+      expect(useEditorStore.getState().activePageId).toBe(pageB);
+      expect(useEditorStore.getState().spec.pages[pageB].size.width).toBe(1920);
+    });
+
     it("loadSpec은 history를 새로 시작한다", () => {
       useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
 

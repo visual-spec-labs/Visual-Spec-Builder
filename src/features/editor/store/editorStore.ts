@@ -193,6 +193,18 @@ function withPage(
 }
 
 /**
+ * Undo 스냅숏 하나를 만든다. `applied`·`addPage`·`removePage`가 전부 이걸 쓴다.
+ *
+ * #131 리뷰(wook3964, PR #142): 세 곳이 각자 `{ spec, activePageId }`를 직접
+ * 조립하고 있었다. EditorSnapshot에 필드가 늘면(예: selectedId) 세 곳을 손으로
+ * 맞춰야 하고, 하나를 놓쳐도 타입이 잡아주지 않은 채 조용히 낡은 스냅숏이
+ * 쌓인다. 생성자를 하나로 두면 추가할 곳도 한 곳이다.
+ */
+function makeSnapshot(spec: ProjectSpec, activePageId: PageId): EditorSnapshot {
+  return { spec, activePageId };
+}
+
+/**
  * pageOrder는 최소 1개를 보장하는 튜플이라 배열 연산 결과를 그대로 넣을 수 없다.
  * 비지 않음은 호출부가 지킨다(addPage는 더하기만 하고, removePage는 마지막 한 장을 막는다).
  */
@@ -231,9 +243,14 @@ function applied(
   const nextPage = applyCommand(page, command);
   if (nextPage === page) return null;
 
-  // 페이지 목록은 그대로라 activePageId도 지금 값을 그대로 담는다.
+  // 스냅숏의 activePageId는 `state.activePageId`가 아니라 편집이 일어난 `pageId`다.
+  // 스냅숏은 "이 편집 직후의 상태"이고, 그 상태에서 보고 있어야 할 페이지는 편집된
+  // 페이지다 — 이 단계로 undo/redo하면 바뀐 내용이 눈앞에 있어야 한다.
+  // #131 리뷰(wook3964, PR #142): 지금 호출부는 전부 활성 페이지를 넘겨서 둘이
+  // 같지만, 타입도 런타임도 그걸 강제하지 않는다. 비활성 페이지를 편집하는 기능이
+  // 생기면 스냅숏이 편집된 페이지가 아니라 그때 보고 있던 페이지를 기록하게 된다.
   const spec = withPage(state.spec, pageId, nextPage);
-  const next: EditorSnapshot = { spec, activePageId: state.activePageId };
+  const next = makeSnapshot(spec, pageId);
 
   return {
     spec,
@@ -247,7 +264,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   spec: initialSpec,
   activePageId: initialSpec.pageOrder[0],
   selectedId: null,
-  history: initHistory({ spec: initialSpec, activePageId: initialSpec.pageOrder[0] }),
+  history: initHistory(makeSnapshot(initialSpec, initialSpec.pageOrder[0])),
   select: (id) => set({ selectedId: id }),
   selectPage: (id) =>
     set((state) => {
@@ -262,7 +279,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       return {
         activePageId: id,
         selectedId: null,
-        history: replacePresent(state.history, { spec: state.spec, activePageId: id }),
+        history: replacePresent(state.history, makeSnapshot(state.spec, id)),
       };
     }),
   setNodeField: (id, path, value, continueEdit = false) =>
@@ -310,7 +327,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         spec,
         // #131: 페이지까지 옮기는 액션이라 스냅숏을 직접 만든다 — undo하면
         // 이 페이지가 사라지므로 activePageId도 함께 되돌아가야 한다.
-        history: pushHistory(state.history, { spec, activePageId: id }),
+        history: pushHistory(state.history, makeSnapshot(spec, id)),
         activePageId: id,
         selectedId: null,
       };
@@ -345,7 +362,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         // (#40 리뷰, GAMMJ, PR #102에서 의도적으로 지웠다) 이 조작만 유일하게
         // 되돌릴 수 없었다. 같은 리뷰가 지적한 "지운 페이지의 스택을 id 재사용
         // 으로 새 페이지가 물려받는" 누수도 스택이 하나가 되면서 사라진다.
-        history: pushHistory(state.history, { spec, activePageId }),
+        history: pushHistory(state.history, makeSnapshot(spec, activePageId)),
         activePageId,
         selectedId: isActive ? null : state.selectedId,
       };
@@ -359,7 +376,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       // #40: 완전히 다른 프로젝트로 갈아 끼우는 시점이라 history도 새로 시작
       // 한다. 이어 쓰면 undo 한 번이 방금 연 파일이 아니라 전에 열려 있던
       // 파일의 옛 상태로 튀어버린다 — New/Open은 되돌릴 대상이 아니다.
-      history: initHistory({ spec: project, activePageId: project.pageOrder[0] }),
+      history: initHistory(makeSnapshot(project, project.pageOrder[0])),
     });
   },
   insertNode: (parentId, id, node) =>
