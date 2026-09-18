@@ -91,6 +91,106 @@ describe("applyCommand — updateNode", () => {
     const command: Command = { type: "updateNode", id: "nope", path: "layout.gap", value: 1 };
     expect(applyCommand(BASE, command)).toBe(BASE);
   });
+
+  // #146: 대상만 보고 경로를 안 보면 setByPath가 없는 키를 새로 만들어서
+  // 오타가 no-op이 아니라 IR 오염이 된다.
+  it("스키마에 없는 경로는 아무 것도 하지 않는다", () => {
+    const typo: Command = { type: "updateNode", id: "cardA", path: "layot.gap", value: 40 };
+    const deepTypo: Command = { type: "updateNode", id: "cardA", path: "layout.gapp", value: 40 };
+    const unknownRoot: Command = { type: "updateNode", id: "cardA", path: "rotation", value: 40 };
+
+    expect(applyCommand(BASE, typo)).toBe(BASE);
+    expect(applyCommand(BASE, deepTypo)).toBe(BASE);
+    expect(applyCommand(BASE, unknownRoot)).toBe(BASE);
+  });
+
+  it("경로를 노드 타입별로 본다 — text 노드에는 layout이 없다", () => {
+    const onText: Command = {
+      type: "updateNode",
+      id: "headerTitle", // text
+      path: "layout.gap",
+      value: 40,
+    };
+    const onFrame: Command = { type: "updateNode", id: "cardA", path: "layout.gap", value: 40 };
+
+    expect(applyCommand(BASE, onText)).toBe(BASE);
+    expect(applyCommand(BASE, onFrame)).not.toBe(BASE);
+  });
+
+  it("구조 필드(type·children)는 경로가 있어도 바꾸지 않는다", () => {
+    const changeType: Command = { type: "updateNode", id: "cardA", path: "type", value: "text" };
+    const changeChildren: Command = {
+      type: "updateNode",
+      id: "cardA",
+      path: "children",
+      value: [],
+    };
+
+    expect(applyCommand(BASE, changeType)).toBe(BASE);
+    expect(applyCommand(BASE, changeChildren)).toBe(BASE);
+  });
+
+  // 경로 판정을 "지금 값이 있는지"로 했다면 막혔을 호출들이다 — 선택 필드를
+  // 처음 설정하는 건 레이어 트리 표시 토글·배경/효과 섹션의 정상 동작이다.
+  it("값이 아직 없는 선택 필드도 새로 설정한다", () => {
+    const header = BASE.nodes.header;
+    expect(header.type === "frame" && header.background).toBeUndefined();
+
+    const setBackground: Command = {
+      type: "updateNode",
+      id: "header",
+      path: "background.color",
+      value: "#123456",
+    };
+    const setVisible: Command = {
+      type: "updateNode",
+      id: "header",
+      path: "visible",
+      value: false,
+    };
+    const setOpacity: Command = {
+      type: "updateNode",
+      id: "headerTitle",
+      path: "opacity",
+      value: 0.5,
+    };
+
+    const next = applyCommand(BASE, setBackground);
+    expect(next.nodes.header).toMatchObject({ background: { color: "#123456" } });
+    expect(applyCommand(BASE, setVisible).nodes.header).toMatchObject({ visible: false });
+    expect(applyCommand(BASE, setOpacity).nodes.headerTitle).toMatchObject({ opacity: 0.5 });
+  });
+
+  it("기존 호출부가 쓰는 경로는 그대로 동작한다", () => {
+    // ui/Canvas.tsx · properties/*가 실제로 넘기는 경로들.
+    const paths = [
+      "box.width",
+      "box.height",
+      "name",
+      "visible",
+      "layout.direction",
+      "layout.gap",
+      "layout.padding.top",
+      "background.color",
+      "border",
+      "border.radius.topLeft",
+      "shadow",
+      "opacity",
+      "blur",
+    ];
+
+    for (const path of paths) {
+      const command: Command = { type: "updateNode", id: "cardA", path, value: 1 };
+      expect(applyCommand(BASE, command), path).not.toBe(BASE);
+    }
+  });
+
+  it("text 노드의 경로도 그대로 동작한다", () => {
+    for (const path of ["content", "color", "typography.fontSize", "typography.textAlign"]) {
+      const command: Command = { type: "updateNode", id: "headerTitle", path, value: 1 };
+      expect(applyCommand(BASE, command), path).not.toBe(BASE);
+    }
+  });
 });
 
 describe("applyCommand — updateScreen", () => {
@@ -108,6 +208,37 @@ describe("applyCommand — updateScreen", () => {
     const next = applyCommand(BASE, command);
 
     expect(next.name).toBe("Renamed");
+  });
+
+  it("size를 통째로 바꾸는 경로도 동작한다", () => {
+    // properties/PageProperties.tsx의 해상도 프리셋이 이 경로를 쓴다.
+    const command: Command = {
+      type: "updateScreen",
+      path: "size",
+      value: { width: 390, height: 844 },
+    };
+    expect(applyCommand(BASE, command).size).toEqual({ width: 390, height: 844 });
+  });
+
+  // #146: 검사가 없으면 screen.siz = { width: 1920 } 이라는 스키마에 없는
+  // 필드가 붙은 새 객체가 만들어지고, 새 객체라서 no-op으로 안 보인다.
+  it("스키마에 없는 경로는 아무 것도 하지 않는다", () => {
+    const typo: Command = { type: "updateScreen", path: "siz.width", value: 1920 };
+    const deepTypo: Command = { type: "updateScreen", path: "size.widht", value: 1920 };
+    const unknownRoot: Command = { type: "updateScreen", path: "resolution", value: 1920 };
+
+    expect(applyCommand(BASE, typo)).toBe(BASE);
+    expect(applyCommand(BASE, deepTypo)).toBe(BASE);
+    expect(applyCommand(BASE, unknownRoot)).toBe(BASE);
+  });
+
+  it("구조 필드(root·nodes)는 경로가 있어도 바꾸지 않는다", () => {
+    // 통째로 갈아 끼우면 createNode·deleteNode가 지키는 불변조건을 우회한다.
+    const changeRoot: Command = { type: "updateScreen", path: "root", value: "nope" };
+    const changeNodes: Command = { type: "updateScreen", path: "nodes", value: {} };
+
+    expect(applyCommand(BASE, changeRoot)).toBe(BASE);
+    expect(applyCommand(BASE, changeNodes)).toBe(BASE);
   });
 });
 

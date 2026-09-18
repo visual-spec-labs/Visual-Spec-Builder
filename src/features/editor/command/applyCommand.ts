@@ -1,6 +1,7 @@
 import type { FrameNode, Node, NodeId, ScreenSpec } from "@/features/editor/schema";
 import { setByPath } from "@/features/editor/store/path";
 
+import { isEditableNodePath, isEditableScreenPath } from "./editablePath";
 import type { Command, CreateNodeCommand, DeleteNodeCommand, MoveNodeCommand, SetLayoutCommand, UpdateNodeCommand, UpdateScreenCommand } from "./types";
 
 function isFrameNode(node: Node): node is FrameNode {
@@ -105,6 +106,9 @@ function applyUpdateNode(screen: ScreenSpec, command: UpdateNodeCommand): Screen
   const { nodes } = screen;
   const node = nodes[command.id];
   if (node === undefined) return screen;
+  // 대상이 있는지와 같은 무게로 경로도 본다(#146) — setByPath는 없는 키를 새로
+  // 만들어서, 검사 없이 부르면 오타가 no-op이 아니라 스키마에 없는 필드가 된다.
+  if (!isEditableNodePath(node.type, command.path)) return screen;
 
   const nextNode = setByPath(node, command.path, command.value);
   return withNodes(screen, { ...nodes, [command.id]: nextNode });
@@ -163,6 +167,8 @@ function applySetLayout(screen: ScreenSpec, command: SetLayoutCommand): ScreenSp
 }
 
 function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): ScreenSpec {
+  if (!isEditableScreenPath(command.path)) return screen; // applyUpdateNode와 같은 이유(#146)
+
   return setByPath(screen, command.path, command.value);
 }
 
@@ -173,8 +179,9 @@ function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): Sc
  * 모양이라 이 함수 하나로 둘 다 쓴다 — 어느 페이지에 적용할지는 호출자(editorStore)
  * 책임이다. 이 함수 자신은 "페이지가 여러 장"이라는 개념을 아예 모른다.
  *
- * 대상이 없거나 규칙을 어기면(root 삭제/이동, frame 아닌 곳에 자식 추가, 순환 등)
- * 아무것도 하지 않고 같은 screen 참조를 그대로 돌려준다 — 예외를 던지지 않는다.
+ * 대상이 없거나 규칙을 어기면(root 삭제/이동, frame 아닌 곳에 자식 추가, 순환,
+ * 스키마에 없는 경로 등) 아무것도 하지 않고 같은 screen 참조를 그대로 돌려준다
+ * — 예외를 던지지 않는다.
  * IR 불변조건(schema/validate.ts의 root-missing/orphan-node/cycle/multiple-parents)을
  * 깨는 조합은 애초에 만들어지지 않도록 여기서 막는다.
  */

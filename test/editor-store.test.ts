@@ -108,6 +108,16 @@ describe("editorStore", () => {
     expect(useEditorStore.getState().spec).toBe(before);
   });
 
+  // #146: 경로 검사가 없으면 setByPath가 스키마에 없는 필드를 붙인 새 객체를
+  // 만들고, 새 객체라서 applied()가 no-op으로 못 보고 빈 단계가 history에 쌓인다.
+  it("스키마에 없는 경로는 무시하고 history에도 쌓지 않는다", () => {
+    const before = useEditorStore.getState().spec;
+    useEditorStore.getState().setNodeField("cardA", "layot.gap", 40);
+
+    expect(useEditorStore.getState().spec).toBe(before);
+    expect(undoEnabled()).toBe(false);
+  });
+
   it("한 페이지를 고쳐도 다른 페이지는 참조가 그대로다", () => {
     useEditorStore.getState().addPage();
     const before = useEditorStore.getState().spec;
@@ -185,6 +195,25 @@ describe("editorStore", () => {
       const before = useEditorStore.getState().spec;
       useEditorStore.getState().setPageField("does-not-exist", "name", "X");
       expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    // #146: 자연어 변환이 들어오면 이 path는 LLM이 만들어 낸 문자열이 된다.
+    it("스키마에 없는 경로는 무시하고 history에도 쌓지 않는다", () => {
+      const pageId = useEditorStore.getState().activePageId;
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().setPageField(pageId, "siz.width", 1920);
+
+      expect(useEditorStore.getState().spec).toBe(before);
+      expect(undoEnabled()).toBe(false);
+    });
+
+    it("정상 경로는 전과 똑같이 history에 한 단계로 쌓인다", () => {
+      const pageId = useEditorStore.getState().activePageId;
+      useEditorStore.getState().setPageField(pageId, "size.width", 1920);
+
+      expect(undoEnabled()).toBe(true);
+      useEditorStore.getState().undo();
+      expect(activePage().size.width).toBe(1440);
     });
   });
 
