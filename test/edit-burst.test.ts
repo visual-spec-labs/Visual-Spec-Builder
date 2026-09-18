@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { initHistory } from "@/features/editor/command/history";
 import { migrateV01 } from "@/features/editor/schema";
 import type { ScreenSpec } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -19,13 +20,21 @@ function resetToSeed(): void {
     spec,
     activePageId: spec.pageOrder[0],
     selectedId: null,
-    history: {}, // setState는 부분 병합이라 안 지우면 이전 테스트의 undo 스택이 새어 들어온다
+    // setState는 부분 병합이라 안 지우면 이전 테스트의 undo 스택이 새어 들어온다.
+    // #131에서 history가 페이지별 Record에서 프로젝트 하나의 스택으로 바뀌었다 —
+    // editor-store.test.ts의 resetToSeed와 같은 모양으로 새로 시작한다.
+    history: initHistory({ spec, activePageId: spec.pageOrder[0] }),
   });
 }
 
-function pageHistoryLength(): number {
-  const { history, activePageId } = useEditorStore.getState();
-  return history[activePageId]?.past.length ?? 0;
+/**
+ * 쌓인 undo 단계 수. #131 전에는 스택이 페이지별이라 활성 페이지 것을 골라 세느라
+ * 이름이 `pageHistoryLength`였지만, 이제 스택이 프로젝트 하나뿐이라 "페이지"가
+ * 이름에 남아 있으면 사실이 아니다 — 그래서 이름도 함께 고쳤다. 이 파일의
+ * 테스트는 전부 활성 페이지 한 장만 편집하므로 세는 값 자체는 전과 같다.
+ */
+function historyStepCount(): number {
+  return useEditorStore.getState().history.past.length;
 }
 
 /**
@@ -124,7 +133,7 @@ describe("TextField의 연속 타이핑을 undo 한 단계로 합친다 (#132)",
       nameField().retype("홈화면");
 
       expect(activePage().name).toBe("홈화면");
-      expect(pageHistoryLength()).toBe(1); // 세 글자를 쳤어도 한 단계
+      expect(historyStepCount()).toBe(1); // 세 글자를 쳤어도 한 단계
 
       useEditorStore.getState().undo();
 
@@ -140,7 +149,7 @@ describe("TextField의 연속 타이핑을 undo 한 단계로 합친다 (#132)",
       field.type(" 설정");
 
       expect(activePage().name).toBe("홈화면 설정");
-      expect(pageHistoryLength()).toBe(2);
+      expect(historyStepCount()).toBe(2);
 
       useEditorStore.getState().undo();
       expect(activePage().name).toBe("홈화면"); // 두 번째 편집만 되돌아간다
@@ -160,7 +169,7 @@ describe("TextField의 연속 타이핑을 undo 한 단계로 합친다 (#132)",
       field.change("홈");
 
       expect(activePage().name).toBe("홈");
-      expect(pageHistoryLength()).toBe(1);
+      expect(historyStepCount()).toBe(1);
 
       useEditorStore.getState().undo();
       expect(activePage().name).toBe(before);
@@ -171,16 +180,16 @@ describe("TextField의 연속 타이핑을 undo 한 단계로 합친다 (#132)",
       // 그때 커밋까지 해버리면 스토어는 no-op인데 burst만 시작돼, 뒤따르는
       // 글자들이 직전 편집(여기서는 gap)의 체크포인트에 덮어써진다.
       useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
-      const afterGap = pageHistoryLength();
+      const afterGap = historyStepCount();
 
       const field = nameField();
       field.change(activePage().name); // 같은 값 — 아무 일도 없어야 한다
 
-      expect(pageHistoryLength()).toBe(afterGap);
+      expect(historyStepCount()).toBe(afterGap);
 
       field.type("!");
 
-      expect(pageHistoryLength()).toBe(afterGap + 1); // gap 단계는 그대로 남는다
+      expect(historyStepCount()).toBe(afterGap + 1); // gap 단계는 그대로 남는다
 
       useEditorStore.getState().undo();
       const cardA = activePage().nodes.cardA;
@@ -209,7 +218,7 @@ describe("TextField의 연속 타이핑을 undo 한 단계로 합친다 (#132)",
       contentField().retype("안녕하세요");
 
       expect(content()).toBe("안녕하세요");
-      expect(pageHistoryLength()).toBe(1); // 다섯 글자를 쳤어도 한 단계
+      expect(historyStepCount()).toBe(1); // 다섯 글자를 쳤어도 한 단계
 
       useEditorStore.getState().undo();
 
@@ -225,7 +234,7 @@ describe("TextField의 연속 타이핑을 undo 한 단계로 합친다 (#132)",
       field.type("하세요");
 
       expect(content()).toBe("안녕하세요");
-      expect(pageHistoryLength()).toBe(2);
+      expect(historyStepCount()).toBe(2);
 
       useEditorStore.getState().undo();
       expect(content()).toBe("안녕");
@@ -242,7 +251,7 @@ describe("TextField의 연속 타이핑을 undo 한 단계로 합친다 (#132)",
       contentField().retype("첫 줄\n둘째 줄");
 
       expect(content()).toBe("첫 줄\n둘째 줄");
-      expect(pageHistoryLength()).toBe(1);
+      expect(historyStepCount()).toBe(1);
 
       useEditorStore.getState().undo();
       expect(content()).toBe(before);
@@ -255,7 +264,7 @@ describe("TextField의 연속 타이핑을 undo 한 단계로 합친다 (#132)",
         useEditorStore.getState().setNodeField("headerTitle", "content", value);
       }
 
-      expect(pageHistoryLength()).toBe(3);
+      expect(historyStepCount()).toBe(3);
 
       useEditorStore.getState().undo();
       expect(content()).toBe("안녕");

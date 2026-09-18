@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 
+import { canRedo, canUndo, initHistory } from "@/features/editor/command/history";
 import {
   migrateV01,
   validateProjectSpec,
@@ -54,8 +55,19 @@ function resetToSeed(): void {
     spec,
     activePageId: spec.pageOrder[0],
     selectedId: null,
-    history: {}, // setState는 부분 병합이라 안 지우면 이전 테스트의 undo 스택이 새어 들어온다
+    // setState는 부분 병합이라 안 지우면 이전 테스트의 undo 스택이 새어 들어온다.
+    // 스토어가 초기값으로 쓰는 것과 같은 모양으로 새로 시작한다(#131).
+    history: initHistory({ spec, activePageId: spec.pageOrder[0] }),
   });
+}
+
+/** 되돌리기/다시 실행 버튼이 켜지는지 — LayerTree footer가 이 두 값을 그대로 쓴다. */
+function undoEnabled(): boolean {
+  return canUndo(useEditorStore.getState().history);
+}
+
+function redoEnabled(): boolean {
+  return canRedo(useEditorStore.getState().history);
 }
 
 describe("editorStore", () => {
@@ -226,30 +238,89 @@ describe("editorStore", () => {
       expect(useEditorStore.getState().spec).toBe(before);
     });
 
-    it("지운 페이지의 history를 지운다 — id가 재사용돼도 안 샌다(#40 리뷰, GAMMJ, PR #102)", () => {
-      // generateNodeId는 빈 순번을 재사용한다. 페이지를 지우고 새로 만들면
-      // 같은 id를 다시 받을 수 있는데, 그때 지운 페이지의 history가 안
-      // 지워져 있으면 새 빈 페이지가 남의 undo 스택을 이어받는다 — 결정적
-      // 재현이었다(리뷰 원문 참고). setNodeField로 history를 쌓아야 한다 —
-      // setPageField는 이 케이스를 못 잡는다(이 리뷰에서야 history를 타기
-      // 시작했으니 "지운 페이지의 흔적"이 될 과거가 애초에 없었을 수 있다).
+    it("지운 페이지의 옛 내용이 id 재사용으로 새 페이지에 새지 않는다(#40 리뷰, GAMMJ, PR #102 · #131)", () => {
+      // generateNodeId는 빈 순번을 재사용한다. 페이지를 지우고 새로 만들면 같은
+      // id를 다시 받는데, 페이지별 스택 시절엔 removePage가 history[id]를 손으로
+      // 지워주지 않으면 새 빈 페이지가 남의 undo 스택을 이어받았다(리뷰 원문 —
+      // 결정적 재현). 스냅숏이 페이지가 아니라 프로젝트 전체가 된 뒤엔(#131) 그
+      // 누수가 구조적으로 불가능하다 — 되돌릴 대상이 페이지 id로 묶여 있지 않고,
+      // undo는 실제로 있었던 조작을 역순으로 되짚어 갈 뿐이다.
+      const firstId = useEditorStore.getState().activePageId;
       useEditorStore.getState().addPage();
       const removedId = useEditorStore.getState().activePageId;
-      useEditorStore.getState().setNodeField(
-        useEditorStore.getState().spec.pages[removedId].root,
-        "name",
-        "흔적1",
-      );
+      const rootId = useEditorStore.getState().spec.pages[removedId].root;
+      useEditorStore.getState().setNodeField(rootId, "name", "흔적1");
 
       useEditorStore.getState().removePage(removedId);
       useEditorStore.getState().addPage();
       const reusedId = useEditorStore.getState().activePageId;
 
       expect(reusedId).toBe(removedId); // 전제 확인 — 실제로 id가 재사용됐다
+      expect(activePage().nodes).toEqual(blankSpec.screen.nodes); // 흔적1이 안 따라왔다
 
+      useEditorStore.getState().undo(); // 마지막 조작(페이지 추가)만 되돌아간다
+      expect(useEditorStore.getState().spec.pageOrder).toEqual([firstId]);
+
+      useEditorStore.getState().undo(); // 그 앞이 페이지 삭제 — 흔적1과 함께 돌아온다
+      const restored = useEditorStore.getState().spec.pages[removedId];
+      expect(restored.nodes[rootId].name).toBe("흔적1");
+    });
+
+    it("addPage 직후 undo하면 추가된 페이지가 사라진다(#131)", () => {
       const before = useEditorStore.getState().spec;
-      useEditorStore.getState().undo(); // 방금 만든 빈 페이지엔 되돌릴 게 없어야 한다
-      expect(useEditorStore.getState().spec).toBe(before);
+      const firstId = useEditorStore.getState().activePageId;
+
+      useEditorStore.getState().addPage();
+      const addedId = useEditorStore.getState().activePageId;
+      expect(undoEnabled()).toBe(true); // 되돌리기 버튼이 켜진다
+
+      useEditorStore.getState().undo();
+
+      const { spec, activePageId } = useEditorStore.getState();
+      expect(spec.pageOrder).toEqual([firstId]);
+      expect(spec.pages[addedId]).toBeUndefined();
+      // 보고 있던 페이지가 사라졌으니 활성 페이지도 함께 되돌아가야 한다 —
+      // 안 그러면 activePageId가 없는 페이지를 가리켜 캔버스가 그릴 것을 잃는다.
+      expect(activePageId).toBe(firstId);
+      expect(spec).toEqual(before);
+      expect(validateProjectSpec(spec).valid).toBe(true);
+
+      useEditorStore.getState().redo();
+      expect(useEditorStore.getState().spec.pageOrder).toEqual([firstId, addedId]);
+      expect(useEditorStore.getState().activePageId).toBe(addedId);
+    });
+
+    it("removePage 직후 undo하면 지운 페이지와 그 노드가 전부 돌아온다(#131)", () => {
+      // 이 조작만 되돌릴 방법이 없어서 그대로 데이터 유실이었다 — 이슈 #131의
+      // 급한 쪽이다. 지워진 페이지의 노드까지 온전히 돌아오는지 본다.
+      useEditorStore.getState().addPage();
+      const [firstId, secondId] = useEditorStore.getState().spec.pageOrder;
+      useEditorStore.getState().selectPage(firstId);
+      const removedPage = useEditorStore.getState().spec.pages[firstId];
+
+      useEditorStore.getState().removePage(firstId);
+      expect(useEditorStore.getState().spec.pages[firstId]).toBeUndefined();
+      expect(useEditorStore.getState().activePageId).toBe(secondId);
+      expect(undoEnabled()).toBe(true); // 되돌리기 버튼이 켜진다
+
+      useEditorStore.getState().undo();
+
+      const { spec, activePageId } = useEditorStore.getState();
+      expect(spec.pageOrder).toEqual([firstId, secondId]);
+      expect(spec.pages[firstId]).toEqual(removedPage); // 노드까지 그대로
+      expect(Object.keys(spec.pages[firstId].nodes).length).toBeGreaterThan(1);
+      expect(activePageId).toBe(firstId); // 지우기 전에 보던 페이지로 돌아간다
+      expect(validateProjectSpec(spec).valid).toBe(true);
+
+      useEditorStore.getState().redo();
+      expect(useEditorStore.getState().spec.pageOrder).toEqual([secondId]);
+    });
+
+    it("마지막 한 장을 지우려는 시도는 history에도 안 쌓인다", () => {
+      const before = useEditorStore.getState().history;
+      useEditorStore.getState().removePage(useEditorStore.getState().activePageId);
+      expect(useEditorStore.getState().history).toBe(before);
+      expect(undoEnabled()).toBe(false);
     });
   });
 
@@ -311,6 +382,39 @@ describe("editorStore", () => {
 
       expect(useEditorStore.getState().spec).toBe(before);
     });
+
+    it("이미 있는 id는 덮어쓰지 않는다 — createNode Command가 막는다(#131)", () => {
+      const before = useEditorStore.getState().spec;
+
+      useEditorStore.getState().insertNode("content", "cardA", imageNode);
+
+      expect(useEditorStore.getState().spec).toBe(before);
+      expect(undoEnabled()).toBe(false); // 아무 일도 없었으니 history에도 안 쌓인다
+    });
+
+    it("삽입 직후 undo하면 노드가 사라지고, redo하면 다시 생긴다(#131)", () => {
+      // Import(이미지)·도구 모음·트리의 프레임 추가가 모두 이 함수를 쓴다 —
+      // 셋 다 이 한 단계로 되돌아간다.
+      const before = useEditorStore.getState().spec;
+
+      useEditorStore.getState().insertNode("content", "image-1", imageNode);
+      expect(undoEnabled()).toBe(true); // 되돌리기 버튼이 켜진다
+
+      useEditorStore.getState().undo();
+
+      expect(activePage().nodes["image-1"]).toBeUndefined();
+      const content = activePage().nodes.content;
+      expect(content.type === "frame" && content.children).toEqual([
+        { node: "cardA" },
+        { node: "cardB" },
+      ]); // 부모의 children 참조도 함께 빠진다 — orphan/dangling이 안 남는다
+      expect(useEditorStore.getState().spec).toEqual(before);
+      expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+      expect(redoEnabled()).toBe(true);
+
+      useEditorStore.getState().redo();
+      expect(activePage().nodes["image-1"]).toEqual(imageNode);
+    });
   });
 
   describe("undo / redo (#40)", () => {
@@ -365,7 +469,12 @@ describe("editorStore", () => {
       expect(useEditorStore.getState().spec).toBe(before);
     });
 
-    it("한 페이지의 undo가 다른 페이지에 영향을 주지 않는다", () => {
+    it("undo는 마지막 편집을 되돌리고 그 편집이 있던 페이지로 옮겨 간다(#131)", () => {
+      // 페이지별 독립 스택 시절엔 두 번째 페이지에서 undo를 눌러도 아무 일이
+      // 없었다. 스택이 프로젝트 하나로 합쳐진 뒤엔(EditorSnapshot 주석 참고)
+      // 첫 페이지의 편집이 되돌아간다 — 그리고 보던 페이지도 그 편집이 있던
+      // 페이지로 함께 옮겨 간다. 안 그러면 방금 되돌린 변화가 화면 밖에서
+      // 조용히 일어난다.
       useEditorStore.getState().addPage();
       const [firstPageId, secondPageId] = useEditorStore.getState().spec.pageOrder;
 
@@ -373,19 +482,35 @@ describe("editorStore", () => {
       useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
 
       useEditorStore.getState().selectPage(secondPageId);
-      // 새 페이지의 root는 undo할 것이 없다 — 다른 페이지 히스토리를 잘못 봤다면
-      // 여기서 뭔가 바뀌었을 것이다.
-      const before = useEditorStore.getState().spec;
       useEditorStore.getState().undo();
-      expect(useEditorStore.getState().spec).toBe(before);
+
+      expect(useEditorStore.getState().activePageId).toBe(firstPageId);
+      const cardA = useEditorStore.getState().spec.pages[firstPageId].nodes.cardA;
+      expect(cardA.type === "frame" && cardA.layout.gap).toBe(8); // 시드 원래 값
+      // 건드린 적 없는 페이지는 참조까지 그대로다.
+      expect(useEditorStore.getState().spec.pages[secondPageId].nodes).toEqual(
+        blankSpec.screen.nodes,
+      );
+    });
+
+    it("페이지 전환 자체는 undo 단계가 아니다(#131)", () => {
+      // 스냅숏이 activePageId를 들고 있지만 페이지 전환은 편집이 아니다 —
+      // selectPage가 present만 갈아 끼우는 이유다(새 단계를 쌓지 않는다).
+      useEditorStore.getState().addPage();
+      const [firstPageId] = useEditorStore.getState().spec.pageOrder;
+      const steps = useEditorStore.getState().history.past.length;
+
+      useEditorStore.getState().selectPage(firstPageId);
+
+      expect(useEditorStore.getState().history.past.length).toBe(steps);
     });
 
     it("두 setNodeField 사이에 낀 insertNode는 그 사이 한 단계에서 살아남는다", () => {
-      // reconciledHistory는 push/점프 직전에 present를 실제 현재 페이지로
-      // 맞춘다 — 그래서 "setNodeField → insertNode → setNodeField" 순서면
-      // 두 번째 setNodeField가 만드는 체크포인트에 insertNode의 결과가
-      // 포함된다. 한 단계만 undo하면 그 체크포인트로 돌아가므로 이미지가
-      // 남는다.
+      // insertNode도 자기 체크포인트를 남기므로(#131) "setNodeField →
+      // insertNode → setNodeField"는 세 단계다. 한 단계만 undo하면 insertNode
+      // 직후 상태로 돌아가 이미지가 남는다 — #131 전에는 insertNode가 단계를
+      // 안 남겨서 "두 번째 setNodeField의 스냅숏에 삽입 결과가 섞여 들어간
+      // 덕에" 우연히 같은 결과가 나왔다.
       useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
       useEditorStore.getState().insertNode("content", "image-1", {
         type: "image",
@@ -404,12 +529,10 @@ describe("editorStore", () => {
       expect(activePage().nodes["image-1"]).toBeDefined();
     });
 
-    it("알려진 한계 — insertNode 바로 뒤에 undo하면 그 삽입까지 함께 되돌아간다", () => {
-      // insertNode 자신은 history에 체크포인트를 안 남긴다(#40 범위 밖). 그
-      // 앞뒤로 setNodeField가 없으면 되짚어 갈 중간 스냅숏 자체가 없어서,
-      // undo는 그보다 앞선(마지막 tracked) 체크포인트로 통째로 점프한다 —
-      // 방금 삽입한 노드까지 함께 사라진다. reconciledHistory의 문서화된
-      // 한계이지 이 테스트가 잡으려는 회귀는 아니다.
+    it("insertNode 바로 뒤에 undo하면 그 삽입만 되돌아간다(#131)", () => {
+      // #40 시절의 알려진 한계였다 — insertNode가 체크포인트를 안 남겨서 undo
+      // 한 번이 마지막 tracked 체크포인트로 통째로 점프했고, 앞선 노드 편집까지
+      // 함께 되돌아갔다. 이제 삽입 자신이 한 단계라 그 단계만 되돌아간다.
       useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
       useEditorStore.getState().insertNode("content", "image-1", {
         type: "image",
@@ -422,9 +545,8 @@ describe("editorStore", () => {
       useEditorStore.getState().undo();
 
       const cardA = activePage().nodes.cardA;
-      expect(cardA.type === "frame" && cardA.layout.gap).toBe(8); // 시드 원래 값까지 되돌아감
-      expect(activePage().nodes["image-1"]).toBeUndefined(); // 삽입도 함께 사라짐
-      // 그래도 spec 자체는 여전히 유효해야 한다 — 되돌아간 상태가 깨진 트리는 아니다.
+      expect(cardA.type === "frame" && cardA.layout.gap).toBe(40); // 앞선 편집은 남는다
+      expect(activePage().nodes["image-1"]).toBeUndefined(); // 삽입만 사라진다
       expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
     });
 
@@ -454,12 +576,48 @@ describe("editorStore", () => {
       expect(cardA.type === "frame" && cardA.layout.gap).toBe(40); // 노드 편집은 남아 있다
     });
 
-    it("loadSpec은 history를 비운다", () => {
+    it("비활성 페이지를 편집한 단계로 redo하면 편집된 페이지로 옮겨 간다(#131 리뷰, wook3964, PR #142)", () => {
+      // 스냅숏의 activePageId는 편집이 일어난 페이지여야 한다 — "이 편집 직후의
+      // 상태"에서 보고 있어야 할 페이지가 그 페이지이기 때문이다. state.activePageId를
+      // 담던 시절엔 여기서 pageA(편집할 때 보고 있던 페이지)로 튀어서, redo가
+      // 바꿔놓은 내용이 화면 밖에 있었다.
+      useEditorStore.getState().addPage();
+      const [pageA, pageB] = useEditorStore.getState().spec.pageOrder;
+      useEditorStore.getState().selectPage(pageA); // pageB는 이제 비활성이다
+
+      useEditorStore.getState().setPageField(pageB, "name", "Login");
+      useEditorStore.getState().undo();
+      useEditorStore.getState().redo();
+
+      expect(useEditorStore.getState().activePageId).toBe(pageB);
+      expect(useEditorStore.getState().spec.pages[pageB].name).toBe("Login");
+    });
+
+    it("비활성 페이지를 두 번 편집한 뒤 undo해도 그 페이지를 가리킨다(#131 리뷰, wook3964, PR #142)", () => {
+      // 위와 같은 이유. 첫 편집의 스냅숏으로 되돌아가므로 거기 담긴 activePageId도
+      // 편집 대상인 pageB여야 한다.
+      useEditorStore.getState().addPage();
+      const [pageA, pageB] = useEditorStore.getState().spec.pageOrder;
+      useEditorStore.getState().selectPage(pageA);
+
+      useEditorStore.getState().setPageField(pageB, "size.width", 1920);
+      useEditorStore.getState().setPageField(pageB, "size.width", 1280);
+      useEditorStore.getState().undo();
+
+      expect(useEditorStore.getState().activePageId).toBe(pageB);
+      expect(useEditorStore.getState().spec.pages[pageB].size.width).toBe(1920);
+    });
+
+    it("loadSpec은 history를 새로 시작한다", () => {
       useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
 
       useEditorStore.getState().loadSpec(blankSpec);
 
-      expect(useEditorStore.getState().history).toEqual({});
+      const { history } = useEditorStore.getState();
+      expect(history.past).toEqual([]);
+      expect(history.future).toEqual([]);
+      expect(history.present.spec).toBe(useEditorStore.getState().spec);
+      expect(undoEnabled()).toBe(false); // 되돌리기 버튼이 꺼진다
       // 비었으니 undo를 불러도 blankSpec 이전(시드) 상태로 튀지 않는다.
       const before = useEditorStore.getState().spec;
       useEditorStore.getState().undo();
@@ -483,7 +641,9 @@ describe("editorStore", () => {
         useEditorStore.getState().setNodeField("cardA", "layout.gap", 16, true);
 
         const pageId = useEditorStore.getState().activePageId;
-        expect(useEditorStore.getState().history[pageId]?.past).toEqual([before]); // 1단계뿐
+        const { past } = useEditorStore.getState().history;
+        expect(past).toHaveLength(1); // 1단계뿐
+        expect(past[0].spec.pages[pageId]).toBe(before); // 그 1단계가 편집 이전 상태다
 
         useEditorStore.getState().undo();
 
@@ -495,8 +655,7 @@ describe("editorStore", () => {
         useEditorStore.getState().setNodeField("cardA", "layout.gap", 16);
         useEditorStore.getState().setNodeField("cardA", "layout.gap", 32); // continueEdit 없음
 
-        const pageId = useEditorStore.getState().activePageId;
-        expect(useEditorStore.getState().history[pageId]?.past.length).toBe(2);
+        expect(useEditorStore.getState().history.past.length).toBe(2);
 
         useEditorStore.getState().undo();
         let cardA = activePage().nodes.cardA;
@@ -515,8 +674,7 @@ describe("editorStore", () => {
         useEditorStore.getState().setNodeField("cardA", "box.width", 999); // 경로가 다름, continueEdit 없음
         useEditorStore.getState().setNodeField("cardB", "layout.gap", 16); // 노드가 다름, continueEdit 없음
 
-        const pageId = useEditorStore.getState().activePageId;
-        expect(useEditorStore.getState().history[pageId]?.past.length).toBe(3); // 셋 다 별개 단계
+        expect(useEditorStore.getState().history.past.length).toBe(3); // 셋 다 별개 단계
       });
 
       it("편집 사이에 다른 액션(removeNode)이 껴도 그 액션은 별개 단계로 남는다", () => {
@@ -547,7 +705,7 @@ describe("editorStore", () => {
         useEditorStore.getState().setPageField(pageId, "size.width", 1900);
         useEditorStore.getState().setPageField(pageId, "size.width", 1920, true);
 
-        expect(useEditorStore.getState().history[pageId]?.past.length).toBe(1);
+        expect(useEditorStore.getState().history.past.length).toBe(1);
 
         useEditorStore.getState().undo();
         expect(activePage().size.width).toBe(1440); // 시드 원래 값으로 한 번에 복귀
