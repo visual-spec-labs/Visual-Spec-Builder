@@ -3,7 +3,7 @@ import { create } from "zustand";
 /**
  * 캔버스 뷰(줌·그리드·패널 표시) 전용 스토어.
  * IR/선택 상태를 다루는 editorStore와 분리한다 — docs/EDITOR_STORE_CONTRACT.md의
- * 4-멤버 계약은 spec/selection 전용이며, 줌·그리드·패널은 IR이 아닌 순수 UI 상태다.
+ * 계약은 spec/selection 전용이며, 줌·그리드·패널은 IR이 아닌 순수 UI 상태다.
  */
 export const ZOOM_MIN = 25;
 export const ZOOM_MAX = 400;
