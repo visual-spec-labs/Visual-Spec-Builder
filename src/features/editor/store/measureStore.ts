@@ -7,7 +7,9 @@ import { create } from "zustand";
  * 여기 올려주면 패널이 그 값을 px 칸에 보여주고, Fixed로 전환할 때 현재 크기를
  * 그대로 이어받을 수 있다(예전엔 100px로 튀었다).
  *
- * IR이 아닌 순수 파생 UI 상태이므로 editorStore의 4-멤버 계약과 분리한다.
+ * IR이 아닌 순수 파생 UI 상태이므로 editorStore의 공유 상태 계약과 분리한다.
+ * 계약에 뭐가 몇 개 들어 있는지는 여기 적지 않는다 — 계약은 계속 늘어나고(#95)
+ * 그때마다 이 주석만 낡는다. 목록은 아래 문서가 갖는다.
  * 참고: docs/EDITOR_STORE_CONTRACT.md
  */
 export interface MeasuredSize {
