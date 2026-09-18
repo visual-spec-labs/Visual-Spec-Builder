@@ -12,7 +12,14 @@ const FIT_OPTIONS = [
   { value: "fill", content: "늘이기", title: "늘이기 (fill) — 비율을 무시하고 상자를 채운다" },
 ] as const;
 
-/** text · button의 라벨. 여러 줄이 필요한 건 text뿐이다. */
+/**
+ * text · button의 라벨. 여러 줄이 필요한 건 text뿐이다.
+ *
+ * 세터를 그대로 넘긴다 — useNodeField의 세터가 `(값, continueEdit)`을 받으므로
+ * TextField가 넘기는 continueEdit(#132)이 setNodeField까지 그대로 간다. 여기를
+ * `(value) => setContent(value)`로 감싸면 그 인자가 조용히 떨어져 나가고 한
+ * 글자마다 undo 단계가 쌓이는 예전 동작으로 돌아간다. 아래 두 필드도 같다.
+ */
 function TextContentField({ multiline }: { multiline: boolean }) {
   const [content, setContent] = useNodeField<string>("content");
 

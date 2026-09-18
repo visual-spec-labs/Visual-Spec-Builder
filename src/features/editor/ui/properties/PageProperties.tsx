@@ -66,7 +66,11 @@ export function PageProperties() {
       <TextField
         label="이름"
         value={page.name}
-        onChange={(value) => setPageField(activePageId, "name", value)}
+        // 아래 너비·높이 칸과 같은 이유로 continueEdit(#132)을 그대로 넘긴다 —
+        // 안 넘기면 이름을 한 글자 칠 때마다 새 undo 단계가 쌓인다.
+        onChange={(value, continueEdit) =>
+          setPageField(activePageId, "name", value, continueEdit)
+        }
       />
       <SelectField
         label="해상도"
