@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+
+import { useEditBurst } from "./editBurst";
 
 interface UseDraftInputOptions<TValue, TParsed> {
   /** 외부 값 → draft 문자열. undefined를 반환하면 이번 값 변경에는 draft를 동기화하지 않는다. */
@@ -29,14 +31,11 @@ export function useDraftInput<TValue, TParsed>(
   const [draft, setDraft] = useState(() => toDraft(value) ?? "");
   const [invalid, setInvalid] = useState(false);
   /**
-   * 지금 같은 편집(타이핑 burst)을 잇는 중인지. `handleBlur`가 끊는다 — 그 전엔
-   * 값이 자기 자신의 커밋으로 되돌아오는 매 리렌더마다 여기서 안 건드린다(#121).
-   * 외부 요인(다른 노드 선택, undo/redo)으로 값이 바뀌는 경우는 실제로는 항상
-   * 먼저 포커스가 빠지면서 blur가 먼저 일어난다 — 레이어 트리의 되돌리기
-   * 단축키는 입력칸 포커스 중엔 아예 안 받고(EDITOR_STORE_CONTRACT.md 참고),
-   * 버튼 클릭도 mousedown에서 blur가 click보다 먼저 난다.
+   * 지금 같은 편집(타이핑 burst)을 잇는 중인지. `handleBlur`가 끊는다(#121).
+   * TextField(#132)도 같은 추적기를 쓴다 — draft 관리 없이 burst만 필요해서
+   * 별도 모듈로 나눠뒀다. 판정 근거는 editBurst.ts 주석 참고.
    */
-  const burstRef = useRef(false);
+  const burst = useEditBurst();
 
   useEffect(() => {
     const next = toDraft(value);
@@ -53,14 +52,13 @@ export function useDraftInput<TValue, TParsed>(
     const parsed = parse(next);
     setInvalid(parsed === undefined);
     if (parsed !== undefined) {
-      onCommit(parsed, burstRef.current);
-      burstRef.current = true;
+      onCommit(parsed, burst.next());
     }
   }
 
   /** 포커스가 빠지면 burst를 끝낸다 — 다음 편집(같은 칸이라도)은 새 undo 단계로 잡힌다. */
   function handleBlur() {
-    burstRef.current = false;
+    burst.end();
   }
 
   return { draft, invalid, handleChange, handleBlur };
