@@ -4,6 +4,11 @@ import {
   resolveFilename,
   type ExportResult,
 } from "@/features/editor/store/exportSpec";
+import {
+  isWorkspaceAvailable,
+  writeWorkspaceFile,
+} from "@/features/editor/ui/workspaceClient";
+import { SPEC_DIR } from "@/features/workspace/protocol";
 
 /**
  * 브라우저 다운로드를 트리거하는 UI 레이어 래퍼(DOM 부수효과).
@@ -20,7 +25,13 @@ function downloadJson(filename: string, json: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** 스펙을 검증 후 JSON 파일로 내보낸다. 검증 실패 시 다운로드하지 않는다. */
+/**
+ * 스펙을 검증 후 JSON 파일로 내보낸다. 검증 실패 시 다운로드하지 않는다.
+ *
+ * File ▸ Export 전용이다 — Save와 달리 **작업공간이 아니라 브라우저 다운로드**로
+ * 남긴다(이슈 #133). 스펙을 저장소 밖으로 꺼내는 건 여전히 이 경로다.
+ * `.visual-spec/generated/`로 나가는 React 코드 Export는 별도 작업이다.
+ */
 export function exportSpecAsJson(spec: ProjectSpec): ExportResult {
   const result = buildExportPayload(spec);
   if (result.ok) {
@@ -30,12 +41,49 @@ export function exportSpecAsJson(spec: ProjectSpec): ExportResult {
 }
 
 /**
- * 파일명을 물어본 뒤 JSON으로 내보낸다(Save as). 검증 실패 시 다운로드
- * 대신 alert로 알린다 — Open과 동일한 실패 안내 패턴(사용자 조작이
- * 원인이라 조용히 실패하면 원인을 알 수 없다). prompt를 취소하면
- * null을 돌려주고 아무 동작도 하지 않는다.
+ * 스펙을 `.visual-spec/specs/<파일명>`에 쓴다(이슈 #133).
+ *
+ * 작업공간이 없으면(개발 서버 미들웨어 없는 빌드 결과물 등) 예전처럼 브라우저
+ * 다운로드로 되돌아간다 — 저장 수단이 아예 사라지는 것보다 낫다.
+ *
+ * **성공해도 알린다.** 예전엔 브라우저가 다운로드 UI를 보여줘서 저장됐다는 신호가
+ * 있었는데, 작업공간에 쓰면 화면에 아무 변화가 없다. 이 저장소엔 토스트 같은 알림
+ * 자리가 아직 없어 alert가 유일한 통로다(실패만 알리면 "눌렀는데 아무 일도 안
+ * 일어났다"와 구분이 안 된다).
  */
-export function saveSpecAsJson(spec: ProjectSpec): ExportResult | null {
+async function saveToWorkspace(result: ExportResult & { ok: true }): Promise<void> {
+  if (!(await isWorkspaceAvailable())) {
+    downloadJson(result.filename, result.json);
+    return;
+  }
+
+  const relativePath = `${SPEC_DIR}/${result.filename}`;
+  const written = await writeWorkspaceFile(relativePath, result.json, "application/json");
+
+  if (!written.ok) {
+    window.alert(`저장할 수 없습니다: ${written.error}`);
+    return;
+  }
+  window.alert(`저장했습니다 — .visual-spec/${written.path}`);
+}
+
+/** File ▸ Save — 현재 파일명 그대로 작업공간에 쓴다. */
+export async function saveSpec(spec: ProjectSpec): Promise<ExportResult> {
+  const result = buildExportPayload(spec);
+  if (!result.ok) {
+    window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
+    return result;
+  }
+
+  await saveToWorkspace(result);
+  return result;
+}
+
+/**
+ * File ▸ Save as — 파일명을 물어본 뒤 작업공간에 쓴다.
+ * prompt를 취소하면 null을 돌려주고 아무 동작도 하지 않는다.
+ */
+export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null> {
   const result = buildExportPayload(spec);
   if (!result.ok) {
     window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
@@ -47,6 +95,7 @@ export function saveSpecAsJson(spec: ProjectSpec): ExportResult | null {
     return null;
   }
 
-  downloadJson(resolveFilename(chosenName, result.filename), result.json);
+  const filename = resolveFilename(chosenName, result.filename);
+  await saveToWorkspace({ ...result, filename });
   return result;
 }

@@ -1,14 +1,16 @@
 /**
- * image 노드의 src를 패널에 어떻게 보여줄지 정한다.
+ * image 노드의 src를 패널에 어떻게 보여주고, 화면에 어떻게 그릴지 정한다.
  *
- * src는 두 가지가 섞여 들어온다. 손으로 쓴 스펙은 assets 상대 경로를 담지만,
- * File ▸ Import 는 작업공간 assets 저장소가 없어 **파일 전체를 base64 data URI로**
- * 넣는다(`ui/importImageFromFile.ts` 주석이 이 절충을 밝히고 있다).
+ * src는 두 가지가 섞여 들어온다. 손으로 쓴 스펙과 File ▸ Import(이슈 #133 이후)는
+ * 작업공간 assets 상대 경로를 담지만, **#133 이전에 Import한 기존 스펙은 파일 전체가
+ * base64 data URI로 들어 있다.** 그 스펙들도 계속 열려야 하므로 둘 다 받는다.
  *
  * 그 둘을 같은 입력칸에 그대로 띄우면 안 된다 — data URI는 수백 KB짜리 한 줄이라
  * 칸이 먹통이 되고, 고칠 수 있는 값도 아니다. 경로일 때만 편집칸을 주고 data URI는
  * 요약만 보여준다.
  */
+
+import { WORKSPACE_FILE_ROUTE } from "@/features/workspace/protocol";
 
 export type ImageSrcDisplay =
   | { kind: "path"; value: string }
@@ -31,7 +33,27 @@ export function describeImageSrc(src: string | undefined): ImageSrcDisplay {
 }
 
 /**
- * src를 CSS `background-image` 값으로 만든다.
+ * 스펙의 src를 **브라우저가 실제로 받아올 수 있는 URL**로 바꾼다(순수 함수).
+ *
+ * `assets/hero.png`는 작업공간(`.visual-spec/assets/hero.png`) 기준 경로지 개발 서버의
+ * URL이 아니다 — 그대로 두면 `http://localhost:5173/assets/hero.png`를 찾다가 404가
+ * 난다(개발 서버의 cwd는 이 패키지 루트다, 이슈 #133). 작업공간 파일 라우트를 앞에
+ * 붙여야 미들웨어가 워크스페이스에서 꺼내 준다.
+ *
+ * 그대로 두는 것들 — data URI(#133 이전 스펙), blob/http(s) URL, 그리고 `/`로 시작하는
+ * 절대 경로(사용자가 개발 서버 public/에 직접 둔 파일을 가리킬 수 있다).
+ */
+export function resolveImageSrc(src: string): string {
+  if (src === "") return src;
+  if (src.startsWith("/")) return src;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(src)) return src; // data:, blob:, http:, https: …
+  return `${WORKSPACE_FILE_ROUTE}${src}`;
+}
+
+/**
+ * src를 CSS `background-image` 값으로 만든다. 위 `resolveImageSrc`를 거친다 —
+ * 이 함수를 부르는 쪽(Canvas·홈 미리보기)은 "스펙의 src"만 알면 되고, 그게 어느
+ * URL에서 오는지는 여기 한 군데서 정한다.
  *
  * **따옴표가 필수다.** 따옴표 없는 `url(...)` 토큰에는 공백·괄호·따옴표가 들어갈 수
  * 없다(CSS 명세). `assets/hero (1).png` 처럼 흔한 파일명이 그대로 들어가면 값 전체가
@@ -44,7 +66,7 @@ export function describeImageSrc(src: string | undefined): ImageSrcDisplay {
 export function imageUrlCss(src: string): string {
   // 따옴표 안에서 뜻을 갖는 두 글자만 막으면 된다. 역슬래시를 먼저 바꿔야
   // 따옴표 이스케이프가 무효화되지 않는다.
-  const escaped = src.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const escaped = resolveImageSrc(src).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   return `url("${escaped}")`;
 }
 

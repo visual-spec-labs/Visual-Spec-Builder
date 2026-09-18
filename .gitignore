@@ -53,6 +53,9 @@ desktop.ini
 # ===== 도구 작업 디렉터리 =====
 .superpowers/
 .playwright-mcp/
+# 저장소를 클론해 `pnpm dev`로 GUI를 띄우면 여기에 작업공간이 생긴다(이슈 #133 —
+# VISUAL_SPEC_WORKSPACE가 없을 때의 폴백). 사용자 작업물이라 커밋 대상이 아니다.
+.visual-spec/
 
 # ===== 기타 =====
 tmp/

@@ -6,11 +6,43 @@
 
 ## 설치와 실행
 
+원래 기획한 배송 형태는 이것이다.
+
 ```bash
 npm install -D visual-spec-builder
 npx visual-spec init
 npx visual-spec
 ```
+
+> **정정 (2026-09-18, 이슈 #112)**
+> **위 방법은 아직 아무도 쓸 수 없다.** `package.json`에 `"private": true`가 있어 이 패키지는
+> npm에 배포돼 있지 않다 — `npm install visual-spec-builder`가 받아올 것이 없다.
+>
+> **지금은 공개 배포하지 않기로 했다.** GUI가 `.visual-spec/` 작업공간을 읽고 쓰는 길이
+> **Vite 개발 서버 미들웨어**라(이슈 #133), 배포 형태보다 "개발 서버 위에서 돈다"는 전제가
+> 먼저다. 그 전제가 확정되면 배포 형태는 그 위에서 정하면 되고, 지금 npm 배포를 먼저
+> 확정해 봐야 실행 방식이 바뀔 때 다시 바꿔야 한다. 배포 전환은 별도로 다룬다.
+
+지금 실제로 쓰는 방법은 이 저장소를 클론해 실행하는 것이다.
+
+```bash
+# 1) 저장소를 클론하고 의존성을 받는다
+git clone https://github.com/visual-spec-labs/Visual-Spec-Builder.git
+cd Visual-Spec-Builder
+pnpm install
+
+# 2) 화면을 만들 프로젝트 폴더에서 작업공간을 만들고 GUI를 띄운다
+cd /path/to/my-project
+node /path/to/Visual-Spec-Builder/bin/visual-spec.mjs init
+node /path/to/Visual-Spec-Builder/bin/visual-spec.mjs
+```
+
+인자 없이 실행하면 편집기 GUI가 뜬다(= 이 저장소의 Vite 개발 서버). **GUI는 명령을 실행한
+폴더의 `.visual-spec/`을 읽고 쓴다** — 개발 서버 자신은 클론한 저장소에서 도는데도 그렇다
+(이슈 #133: CLI가 작업공간 경로를 환경 변수로 개발 서버에 넘긴다).
+
+저장소 안에서 `pnpm dev`로 바로 띄울 수도 있다. 그때 작업공간은 저장소 루트의
+`.visual-spec/`이 된다.
 
 `init`은 현재 프로젝트를 분석하거나 변경하지 않고 전용 작업공간만 만든다.
 
