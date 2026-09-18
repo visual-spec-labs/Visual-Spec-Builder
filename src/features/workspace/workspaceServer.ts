@@ -1,8 +1,9 @@
 /**
  * `.visual-spec/` 작업공간을 GUI에 열어주는 Vite 개발 서버 미들웨어의 알맹이 (이슈 #133).
  *
- * 경로 판단은 전부 `workspacePath.ts`(순수 함수)가 하고, 이 파일은 **그 결과를 받아
- * 파일을 읽고 쓰는 일만** 한다. 나누는 이유는 `workspacePath.ts` 상단에 적었다.
+ * 경로 판단은 전부 `workspacePath.ts`(순수 함수)가 하고, "이 요청을 받아도 되는가"는
+ * `requestOrigin.ts`(순수 함수)가 본다. 이 파일은 **그 두 판정을 받아 파일을 읽고 쓰는
+ * 일만** 한다. 나누는 이유는 각 파일 상단에 적었다.
  * Vite 플러그인 껍데기는 `vite.config.ts`에 있다(테마 FOUC 플러그인과 같은 자리).
  *
  * ## 왜 개발 서버 미들웨어인가
@@ -49,6 +50,7 @@ import {
   WORKSPACE_MARKER_HEADER,
   WORKSPACE_STATUS_ROUTE,
 } from "./protocol";
+import { checkRequestOrigin } from "./requestOrigin";
 import {
   isInsideWorkspace,
   matchWorkspaceRoute,
@@ -293,6 +295,15 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
     res.setHeader(WORKSPACE_MARKER_HEADER, "1");
     res.setHeader("cache-control", "no-store");
     res.setHeader("x-content-type-options", "nosniff");
+
+    // 경로를 보기 **전에** 요청 출처부터 본다. Vite도 앞단에서 Host를 검사하지만
+    // 그 검사는 설정에 따라 꺼지고, 교차 출처 쓰기를 실제로 막는 것은 서버가 아니라
+    // 브라우저의 CORS다 — 근거와 실측 결과는 `requestOrigin.ts` 상단에 적었다.
+    const rejected = checkRequestOrigin(req.headers.host, req.headers.origin);
+    if (rejected !== null) {
+      sendError(res, rejected.status, rejected.message);
+      return;
+    }
 
     const method = req.method ?? "GET";
     const path = url.split("?")[0].split("#")[0];

@@ -21,6 +21,10 @@ import {
  * 이 미들웨어가 실제로 붙는 자리가 Vite의 connect 스택이라, 스트림·헤더·본문 처리까지
  * 같이 도는 상태로 확인해야 "실제로 동작한다"고 말할 수 있다. Vite 자체를 띄우지
  * 않는 이유는 그러면 확인하는 대상이 이 미들웨어가 아니라 Vite 기동이 되기 때문이다.
+ *
+ * 그 반대편 — **Vite 스택 안 어느 자리에 등록되는가** — 는 `workspace-vite-stack.test.ts`가
+ * 진짜 개발 서버를 띄워 확인한다. 아래 "요청 출처" 절이 여기 있는 이유도 그 짝이다:
+ * Vite의 앞단 방어를 **떼어낸 상태**에서 미들웨어 혼자 막는지를 봐야 하기 때문이다.
  */
 
 let server: Server;
@@ -40,9 +44,10 @@ function rawRequest(
   method: string,
   path: string,
   body?: string,
+  headers?: Record<string, string>,
 ): Promise<{ status: number; text: string }> {
   return new Promise((resolve, reject) => {
-    const req = request({ host: "127.0.0.1", port, method, path }, (res) => {
+    const req = request({ host: "127.0.0.1", port, method, path, headers }, (res) => {
       let text = "";
       res.setEncoding("utf8");
       res.on("data", (chunk: string) => (text += chunk));
@@ -263,6 +268,132 @@ describe("화이트리스트 밖 경로는 거부한다 — 읽기도 쓰기도"
       expect(existsSync(join(workspaceRoot, "..", "escaped.json"))).toBe(false);
     });
   }
+});
+
+describe("요청 출처를 미들웨어가 스스로 본다 — Vite 앞단에 기대지 않는다", () => {
+  /**
+   * 이 미들웨어는 Vite의 `cors`·`hostValidation` **뒤**에 등록된다. 그 두 겹이 실제로
+   * 앞에서 막아 주는 것은 `workspace-vite-stack.test.ts`가 확인한다. 여기서는 그 두 겹을
+   * **떼어낸 상태**(맨 http 서버)에서 미들웨어 혼자 같은 요청을 막는지를 본다 —
+   * 등록 위치가 바뀌거나 `server.https`·`allowedHosts: true`로 Vite의 검사가 꺼져도
+   * 방어가 남아 있어야 한다는 뜻이다.
+   */
+
+  it("위조 Host로 온 PUT은 파일을 쓰지 못한다 — DNS rebinding 차단", async () => {
+    const response = await rawRequest("PUT", "/__vs/file/specs/forged.json", "{}", {
+      host: "evil.example",
+    });
+
+    expect(response.status).toBe(403);
+    expect(existsSync(join(workspaceRoot, "specs", "forged.json"))).toBe(false);
+  });
+
+  it("위조 Host로 온 GET은 작업공간 내용을 내보내지 않는다", async () => {
+    writeFileSync(join(workspaceRoot, "specs", "secret.json"), '{"secret":1}');
+
+    const response = await rawRequest("GET", "/__vs/file/specs/secret.json", undefined, {
+      host: "evil.example",
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.text).not.toContain("secret");
+  });
+
+  it("LAN 주소로 온 요청도 거부한다 — 작업공간 API는 루프백 전용이다", async () => {
+    const response = await rawRequest("GET", "/__vs/status", undefined, {
+      host: "192.168.0.7:5173",
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("*.localhost 도 거부한다 — Vite보다 엄격하게 본다", async () => {
+    const response = await rawRequest("GET", "/__vs/status", undefined, {
+      host: `evil.localhost:${port}`,
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("루프백 이름과 주소는 받는다", async () => {
+    for (const host of [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`]) {
+      const response = await rawRequest("GET", "/__vs/status", undefined, { host });
+
+      expect(response.status, host).toBe(200);
+    }
+  });
+
+  it("교차 출처 PUT은 브라우저가 아니라 서버가 막는다 — 실제로 파일이 남지 않는다", async () => {
+    const response = await rawRequest("PUT", "/__vs/file/specs/csrf.json", '{"evil":1}', {
+      host: `localhost:${port}`,
+      origin: "http://evil.example",
+    });
+
+    expect(response.status).toBe(403);
+    expect(existsSync(join(workspaceRoot, "specs", "csrf.json"))).toBe(false);
+  });
+
+  it("교차 출처 GET도 막는다 — 읽기 역시 작업공간 내용을 내보낸다", async () => {
+    writeFileSync(join(workspaceRoot, "specs", "leak.json"), '{"secret":1}');
+
+    const response = await rawRequest("GET", "/__vs/file/specs/leak.json", undefined, {
+      host: `localhost:${port}`,
+      origin: "http://evil.example",
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.text).not.toContain("secret");
+  });
+
+  it("같은 출처에서 온 Origin은 통과한다 — GUI의 Save가 이 모양이다", async () => {
+    const response = await rawRequest("PUT", "/__vs/file/specs/same-origin.json", "{}", {
+      host: `localhost:${port}`,
+      origin: `http://localhost:${port}`,
+    });
+
+    expect(response.status).toBe(200);
+    expect(existsSync(join(workspaceRoot, "specs", "same-origin.json"))).toBe(true);
+  });
+
+  it("포트만 다른 출처는 다른 출처다 — 같은 컴퓨터의 다른 개발 서버", async () => {
+    const response = await rawRequest("PUT", "/__vs/file/specs/other-port.json", "{}", {
+      host: `localhost:${port}`,
+      origin: "http://localhost:3000",
+    });
+
+    expect(response.status).toBe(403);
+    expect(existsSync(join(workspaceRoot, "specs", "other-port.json"))).toBe(false);
+  });
+
+  it("Origin: null(샌드박스 iframe·file://)은 거부한다", async () => {
+    const response = await rawRequest("PUT", "/__vs/file/specs/sandboxed.json", "{}", {
+      host: `localhost:${port}`,
+      origin: "null",
+    });
+
+    expect(response.status).toBe(403);
+    expect(existsSync(join(workspaceRoot, "specs", "sandboxed.json"))).toBe(false);
+  });
+
+  it("Origin이 없으면 통과시킨다 — 같은 출처 GET과 브라우저 아닌 클라이언트가 여기 해당한다", async () => {
+    const response = await rawRequest("GET", "/__vs/status", undefined, {
+      host: `localhost:${port}`,
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("Host 헤더가 깨져 있으면 400이다", async () => {
+    const response = await rawRequest("GET", "/__vs/status", undefined, { host: "localhost:not-a-port" });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("작업공간 라우트가 아니면 출처를 보지 않고 그대로 넘긴다 — Vite 몫이다", async () => {
+    const response = await rawRequest("GET", "/src/main.tsx", undefined, { host: "evil.example" });
+
+    expect(response.status).toBe(418);
+  });
 });
 
 describe("심볼릭 링크로 나가는 경로도 막는다", () => {

@@ -43,7 +43,7 @@ function themeFoucPlugin(): Plugin {
  * `apply: "serve"` — 개발 서버 전용이다. `vite build` 결과물에는 파일을 읽고 쓸 서버가
  * 없다(그쪽에서는 GUI가 브라우저 파일 다이얼로그·다운로드로 되돌아간다).
  */
-function workspaceFilesPlugin(): Plugin {
+export function workspaceFilesPlugin(): Plugin {
   return {
     name: "visual-spec-workspace-files",
     apply: "serve",
@@ -51,9 +51,19 @@ function workspaceFilesPlugin(): Plugin {
       const workspaceRoot = resolveWorkspaceRoot(server.config.root);
       ensureWorkspaceDirs(workspaceRoot);
       server.config.logger.info(`  ➜  작업공간:  ${workspaceRoot}`);
-      // configureServer 안에서 바로 use하면 Vite 내부 미들웨어보다 **앞**에 들어간다.
-      // 뒤(= 반환 함수 안에서 등록)에 두면 SPA 폴백이 먼저 걸려 우리 라우트가
-      // index.html로 덮인다.
+      // configureServer 안에서 **바로** use하면 Vite 8의 미들웨어 사이 이 자리에 들어간다
+      // (`vite/dist/node/chunks/node.js`의 `_createServer` 등록 순서를 읽고 실제 서버에
+      // raw HTTP를 보내 확인했다):
+      //
+      //   rejectInvalidRequest → cors → hostValidation → [여기] → transform → … → SPA 폴백
+      //
+      // 뒤(= 반환 함수 안에서 등록)로 미루면 SPA 폴백이 먼저 걸려 우리 라우트가
+      // index.html로 덮인다. 그래서 위치는 이대로 둔다.
+      //
+      // 이 자리가 Vite의 보안 두 겹(cors·hostValidation) **뒤**라는 점에 기대지는
+      // 않는다 — 그 두 겹은 설정에 따라 등록조차 되지 않고, 교차 출처 쓰기를 실제로
+      // 막아 주는 것은 서버가 아니라 브라우저였다. 미들웨어가 스스로 Host·Origin을
+      // 보는 이유와 실측 결과는 `src/features/workspace/requestOrigin.ts` 상단에 있다.
       server.middlewares.use(createWorkspaceMiddleware(workspaceRoot));
     },
   };
