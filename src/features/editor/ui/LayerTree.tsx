@@ -394,15 +394,12 @@ export function LayerTree() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   /** 지금 드래그 중인 노드 — 드롭받을 수 있는 곳은 같은 parentId를 가진 형제뿐이다. */
   const [dragState, setDragState] = useState<DragState | null>(null);
-  /** 활성 페이지를 아직 한 번도 안 고쳤으면 history에 항목이 없다 — 그럴 땐 둘 다 false. */
-  const canUndoNow = useEditorStore((state) => {
-    const pageHistory = state.history[state.activePageId];
-    return pageHistory !== undefined && canUndo(pageHistory);
-  });
-  const canRedoNow = useEditorStore((state) => {
-    const pageHistory = state.history[state.activePageId];
-    return pageHistory !== undefined && canRedo(pageHistory);
-  });
+  /**
+   * 스택은 프로젝트 하나뿐이다(#131) — 페이지를 바꿔도 되돌릴 것이 있는지는
+   * 그대로다. 아직 아무것도 안 고쳤으면 past/future가 비어서 둘 다 false.
+   */
+  const canUndoNow = useEditorStore((state) => canUndo(state.history));
+  const canRedoNow = useEditorStore((state) => canRedo(state.history));
 
   useEffect(() => {
     function isEditableTarget(target: EventTarget | null): boolean {

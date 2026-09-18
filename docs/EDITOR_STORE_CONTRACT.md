@@ -28,31 +28,39 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `spec` | `ProjectSpec` | 편집 중인 **프로젝트 전체** | 셋 다 **읽음** |
 | `activePageId` | `PageId` | 지금 캔버스에 떠 있는 페이지 | 셋 다 **읽음** |
 | `selectedId` | `NodeId \| null` | 선택된 노드 id (활성 페이지 안) | 셋 다 **읽음** (하이라이트) |
-| `history` | `Record<PageId, HistoryState<ScreenSpec>>` | 페이지별 실행 취소 스택(#40) | 보통 안 읽는다 — `undo`/`redo`가 대신 씀 |
+| `history` | `HistoryState<EditorSnapshot>` | 프로젝트 하나의 실행 취소 스택(#40, 단위는 #131에서 프로젝트로 올렸다) | 보통 안 읽는다 — `undo`/`redo`가 대신 씀. 트리 footer만 버튼 비활성화 판정에 읽는다 |
 | `select` | `(id: NodeId \| null) => void` | 노드 선택 / 해제 | **트리 · 캔버스**가 호출 |
 | `selectPage` | `(id: PageId) => void` | 캔버스에 띄울 페이지 전환 | **트리**가 호출 |
 | `setNodeField` | `(id: NodeId, path: string, value: unknown, continueEdit?: boolean) => void` | 노드 값 하나 변경 | **패널 · 캔버스(드래그)**가 호출 |
 | `setPageField` | `(pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => void` | 페이지 이름 · 크기(해상도) 변경 | **패널**이 호출 |
 | `addPage` | `() => void` | 빈 페이지를 끝에 추가하고 이동 | **트리**가 호출 |
-| `removePage` | `(id: PageId) => void` | 페이지 삭제 | **트리**가 호출 |
+| `removePage` | `(id: PageId) => void` | 페이지 삭제(#131부터 되돌릴 수 있다) | **트리**가 호출 |
 | `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제 + history 초기화(New/Open) | **MenuBar**가 호출 |
 | `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import) | **MenuBar**가 호출 |
 | `removeNode` | `(id: NodeId) => void` | 노드 삭제. 프레임이면 자손까지 연쇄 삭제, root는 지우지 않음 | **트리**가 호출 |
 | `moveNode` | `(id: NodeId, newParentId: NodeId, index: number) => void` | 노드를 newParentId의 children 중 index 위치로 옮김. root 이동 불가, 순환 방지 | **트리**가 호출(드래그) |
-| `undo` | `() => void` | 활성 페이지를 한 단계 되돌림(#40) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Z, #118) |
-| `redo` | `() => void` | 활성 페이지를 한 단계 다시 실행(#40) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Shift+Z · Ctrl+Y, #118) |
+| `undo` | `() => void` | 프로젝트의 마지막 편집을 한 단계 되돌림(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Z, #118) |
+| `redo` | `() => void` | 되돌린 편집을 한 단계 다시 실행(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Shift+Z · Ctrl+Y, #118) |
 
-### setNodeField·setPageField·removeNode·moveNode는 이제 Command Engine을 거친다 (#40, #101, #110)
+### setNodeField·setPageField·removeNode·moveNode·insertNode는 이제 Command Engine을 거친다 (#40, #101, #110, #131)
 
-넷 다 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`·`PageProperties.tsx`, 트리의 "표시" 토글·삭제 버튼·드래그)는 하나도 안 바뀐다. 달라진 건 내부뿐이다: 이전엔 `setByPath`를 직접 불렀지만, 이제 `command/applyCommand.ts`의 `updateNode`(노드 대상)·`updateScreen`(화면 자신의 `name`·`size` 대상 — #40 리뷰, GAMMJ, PR #102에서 추가)·`deleteNode`(노드 삭제 대상 — #101, `removeNode`가 이 경로로 옮겨오면서 Command Engine이 이미 갖고 있던 연쇄 삭제·root 보호 로직을 그대로 재사용했다)·`moveNode`(노드 위치 이동 — #110, 순환 방지 로직을 이미 갖고 있던 Command를 그대로 재사용했다) Command를 만들어 적용한다. `02-mvp-scope.md`가 못박은 "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다" 제약을 이 함수 안에서 충족한다 — 이슈 #40 참고.
+다섯 다 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`·`PageProperties.tsx`, 트리의 "표시" 토글·삭제 버튼·드래그)는 하나도 안 바뀐다. 달라진 건 내부뿐이다: 이전엔 `setByPath`를 직접 불렀지만, 이제 `command/applyCommand.ts`의 `updateNode`(노드 대상)·`updateScreen`(화면 자신의 `name`·`size` 대상 — #40 리뷰, GAMMJ, PR #102에서 추가)·`deleteNode`(노드 삭제 대상 — #101, `removeNode`가 이 경로로 옮겨오면서 Command Engine이 이미 갖고 있던 연쇄 삭제·root 보호 로직을 그대로 재사용했다)·`moveNode`(노드 위치 이동 — #110, 순환 방지 로직을 이미 갖고 있던 Command를 그대로 재사용했다)·`createNode`(노드 삽입 — #131, `insertNode`가 이 경로로 옮겨오면서 Command Engine이 이미 갖고 있던 "부모가 frame인지 · 그 id가 이미 있는지" 판정을 그대로 재사용했다) Command를 만들어 적용한다. `02-mvp-scope.md`가 못박은 "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다" 제약을 이 함수 안에서 충족한다 — 이슈 #40 참고.
 
-부수 효과로 성공한 변경마다 `history`에도 쌓인다 — `removeNode`·`moveNode`도 이제 undo 대상이다. `insertNode`·`addPage`·`removePage`는 **아직 이 경로를 안 거친다** — #40의 변경 범위 밖이다. 그래서 이런 액션 뒤에 바로 `undo`를 부르면, 그 액션의 결과까지 함께 되돌아갈 수 있다(직전 tracked 체크포인트로 점프하므로). `editorStore.ts`의 `reconciledHistory` 주석에 이 한계가 자세히 적혀 있다. `removePage`는 지운 페이지의 `history` 항목도 함께 지운다 — 안 그러면 `generateNodeId`가 빈 순번을 재사용할 때 새 페이지가 지운 페이지의 undo 스택을 이어받는다(#40 리뷰, GAMMJ, PR #102 — 결정적으로 재현됨).
+부수 효과로 성공한 변경마다 `history`에도 쌓인다 — `removeNode`·`moveNode`·`insertNode`도 undo 대상이다. **`addPage`·`removePage`는 Command Engine을 안 거치지만 `history`에는 쌓인다**(#131) — `applyCommand`는 화면 한 장(`ScreenSpec`)만 다루고 "페이지가 여러 장"이라는 개념을 아예 모르므로, `pages`·`pageOrder`를 바꾸는 이 둘은 Command로 표현되지 않는다(페이지 단위 Command는 필요해지면 별도 이슈로 다룬다). 스토어가 직접 스냅숏을 만들어 얹는다.
 
-### Undo/Redo는 페이지별로 독립이다
+이제 `spec`을 바꾸는 모든 액션이 `history`에 쌓이므로 **"이 액션 뒤에 바로 `undo`를 부르면 그 앞의 편집까지 함께 되돌아간다"는 #40의 한계는 없어졌다.** 그걸 방어하던 `editorStore.ts`의 `reconciledHistory`(push·점프 직전에 `present`를 실제 현재 상태로 맞춰주던 함수)도 함께 지웠다 — `present`가 낡을 수 있는 경로 자체가 없어졌다. 대신 `selectPage`는 새 단계를 쌓지 않으면서 `present`의 `activePageId`만 갈아 끼운다(페이지 전환은 편집이 아니지만, 안 맞춰두면 다음 편집이 past에 밀어 넣는 스냅숏이 "전에 보던 페이지"를 가리킨다). `removePage`가 지운 페이지의 `history` 항목을 지우던 처리(#40 리뷰, GAMMJ, PR #102)도 사라졌다 — 스택이 페이지 id로 묶여 있지 않으니 `generateNodeId`의 id 재사용으로 남의 undo 스택을 물려받는 누수가 구조적으로 불가능하다.
 
-`history`는 페이지 id로 나뉘어 있다 — 페이지 A를 고쳐도 페이지 B의 undo 스택에는 안 걸린다. 아직 한 번도 안 고친 페이지는 `history`에 항목이 없고, `undo`/`redo`는 그 경우 조용히 아무 일도 안 한다.
+### Undo/Redo는 프로젝트 하나의 스택이다 (#131)
 
-`loadSpec`(New/Open)은 `history`를 통째로 비운다 — 안 비우면 새로 연 프로젝트가 이전 프로젝트와 우연히 같은 페이지 id(예: 마이그레이션이 항상 만드는 `"page1"`)를 써서 남의 undo 스택을 이어받는 사고가 난다.
+`history`의 한 단계는 `EditorSnapshot`(`{ spec, activePageId }` — `editorStore.ts`가 export한다)이다. **`undo`는 프로젝트 전체에서 마지막 편집 하나를 되돌린다.** 페이지별 독립 스택이었던 #40~#128 시절과 달라진 점이다 — 페이지 A를 고친 뒤 페이지 B에서 `undo`를 누르면 이제 A의 편집이 되돌아간다.
+
+왜 올렸나 — `removePage`를 되돌릴 수 있게 하려면 다른 길이 없었다. 페이지별 스택으로는 되돌릴 내용(지워지는 페이지의 스택)이 지우는 것과 함께 사라지고, 애초에 `pages`·`pageOrder`는 `ScreenSpec` 하나에 담기지 않는다. 페이지 조작만 담는 스택을 따로 두는 안도 있었지만, 스택이 둘이면 "페이지 추가 → 노드 편집 → `undo` 두 번"의 순서를 어느 한쪽만 보고 정할 수 없다(둘 사이의 시간 순서를 또 따로 기억해야 한다). 스택 하나면 그 문제가 생기지 않는다. 자세한 근거는 `editorStore.ts`의 `EditorSnapshot` 주석에 있다.
+
+**스냅숏이 `activePageId`를 함께 들고 있어서, 되돌린 편집이 다른 페이지에 있었으면 캔버스도 그 페이지로 옮겨 간다** — 안 그러면 방금 되돌린 변화가 화면 밖에서 조용히 일어난다. `addPage`를 되돌리는 경우엔 필수다(보고 있던 그 페이지가 사라지므로, 함께 되돌리지 않으면 `activePageId`가 없는 페이지를 가리킨다).
+
+스냅숏은 `spec`을 통째로 들지만 안 건드린 페이지는 참조를 그대로 공유한다(`withPage`) — 한 단계가 실제로 더 쓰는 메모리는 얕은 객체 두 개다.
+
+`loadSpec`(New/Open)은 `history`를 새로 시작한다(`initHistory`) — 이어 쓰면 `undo` 한 번이 방금 연 파일이 아니라 전에 열려 있던 파일의 옛 상태로 튀어버린다. New/Open 자신은 되돌릴 대상이 아니다.
 
 **스냅숏은 호출 한 번 단위로 쌓이지만, `continueEdit: true`로 부른 호출은 병합된다(#121).** `ui/properties/fields/useDraftInput.ts`(패널 소유)는 파싱 가능한 키 입력마다 즉시 커밋한다 — 예를 들어 간격 칸에 "16"을 타이핑하면 `setNodeField("cardA", "layout.gap", 1)` → `setNodeField("cardA", "layout.gap", 16, true)`가 연달아 불린다. 두 번째 호출처럼 `continueEdit`이 `true`면 `pushHistory` 대신 `replacePresent`(`command/history.ts`)로 present만 갈아 끼운다 — history에 새 단계를 안 쌓고 직전 체크포인트에 이번 값을 덮어쓴다. **기본값은 `false`다** — 이 매개변수를 모르는 기존 호출부(캔버스 드래그, 레이어 트리 표시 토글)는 그대로 호출마다 새 단계를 쌓는다.
 
@@ -62,7 +70,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 ### Undo/Redo UI (#118)
 
-`ui/LayerTree.tsx` footer에 Undo/Redo 버튼이 있다(비활성화는 `command/history.ts`의 `canUndo`/`canRedo`로 판단 — `history[activePageId]`가 없으면, 즉 그 페이지를 아직 한 번도 안 고쳤으면 둘 다 꺼진다). 같은 파일이 `document`에 `keydown` 리스너를 걸어 Cmd/Ctrl+Z(되돌리기)·Cmd/Ctrl+Shift+Z·Ctrl+Y(다시 실행, Windows 관례라 `metaKey`는 안 본다)도 받는다. `event.target`이 input·textarea·`contenteditable`이면 아무 것도 안 한다 — 안 그러면 텍스트 칸에서 브라우저 기본 되돌리기(방금 타이핑한 글자)를 가로채 버린다.
+`ui/LayerTree.tsx` footer에 Undo/Redo 버튼이 있다(비활성화는 `command/history.ts`의 `canUndo`/`canRedo`에 `history`를 그대로 넘겨 판단한다 — 스택이 하나뿐이라(#131) 페이지를 바꿔도 판정이 그대로다. 아직 아무것도 안 고쳤으면 `past`/`future`가 비어서 둘 다 꺼진다). 같은 파일이 `document`에 `keydown` 리스너를 걸어 Cmd/Ctrl+Z(되돌리기)·Cmd/Ctrl+Shift+Z·Ctrl+Y(다시 실행, Windows 관례라 `metaKey`는 안 본다)도 받는다. `event.target`이 input·textarea·`contenteditable`이면 아무 것도 안 한다 — 안 그러면 텍스트 칸에서 브라우저 기본 되돌리기(방금 타이핑한 글자)를 가로채 버린다.
 
 ### 노드를 다루는 함수는 활성 페이지를 알아서 찾는다
 
@@ -92,13 +100,18 @@ const node = useEditorStore((s) => s.spec.pages[s.activePageId].nodes[id]);
 
 활성 페이지를 지우면 **같은 자리에 올라온 이웃**으로 옮겨 간다. 마지막 장을 지웠으면 그 앞 페이지로 간다.
 
+**실수로 지웠으면 `undo`로 되돌린다**(#131) — 지운 페이지와 그 노드 전부가 돌아오고 지우기 전에 보던 페이지로 옮겨 간다. #131 전에는 이 조작만 되돌릴 방법이 없어서 그대로 데이터 유실이었다.
+
 ### loadSpec은 v0.1도 받는다
 
 `loadSpec`은 `VisualSpec`(v0.1 화면 파일)과 `ProjectSpec`(v0.2 프로젝트 파일)을 모두 받는다. v0.1이 들어오면 `migrateV01`로 페이지 1장짜리 프로젝트로 넓힌다. **그래서 예전에 저장한 파일도 그대로 열리고, MenuBar는 어느 버전인지 몰라도 된다.**
 
-`insertNode`는 `parentId`가 없거나 frame이 아니면 아무 것도 하지 않는다 — 호출자가
+`insertNode`는 `parentId`가 없거나 frame이 아니면(그리고 `id`가 이미 있으면 — #131부터
+`createNode` Command가 함께 판정한다) 아무 것도 하지 않는다 — 호출자가
 `resolveImportParent`(`store/resolveImportParent.ts`, 순수 함수)로 유효한 frame id를
 먼저 골라서 넘겨야 한다. 새 노드 id는 `store/nodeId.ts`의 `generateNodeId`로 만든다.
+Import(이미지) · 도구 모음 · 트리의 프레임 추가가 모두 이 함수를 쓰므로 셋 다
+`undo` 한 번으로 되돌아간다(#131).
 
 ### removeNode는 root를 지우지 않고, 지운 노드가 자손이면 연쇄 삭제한다
 

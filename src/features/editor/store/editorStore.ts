@@ -11,6 +11,7 @@ import {
   undo as historyUndo,
   type HistoryState,
 } from "@/features/editor/command/history";
+import type { Command } from "@/features/editor/command/types";
 import { migrateV01 } from "@/features/editor/schema";
 import type {
   Node,
@@ -36,6 +37,35 @@ import { loadStoredSpec } from "./specStorage";
 const initialSpec = loadStoredSpec() ?? migrateV01(seedSpec);
 
 /**
+ * Undo/Redo 한 단계의 단위 — 프로젝트 전체와 그때 보고 있던 페이지를 함께 담는다.
+ *
+ * #40에서는 `Record<PageId, HistoryState<ScreenSpec>>`(페이지별 독립 스택)이었다.
+ * #131에서 단위를 프로젝트로 올렸다. 이유는 두 가지다.
+ *
+ * 1. `removePage`는 페이지별 스택으로는 되돌릴 수가 없다 — 되돌릴 내용(지워지는
+ *    페이지의 스택)이 지우는 것과 함께 사라지고, 애초에 `pages`·`pageOrder`는
+ *    ScreenSpec 하나에 담기지 않는다. 지금 데이터 유실이 나는 곳이 여기였다.
+ * 2. 그래서 페이지 조작만 담는 스택을 따로 두는 안(이슈 #131의 후보 (a))도
+ *    있었지만, 스택이 둘이면 "페이지 추가 → 노드 편집 → undo 두 번"의 순서를
+ *    어느 한쪽만 보고 정할 수 없다 — 둘 사이의 시간 순서를 또 따로 기억해야
+ *    한다. 스택 하나면 그 문제가 생기지 않는다.
+ *
+ * 대가는 **undo가 프로젝트 전체에서 마지막 편집 하나를 되돌린다**는 것이다 —
+ * 페이지별 독립이 없어진다. 대신 되돌린 편집이 있던 페이지로 함께 옮겨 가므로
+ * (스냅숏이 `activePageId`를 들고 있는 이유다) 보고 있지 않은 페이지가 조용히
+ * 바뀌는 일은 없다. `addPage`를 되돌리는 경우에는 필수다 — 지금 보고 있는 그
+ * 페이지가 사라지므로 `activePageId`를 같이 되돌리지 않으면 없는 페이지를
+ * 가리킨다.
+ *
+ * 스냅숏은 `spec`을 통째로 들지만 안 건드린 페이지는 참조를 그대로 공유한다
+ * (`withPage`) — 한 단계가 실제로 더 쓰는 메모리는 얕은 객체 두 개다.
+ */
+export interface EditorSnapshot {
+  spec: ProjectSpec;
+  activePageId: PageId;
+}
+
+/**
  * 캔버스 · 레이어 트리 · 세부설정 패널이 공유하는 단일 스토어.
  * 계약 상세: docs/EDITOR_STORE_CONTRACT.md
  */
@@ -47,12 +77,12 @@ export interface EditorState {
   /** 현재 선택된 노드 id. 없으면 null. 활성 페이지 안의 id다. */
   selectedId: NodeId | null;
   /**
-   * 페이지별 실행 취소 스택(#40). 페이지마다 독립적이다 — 다른 페이지를 편집해도
-   * 이 페이지의 undo/redo에는 안 걸린다. setNodeField가 성공할 때마다 여기에
-   * 쌓인다. 아직 없는 페이지 id는 history가 없다는 뜻이지 에러가 아니다 —
-   * undo/redo가 조용히 아무 일도 안 한다.
+   * 프로젝트 하나의 실행 취소 스택(#40, 단위는 #131에서 프로젝트로 올렸다 —
+   * EditorSnapshot 주석 참고). spec을 바꾸는 모든 액션이 성공할 때마다 여기에
+   * 쌓이므로 `present`는 항상 지금 상태와 같다. 그래서 되돌릴 것이 있는지는
+   * `command/history.ts`의 `canUndo`/`canRedo`에 그대로 물으면 된다.
    */
-  history: Record<PageId, HistoryState<ScreenSpec>>;
+  history: HistoryState<EditorSnapshot>;
   /** 노드 선택/해제. 트리·캔버스가 호출한다. */
   select: (id: NodeId | null) => void;
   /**
@@ -91,12 +121,19 @@ export interface EditorState {
    * `continueEdit`도 setNodeField와 같다(#121) — 기본 false.
    */
   setPageField: (pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => void;
-  /** 빈 페이지를 끝에 추가하고 그 페이지로 이동한다. 트리가 호출한다. */
+  /**
+   * 빈 페이지를 끝에 추가하고 그 페이지로 이동한다. 트리가 호출한다.
+   * #131: history에 쌓인다 — undo하면 추가된 페이지가 사라지고 직전에 보던
+   * 페이지로 돌아간다.
+   */
   addPage: () => void;
   /**
    * 페이지를 지운다. 마지막 한 장은 지우지 않는다 — pages가 비면 캔버스가
    * 그릴 것이 없어지고 스키마의 minProperties도 깨진다.
    * 활성 페이지를 지우면 같은 자리의 이웃으로 옮겨 간다.
+   *
+   * #131: history에 쌓인다 — undo하면 지운 페이지와 그 노드 전부가 돌아온다.
+   * 그 전까지는 이 조작만 되돌릴 방법이 없어서 그대로 데이터 유실이었다.
    */
   removePage: (id: PageId) => void;
   /**
@@ -110,10 +147,10 @@ export interface EditorState {
    * parentId가 없거나 frame이 아니면 아무 것도 하지 않는다 — 호출자가
    * resolveImportParent 등으로 유효한 frame id를 먼저 골라서 넘겨야 한다.
    *
-   * #40: 아직 history에 안 쌓인다 — insertNode는 이 PR 범위 밖이다(변경 범위
-   * 참고, 이슈 본문). 그래서 insertNode 직후 setNodeField를 부르면 history의
-   * 직전 스냅샷이 그 삽입 이전 상태가 되는데, undo 구현이 그 경우도 다루도록
-   * 방어해뒀다 — 아래 setNodeField 구현의 주석 참고.
+   * #131: setNodeField와 같은 이유로 command/applyCommand.ts의 createNode
+   * Command를 거치고 history에도 쌓인다 — 삽입 직후 undo 한 번이 그 노드만
+   * 지운다. Import(이미지)·도구 모음·트리의 프레임 추가가 모두 이 함수를 쓰므로
+   * 셋 다 되돌릴 수 있다. 이미 있는 id는 덮어쓰지 않는다(applyCreateNode).
    */
   insertNode: (parentId: NodeId, id: NodeId, node: Node) => void;
   /**
@@ -133,9 +170,12 @@ export interface EditorState {
    * 쌓인다. 레이어 트리가 드래그로 순서를 바꿀 때 호출한다.
    */
   moveNode: (id: NodeId, newParentId: NodeId, index: number) => void;
-  /** 활성 페이지를 한 단계 되돌린다. 되돌릴 것이 없으면 아무 일도 안 한다. */
+  /**
+   * 프로젝트의 마지막 편집을 한 단계 되돌린다. 되돌릴 것이 없으면 아무 일도
+   * 안 한다. 되돌린 편집이 다른 페이지에 있었으면 그 페이지로 옮겨 간다(#131).
+   */
   undo: () => void;
-  /** 활성 페이지를 한 단계 다시 실행한다. 다시 실행할 것이 없으면 아무 일도 안 한다. */
+  /** 되돌린 편집을 한 단계 다시 실행한다. 다시 실행할 것이 없으면 아무 일도 안 한다. */
   redo: () => void;
 }
 
@@ -161,50 +201,53 @@ function asPageOrder(ids: PageId[]): ProjectSpec["pageOrder"] {
 }
 
 /**
- * 페이지의 히스토리 항목을 가져오되, present를 실제 현재 페이지로 맞춰서 준다.
- * setNodeField(push 직전)와 undo/redo(점프 직전) 양쪽에서 쓴다.
+ * Command 하나를 pageId 페이지에 적용하고 그 결과를 history에 한 단계로 얹는다.
+ * setNodeField·setPageField·insertNode·removeNode·moveNode가 전부 이 순서를
+ * 따르므로(적용 → 아무것도 안 바뀌면 그대로 → 스냅숏 한 단계) 여기 모았다.
+ * 페이지 목록까지 바꾸는 addPage·removePage는 Command로 표현되지 않아
+ * (applyCommand는 페이지가 여러 장이라는 걸 아예 모른다) 이걸 안 쓴다.
  *
- * insertNode처럼 history를 안 거치는 다른 액션이 그 사이에 페이지를 바꿨을 수
- * 있다(#40 — insertNode는 이 PR 범위 밖이라 손대지 않았다). 그러면
- * history.present가 실제 현재 페이지보다 낡은 채로 남는다.
+ * 없는 페이지거나 적용 결과가 원본과 같은 참조면(applyCommand가 규칙 위반으로
+ * no-op일 때) null을 준다 — 호출부가 state를 그대로 반환해서 history에도 빈
+ * 단계가 안 쌓이게 한다.
  *
- * **알려진 한계 — 이 함수로 전부 고쳐지지 않는다.** setNodeField 직전에 맞추면
- * "그다음 setNodeField"부터는 past 사슬이 정확해져서(예: 필드를 두 번 고치는
- * 동안 그 사이의 insertNode도 한 단계는 undo에서 살아남는다), 되짚어 갈 스냅숏
- * 자체가 필요하다는 점은 못 없앤다. **insertNode 하나만 하고 바로 undo를 부르면
- * (그 사이·이후에 setNodeField가 한 번도 없었으면) past에 남아 있는 마지막
- * 스냅숏은 insertNode 이전 것뿐이라, 그 삽입까지 함께 되돌아간다.** insertNode
- * 자체를 추적하는 건 이 PR 범위 밖이다 — 필요해지면 별도 이슈로 다룬다.
- *
- * **해소됨(2026-09-13, 이슈 #121) — 스냅숏이 setNodeField/setPageField 호출
- * 한 번 단위로 쌓이던 문제.** `ui/properties/fields/useDraftInput.ts`(패널
- * 소유)는 숫자 입력칸에서 파싱 가능한 키 입력마다 즉시 onCommit을 부른다.
- * 그 훅이 "지금 타이핑 burst가 이어지는 중인지"를 로컬로 기억해뒀다가, 이어지는
- * 중이면 setNodeField/setPageField의 `continueEdit` 인자를 true로 넘긴다 —
- * 그러면 pushHistory 대신 replacePresent로 present만 갈아 끼운다(아래 구현
- * 참고). `continueEdit`은 **기본값이 false다** — 이 인자를 모르는 기존
- * 호출부(캔버스 드래그, 레이어 트리 표시 토글)는 그대로 호출마다 새 단계를
- * 쌓는다. 스토어가 "직전 호출과 같은 키인지" 스스로 추측하는 방식(예: 노드
- * id·경로가 같으면 병합)은 일부러 안 썼다 — 표시 토글처럼 같은 경로를 여러 번
- * 눌러도 매번 별개의 편집인 호출부까지 잘못 병합해버리기 때문이다. 병합 여부는
- * 그걸 실제로 아는 호출부(useDraftInput)만 결정한다.
+ * `continueEdit`(#121, 기본 false)이 true면 새 단계를 쌓지 않고 present만
+ * 갈아 끼운다 — 직전 호출이 만든 undo 체크포인트에 이번 값을 겹쳐 쓴다.
+ * **호출하는 쪽이 "이건 같은 편집의 다음 글자다"를 알 때만 true가 들어온다**
+ * (`ui/properties/fields/useDraftInput.ts`가 타이핑 burst를 추적해서 넘긴다).
+ * 스토어가 "직전 호출과 같은 키인지" 스스로 추측하는 방식(예: 노드 id·경로가
+ * 같으면 병합)은 일부러 안 썼다 — 레이어 트리의 표시 토글처럼 같은 경로를 여러
+ * 번 눌러도 매번 별개의 편집인 호출부까지 잘못 병합해버리기 때문이다.
  */
-function reconciledHistory(
-  history: Record<PageId, HistoryState<ScreenSpec>>,
+function applied(
+  state: EditorState,
   pageId: PageId,
-  currentPage: ScreenSpec,
-): HistoryState<ScreenSpec> {
-  const existing = history[pageId];
-  if (existing === undefined) return initHistory(currentPage);
-  if (existing.present === currentPage) return existing;
-  return { ...existing, present: currentPage };
+  command: Command,
+  continueEdit = false,
+): Pick<EditorState, "spec" | "history"> | null {
+  const page = state.spec.pages[pageId];
+  if (page === undefined) return null;
+
+  const nextPage = applyCommand(page, command);
+  if (nextPage === page) return null;
+
+  // 페이지 목록은 그대로라 activePageId도 지금 값을 그대로 담는다.
+  const spec = withPage(state.spec, pageId, nextPage);
+  const next: EditorSnapshot = { spec, activePageId: state.activePageId };
+
+  return {
+    spec,
+    history: continueEdit
+      ? replacePresent(state.history, next)
+      : pushHistory(state.history, next),
+  };
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
   spec: initialSpec,
   activePageId: initialSpec.pageOrder[0],
   selectedId: null,
-  history: {},
+  history: initHistory({ spec: initialSpec, activePageId: initialSpec.pageOrder[0] }),
   select: (id) => set({ selectedId: id }),
   selectPage: (id) =>
     set((state) => {
@@ -212,51 +255,39 @@ export const useEditorStore = create<EditorState>((set) => ({
         return state;
       }
 
-      return { activePageId: id, selectedId: null };
+      // 페이지 전환은 편집이 아니라 새 단계를 쌓지 않는다. 다만 present는 지금
+      // 상태를 그대로 비추고 있어야 한다 — 안 맞춰두면 다음 편집이 past에 밀어
+      // 넣는 스냅숏이 "전에 보던 페이지"를 가리켜서, 그 편집을 되돌릴 때 엉뚱한
+      // 페이지로 튄다(#131).
+      return {
+        activePageId: id,
+        selectedId: null,
+        history: replacePresent(state.history, { spec: state.spec, activePageId: id }),
+      };
     }),
   setNodeField: (id, path, value, continueEdit = false) =>
     set((state) => {
-      const page = state.spec.pages[state.activePageId];
-      const node = page?.nodes[id];
-      if (page === undefined || node === undefined) {
-        return state;
-      }
-
       // #40: setByPath를 직접 부르는 대신 updateNode Command를 만들어
       // applyCommand로 적용한다 — 결과는 이전과 동일하지만(둘 다 setByPath를
-      // 쓴다) 이제 Command Engine을 거친다.
-      const nextPage = applyCommand(page, { type: "updateNode", id, path, value });
-      if (nextPage === page) return state;
-
-      const reconciled = reconciledHistory(state.history, state.activePageId, page);
-      const nextHistory = continueEdit
-        ? replacePresent(reconciled, nextPage)
-        : pushHistory(reconciled, nextPage);
-
-      return {
-        spec: withPage(state.spec, state.activePageId, nextPage),
-        history: { ...state.history, [state.activePageId]: nextHistory },
-      };
+      // 쓴다) 이제 Command Engine을 거친다. 없는 노드 id면 applyUpdateNode가
+      // 원본을 그대로 돌려주므로 applied가 null을 준다.
+      const next = applied(
+        state,
+        state.activePageId,
+        { type: "updateNode", id, path, value },
+        continueEdit,
+      );
+      return next ?? state;
     }),
   setPageField: (pageId, path, value, continueEdit = false) =>
     set((state) => {
-      const page = state.spec.pages[pageId];
-      if (page === undefined) {
-        return state;
-      }
-
-      const nextPage = applyCommand(page, { type: "updateScreen", path, value });
-      if (nextPage === page) return state;
-
-      const reconciled = reconciledHistory(state.history, pageId, page);
-      const nextHistory = continueEdit
-        ? replacePresent(reconciled, nextPage)
-        : pushHistory(reconciled, nextPage);
-
-      return {
-        spec: withPage(state.spec, pageId, nextPage),
-        history: { ...state.history, [pageId]: nextHistory },
-      };
+      const next = applied(
+        state,
+        pageId,
+        { type: "updateScreen", path, value },
+        continueEdit,
+      );
+      return next ?? state;
     }),
   addPage: () =>
     set((state) => {
@@ -269,12 +300,17 @@ export const useEditorStore = create<EditorState>((set) => ({
         nodes: { ...blankSpec.screen.nodes },
       };
 
+      const spec: ProjectSpec = {
+        ...state.spec,
+        pages: { ...state.spec.pages, [id]: page },
+        pageOrder: asPageOrder([...state.spec.pageOrder, id]),
+      };
+
       return {
-        spec: {
-          ...state.spec,
-          pages: { ...state.spec.pages, [id]: page },
-          pageOrder: asPageOrder([...state.spec.pageOrder, id]),
-        },
+        spec,
+        // #131: 페이지까지 옮기는 액션이라 스냅숏을 직접 만든다 — undo하면
+        // 이 페이지가 사라지므로 activePageId도 함께 되돌아가야 한다.
+        history: pushHistory(state.history, { spec, activePageId: id }),
         activePageId: id,
         selectedId: null,
       };
@@ -290,26 +326,27 @@ export const useEditorStore = create<EditorState>((set) => ({
       const nextPages = { ...state.spec.pages };
       delete nextPages[id];
 
-      // #40 리뷰(GAMMJ, PR #102): 여기서 history[id]를 안 지우면 loadSpec이
-      // 막은 것과 똑같은 사고가 난다 — generateNodeId가 빈 순번을 재사용해서
-      // (지운 페이지가 "page-1"이면 다음 addPage도 "page-1"을 받는다) 새로 만든
-      // 빈 페이지가 지운 페이지의 history를 그대로 이어받는다. 그 페이지에서
-      // undo 한 번이 "지워진 페이지의 옛 내용"을 불러온다 — 결정적으로 재현됨.
-      const nextHistory = { ...state.history };
-      delete nextHistory[id];
-
       // 지운 자리에 올라온 페이지로 옮긴다. 마지막 장을 지웠으면 그 앞으로.
       const isActive = state.activePageId === id;
       const fallback = nextOrder[Math.min(removedAt, nextOrder.length - 1)];
+      const activePageId = isActive ? fallback : state.activePageId;
+
+      const spec: ProjectSpec = {
+        ...state.spec,
+        pages: nextPages,
+        pageOrder: asPageOrder(nextOrder),
+      };
 
       return {
-        spec: {
-          ...state.spec,
-          pages: nextPages,
-          pageOrder: asPageOrder(nextOrder),
-        },
-        history: nextHistory,
-        activePageId: isActive ? fallback : state.activePageId,
+        spec,
+        // #131: 스냅숏이 spec 전체라 past에 남은 직전 단계가 지워진 페이지와
+        // 그 노드를 전부 들고 있다 — undo 한 번이면 그대로 돌아온다. 페이지별
+        // 스택 시절엔 되돌릴 대상(history[id])이 지우는 것과 함께 사라져서
+        // (#40 리뷰, GAMMJ, PR #102에서 의도적으로 지웠다) 이 조작만 유일하게
+        // 되돌릴 수 없었다. 같은 리뷰가 지적한 "지운 페이지의 스택을 id 재사용
+        // 으로 새 페이지가 물려받는" 누수도 스택이 하나가 되면서 사라진다.
+        history: pushHistory(state.history, { spec, activePageId }),
+        activePageId,
         selectedId: isActive ? null : state.selectedId,
       };
     }),
@@ -319,88 +356,65 @@ export const useEditorStore = create<EditorState>((set) => ({
       spec: project,
       activePageId: project.pageOrder[0],
       selectedId: null,
-      // #40: 완전히 다른 프로젝트로 갈아 끼우는 시점이라 history도 비운다.
-      // 안 비우면 새 프로젝트가 옛 프로젝트와 우연히 같은 페이지 id를 써서
-      // (예: 마이그레이션이 항상 만드는 "page1") 남의 히스토리를 이어받는
-      // 사고가 난다 — undo 한 번이 방금 연 파일이 아니라 전에 열려 있던
-      // 파일의 옛 상태로 튀어버린다.
-      history: {},
+      // #40: 완전히 다른 프로젝트로 갈아 끼우는 시점이라 history도 새로 시작
+      // 한다. 이어 쓰면 undo 한 번이 방금 연 파일이 아니라 전에 열려 있던
+      // 파일의 옛 상태로 튀어버린다 — New/Open은 되돌릴 대상이 아니다.
+      history: initHistory({ spec: project, activePageId: project.pageOrder[0] }),
     });
   },
   insertNode: (parentId, id, node) =>
     set((state) => {
-      const page = state.spec.pages[state.activePageId];
-      const parent = page?.nodes[parentId];
-      if (page === undefined || parent === undefined || parent.type !== "frame") {
-        return state;
-      }
+      // #131: 직접 노드를 만들지 않고 createNode Command를 거친다 — parent가
+      // frame인지, id가 이미 있는지는 applyCreateNode가 판정한다.
+      const next = applied(state, state.activePageId, {
+        type: "createNode",
+        parentId,
+        id,
+        node,
+      });
+      if (next === null) return state;
 
-      return {
-        spec: withPage(state.spec, state.activePageId, {
-          ...page,
-          nodes: {
-            ...page.nodes,
-            [parentId]: { ...parent, children: [...parent.children, { node: id }] },
-            [id]: node,
-          },
-        }),
-        selectedId: id,
-      };
+      return { ...next, selectedId: id };
     }),
   removeNode: (id) =>
     set((state) => {
-      const page = state.spec.pages[state.activePageId];
-      if (page === undefined) return state;
-
       // #40과 같은 이유로 deleteNode Command를 통해 적용한다 — root 보호와
       // 연쇄 삭제는 applyDeleteNode(command/applyCommand.ts)가 이미 한다.
-      const nextPage = applyCommand(page, { type: "deleteNode", id });
-      if (nextPage === page) return state;
+      const next = applied(state, state.activePageId, { type: "deleteNode", id });
+      if (next === null) return state;
 
-      const nextHistory = pushHistory(
-        reconciledHistory(state.history, state.activePageId, page),
-        nextPage,
-      );
-
+      const nodes = next.spec.pages[state.activePageId].nodes;
       return {
-        spec: withPage(state.spec, state.activePageId, nextPage),
-        history: { ...state.history, [state.activePageId]: nextHistory },
-        // 지운 노드나 그 자손이 선택 중이었으면 nextPage.nodes에 더 이상 없다.
+        ...next,
+        // 지운 노드나 그 자손이 선택 중이었으면 지운 뒤의 nodes에 더 이상 없다.
         selectedId:
-          state.selectedId !== null && nextPage.nodes[state.selectedId] === undefined
+          state.selectedId !== null && nodes[state.selectedId] === undefined
             ? null
             : state.selectedId,
       };
     }),
   moveNode: (id, newParentId, index) =>
     set((state) => {
-      const page = state.spec.pages[state.activePageId];
-      if (page === undefined) return state;
-
       // root 보호와 순환 방지는 applyMoveNode(command/applyCommand.ts)가 이미 한다.
-      const nextPage = applyCommand(page, { type: "moveNode", id, newParentId, index });
-      if (nextPage === page) return state;
-
-      const nextHistory = pushHistory(
-        reconciledHistory(state.history, state.activePageId, page),
-        nextPage,
-      );
-
-      return {
-        spec: withPage(state.spec, state.activePageId, nextPage),
-        history: { ...state.history, [state.activePageId]: nextHistory },
-      };
+      const next = applied(state, state.activePageId, {
+        type: "moveNode",
+        id,
+        newParentId,
+        index,
+      });
+      return next ?? state;
     }),
   undo: () =>
     set((state) => {
-      const page = state.spec.pages[state.activePageId];
-      const pageHistory = reconciledHistory(state.history, state.activePageId, page);
-      if (!historyCanUndo(pageHistory)) return state;
+      if (!historyCanUndo(state.history)) return state;
 
-      const nextHistory = historyUndo(pageHistory);
+      const nextHistory = historyUndo(state.history);
       return {
-        spec: withPage(state.spec, state.activePageId, nextHistory.present),
-        history: { ...state.history, [state.activePageId]: nextHistory },
+        spec: nextHistory.present.spec,
+        // 되돌린 편집이 다른 페이지에 있었으면 그 페이지로 옮겨 간다. 스냅숏이
+        // 늘 짝이 맞는 (spec, activePageId)라 여기서 존재 확인이 필요 없다.
+        activePageId: nextHistory.present.activePageId,
+        history: nextHistory,
         // 되돌린 뒤의 트리에는 지금 선택된 id가 없을 수 있다(예: undo가 방금
         // 만든 노드를 지운 상태로 되돌림) — select 로직을 새로 만드는 대신
         // loadSpec/selectPage와 같은 원칙(불확실하면 선택을 비운다)을 따른다.
@@ -409,14 +423,13 @@ export const useEditorStore = create<EditorState>((set) => ({
     }),
   redo: () =>
     set((state) => {
-      const page = state.spec.pages[state.activePageId];
-      const pageHistory = reconciledHistory(state.history, state.activePageId, page);
-      if (!historyCanRedo(pageHistory)) return state;
+      if (!historyCanRedo(state.history)) return state;
 
-      const nextHistory = historyRedo(pageHistory);
+      const nextHistory = historyRedo(state.history);
       return {
-        spec: withPage(state.spec, state.activePageId, nextHistory.present),
-        history: { ...state.history, [state.activePageId]: nextHistory },
+        spec: nextHistory.present.spec,
+        activePageId: nextHistory.present.activePageId,
+        history: nextHistory,
         selectedId: null,
       };
     }),
