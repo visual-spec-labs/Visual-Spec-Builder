@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CommandTransaction",
+  "description": "Visual Spec Command Schema v0.1 — 신뢰할 수 없는 입력이 Command Engine에 닿기 전의 형태 계약.",
+  "$ref": "#/$defs/Transaction",
+  "$defs": {
+    "Command": {
+      "oneOf": [
+        { "$ref": "#/$defs/CreateNodeCommand" },
+        { "$ref": "#/$defs/UpdateNodeCommand" },
+        { "$ref": "#/$defs/DeleteNodeCommand" },
+        { "$ref": "#/$defs/MoveNodeCommand" },
+        { "$ref": "#/$defs/SetLayoutCommand" },
+        { "$ref": "#/$defs/UpdateScreenCommand" }
+      ]
+    },
+    "CreateNodeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "parentId", "id", "node"],
+      "properties": {
+        "type": { "const": "createNode" },
+        "parentId": { "$ref": "visual-spec#/$defs/NodeId" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" },
+        "node": { "$ref": "visual-spec#/$defs/Node" }
+      }
+    },
+    "UpdateNodeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "path", "value"],
+      "properties": {
+        "type": { "const": "updateNode" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" },
+        "path": { "type": "string", "minLength": 1 },
+        "value": true
+      }
+    },
+    "DeleteNodeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "const": "deleteNode" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" }
+      }
+    },
+    "MoveNodeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "newParentId", "index"],
+      "properties": {
+        "type": { "const": "moveNode" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" },
+        "newParentId": { "$ref": "visual-spec#/$defs/NodeId" },
+        "index": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "SetLayoutCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "layout"],
+      "properties": {
+        "type": { "const": "setLayout" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" },
+        "layout": { "$ref": "visual-spec#/$defs/Layout" }
+      }
+    },
+    "UpdateScreenCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path", "value"],
+      "properties": {
+        "type": { "const": "updateScreen" },
+        "path": { "type": "string", "minLength": 1 },
+        "value": true
+      }
+    },
+    "Transaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commands"],
+      "properties": {
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/Command" }
+        }
+      }
+    }
+  }
+}

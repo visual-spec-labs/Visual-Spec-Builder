@@ -350,10 +350,10 @@ Command 배열(JSON)
 ```
 
 **G1 — Command 배열의 형태 검사.**
-지금 Command 는 **TypeScript 타입일 뿐 런타임에 없다**(`command/types.ts`. 07 2절 "Command 스키마 v0.1" 행:
-*"JSON Schema 정본 + 동결 절차를 거친 'v0.1로 고정'은 아직 아니다"*). 자연어 출력은 신뢰할 수 없는 입력이므로
-IR 과 같은 방식(JSON Schema 정본 + Ajv)의 런타임 검사기가 필요하다. `ajv` 는 이미 `dependencies` 에 있다.
-**이 관문을 만드는 일은 02가 말한 "Command 스키마 v0.1 고정"을 실제로 하는 일과 같은 작업이다.**
+이 관문은 #153에서 구현됐다. `command/command.schema.json`이 6종 Command와 Transaction의
+런타임 정본이고, `validateTransaction`이 예외 대신 `issues`를 돌려준다
+([09-command-schema-freeze.md](09-command-schema-freeze.md)). path의 실제 편집 가능성과 value의
+의미는 이 형태 검사의 범위가 아니며 아래 G2·G3가 맡는다.
 
 **G2 — dry-run.**
 `applyTransaction`(`applyCommand.ts:203`)은 순수 함수라 스토어를 건드리지 않고 사본에 먼저 돌릴 수 있다.
@@ -565,7 +565,7 @@ grid-rows-[var(--layout-menubar-height)_1fr]
 | 1 | **실행 주체 (a)/(b)/(c)** | **(b) 에이전트 경유를 추천한다**(2.3) | (b) 면 앱 ↔ 에이전트 전달 매체가 선행 조건이다. 이슈 #133 이 그 자리를 만들고 있으나 **그 내용은 확인하지 않았다** |
 | 2 | **"자연어 화면 생성"의 해석** | 정하지 않았다 | **빈 페이지 채우기**로 읽으면 지금 Command 6종으로 된다(3.3). **새 페이지 만들기**로 읽으면 페이지 단위 Command 가 필요하고, 그건 `applyCommand` 의 단위(`ScreenSpec`)를 넘어선다(3.4-(2)) |
 | 3 | **`CreateNodeCommand.index` 추가 여부** | 제안일 뿐이다(3.4-(1)) | Command 스키마 변경이다. 02의 "Command 스키마 v0.1 고정"과 06의 변경 절차를 어떻게 적용할지 함께 정해야 한다 |
-| 4 | **Command 스키마를 JSON Schema 정본으로 고정할지** | G1 검사기를 만들려면 결국 필요하다(4.2) | 02가 이미 "v0.1로 고정한다"고 선언한 셋 중 하나인데 아직 TS 타입뿐이다(07 2절). 이 작업이 그 선언을 실제로 이행하는 일이 된다 |
+| 4 | **Command 스키마를 JSON Schema 정본으로 고정할지** | **#153에서 결정·완료** | `command.schema.json` + `validateTransaction` + [09-command-schema-freeze.md](09-command-schema-freeze.md) |
 | 5 | **no-op 이유 문자열을 누가 내는가** | 정하지 않았다(4.2 G2) | `applyCommand` 옆에 이유를 함께 내는 함수를 두는 안 / 호출부가 같은 조건을 다시 재는 안. 전자는 Command Engine 의 공개 표면이 넓어진다 |
 | 6 | **자연어 입력창 행 추가에 따른 도구 모음 재배치** | 정하지 않았다(6.3) | `Toolbar` 의 `absolute bottom-4` 와 `canvasAtBottom` 숨김 동작이 새 행과 맞물리는 방식 |
 | 7 | **기본값 채우기 계층을 둘지** | 제안이다(3.2) | 두면 LLM 출력이 짧아지고 검증 실패가 준다. 대신 "사용자가 말하지 않은 값을 도구가 고른다"는 동작이 생긴다 — `store/createNode.ts` 가 이미 도구 모음에 대해 하고 있는 일이긴 하다 |
