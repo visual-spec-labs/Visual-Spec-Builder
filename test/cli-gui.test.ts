@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,6 +51,31 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
 
       expect(result.exitCode).not.toBe(0);
       expect(result.stderr).toContain("pnpm install");
+    } finally {
+      rmSync(fakeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("작업공간 경로를 환경 변수로 vite에 실어 보낸다 — vite의 cwd는 이 패키지 루트다 (#133)", () => {
+    // 진짜 vite 대신 "받은 환경 변수를 찍고 끝나는" 가짜 진입점을 놓는다. 확인하려는
+    // 건 vite의 동작이 아니라 **CLI가 사용자 cwd 기준 경로를 넘기는가**뿐이고, 그것만
+    // 떼어내면 20초짜리 서버 기동 없이 결정적으로 볼 수 있다. (이 환경 변수는 이
+    // CLI의 공개 인터페이스가 아니다 — bin/visual-spec.mjs 상단 주석 참고.)
+    const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-fake-root-"));
+    try {
+      const binDir = join(fakeRoot, "node_modules", "vite", "bin");
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(
+        join(binDir, "vite.js"),
+        'console.log("WORKSPACE=" + process.env.VISUAL_SPEC_WORKSPACE);\n',
+      );
+
+      const result = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot });
+
+      expect(result.exitCode).toBe(0);
+      // 사용자의 cwd(projectDir) 기준이어야 한다. 이 패키지 루트 기준이면 GUI가
+      // 엉뚱한 폴더를 작업공간으로 쓰게 된다 — 이 이슈의 핵심 함정이다.
+      expect(result.stdout.trim()).toBe(`WORKSPACE=${join(projectDir, ".visual-spec")}`);
     } finally {
       rmSync(fakeRoot, { recursive: true, force: true });
     }
@@ -109,6 +134,16 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
         });
 
         expect(output).toMatch(/Local:\s*http/);
+
+        // **작업공간 연결까지 여기서 함께 본다**(#133). 서버가 실제로 뜬 상태에서만
+        // 확인할 수 있는 것이고, 이 20초짜리 기동을 한 번 더 하느니 같이 본다:
+        // 개발 서버 플러그인이 환경 변수로 받은 경로 — 즉 **사용자 cwd** 아래 —
+        // 에 폴더를 만들었는지. 패키지 루트에 만들었다면 여기서 걸린다.
+        const workspaceDir = join(projectDir, ".visual-spec");
+        expect(existsSync(join(workspaceDir, "specs"))).toBe(true);
+        expect(existsSync(join(workspaceDir, "assets"))).toBe(true);
+        expect(existsSync(join(workspaceDir, "generated"))).toBe(true);
+        expect(output).toContain(workspaceDir);
       } finally {
         // kill()만 하고 빠져나가면 afterEach의 rmSync가 CLI 프로세스보다 먼저 돈다.
         // 이 CLI는 cwd가 projectDir이고, Windows는 어떤 프로세스의 cwd인 폴더를 지우지

@@ -5,10 +5,9 @@
 // `docs/02-mvp-scope.md`가 정의한 배송 경로(npx visual-spec init → .visual-spec/
 // 작업공간 → 스킬이 그 안에 씀)의 조각들이다.
 //
-// **GUI는 아직 .visual-spec/ 작업공간에 연결돼 있지 않다** — 지금 뜨는 화면은 브라우저
-// 파일 다이얼로그·다운로드로 여닫는 그 편집기 그대로다(이슈 #105 본문이 "이 작업의 일부인지
-// 별도인지 정해야 한다"고 남긴 질문에 대한 답 — 별도로 남겼다. GUI를 실행 가능하게 만드는
-// 것과, 그 GUI가 작업공간을 읽고 쓰게 만드는 것은 서로 다른 크기의 작업이다).
+// **GUI는 이제 .visual-spec/ 작업공간에 연결돼 있다**(이슈 #133) — Open/Save는 사용자
+// cwd의 `.visual-spec/specs/`를, Import는 `.visual-spec/assets/`를 쓴다. 연결 고리는
+// 아래 runGui가 vite에 실어 보내는 `VISUAL_SPEC_WORKSPACE` 환경 변수 하나다.
 //
 // 이 파일은 scripts/generate-types.mjs와 같은 이유로 컴파일 없는 순수 Node 스크립트다:
 // `npx visual-spec`은 사용자 프로젝트에서 빌드 없이 바로 실행돼야 한다. 다만 `init`·
@@ -284,9 +283,27 @@ function runGui() {
   // 남는다. JS 진입점을 `process.execPath`(= 이 CLI를 돌리고 있는 바로 그 node)로 직접
   // 실행하면 분기 자체가 사라져서 이 종류의 버그가 다시 생길 자리가 없다 — 셸을 안 거치니
   // 주입 위험도 없다.
+  // **작업공간 위치를 환경 변수로 실어 보낸다**(이슈 #133).
+  //
+  // 바로 위에서 보듯 vite는 `cwd: PACKAGE_ROOT`로 뜬다 — 에디터 소스가 사용자
+  // 프로젝트가 아니라 이 패키지 안에 있어서다. 그래서 사용자가 자기 프로젝트에서
+  // `npx visual-spec`을 실행해도 **vite가 보는 cwd는 이 패키지 루트**이고, 사용자의
+  // `.visual-spec/`은 **사용자의 cwd** 아래에 있다. vite 프로세스 안에서는 사용자의
+  // 원래 cwd를 알아낼 방법이 없으므로 여기서 명시적으로 넘겨야 한다.
+  //
+  // 환경 변수를 고른 이유: CLI 인자로 넘기려면 vite의 인자 파싱을 건드려야 하고,
+  // 설정 파일에 적으면 사용자마다 다른 절대 경로가 이 저장소 파일에 들어간다.
+  // 프로세스 경계 하나를 넘기는 데는 환경 변수가 가장 얕은 방법이다.
+  //
+  // 이 변수가 없을 때의 폴백(= 저장소를 클론해 `pnpm dev`로 직접 띄운 개발자)은
+  // `<vite root>/.visual-spec`이다 — src/features/workspace/workspaceServer.ts의
+  // resolveWorkspaceRoot 참고. 이름도 그쪽 WORKSPACE_ENV_VAR와 같아야 한다.
+  const workspaceDir = join(process.cwd(), ".visual-spec");
+
   const child = spawn(process.execPath, [viteEntry, "--open"], {
     cwd: PACKAGE_ROOT,
     stdio: "inherit",
+    env: { ...process.env, VISUAL_SPEC_WORKSPACE: workspaceDir },
   });
 
   const forwardSignal = (signal) => {

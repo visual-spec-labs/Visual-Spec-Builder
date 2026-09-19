@@ -4,10 +4,10 @@ import type {
   ProjectSpec,
   ScreenSpec,
 } from "@/features/editor/schema";
-import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
+import { newSpec } from "@/features/editor/ui/newSpec";
 import {
   previewButtonStyle,
   previewFrameStyle,
@@ -38,15 +38,17 @@ const PREVIEW_HEIGHT = 140;
  */
 export function HomeScreen() {
   const spec = useEditorStore((s) => s.spec);
-  const loadSpec = useEditorStore((s) => s.loadSpec);
   const openEditor = useNavigationStore((s) => s.openEditor);
 
   // 지금은 항상 1개다. #42(워크스페이스)가 생기면 이 배열을 실제 목록으로
   // 바꾼다 — 아래 렌더 로직은 이미 배열 기준이라 그대로 쓸 수 있다.
   const projects = [spec];
 
+  // "+ 새 화면"도 File ▸ New와 같은 동작이다 — 빈 스펙을 열고 **현재 문서 이름을
+  // 비운다**(PR #145 리뷰). 비우지 않으면 새로 만든 화면의 Save가 직전에 열어 둔
+  // 파일을 덮어쓴다. 둘이 같은 동작이라 정의는 ui/newSpec.ts 한 곳에 있다.
   function handleNewScreen() {
-    loadSpec(blankSpec);
+    newSpec();
     openEditor();
   }
 

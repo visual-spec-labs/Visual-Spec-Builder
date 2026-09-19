@@ -1,0 +1,32 @@
+{
+  // 브라우저 모듈(ui/)을 직접 부르는 테스트만 여기서 타입 검사한다 (PR #145 리뷰).
+  //
+  // 나머지 테스트는 tsconfig.node.json이 `lib: ["ES2022"]`(DOM 없음)로 검사한다 —
+  // 그게 이 저장소의 기본 규칙이다. DOM 타입이 없어야 "순수 로직은 store/·workspace/에
+  // 두고 테스트하고, window·document를 만지는 코드는 ui/에만 둔다"는 경계가 타입 단계에서
+  // 강제된다(workspacePath.ts·exportSpec.ts 상단 주석 참고).
+  //
+  // 그런데 Open→수정→Save가 **정말로 같은 파일에 쓰는지**는 그 경계 양쪽을 한 번에
+  // 지나야 증명된다 — 스토어만 봐서는 "파일이 하나 더 생긴다"를 볼 수 없다. 그 테스트
+  // 하나를 위해 전체 테스트에서 DOM 타입을 열어 주는 대신(그러면 경계가 조용히 사라진다)
+  // 목록에 적힌 파일만 DOM + node 타입으로 검사하는 프로젝트를 따로 둔다. 여기 파일을
+  // 추가한다는 것은 "이 테스트는 브라우저 API를 직접 흉내 낸다"는 선언이다.
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.uitest.tsbuildinfo",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["test/document-path.test.ts"]
+}

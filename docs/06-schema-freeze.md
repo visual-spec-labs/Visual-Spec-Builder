@@ -128,7 +128,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 - **v0.1 문서의 멀티 스크린.** `VisualSpec`은 여전히 파일 1개 = Screen 1개다. 여러 페이지가 필요하면 v0.2의 `ProjectSpec`을 쓴다(아래 참고).
 - **`fontWeight`의 100 단위 제약.** JSON Schema는 강제하지만 생성된 TS 타입은 `number`다. 타입만으로는 못 막으니 `validateVisualSpec`을 거쳐야 한다.
 - **편집 연산.** 노드 추가·삭제·이동·재부모화 함수는 없다. 지금은 각 화면이 직접 `nodes`를 다루므로 불변조건을 깨뜨릴 수 있다. `validateVisualSpec`은 예방 수단이 아니라 최후 방어선이다.
-- **`ImageNode.src`가 가리키는 워크스페이스 assets 저장소.** 스키마는 문자열 참조만 정의한다. 실제로 파일을 어디에 저장하고 `src` 값을 어떻게 채우는지는 Import 기능 쪽 책임인데, 아직 워크스페이스 계층 자체가 저장소에 없다. 그래서 `ui/importImageFromFile.ts`는 **파일 전체를 base64 data URI로 스펙 안에 담는 우회**를 택했다 — `src`가 비지 않은 문자열이기만 하면 검증은 통과하므로 지금 스키마로 그대로 동작한다. 대신 Save/Export JSON이 이미지 크기만큼 커진다. 잠정 조치이며(이슈 #94에서 `src`의 `description`에도 세 형태를 명시했다), 워크스페이스 assets 저장소가 생기면 경로/assetId로 되돌리는 문제로 다시 다룬다. **미해결 항목으로 남는다.**
+- **`ImageNode.src`가 가리키는 워크스페이스 assets 저장소.** 스키마는 문자열 참조만 정의한다. 실제로 파일을 어디에 저장하고 `src` 값을 어떻게 채우는지는 Import 기능 쪽 책임이다. **이 항목은 2026-09-18 이슈 #133으로 해소됐다** — 아래 "assets 저장소 연결" 참고.
 - **Grid의 셀 배치.** `layout.columns`만큼 균등한 열로 자동 배치할 뿐, 특정 자식을 특정 셀·여러 칸에 놓는 기능은 없다. `mainAxis`/`crossAxis`는 grid에서 무시된다. Canvas.tsx가 "임시 스탠드인"이라 정식 grid 배치는 그 교체 작업과 함께 다시 다룬다.
 - **Button/Input의 상호작용.** `content`/`placeholder`는 표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은 이벤트·바인딩은 정의하지 않는다. props/bindings는 MVP 제외 범위(`docs/05-schema.md`)에 그대로 속한다.
 
@@ -272,6 +272,32 @@ import {
 - **`opacity`/`blur`가 걸린 프레임 안에서는 선택 표시도 함께 흐려진다.** CSS `opacity`·`filter`가 자식 전체에 걸리기 때문이다. 선택 표시를 캔버스 오버레이로 분리해야 풀리는 구조적 문제라 별도 이슈로 둔다.
 - **`button`·`input`에는 `shadow`·`opacity`·`blur`를 아직 두지 않았다.** 두 노드는 속성 패널이 없어 스키마에만 있고 편집할 수 없는 필드가 된다. `border.align`·모서리별 `radius`는 `Border` $def에 붙어서 두 노드도 함께 따라온다.
 - **다중 채우기·그라디언트는 여기 없다.** `Background.color`를 배열/유니온으로 바꿔야 해서 기존 문서가 깨진다. 마이그레이션 합의가 필요하므로 #78 2단계로 분리했다.
+
+---
+
+## assets 저장소 연결 — `ImageNode.src`가 다시 경로가 됐다 (2026-09-18 추가, 이슈 #133)
+
+동결 당시 "이 계약이 보장하지 않는 것"에 있던 항목이다 — 원문은 이랬다.
+
+> **`ImageNode.src`가 가리키는 워크스페이스 assets 저장소.** … 아직 워크스페이스 계층 자체가 저장소에 없다. 그래서 `ui/importImageFromFile.ts`는 **파일 전체를 base64 data URI로 스펙 안에 담는 우회**를 택했다 … 워크스페이스 assets 저장소가 생기면 경로/assetId로 되돌리는 문제로 다시 다룬다. **미해결 항목으로 남는다.**
+
+이슈 #133이 그 저장소를 만들었다. Vite 개발 서버에 `.visual-spec/` 파일 입출력 미들웨어가
+붙어서, File ▸ Import가 이미지를 `.visual-spec/assets/`에 **파일로 저장하고 `src`에는
+`assets/hero.png` 같은 상대 경로를 넣는다.** 예고한 대로 되돌린 것이다.
+
+**스키마는 바뀌지 않았다.** `src`는 그대로 "비지 않은 문자열"이고 `description`만 갱신했다
+(`description`만 고치는 것은 동결 대상이 아니다 — 아래 변경 규칙 참고). 세 형태(상대 경로 ·
+`assetId` · data URI)를 다 받는다는 계약도 그대로다.
+
+**data URI는 계속 유효하다.** 두 가지 이유로 남긴다.
+
+- **기존 스펙 호환.** #133 이전에 Import한 스펙에는 data URI가 그대로 들어 있다. 그 문서들이
+  계속 열리고 그려져야 한다 — `ui/properties/imageSrc.ts`가 두 형태를 구분해서, 경로는 작업공간
+  파일 라우트로 바꾸고 data URI는 손대지 않는다.
+- **폴백.** 작업공간이 없거나(개발 서버 미들웨어 없이 뜬 빌드 결과물) assets 화이트리스트 밖
+  확장자(`.heic` 등)면 Import는 예전처럼 data URI로 담는다. 기능이 사라지는 것보다 낫다.
+
+읽는 쪽은 여전히 `src`의 형태를 스스로 구분해야 한다. 그 점은 동결 당시와 같다.
 
 ---
 

@@ -133,7 +133,7 @@
         "src": {
           "type": "string",
           "minLength": 1,
-          "description": "이미지 참조. 세 가지가 들어온다 — 워크스페이스 assets 기준 상대 경로, assetId, 그리고 base64 data URI(data:image/png;base64,...). data URI는 잠정 형태다: 워크스페이스 assets 저장소가 아직 없어 File ▸ Import가 파일 전체를 스펙 안에 담는다(06-schema-freeze.md 참고). 저장소가 생기면 경로/assetId로 되돌린다. 제약은 비지 않은 문자열뿐이라 어느 형태인지는 읽는 쪽이 구분한다."
+          "description": "이미지 참조. 세 가지가 들어온다 — 워크스페이스 assets 기준 상대 경로(assets/hero.png), assetId, 그리고 base64 data URI(data:image/png;base64,...). File ▸ Import는 이미지를 .visual-spec/assets/에 저장하고 **상대 경로**를 넣는다(이슈 #133). data URI는 그 이전에 만들어진 스펙과, 작업공간이 없을 때의 폴백으로 남아 있다 — 계속 유효하다(06-schema-freeze.md 참고). 제약은 비지 않은 문자열뿐이라 어느 형태인지는 읽는 쪽이 구분한다."
         },
         "fit": {
           "type": "string",
