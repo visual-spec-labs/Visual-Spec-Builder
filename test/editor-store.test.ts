@@ -102,6 +102,87 @@ describe("editorStore", () => {
     expect(result.valid).toBe(true);
   });
 
+  describe("setNodeFields (#149)", () => {
+    it("여러 노드 변경을 한 번에 적용하고 Undo 한 단계로 되돌린다", () => {
+      const before = activePage();
+
+      useEditorStore.getState().setNodeFields([
+        { id: "cardA", path: "box.width", value: 360 },
+        { id: "cardB", path: "box.width", value: 360 },
+      ]);
+
+      expect(activePage().nodes.cardA.box.width).toBe(360);
+      expect(activePage().nodes.cardB.box.width).toBe(360);
+      expect(useEditorStore.getState().history.past).toHaveLength(1);
+
+      useEditorStore.getState().undo();
+      expect(activePage()).toBe(before);
+    });
+
+    it("중간 결과를 내보내지 않고 구독자에게 최종 상태만 한 번 알린다", () => {
+      const seenWidths: Array<[unknown, unknown]> = [];
+      const unsubscribe = useEditorStore.subscribe((state) => {
+        seenWidths.push([
+          state.spec.pages[state.activePageId].nodes.cardA.box.width,
+          state.spec.pages[state.activePageId].nodes.cardB.box.width,
+        ]);
+      });
+
+      useEditorStore.getState().setNodeFields([
+        { id: "cardA", path: "box.width", value: 360 },
+        { id: "cardB", path: "box.width", value: 360 },
+      ]);
+      unsubscribe();
+
+      expect(seenWidths).toEqual([[360, 360]]);
+    });
+
+    it("빈 배열과 전부 no-op인 배열은 spec과 history를 바꾸지 않는다", () => {
+      const before = useEditorStore.getState();
+
+      useEditorStore.getState().setNodeFields([]);
+      useEditorStore.getState().setNodeFields([
+        { id: "missing", path: "box.width", value: 360 },
+        { id: "cardA", path: "not.a.path", value: 1 },
+      ]);
+
+      expect(useEditorStore.getState().spec).toBe(before.spec);
+      expect(useEditorStore.getState().history).toBe(before.history);
+    });
+
+    it("유효한 patch는 적용하고 같은 batch의 no-op patch는 건너뛴다", () => {
+      useEditorStore.getState().setNodeFields([
+        { id: "missing", path: "box.width", value: 360 },
+        { id: "cardA", path: "box.width", value: 360 },
+      ]);
+
+      expect(activePage().nodes.cardA.box.width).toBe(360);
+      expect(useEditorStore.getState().history.past).toHaveLength(1);
+    });
+
+    it("연속 batch는 continueEdit으로 같은 Undo 단계에 합친다", () => {
+      const beforeCardA = activePage().nodes.cardA.box.width;
+      const beforeCardB = activePage().nodes.cardB.box.width;
+
+      useEditorStore.getState().setNodeFields([
+        { id: "cardA", path: "box.width", value: 300 },
+        { id: "cardB", path: "box.width", value: 300 },
+      ]);
+      useEditorStore.getState().setNodeFields(
+        [
+          { id: "cardA", path: "box.width", value: 360 },
+          { id: "cardB", path: "box.width", value: 360 },
+        ],
+        true,
+      );
+
+      expect(useEditorStore.getState().history.past).toHaveLength(1);
+      useEditorStore.getState().undo();
+      expect(activePage().nodes.cardA.box.width).toBe(beforeCardA);
+      expect(activePage().nodes.cardB.box.width).toBe(beforeCardB);
+    });
+  });
+
   it("없는 노드 id는 무시한다", () => {
     const before = useEditorStore.getState().spec;
     useEditorStore.getState().setNodeField("does-not-exist", "box.width", 10);
