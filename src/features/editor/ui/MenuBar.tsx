@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
+import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
@@ -37,6 +38,13 @@ function handleSaveAs() {
 }
 function handleOpen() {
   void openSpec();
+}
+
+function handleCompileTickets() {
+  const { spec, activePageId } = useEditorStore.getState();
+  const view = useViewStore.getState();
+  if (!view.showPanels) view.togglePanels();
+  useTicketStore.getState().compile(activePageId, spec.pages[activePageId]);
 }
 
 /**
@@ -149,6 +157,13 @@ export function MenuBar() {
           onCloseMenu={() => setOpenMenu(null)}
           entries={VIEW_MENU}
         />
+        <button
+          type="button"
+          onClick={handleCompileTickets}
+          className="rounded-control px-2 py-1 text-content-muted hover:bg-hover hover:text-content"
+        >
+          구현 티켓
+        </button>
       </div>
 
       <span className="min-w-0 flex-1 truncate text-center text-xs text-content-subtle">
