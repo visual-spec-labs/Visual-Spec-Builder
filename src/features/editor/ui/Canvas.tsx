@@ -50,6 +50,22 @@ import {
 import { resolveClickTarget, resolveInsertParent } from "./selection";
 
 /**
+ * 중앙 캔버스.
+ *
+ * ⚠️ 임시 스탠드인: 패널 편집이 즉시 반영되는지 눈으로 확인하려고 만든 최소 렌더러.
+ * 팀원(캔버스 담당)이 정식 구현으로 교체할 예정. 계약은 spec을 읽고, 클릭 시 select(),
+ * 드래그/리사이즈 시 setNodeField를 부르면 된다. 참고: docs/EDITOR_STORE_CONTRACT.md
+ *
+ * 이 주석은 **이 파일에 있어야 한다.** `docs/07-implementation-status.md` 와
+ * `docs/06-schema-freeze.md`, 그리고 `ui/homePreview.ts` 가 "Canvas.tsx 상단 주석이
+ * 스스로를 임시 스탠드인이라 밝힌다"를 근거로 삼는다 — 옮기거나 지우면 네 곳이
+ * 한꺼번에 거짓이 된다(2026-09-19·이슈 #148 분할 때 실제로 그랬다).
+ *
+ * 분할된 이웃들: `nodeStyles.ts`(노드 타입별 CSS 조립) · `canvasOverlays.ts`(측정 훅)
+ * · `canvasZoom.ts`(줌 앵커·Alt) · `canvasKeys.ts`(키보드 배선).
+ */
+
+/**
  * 선택된 노드가 실제로 몇 px로 그려졌는지 재서 스토어에 올린다.
  * transform: scale은 offsetWidth/Height에 영향을 주지 않으므로 줌과 무관한 실측값이다.
  */

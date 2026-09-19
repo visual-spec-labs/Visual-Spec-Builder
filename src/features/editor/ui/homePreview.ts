@@ -13,11 +13,20 @@ import { imageUrlCss } from "./properties/imageSrc";
 
 /**
  * 홈 화면 카드가 스펙을 축소해서 즉석 렌더할 때 쓰는 순수 스타일 계산.
- * Canvas.tsx의 frameStyle/textStyle/imageStyle과 같은 모양이지만 그쪽은
- * "⚠️ 임시 스탠드인"이라 export가 없고 select/드래그 등 인터랙션에 묶여
- * 있다 — 카드 미리보기는 클릭 하나(에디터로 이동) 말고는 인터랙션이
- * 없으므로 여기서 따로 최소한으로 다시 만든다. Canvas.tsx가 정식
- * 구현으로 교체돼도 이 파일은 영향받지 않는다.
+ *
+ * **이 파일이 따로 있는 근거는 2026-09-19(이슈 #148)로 절반이 무너졌다.**
+ * 예전 이유는 "Canvas.tsx 는 임시 스탠드인이라 export 가 없고 select·드래그
+ * 인터랙션에 묶여 있다"였는데, 그 스타일 함수들이 `nodeStyles.ts` 로 빠지면서
+ * **export 되는 순수 함수가 됐다.** `previewDisplayStyle` 은 `nodeStyles.displayStyle`
+ * 과 글자 하나까지 같고, `MAIN_AXIS`·`CROSS_AXIS` 표도 그대로 복사본이다.
+ *
+ * 남는 차이는 하나뿐이다 — 미리보기는 **인터랙션이 없어야 한다**(카드 클릭 하나로
+ * 에디터에 들어가는 것 말고는). 지금 `nodeStyles` 쪽에도 인터랙션이 없으므로
+ * 그 차이조차 실질적이지 않다.
+ *
+ * **합칠지는 별도로 판단한다.** 합치면 미리보기가 캔버스 렌더러의 변경을 그대로
+ * 받게 되는데, `Canvas.tsx` 가 정식 구현으로 교체될 예정이라 그때 함께 보는 편이
+ * 낫다. 지금 섣불리 합쳤다가 교체 작업에서 다시 갈라야 할 수 있다.
  */
 
 const MAIN_AXIS: Record<string, CSSProperties["justifyContent"]> = {

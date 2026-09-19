@@ -37,10 +37,19 @@ const CROSS_AXIS: Record<string, CSSProperties["alignItems"]> = {
 
 /**
  * grid는 최소 구현이다 — 열 N개짜리 균등 그리드로만 그린다(자동 배치, 아이템별
- * 셀 지정 없음). mainAxis/crossAxis는 grid에 뜻이 없어 무시한다. 정식 구현은
- * 후속 작업(이 파일 자체가 "임시 스탠드인" — 위 주석 참고).
+ * 셀 지정 없음).
+ *
+ * **`crossAxis`는 grid에서도 동작한다.** 한때 "mainAxis/crossAxis는 grid에 뜻이
+ * 없어 무시한다"고 적혀 있었는데 절반만 맞았다 — `justify-content`는 트랙이
+ * `repeat(n, 1fr)`이라 밀 여백이 없어 정말 무의미하지만, `align-items`는 아이템이
+ * 행 트랙을 채울지(`stretch`) 붙을지를 정한다. `frameStyle`이 아래에서 조건 없이
+ * 얹는 것이 맞고, 그래서 상세 패널도 교차축 칸을 감추지 않는다(이슈 #160).
+ *
+ * 정식 grid 배치(셀 지정·여러 칸 차지)는 후속 작업이다 — `Canvas.tsx`가 정식
+ * 캔버스로 교체될 때 함께 본다(그쪽 파일 머리 주석 참고).
  */
-export function displayStyle(layout: FrameNode["layout"]): CSSProperties {
+// export 하지 않는다 — frameStyle 이 유일한 호출자다.
+function displayStyle(layout: FrameNode["layout"]): CSSProperties {
   if (layout.direction === "grid") {
     return {
       display: "grid",
@@ -161,8 +170,3 @@ export function inputStyle(
     boxSizing: "border-box",
   };
 }
-
-/**
- * 선택된 노드가 실제로 몇 px로 그려졌는지 재서 스토어에 올린다.
- * transform: scale은 offsetWidth/Height에 영향을 주지 않으므로 줌과 무관한 실측값이다.
- */
