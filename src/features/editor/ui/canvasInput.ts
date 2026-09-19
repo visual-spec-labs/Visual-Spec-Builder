@@ -104,6 +104,8 @@ export interface ToolKeyInput {
   ctrlKey: boolean;
   metaKey: boolean;
   altKey: boolean;
+  /** 보기 단축키(Shift+1)만 본다. 도구 단축키는 Shift를 따지지 않는다. */
+  shiftKey?: boolean;
   /** `event.target`의 태그 이름. 못 읽었으면 undefined. */
   tagName: string | undefined;
   contentEditable: boolean;
@@ -163,6 +165,44 @@ export function isSpacePanKey(input: ToolKeyInput): boolean {
   if (!isCanvasShortcutContext(input)) return false;
 
   return !isActivationTarget(input.tagName, input.role);
+}
+
+/** 보기 단축키가 시키는 일. 캔버스가 이 값으로 viewStore를 부른다. */
+export type ViewCommand = "zoomIn" | "zoomOut" | "zoomReset" | "zoomFit" | "deselect";
+
+/**
+ * 보기 단축키를 명령으로 옮긴다. 해당 없으면 null.
+ *
+ * 피그마와 같은 배치다 — `Ctrl/Cmd +`·`-`·`0`, `Shift 1`(화면 맞춤).
+ * `Ctrl+0`·`Ctrl+-`는 **브라우저 페이지 줌**이기도 해서, 받기로 했으면 호출부가
+ * 반드시 `preventDefault`를 걸어야 한다. 안 그러면 캔버스와 페이지가 같이 커진다.
+ *
+ * 수식키 규칙이 도구 단축키와 다르다 — 저쪽은 수식키가 있으면 전부 물러서지만
+ * 여기는 `Ctrl/Cmd`가 **조건**이다. 그래서 `isCanvasShortcutContext`를 쓰지 않고
+ * 타이핑 검사만 공유한다.
+ */
+export function viewCommandForKey(input: ToolKeyInput): ViewCommand | null {
+  if (isTypingTarget(input.tagName, input.contentEditable)) return null;
+
+  const mod = input.ctrlKey || input.metaKey;
+
+  if (mod && !input.altKey) {
+    // `=`와 `+`가 같은 물리 키다(Shift 여부만 다르다). code로 보면 하나로 묶인다.
+    if (input.code === "Equal" || input.code === "NumpadAdd") return "zoomIn";
+    if (input.code === "Minus" || input.code === "NumpadSubtract") return "zoomOut";
+    if (input.code === "Digit0" || input.code === "Numpad0") return "zoomReset";
+    return null;
+  }
+
+  if (mod || input.altKey) return null;
+
+  // Shift+1 = 화면 맞춤. 피그마와 같다.
+  if (input.shiftKey && (input.code === "Digit1" || input.code === "Numpad1")) {
+    return "zoomFit";
+  }
+  if (!input.shiftKey && input.code === "Escape") return "deselect";
+
+  return null;
 }
 
 /**

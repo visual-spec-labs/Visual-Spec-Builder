@@ -14,7 +14,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
-import { useViewStore } from "@/features/editor/store/viewStore";
+import { useViewStore, ZOOM_DEFAULT } from "@/features/editor/store/viewStore";
 import type {
   Box,
   ButtonNode,
@@ -32,6 +32,8 @@ import {
   shouldDeleteSelection,
   toolCursorClass,
   toolForKey,
+  viewCommandForKey,
+  type ViewCommand,
 } from "./canvasInput";
 import {
   artboardBoxSize,
@@ -310,6 +312,92 @@ function useSelectionRect(
 }
 
 /**
+ * 확대 직전에 적어 두는 "커서 밑에 있던 지점".
+ *
+ * 화면 좌표(`clientX/Y`)와, 그 지점이 아트보드 안에서 차지하는 **스펙 좌표**를
+ * 함께 들고 있다. 확대율이 바뀌어도 스펙 좌표는 그대로라, 새 배율에서 그 점이
+ * 어디로 갔는지 계산할 수 있다.
+ */
+interface PointAnchor {
+  fit?: false;
+  clientX: number;
+  clientY: number;
+  specX: number;
+  specY: number;
+}
+
+/** 화면 맞춤 — 붙잡을 점이 없다. 새 배율로 그려진 뒤 문서 위로 보낸다. */
+interface FitAnchor {
+  fit: true;
+}
+
+type ZoomAnchor = PointAnchor | FitAnchor;
+
+function readZoomAnchor(
+  outer: HTMLDivElement | null,
+  clientX: number,
+  clientY: number,
+): ZoomAnchor | null {
+  if (outer === null) return null;
+  const rect = outer.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return null;
+
+  // 바깥 박스의 크기가 곧 `스펙 크기 × 배율`이라, 비율로 나누면 배율을 몰라도
+  // 스펙 좌표가 나온다. 아트보드가 `mx-auto`로 가운데 놓여 위치가 배율에 따라
+  // 달라지는데, 비율로 두면 그 영향도 함께 빠진다.
+  return {
+    clientX,
+    clientY,
+    specX: (clientX - rect.left) / rect.width,
+    specY: (clientY - rect.top) / rect.height,
+  };
+}
+
+/**
+ * 확대 뒤에 스크롤을 맞춰, 커서 밑에 있던 지점이 제자리에 남게 한다.
+ *
+ * 이게 없으면 확대할 때마다 보던 곳이 화면 밖으로 밀려나 매번 다시 찾아 스크롤해야
+ * 한다. 피그마·지도 앱이 모두 커서를 기준으로 확대하는 이유다.
+ *
+ * 계산이 아니라 **다시 재서** 맞춘다 — 아트보드가 `mx-auto`라 배율이 바뀌면 박스의
+ * 좌우 여백까지 함께 변하는데, 그걸 미리 식으로 풀면 패널 접기·스크롤바 등장 같은
+ * 다른 변수에 금방 어긋난다. 새 배율로 그려진 뒤 실측하면 그런 게 전부 반영된다.
+ *
+ * `useLayoutEffect`라야 한다. 페인트 뒤에 스크롤을 고치면 한 프레임 동안 화면이
+ * 튀는 것이 눈에 보인다.
+ */
+function useZoomAnchor(
+  mainRef: RefObject<HTMLElement | null>,
+  outerRef: RefObject<HTMLDivElement | null>,
+  anchorRef: RefObject<ZoomAnchor | null>,
+  zoom: number,
+) {
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    anchorRef.current = null;
+
+    const main = mainRef.current;
+    const outer = outerRef.current;
+    if (anchor === null || main === null || outer === null) return;
+
+    // 화면 맞춤은 문서 위·가운데로 보낸다. 여기는 새 배율로 그려진 **뒤**라
+    // scrollWidth 가 새 값이다 — 호출 시점에 읽으면 옛 너비를 쓰게 된다.
+    if (anchor.fit === true) {
+      main.scrollTop = 0;
+      main.scrollLeft = Math.max(0, (main.scrollWidth - main.clientWidth) / 2);
+      return;
+    }
+
+    const rect = outer.getBoundingClientRect();
+    const nowX = rect.left + anchor.specX * rect.width;
+    const nowY = rect.top + anchor.specY * rect.height;
+
+    main.scrollLeft += nowX - anchor.clientX;
+    main.scrollTop += nowY - anchor.clientY;
+  }, [mainRef, outerRef, anchorRef, zoom]);
+}
+
+/**
  * 아트보드가 실제로 몇 px로 그려졌는지(세로) 잰다.
  *
  * 아트보드 높이가 `minHeight` 로 바뀌어 내용에 따라 자라므로(#86), 스크롤 범위를
@@ -360,7 +448,11 @@ function useArtboardHeight(ref: RefObject<HTMLDivElement | null>): number | null
  * 조건이 중요해지는데, 그 판단은 전부 canvasInput의 순수 함수가 한다. 여기 남은
  * 것은 동작과 이벤트 배선뿐이다.
  */
-function useCanvasKeys() {
+function useCanvasKeys(
+  mainRef: RefObject<HTMLElement | null>,
+  outerRef: RefObject<HTMLDivElement | null>,
+  anchorRef: RefObject<ZoomAnchor | null>,
+) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
@@ -369,10 +461,20 @@ function useCanvasKeys() {
         ctrlKey: event.ctrlKey,
         metaKey: event.metaKey,
         altKey: event.altKey,
+        shiftKey: event.shiftKey,
         tagName: target?.tagName,
         contentEditable: target?.isContentEditable ?? false,
         role: target?.getAttribute("role") ?? undefined,
       };
+
+      // 보기 단축키를 먼저 본다. Ctrl+0·Ctrl+- 는 브라우저 페이지 줌이기도 해서
+      // 여기서 막지 않으면 캔버스와 페이지가 같이 커진다.
+      const view = viewCommandForKey(keyInput);
+      if (view !== null) {
+        event.preventDefault();
+        runViewCommand(view, mainRef.current, outerRef.current, anchorRef);
+        return;
+      }
 
       // 스페이스 임시 팬 — 누르는 동안만 손 도구. 고정 전환보다 먼저 본다.
       if (isSpacePanKey(keyInput)) {
@@ -434,7 +536,66 @@ function useCanvasKeys() {
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", releaseSpacePan);
     };
-  }, []);
+  }, [mainRef, outerRef, anchorRef]);
+}
+
+function runViewCommand(
+  command: ViewCommand,
+  main: HTMLElement | null,
+  outer: HTMLDivElement | null,
+  anchorRef: RefObject<ZoomAnchor | null>,
+) {
+  if (command === "deselect") {
+    useEditorStore.getState().select(null);
+    return;
+  }
+
+  const { zoom: before, zoomIn, zoomOut, setZoom, fitToScreen } = useViewStore.getState();
+
+  if (command === "zoomFit") {
+    // 화면 맞춤에는 앵커를 세우지 않는다. "전체를 보이게"가 뜻인데 커서·화면
+    // 한가운데를 붙잡아 두면 문서 중간에 머물러 위쪽이 잘린 채로 남는다.
+    //
+    // 스크롤은 **여기서 건드리지 않는다.** fitToScreen 은 zoom 만 바꾸고 레이아웃은
+    // 다음 렌더에서 갱신되므로, 지금 scrollWidth 를 읽으면 옛 너비다. 확대율이
+    // ZOOM_MIN 에 걸려 내용이 여전히 뷰포트보다 넓은 경우(6000px 문서를 1200px
+    // 뷰포트에 넣으면 20% 가 맞지만 25% 로 잘린다) 새 최댓값을 넘는 값을 써서
+    // 브라우저가 오른쪽 끝으로 붙여 버린다. useZoomAnchor 가 렌더 뒤에 맞춘다.
+    anchorRef.current = { fit: true };
+    fitToScreen();
+    // 이미 맞춤 배율이면 값이 안 바뀌어 effect 가 안 돈다 — 앵커를 남기면 나중
+    // 줌이 소비한다(아래 끝값 처리와 같은 이유).
+    if (useViewStore.getState().zoom === before) anchorRef.current = null;
+    return;
+  }
+
+  // 나머지 줌은 **뷰포트 한가운데**를 기준으로 잡는다. 휠 줌은 커서가 기준이지만
+  // 단축키에는 커서 위치라는 개념이 없고, 보통 화면 가운데를 보고 있기 때문이다.
+  if (main !== null && outer !== null) {
+    const rect = main.getBoundingClientRect();
+    anchorRef.current = readZoomAnchor(
+      outer,
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+    );
+  }
+
+  // switch 로 두어 새 명령을 추가할 때 조용히 다른 동작으로 새지 않게 한다.
+  switch (command) {
+    case "zoomIn":
+      zoomIn();
+      break;
+    case "zoomOut":
+      zoomOut();
+      break;
+    case "zoomReset":
+      setZoom(ZOOM_DEFAULT);
+      break;
+  }
+
+  // 끝값에서 눌러 값이 그대로면 렌더도 useZoomAnchor 도 안 돈다 — 앵커를 남기면
+  // 나중 줌이 옛 기준점을 소비한다(휠 쪽과 같은 이유).
+  if (useViewStore.getState().zoom === before) anchorRef.current = null;
 }
 
 /** 새 노드를 만들어 부모에 붙이고, 도구를 Select로 되돌린다. */
@@ -768,7 +929,9 @@ export function Canvas() {
   const [panning, setPanning] = useState(false);
   const selectionRect = useSelectionRect(outerRef, artboardRef, selectedId);
   const artboardHeight = useArtboardHeight(artboardRef);
-  useCanvasKeys();
+  const anchorRef = useRef<ZoomAnchor | null>(null);
+  useZoomAnchor(mainRef, outerRef, anchorRef, zoom);
+  useCanvasKeys(mainRef, outerRef, anchorRef);
 
   useEffect(() => {
     const node = mainRef.current;
@@ -779,12 +942,17 @@ export function Canvas() {
       // Ctrl+휠(트랙패드 핀치도 브라우저가 ctrlKey=true로 보낸다)만 줌으로 가로챈다.
       if (!event.ctrlKey) return;
       event.preventDefault();
-      const { zoomIn, zoomOut } = useViewStore.getState();
-      if (event.deltaY < 0) {
-        zoomIn();
-      } else if (event.deltaY > 0) {
-        zoomOut();
-      }
+      if (event.deltaY === 0) return;
+      const { zoom: before, zoomIn, zoomOut } = useViewStore.getState();
+      // 확대하기 **전에** 커서 밑 지점을 적어 둔다. 확대가 끝난 뒤 그 지점이
+      // 같은 화면 위치로 돌아오도록 스크롤을 맞춘다(useZoomAnchor).
+      anchorRef.current = readZoomAnchor(outerRef.current, event.clientX, event.clientY);
+      if (event.deltaY < 0) zoomIn();
+      else zoomOut();
+      // 400%/25% 끝에서 더 돌리면 값이 안 바뀌어 렌더도, useZoomAnchor 도 안 돈다.
+      // 그대로 두면 앵커가 남아 **한참 뒤 다른 경로의 줌**(메뉴·Fit)이 그 옛 커서
+      // 위치를 소비해 스크롤을 엉뚱한 데로 끌고 간다. 여기서 직접 지운다.
+      if (useViewStore.getState().zoom === before) anchorRef.current = null;
     }
 
     // React의 JSX onWheel은 passive 리스너로 등록될 수 있어 preventDefault가
@@ -816,8 +984,12 @@ export function Canvas() {
 
     function handleMouseDown(event: MouseEvent) {
       if (node === null) return;
-      if (useToolStore.getState().activeTool !== "hand") return;
-      if (event.button !== 0) return;
+      // 가운데 버튼은 **도구와 무관하게** 언제나 팬이다. 피그마·일러스트레이터가
+      // 그렇고, 무엇을 그리다가도 손을 떼지 않고 화면을 옮길 수 있어야 한다.
+      // 브라우저 기본 동작(자동 스크롤)은 아래 preventDefault 로 막는다.
+      const middle = event.button === 1;
+      if (!middle && useToolStore.getState().activeTool !== "hand") return;
+      if (!middle && event.button !== 0) return;
       // 끄는 동안 텍스트가 선택되거나 드래그 고스트가 생기지 않게 막는다.
       event.preventDefault();
 

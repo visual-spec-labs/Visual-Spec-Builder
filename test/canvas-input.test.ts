@@ -9,6 +9,7 @@ import {
   shouldSuppressContextMenu,
   toolCursorClass,
   toolForKey,
+  viewCommandForKey,
   type DeleteKeyInput,
   type ToolKeyInput,
 } from "@/features/editor/ui/canvasInput";
@@ -280,5 +281,57 @@ describe("shouldSuppressContextMenu — 브라우저 기본 우클릭 메뉴", (
   it("소문자 태그도 같게 본다", () => {
     expect(shouldSuppressContextMenu("input", false)).toBe(false);
     expect(shouldSuppressContextMenu("div", false)).toBe(true);
+  });
+});
+
+describe("viewCommandForKey — 보기 단축키", () => {
+  const view = (patch: Partial<ToolKeyInput>) => viewCommandForKey(toolKey(patch));
+
+  it("Ctrl/Cmd + · - · 0 으로 확대·축소·100%", () => {
+    expect(view({ code: "Equal", ctrlKey: true })).toBe("zoomIn");
+    expect(view({ code: "Minus", ctrlKey: true })).toBe("zoomOut");
+    expect(view({ code: "Digit0", ctrlKey: true })).toBe("zoomReset");
+    expect(view({ code: "Equal", metaKey: true })).toBe("zoomIn");
+  });
+
+  it("숫자패드도 같게 본다", () => {
+    expect(view({ code: "NumpadAdd", ctrlKey: true })).toBe("zoomIn");
+    expect(view({ code: "NumpadSubtract", ctrlKey: true })).toBe("zoomOut");
+    expect(view({ code: "Numpad0", ctrlKey: true })).toBe("zoomReset");
+  });
+
+  it("Shift+1 은 화면 맞춤이다 — 피그마와 같다", () => {
+    expect(view({ code: "Digit1", shiftKey: true })).toBe("zoomFit");
+  });
+
+  it("Escape 는 선택 해제다", () => {
+    expect(view({ code: "Escape" })).toBe("deselect");
+  });
+
+  it("수식키 없는 = - 0 은 받지 않는다 — 글자 입력과 겹친다", () => {
+    expect(view({ code: "Equal" })).toBeNull();
+    expect(view({ code: "Minus" })).toBeNull();
+    expect(view({ code: "Digit0" })).toBeNull();
+  });
+
+  it("Shift 없는 1 도 받지 않는다", () => {
+    expect(view({ code: "Digit1" })).toBeNull();
+  });
+
+  it("Alt 가 섞이면 받지 않는다 — 브라우저·OS 단축키 자리다", () => {
+    expect(view({ code: "Equal", ctrlKey: true, altKey: true })).toBeNull();
+    expect(view({ code: "Digit1", shiftKey: true, altKey: true })).toBeNull();
+  });
+
+  it("타이핑 중에는 받지 않는다 — Ctrl+0 도 입력칸에서는 브라우저 몫이다", () => {
+    expect(view({ code: "Digit0", ctrlKey: true, tagName: "INPUT" })).toBeNull();
+    expect(view({ code: "Escape", tagName: "INPUT" })).toBeNull();
+    expect(view({ code: "Digit1", shiftKey: true, contentEditable: true })).toBeNull();
+  });
+
+  it("도구 단축키와 서로 침범하지 않는다", () => {
+    // Ctrl+V 는 도구도 보기도 아니다(붙여넣기).
+    expect(view({ code: "KeyV", ctrlKey: true })).toBeNull();
+    expect(toolForKey(toolKey({ code: "Equal", ctrlKey: true }))).toBeNull();
   });
 });
