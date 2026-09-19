@@ -128,7 +128,9 @@ export function useCanvasKeys(
  * 줌은 **뷰포트 한가운데**를 기준으로 잡는다. 휠 줌은 커서가 기준점이지만
  * 단축키에는 커서 위치라는 개념이 없고, 보통 화면 가운데를 보고 있기 때문이다.
  */
-export function runViewCommand(
+// export 하지 않는다 — useCanvasKeys 가 유일한 호출자이고, 밖에서 직접 부르면
+// keydown 의 순서 보장(보기 명령 → 스페이스 팬 → 도구 키 → 삭제)을 건너뛰게 된다.
+function runViewCommand(
   command: ViewCommand,
   main: HTMLElement | null,
   outer: HTMLDivElement | null,

@@ -22,14 +22,22 @@ import { resolveClickTarget } from "./selection";
 import { nodeSelector, relativeRect, sameRect, type Rect } from "./selectionRect";
 
 /**
- * 캔버스 오버레이가 쓸 좌표를 재는 훅들.
+ * 캔버스 오버레이가 쓸 좌표를 내는 훅들. `Canvas.tsx` 에서 잘라 왔고 동작은
+ * 바뀌지 않았다(2026-09-19·이슈 #148).
  *
- * 다섯이 전부 같은 일을 한다 — 아트보드 안에서 노드를 찾아 재고, 바깥 상자를
- * 기준으로 한 `Rect` 를 낸다. **다시 재는 신호도 같다**(매 렌더 + MutationObserver
- * + ResizeObserver). 그 규칙을 한 번만 설명하려고 한 파일에 모았다 —
- * `Canvas.tsx` 에 흩어져 있을 때는 같은 주석이 세 벌이었다(2026-09-19·이슈 #148).
+ * **다시 재는 신호가 셋은 같고 둘은 다르다.** 묶은 기준은 "오버레이가 그릴 값을
+ * 낸다"이지 구현이 같다는 뜻이 아니다 — 새 훅을 여기 더할 때 아래 표를 보고
+ * 어느 쪽인지 정하면 된다.
  *
- * `Canvas.tsx` 에서 잘라 온 것이고 동작은 바뀌지 않았다.
+ * | 훅 | 다시 재는 신호 |
+ * |---|---|
+ * | `useSelectionRect` · `useGapStrips` · `useRectOf` | 매 렌더 + MutationObserver + ResizeObserver |
+ * | `useArtboardHeight` | **ResizeObserver 만** — 자라는 원인이 자식 편집이라 자기 크기만 보면 된다 |
+ * | `useHoverTarget` | **아무것도 안 잰다** — `mousemove` 로 노드 id 만 고른다. 재는 것은 그 id 를 받은 `useRectOf` 다 |
+ *
+ * 앞의 셋은 관찰 옵션(`style`·`childList`·`characterData`·`subtree`)까지 같아서,
+ * 흩어져 있을 때는 그 이유를 적은 같은 주석이 세 벌이었다. 각 훅의 주석에 그대로
+ * 남겨 두되 근거는 `useSelectionRect` 쪽이 정본이다.
  *
  * 이 파일은 DOM 타입을 쓴다 — `src/` 는 `tsconfig.app` 이 컴파일하므로 괜찮다.
  * DOM 을 못 쓰는 쪽은 `test/` 를 함께 컴파일하는 순수 모듈들이다
