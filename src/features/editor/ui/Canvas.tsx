@@ -36,6 +36,16 @@ import {
   type ViewCommand,
 } from "./canvasInput";
 import {
+  badgeAnchor,
+  childCenters,
+  gapStrips,
+  sameStrip,
+  stripAtPoint,
+  stripBar,
+  type CenterMark,
+  type GapStrip,
+} from "./gapStrips";
+import {
   artboardBoxSize,
   boxStyle,
   effectStyle,
@@ -43,6 +53,7 @@ import {
   strokeAndShadowStyle,
   type Direction,
 } from "./canvasLayout";
+import { measureSegments, segmentBadge } from "./measureDistance";
 import { imageUrlCss } from "./properties/imageSrc";
 import { resolveClickTarget, resolveInsertParent } from "./selection";
 import {
@@ -312,6 +323,135 @@ function useSelectionRect(
 }
 
 /**
+ * 선택한 프레임의 자식 사이에 생긴 빈 띠를 재서 돌려준다.
+ *
+ * 간격이 얼마인지 알려면 지금은 상세 패널의 `간격 (Gap)` 칸을 봐야 한다. 캔버스를
+ * 보고 있는 동안 눈이 패널에 가 있지 않아서, 두 카드가 왜 저만큼 떨어졌는지
+ * 확인하려면 시선을 옮겨야 한다. 피그마는 틈에 커서를 올리면 그 자리에 숫자를 띄운다.
+ *
+ * 다시 재는 시점은 `useSelectionRect` 와 같다(매 렌더 + Mutation/Resize). 자식의
+ * 배치가 밀리는 사건과 선택 사각형이 밀리는 사건이 정확히 같은 집합이라, 두 훅이
+ * 같은 신호를 본다.
+ */
+function useGapStrips(
+  outerRef: RefObject<HTMLDivElement | null>,
+  artboardRef: RefObject<HTMLDivElement | null>,
+  selectedId: NodeId | null,
+  scale: number,
+): { strips: GapStrip[]; centers: CenterMark[] } {
+  const [measured, setMeasured] = useState<{
+    strips: GapStrip[];
+    centers: CenterMark[];
+  }>(EMPTY_GAPS);
+
+  const measure = useCallback(() => {
+    const outer = outerRef.current;
+    const artboard = artboardRef.current;
+    const target =
+      outer === null || artboard === null || selectedId === null
+        ? null
+        : artboard.querySelector(nodeSelector(selectedId));
+
+    if (outer === null || target === null) {
+      setMeasured((prev) => (prev.strips.length === 0 && prev.centers.length === 0 ? prev : EMPTY_GAPS));
+      return;
+    }
+
+    // 직계 자식만 본다. querySelectorAll 로 하위 전체를 긁으면 손자까지 들어와
+    // 엉뚱한 틈이 생긴다.
+    const origin = outer.getBoundingClientRect();
+    const children = Array.from(target.children)
+      .filter((child): child is HTMLElement => child instanceof HTMLElement)
+      .filter((child) => child.dataset.nodeId !== undefined)
+      .map((child) => relativeRect(child.getBoundingClientRect(), origin));
+
+    const next = { strips: gapStrips(children, scale), centers: childCenters(children) };
+    setMeasured((prev) =>
+      sameStrips(prev.strips, next.strips) && sameCenters(prev.centers, next.centers)
+        ? prev
+        : next,
+    );
+  }, [outerRef, artboardRef, selectedId, scale]);
+
+  useLayoutEffect(measure);
+
+  useLayoutEffect(() => {
+    const artboard = artboardRef.current;
+    if (artboard === null || selectedId === null) return;
+
+    const target = artboard.querySelector(nodeSelector(selectedId));
+    const resize = new ResizeObserver(measure);
+    if (target !== null) resize.observe(target);
+
+    const mutation = new MutationObserver(measure);
+    mutation.observe(artboard, {
+      attributes: true,
+      attributeFilter: ["style"],
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+
+    return () => {
+      resize.disconnect();
+      mutation.disconnect();
+    };
+  }, [artboardRef, measure, selectedId]);
+
+  return measured;
+}
+
+/** 잴 것이 없을 때 돌려줄 고정 객체. 매번 새로 만들면 상태가 늘 달라 보인다. */
+const EMPTY_GAPS: { strips: GapStrip[]; centers: CenterMark[] } = {
+  strips: [],
+  centers: [],
+};
+
+/** 목록 전체가 같은가. 같으면 상태를 안 바꿔 렌더가 반복되지 않는다. */
+function sameStrips(a: readonly GapStrip[], b: readonly GapStrip[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((strip, i) => sameStrip(strip, b[i]));
+}
+
+function sameCenters(a: readonly CenterMark[], b: readonly CenterMark[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((mark, i) => mark.left === b[i].left && mark.top === b[i].top);
+}
+
+/**
+ * Alt(윈도우) / Option(맥)를 누르고 있는가. 거리 재기의 수식키다.
+ *
+ * `keydown`의 `altKey`만 보면 **Alt만 눌렀을 때**를 놓친다 — 다른 키와 함께
+ * 눌러야 이벤트가 오기 때문이다. `keyup`과 `blur`까지 봐야 누르고 있는 동안을
+ * 계속 안다. `blur`가 필요한 이유는 스페이스 팬과 같다 — Alt+Tab 으로 창을
+ * 옮기면 `keyup`이 영영 오지 않아 "누르고 있는 중"에 갇힌다. Alt+Tab 은
+ * 하필 Alt 를 쓰는 조합이라 여기서는 더 잘 일어난다.
+ */
+function useAltHeld(): boolean {
+  const [held, setHeld] = useState(false);
+
+  useEffect(() => {
+    function sync(event: KeyboardEvent) {
+      setHeld((prev) => (prev === event.altKey ? prev : event.altKey));
+    }
+    function release() {
+      setHeld((prev) => (prev ? false : prev));
+    }
+
+    window.addEventListener("keydown", sync);
+    window.addEventListener("keyup", sync);
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("keydown", sync);
+      window.removeEventListener("keyup", sync);
+      window.removeEventListener("blur", release);
+    };
+  }, []);
+
+  return held;
+}
+
+/**
  * 확대 직전에 적어 두는 "커서 밑에 있던 지점".
  *
  * 화면 좌표(`clientX/Y`)와, 그 지점이 아트보드 안에서 차지하는 **스펙 좌표**를
@@ -395,6 +535,150 @@ function useZoomAnchor(
     main.scrollLeft += nowX - anchor.clientX;
     main.scrollTop += nowY - anchor.clientY;
   }, [mainRef, outerRef, anchorRef, zoom]);
+}
+
+/**
+ * 커서가 올라간 노드의 사각형. 클릭 전에 "이걸 고르게 된다"를 미리 보여 준다.
+ *
+ * **무엇을 강조할지는 클릭 규칙과 똑같다** — `resolveClickTarget` 을 그대로
+ * 부른다. 강조된 것과 실제로 선택되는 것이 다르면 표시가 거짓말이 되므로,
+ * 규칙을 두 벌 두지 않고 하나를 공유한다. 그래서 Ctrl/Cmd 를 누른 채 올리면
+ * 강조도 안쪽 노드로 내려간다(상세 지정 미리보기).
+ *
+ * 선택된 노드에는 강조를 그리지 않는다 — 선택 표시가 이미 있어서 두 겹이 된다.
+ */
+interface HoverTarget {
+  /** 클릭하면 선택될 노드. 선택 미리보기(주황 1px)가 이걸 그린다. */
+  selectId: NodeId | null;
+  /** 커서 밑 최하위 노드. Alt 거리 재기가 이걸 잰다. */
+  deepId: NodeId | null;
+}
+
+const NO_HOVER: HoverTarget = { selectId: null, deepId: null };
+
+function useHoverTarget(
+  artboardRef: RefObject<HTMLDivElement | null>,
+): { target: HoverTarget; onMove: (event: ReactMouseEvent) => void; onLeave: () => void } {
+  const [target, setTarget] = useState<HoverTarget>(NO_HOVER);
+  // 직전에 푼 입력. 같은 노드 위를 계속 지나갈 때 resolveClickTarget 을 다시
+  // 부르지 않으려는 것이다 — 그 안의 buildParentMap 이 문서 전체를 순회하며
+  // Map 을 새로 만드는데, mousemove 는 초당 수십 번 들어온다.
+  const lastRef = useRef<{ clickedId: string; deep: boolean } | null>(null);
+
+  const clear = useCallback(() => {
+    lastRef.current = null;
+    setTarget((prev) => (prev === NO_HOVER ? prev : NO_HOVER));
+  }, []);
+
+  const onMove = useCallback(
+    (event: ReactMouseEvent) => {
+      const artboard = artboardRef.current;
+      // 손 도구는 팬 전용이라 클릭해도 선택이 안 바뀐다 — 미리보기도 띄우지 않는다.
+      // 끄는 중(버튼이 눌린 채)에도 띄우지 않는다 — 팬·리사이즈 내내 계산만 돈다.
+      if (
+        artboard === null ||
+        event.buttons !== 0 ||
+        useToolStore.getState().activeTool === "hand"
+      ) {
+        clear();
+        return;
+      }
+
+      const from = event.target instanceof Element ? event.target : null;
+      const hit = from?.closest("[data-node-id]");
+      const clickedId = hit instanceof HTMLElement ? hit.dataset.nodeId : undefined;
+      if (clickedId === undefined) {
+        clear();
+        return;
+      }
+
+      const deep = event.metaKey || event.ctrlKey;
+      const last = lastRef.current;
+      if (last !== null && last.clickedId === clickedId && last.deep === deep) return;
+      lastRef.current = { clickedId, deep };
+
+      const { spec, activePageId } = useEditorStore.getState();
+      const { nodes, root } = spec.pages[activePageId];
+      // **Alt 를 deep 으로 치지 않는다.** Alt 는 피그마에서 거리 재기 전용
+      // 수식키지 상세 선택이 아니다. 여기에 얹으면 강조된 노드와 클릭이 고르는
+      // 노드가 갈라져, 주석과 docs/08-shortcuts.md 가 약속한 "강조된 것이 곧
+      // 선택된다"가 깨진다. 재는 대상은 deepId 로 따로 들고 간다.
+      const selectId = resolveClickTarget({ nodes, root, clickedId, deep });
+
+      // **선택 여부를 여기서 접지 않는다.** 접어 두면 그 뒤에 selectedId 가 바뀌어도
+      // 상태가 그대로라, 노드를 hover 한 채 클릭하면 1px 미리보기가 2px 선택 표시
+      // 위에 겹친 채로 남는다(커서가 다른 노드로 넘어가야 사라졌다). 비교도
+      // 접은 값과 안 접은 값을 견주게 돼 어긋난다. 판단은 렌더에서 한다.
+      setTarget((prev) =>
+        prev.selectId === selectId && prev.deepId === clickedId
+          ? prev
+          : { selectId, deepId: clickedId },
+      );
+    },
+    [artboardRef, clear],
+  );
+
+  return { target, onMove, onLeave: clear };
+}
+
+/**
+ * 노드 id 하나를 화면 사각형으로 옮긴다. 대상이 없으면 null.
+ *
+ * `useSelectionRect` 와 같은 신호를 본다 — 매 렌더 + Mutation/Resize. **id 만
+ * 들고 있다가 여기서 재는 것이 핵심이다.** 예전에는 mousemove 에서 좌표까지
+ * 함께 적어 두었는데, 그러면 Ctrl+휠로 확대해도(휠은 mousemove 가 아니다) 옛
+ * 좌표가 그대로 남아 강조가 어긋난 자리에 머물렀다. 거리 재기는 갓 잰
+ * 선택 사각형과 낡은 이 값을 섞어 **틀린 숫자**를 내보였다.
+ */
+function useRectOf(
+  outerRef: RefObject<HTMLDivElement | null>,
+  artboardRef: RefObject<HTMLDivElement | null>,
+  nodeId: NodeId | null,
+): Rect | null {
+  const [rect, setRect] = useState<Rect | null>(null);
+
+  const measure = useCallback(() => {
+    const outer = outerRef.current;
+    const artboard = artboardRef.current;
+    const target =
+      outer === null || artboard === null || nodeId === null
+        ? null
+        : artboard.querySelector(nodeSelector(nodeId));
+
+    const next =
+      outer === null || target === null
+        ? null
+        : relativeRect(target.getBoundingClientRect(), outer.getBoundingClientRect());
+
+    setRect((prev) => (sameRect(prev, next) ? prev : next));
+  }, [outerRef, artboardRef, nodeId]);
+
+  useLayoutEffect(measure);
+
+  useLayoutEffect(() => {
+    const artboard = artboardRef.current;
+    if (artboard === null || nodeId === null) return;
+
+    const target = artboard.querySelector(nodeSelector(nodeId));
+    const resize = new ResizeObserver(measure);
+    if (target !== null) resize.observe(target);
+
+    const mutation = new MutationObserver(measure);
+    mutation.observe(artboard, {
+      attributes: true,
+      attributeFilter: ["style"],
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+
+    return () => {
+      resize.disconnect();
+      mutation.disconnect();
+    };
+  }, [artboardRef, measure, nodeId]);
+
+  return rect;
 }
 
 /**
@@ -539,6 +823,12 @@ function useCanvasKeys(
   }, [mainRef, outerRef, anchorRef]);
 }
 
+/**
+ * 보기 단축키를 실제 동작으로 옮긴다.
+ *
+ * 줌은 **뷰포트 한가운데**를 기준으로 잡는다. 휠 줌은 커서가 기준점이지만
+ * 단축키에는 커서 위치라는 개념이 없고, 보통 화면 가운데를 보고 있기 때문이다.
+ */
 function runViewCommand(
   command: ViewCommand,
   main: HTMLElement | null,
@@ -928,10 +1218,54 @@ export function Canvas() {
   const artboardRef = useRef<HTMLDivElement>(null);
   const [panning, setPanning] = useState(false);
   const selectionRect = useSelectionRect(outerRef, artboardRef, selectedId);
+  // scale 은 아래에서 다시 쓰지만 여기서는 선언 전이라 zoom 으로 직접 계산한다.
+  const { strips, centers } = useGapStrips(outerRef, artboardRef, selectedId, zoom / 100);
+  const [hoveredStrip, setHoveredStrip] = useState<GapStrip | null>(null);
+  const hover = useHoverTarget(artboardRef);
+  const altHeld = useAltHeld();
+  // 이미 선택된 노드에는 미리보기를 그리지 않는다(선택 표시와 두 겹이 된다).
+  // 훅이 아니라 **여기서** 접는다 — 훅에 접어 두면 선택이 바뀌어도 커서가 다른
+  // 노드로 넘어가기 전까지 낡은 값이 남는다.
+  const previewId = hover.target.selectId === selectedId ? null : hover.target.selectId;
+  // Alt 를 누르는 동안에는 선택 미리보기를 끄고 측정만 보여 준다. Alt 는 재기
+  // 전용 수식키라 "이걸 고르게 된다"는 뜻이 아니다 — 둘을 함께 띄우면 주황
+  // 미리보기가 클릭이 고를 노드와 달라 보인다.
+  const previewRect = useRectOf(outerRef, artboardRef, altHeld ? null : previewId);
+  const measureRect = useRectOf(outerRef, artboardRef, altHeld ? hover.target.deepId : null);
   const artboardHeight = useArtboardHeight(artboardRef);
   const anchorRef = useRef<ZoomAnchor | null>(null);
   useZoomAnchor(mainRef, outerRef, anchorRef, zoom);
   useCanvasKeys(mainRef, outerRef, anchorRef);
+
+  // 띠에 pointer-events 를 주지 않고 좌표로 판정한다 — 오버레이가 마우스를 받으면
+  // 틈을 클릭했을 때 아래 프레임이 선택되지 않는다(gapStrips.stripAtPoint 주석).
+  const handleOverlayHover = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      // 노드 미리보기는 **틈 유무와 무관하다.** 예전에는 strips 가 비면 여기서
+      // 곧장 빠져나가는 바람에, 프레임을 먼저 선택해 틈이 생겨야만 hover 표시가
+      // 떴다 — "페이지 네모를 클릭해야 안쪽이 잡힌다"의 원인이었다.
+      hover.onMove(event);
+
+      const outer = outerRef.current;
+      if (outer === null || strips.length === 0) {
+        setHoveredStrip((prev) => (prev === null ? prev : null));
+        return;
+      }
+      const origin = outer.getBoundingClientRect();
+      const next = stripAtPoint(
+        strips,
+        event.clientX - origin.left,
+        event.clientY - origin.top,
+      );
+      setHoveredStrip((prev) => (sameStrip(prev, next) ? prev : next));
+    },
+    [strips, hover],
+  );
+
+  const clearHoveredStrip = useCallback(() => {
+    setHoveredStrip((prev) => (prev === null ? prev : null));
+    hover.onLeave();
+  }, [hover]);
 
   useEffect(() => {
     const node = mainRef.current;
@@ -1129,6 +1463,8 @@ export function Canvas() {
         ref={mainRef}
         className={`absolute inset-0 overflow-auto p-8 [scrollbar-gutter:stable] ${cursorClass}`}
         onClick={handleBackgroundClick}
+        onMouseMove={handleOverlayHover}
+        onMouseLeave={clearHoveredStrip}
       >
       {/*
         바깥 박스는 "확대된 크기만큼의 자리"를 차지한다. transform: scale은 보이는
@@ -1210,6 +1546,122 @@ export function Canvas() {
             style={selectionRect}
           />
         )}
+
+        {/*
+          커서가 올라간 노드 미리보기. 클릭해야 비로소 무엇이 잡히는지 알 수 있던
+          것을 올려만 봐도 알게 한다. 무엇을 강조할지는 useHoverRect 가 클릭 규칙
+          (resolveClickTarget)을 그대로 불러 정한다 — 둘이 어긋나면 거짓말이 된다.
+
+          선택 표시(2px 실선)와 구별되도록 1px 이고, 선택된 노드에는 그리지 않는다.
+        */}
+        {previewRect !== null && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute outline-1 outline-offset-1 outline-primary/60"
+            style={previewRect}
+          />
+        )}
+
+        {/* 재는 대상은 빨간 테두리로 따로 표시한다 — 선택 미리보기와 뜻이 다르다. */}
+        {measureRect !== null && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute outline-1 outline-offset-1 outline-error"
+            style={measureRect}
+          />
+        )}
+
+        {/*
+          Alt(윈도우)/Option(맥) 거리 재기. 지금까지는 두 요소가 얼마나 떨어져
+          있는지 알 방법이 없었다 — 패널은 자기 크기와 패딩만 보여 줘서, 형제
+          사이나 부모 안쪽 여백은 눈대중으로 맞춰야 했다.
+
+          선택한 노드가 기준이고 커서가 올라간 노드까지를 잰다. 프레임을 고르고
+          자식에 커서를 올리면 네 변까지의 거리가 한꺼번에 나온다(안쪽 여백).
+          어느 노드를 잡을지는 useHoverRect 가 Alt 를 상세 지정으로 쳐서 정한다 —
+          최상위 조상으로 올라가면 부모-자식 사이를 잴 수 없다.
+        */}
+        {selectionRect !== null &&
+          measureRect !== null &&
+          measureSegments(selectionRect, measureRect, scale).map((segment) => {
+            const badge = segmentBadge(segment);
+            return (
+              <div key={`${segment.left}:${segment.top}:${segment.horizontal}`}>
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute bg-error"
+                  style={{
+                    left: segment.left,
+                    top: segment.top,
+                    width: segment.width,
+                    height: segment.height,
+                  }}
+                />
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-control bg-error px-1 py-0.5 text-[10px] font-medium leading-none text-text-on-status tabular-nums"
+                  style={badge}
+                >
+                  {segment.value}
+                </div>
+              </div>
+            );
+          })}
+
+        {/*
+          자식 한가운데 점. 어디까지가 한 아이템인지 알려 준다 — 배경색이 없는
+          자식은 경계가 안 보여서, 틈만 표시하면 그 틈이 무엇과 무엇 사이인지
+          알 수 없다. 선택한 프레임의 직계 자식에만 찍는다.
+        */}
+        {centers.map((mark) => (
+          <div
+            key={`${mark.left}:${mark.top}`}
+            aria-hidden
+            className="pointer-events-none absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/50"
+            style={{ left: mark.left, top: mark.top }}
+          />
+        ))}
+
+        {/*
+          자식 사이의 틈. 띠 전체를 칠하지 않고 **가운데 막대 하나**만 긋는다 —
+          간격이 넓을 때 색면이 커지면 내용을 덮는다(피그마도 선 하나다).
+
+          숫자는 막대 **바로 위**에 띄운다. 틈 한가운데 놓았더니 간격이 좁을 때
+          배지가 양옆 내용 위로 삐져나가 글자를 가렸다. 위로 올리면 틈의 폭과
+          무관하게 항상 빈 곳에 놓인다.
+
+          값은 스펙 px 이라 확대해도 안 변하고, 배지·막대도 확대되지 않는 바깥
+          상자에 있어 어느 배율에서나 같은 크기로 읽힌다.
+        */}
+        {strips.map((strip) => {
+          const hovered = sameStrip(strip, hoveredStrip);
+          const bar = stripBar(strip);
+          const badge = badgeAnchor(strip);
+          return (
+            <div key={`${strip.left}:${strip.top}:${strip.vertical}`}>
+              <div
+                aria-hidden
+                className={`pointer-events-none absolute rounded-full ${
+                  hovered ? "bg-primary" : "bg-primary/35"
+                }`}
+                style={bar}
+              />
+              {hovered && (
+                <div
+                  aria-hidden
+                  className={`pointer-events-none absolute -translate-x-1/2 rounded-control bg-primary px-1.5 py-0.5 text-xs font-medium text-text-on-accent tabular-nums ${
+                    // 세로 띠는 좁은 축이 가로라 띠 위로 빼고, 가로 띠는 좁은 축이
+                    // 세로라 틈 한가운데에 둔다(badgeAnchor 주석).
+                    badge.above ? "-translate-y-full" : "-translate-y-1/2"
+                  }`}
+                  style={{ left: badge.left, top: badge.top }}
+                >
+                  {strip.value}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       </main>
