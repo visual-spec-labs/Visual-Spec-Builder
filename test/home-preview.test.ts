@@ -37,9 +37,17 @@ describe("previewImageStyle — url() 인용", () => {
     // 인용하지 않은 url() 토큰에는 공백이 못 들어간다. 값 전체가 무효가 되어
     // CSSOM 이 조용히 버리므로, 오류 하나 없이 미리보기 이미지만 사라졌다.
     // 작업공간 상대 경로는 파일 라우트를 거쳐 나간다(#133 — imageSrc.ts의 resolveImageSrc).
+    // PR #145 리뷰 이후로는 세그먼트마다 URL 인코딩까지 한다 — 공백은 `%20`이 된다.
     const style = previewImageStyle(image("assets/hero image.png"), "column");
 
-    expect(style.backgroundImage).toBe('url("/__vs/file/assets/hero image.png")');
+    expect(style.backgroundImage).toBe('url("/__vs/file/assets/hero%20image.png")');
+  });
+
+  it("#이 든 이름도 미리보기에서 살아남는다 (PR #145 리뷰)", () => {
+    // 인코딩하지 않으면 `#`부터가 조각이라 서버에 `hero`까지만 닿는다.
+    const style = previewImageStyle(image("assets/hero#1.png"), "column");
+
+    expect(style.backgroundImage).toBe('url("/__vs/file/assets/hero%231.png")');
   });
 
   it("따옴표와 역슬래시를 이스케이프해 문자열을 못 닫게 한다", () => {

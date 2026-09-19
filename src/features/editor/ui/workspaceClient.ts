@@ -14,22 +14,12 @@
  */
 
 import {
-  WORKSPACE_FILE_ROUTE,
   WORKSPACE_LIST_ROUTE,
   WORKSPACE_MARKER_HEADER,
   WORKSPACE_STATUS_ROUTE,
+  workspaceFileUrl,
   type WorkspaceDir,
 } from "@/features/workspace/protocol";
-
-/** 작업공간 루트 기준 상대 경로(`specs/home.json`)를 요청 URL로 바꾼다. */
-export function workspaceFileUrl(relativePath: string): string {
-  const encoded = relativePath
-    .split("/")
-    .filter((segment) => segment !== "")
-    .map(encodeURIComponent)
-    .join("/");
-  return `${WORKSPACE_FILE_ROUTE}${encoded}`;
-}
 
 /**
  * 정말 우리 미들웨어가 답했는지 본다.

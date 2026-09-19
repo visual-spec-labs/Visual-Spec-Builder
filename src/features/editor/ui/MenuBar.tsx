@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
-import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
+import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 
 type MenuKey = "file" | "view";
@@ -42,9 +42,11 @@ function handleOpen() {
 /**
  * 상단 메뉴바 — Figma 디자인 기준 레이아웃(로고·브랜드·중앙 프로젝트명·테마 토글) +
  * File/View 드롭다운.
- * New는 loadSpec(blankSpec), Open은 openSpec(.visual-spec/specs/ 목록에서 고르기 →
- * 검증 → loadSpec)로 연결돼 있다. Save/Save as는 작업공간 `.visual-spec/specs/`에
- * 쓰고(이슈 #133), Save as만 파일명을 먼저 묻는다. Export는 그대로 브라우저
+ * New는 newSpec(빈 스펙 + 현재 문서 이름 비우기), Open은 openSpec(.visual-spec/specs/
+ * 목록에서 고르기 → 검증 → loadSpec)로 연결돼 있다. Save/Save as는 작업공간
+ * `.visual-spec/specs/`에 쓰고(이슈 #133), Save as만 파일명을 먼저 묻는다.
+ * **Save의 대상은 지금 열려 있는 파일이다** — Open/Save as가 적어 둔
+ * `documentStore.fileName`을 쓴다(PR #145 리뷰). Export는 그대로 브라우저
  * 다운로드다 — 스펙을 저장소 밖으로 꺼내는 경로는 남겨 둔다.
  * Import는 importImageFromFile(이미지 선택 → .visual-spec/assets/에 저장 → 선택된
  * 프레임/root에 삽입)로 연결돼 있다 — 코드·디자인 파일 가져오기는 이번 범위 밖(별도 이슈).
@@ -60,7 +62,6 @@ export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const rootRef = useRef<HTMLElement>(null);
 
-  const loadSpec = useEditorStore((s) => s.loadSpec);
   const openHome = useNavigationStore((s) => s.openHome);
   const zoomIn = useViewStore((s) => s.zoomIn);
   const zoomOut = useViewStore((s) => s.zoomOut);
@@ -71,7 +72,7 @@ export function MenuBar() {
   const togglePanels = useViewStore((s) => s.togglePanels);
 
   const FILE_MENU: MenuEntry[] = [
-    { kind: "action", label: "New", onSelect: () => loadSpec(blankSpec) },
+    { kind: "action", label: "New", onSelect: newSpec },
     { kind: "action", label: "Open", onSelect: handleOpen },
     { kind: "action", label: "Save", onSelect: handleSave },
     { kind: "action", label: "Save as", onSelect: handleSaveAs },

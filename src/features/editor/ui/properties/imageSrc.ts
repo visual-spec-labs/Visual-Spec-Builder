@@ -10,7 +10,7 @@
  * 요약만 보여준다.
  */
 
-import { WORKSPACE_FILE_ROUTE } from "@/features/workspace/protocol";
+import { workspaceFileUrl } from "@/features/workspace/protocol";
 
 export type ImageSrcDisplay =
   | { kind: "path"; value: string }
@@ -42,12 +42,18 @@ export function describeImageSrc(src: string | undefined): ImageSrcDisplay {
  *
  * 그대로 두는 것들 — data URI(#133 이전 스펙), blob/http(s) URL, 그리고 `/`로 시작하는
  * 절대 경로(사용자가 개발 서버 public/에 직접 둔 파일을 가리킬 수 있다).
+ *
+ * **경로는 세그먼트마다 URL 인코딩한다**(PR #145 리뷰, wook3964). 저장 요청은 이미
+ * `workspaceFileUrl`로 인코딩해 보내는데 그리는 쪽만 상대 경로를 그대로 이어 붙이고
+ * 있었다 — `hero#1.png`는 `#`부터가 조각으로 잘려 서버에 `hero`까지만 닿고, `%`가 든
+ * 이름은 디코딩 오류로 거부됐다. **Import는 성공했는데 그 이미지가 화면에서만
+ * 안 보이는** 모양이라 원인을 찾기도 어렵다. 이제 양쪽이 같은 함수를 쓴다.
  */
 export function resolveImageSrc(src: string): string {
   if (src === "") return src;
   if (src.startsWith("/")) return src;
   if (/^[a-z][a-z0-9+.-]*:/i.test(src)) return src; // data:, blob:, http:, https: …
-  return `${WORKSPACE_FILE_ROUTE}${src}`;
+  return workspaceFileUrl(src);
 }
 
 /**

@@ -36,7 +36,9 @@ import {
   mkdirSync,
   readdirSync,
   realpathSync,
+  renameSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -160,6 +162,51 @@ export function realPathStaysInside(workspaceRoot: string, target: string): bool
   }
 }
 
+/** 임시 파일 이름을 겹치지 않게 하는 카운터. 이 프로세스 안에서만 의미가 있다. */
+let tempFileCounter = 0;
+
+/**
+ * 파일을 **갈아 끼운다** — 기존 파일을 열어 자르지 않는다 (PR #145 리뷰, wook3964).
+ *
+ * `writeFileSync(대상, ...)`는 대상 파일을 먼저 0바이트로 만든 뒤 내용을 채운다.
+ * 그 사이에 디스크가 차거나 I/O 오류가 나거나 프로세스가 죽으면 **이미 잘 저장돼
+ * 있던 스펙이 빈 파일·반쪽 파일로 남는다.** Save 한 번이 원본을 날리는 셈이다.
+ *
+ * 그래서 같은 디렉터리의 임시 파일에 먼저 **끝까지** 쓰고, 성공했을 때만 rename으로
+ * 이름을 옮긴다. 쓰다가 실패하면 대상 파일은 손도 대지 않은 상태 그대로다.
+ * 같은 디렉터리여야 하는 이유는 둘이다 — 파일 시스템이 다르면 rename이 복사+삭제로
+ * 풀려 원자성이 사라지고(EXDEV), 대상 폴더는 이미 `resolveWorkspaceFile`·
+ * `realPathStaysInside`를 통과한 자리라 임시 파일도 작업공간 밖으로 나가지 않는다.
+ *
+ * 이름 앞에 `.`을 붙이고 끝에 `.tmp`를 달아 둔다 — 목록 라우트는 폴더별 허용 확장자만
+ * 내보내므로(`handleList`) 쓰는 도중의 임시 파일이 Open 목록에 튀어나오지 않는다.
+ *
+ * `fsync`까지는 하지 않는다. 그러면 OS 단위 crash·정전까지 견디지만, 여기서 막으려는
+ * 것은 "쓰다가 실패했을 때 원본을 잃는 것"이고 그건 rename만으로 해결된다. 개발 서버
+ * 저장 경로마다 fsync를 걸면 저장이 눈에 띄게 느려진다.
+ */
+function writeFileAtomic(absolutePath: string, body: Buffer): void {
+  tempFileCounter += 1;
+  const tempPath = join(
+    dirname(absolutePath),
+    `.${basename(absolutePath)}.${process.pid}-${tempFileCounter}.tmp`,
+  );
+
+  try {
+    writeFileSync(tempPath, body);
+    renameSync(tempPath, absolutePath);
+  } catch (error) {
+    // 실패한 임시 파일은 치운다. 이것마저 실패하면(이미 없다 등) 더 할 일이 없다 —
+    // 원래의 실패 사유를 덮어쓰지 않고 그대로 올려보내는 쪽이 중요하다.
+    try {
+      unlinkSync(tempPath);
+    } catch {
+      /* 치울 게 없으면 그만이다. */
+    }
+    throw error;
+  }
+}
+
 type Middleware = (
   req: IncomingMessage,
   res: ServerResponse,
@@ -244,7 +291,7 @@ function handleWrite(
         sendError(res, 403, "작업공간 밖으로 나가는 경로입니다.");
         return;
       }
-      writeFileSync(absolutePath, body);
+      writeFileAtomic(absolutePath, body);
     } catch (error) {
       sendError(res, 500, error instanceof Error ? error.message : String(error));
       return;
@@ -327,6 +374,15 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
       const resolved = resolveWorkspaceDir(root, route.path);
       if (!resolved.ok) {
         sendError(res, STATUS_BY_REASON[resolved.reason], `거부: ${resolved.reason}`);
+        return;
+      }
+      // 파일 GET/PUT과 **같은** 링크 검사를 목록에도 건다 (PR #145 리뷰, wook3964).
+      // 빠져 있던 동안 `.visual-spec/specs`를 바깥 폴더 심볼릭 링크로 바꿔 두면
+      // `GET /__vs/list/specs`가 작업공간 밖 `*.json` 파일 이름을 그대로 내보냈다.
+      // 이름만 나가는 것도 유출이다 — 경로 문자열 검증(`resolveWorkspaceDir`)은
+      // 링크를 못 보므로 여기서 realpath로 한 번 더 본다.
+      if (!realPathStaysInside(root, resolved.absolutePath)) {
+        sendError(res, 403, "거부: traversal");
         return;
       }
       handleList(res, resolved.absolutePath, resolved.dir);

@@ -19,6 +19,29 @@ export const WORKSPACE_FILE_ROUTE = `${WORKSPACE_API_PREFIX}/file/`;
 /** 폴더 안 파일 목록(GET). 뒤에 `<폴더>`가 붙는다. */
 export const WORKSPACE_LIST_ROUTE = `${WORKSPACE_API_PREFIX}/list/`;
 
+/**
+ * 작업공간 루트 기준 상대 경로(`specs/home.json`)를 파일 라우트 URL로 바꾼다.
+ *
+ * **세그먼트마다 인코딩한다.** 파일 이름에는 URL에서 뜻을 갖는 글자가 얼마든지
+ * 들어온다 — `hero#1.png`를 그대로 붙이면 `#`부터가 조각(fragment)이라 서버에는
+ * `hero`까지만 도착하고, `100%.png`는 `%.p`가 깨진 퍼센트 인코딩이라 디코딩 단계에서
+ * 거부된다(`workspacePath.ts`의 `decodeSegment`). 공백·`?`·`+`도 같은 부류다.
+ * 세그먼트를 나눠 인코딩하므로 경로 구분자 `/`는 살아남는다.
+ *
+ * **여기 있는 이유** (PR #145 리뷰, wook3964): 저장 요청(`ui/workspaceClient.ts`)과
+ * 화면에 그릴 때(`ui/properties/imageSrc.ts`)가 **같은 규칙**으로 URL을 만들어야 한다.
+ * 한쪽만 인코딩하면 저장은 되는데 그 이미지가 화면에서 깨진다 — 실제로 그랬다.
+ * 양쪽이 함께 쓰는 값은 이 파일에 둔다는 것이 이 모듈의 원칙이다.
+ */
+export function workspaceFileUrl(relativePath: string): string {
+  const encoded = relativePath
+    .split("/")
+    .filter((segment) => segment !== "")
+    .map(encodeURIComponent)
+    .join("/");
+  return `${WORKSPACE_FILE_ROUTE}${encoded}`;
+}
+
 /** 작업공간이 연결돼 있는지 묻는 탐침(GET). 아래 "왜 탐침이 필요한가" 참고. */
 export const WORKSPACE_STATUS_ROUTE = `${WORKSPACE_API_PREFIX}/status`;
 

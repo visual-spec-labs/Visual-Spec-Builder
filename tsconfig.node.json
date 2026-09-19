@@ -22,5 +22,8 @@
     "scripts",
     "vite.config.ts",
     "vitest.config.ts"
-  ]
+  ],
+  // 브라우저 모듈을 직접 부르는 테스트는 DOM 타입이 필요해 tsconfig.uitest.json이
+  // 맡는다. 한 파일이 두 프로젝트에 겹쳐 들어가지 않도록 여기서 뺀다.
+  "exclude": ["test/document-path.test.ts"]
 }

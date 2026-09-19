@@ -6,7 +6,8 @@ import { join } from "node:path";
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { WORKSPACE_MARKER_HEADER } from "@/features/workspace/protocol";
+import { resolveImageSrc } from "@/features/editor/ui/properties/imageSrc";
+import { WORKSPACE_MARKER_HEADER, workspaceFileUrl } from "@/features/workspace/protocol";
 import {
   createWorkspaceMiddleware,
   ensureWorkspaceDirs,
@@ -243,6 +244,56 @@ describe("GET /__vs/list", () => {
   });
 });
 
+/**
+ * Import 저장 → 캔버스 렌더까지 **같은 URL 규칙**으로 오가는지 본다
+ * (PR #145 리뷰, wook3964).
+ *
+ * 저장은 `workspaceFileUrl`(클라이언트), 렌더는 `resolveImageSrc`(캔버스·홈 미리보기)가
+ * URL을 만든다. 렌더 쪽만 상대 경로를 그대로 이어 붙이던 동안 `hero#1.png`는 `#`부터가
+ * 조각이라 서버에 `hero`까지만 닿았고(확장자가 없어 403), `%`가 든 이름은 디코딩
+ * 오류로 거부됐다 — **Import는 성공했는데 그 이미지만 화면에서 사라졌다.**
+ * 그래서 이 테스트는 문자열 비교가 아니라 진짜 서버에 두 URL을 차례로 물린다.
+ */
+describe("특수문자가 든 이미지 이름 — Import 저장부터 렌더까지", () => {
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff]);
+
+  // `?`·`:`·`*` 같은 글자는 인코딩과 별개로 미들웨어가 정책으로 거부한다
+  // (`workspacePath.ts`의 FORBIDDEN_IN_SEGMENT — Windows가 싫어하는 이름들이다).
+  // Import도 그 글자들은 `-`로 바꿔 저장하므로(`assetName.ts`) 여기 목록에 없다.
+  for (const name of ["hero#1.png", "100%.png", "hero (1).png", "표지 사진.png", "a+b.png"]) {
+    it(`${name}`, async () => {
+      const relativePath = `assets/${name}`;
+
+      // (1) Import가 보내는 저장 요청.
+      const saved = await fetch(`${baseUrl}${workspaceFileUrl(relativePath)}`, {
+        method: "PUT",
+        body: png,
+      });
+
+      expect(saved.status).toBe(200);
+      expect(existsSync(join(workspaceRoot, "assets", name))).toBe(true);
+
+      // (2) 캔버스가 스펙의 src로 거는 요청. 저장된 그 파일이 와야 한다.
+      const rendered = await fetch(`${baseUrl}${resolveImageSrc(relativePath)}`);
+
+      expect(rendered.status).toBe(200);
+      expect(rendered.headers.get("content-type")).toBe("image/png");
+      expect(Array.from(new Uint8Array(await rendered.arrayBuffer()))).toEqual(Array.from(png));
+    });
+  }
+
+  it("목록에도 그 이름 그대로 올라온다 — Open·중복 이름 판정이 이걸 쓴다", async () => {
+    await fetch(`${baseUrl}${workspaceFileUrl("assets/hero#1.png")}`, {
+      method: "PUT",
+      body: png,
+    });
+
+    const response = await fetch(`${baseUrl}/__vs/list/assets`);
+
+    expect(await response.json()).toMatchObject({ files: ["hero#1.png"] });
+  });
+});
+
 describe("화이트리스트 밖 경로는 거부한다 — 읽기도 쓰기도", () => {
   const forbidden: Array<[string, string, number]> = [
     ["상위 폴더로 나가기", "/__vs/file/specs/../../escaped.json", 400],
@@ -414,6 +465,57 @@ describe("심볼릭 링크로 나가는 경로도 막는다", () => {
     expect(response.status).toBe(403);
     expect(existsSync(join(outside, "escaped.json"))).toBe(false);
     rmSync(join(workspaceRoot, "specs", "link"), { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  /**
+   * 목록 라우트에도 같은 검사가 있어야 한다 (PR #145 리뷰, wook3964).
+   *
+   * 파일 GET/PUT만 `realPathStaysInside`를 거치고 목록은 안 거치던 때, `specs` 폴더
+   * 자체를 바깥 폴더 링크로 바꾸면 `GET /__vs/list/specs`가 작업공간 밖 `*.json`
+   * **파일 이름을 그대로 돌려줬다.** 내용이 안 나갔으니 괜찮은 게 아니다 — 파일
+   * 이름만으로도 사용자가 뭘 갖고 있는지가 새 나간다.
+   */
+  it("specs 자체가 밖을 가리키는 링크면 목록을 내보내지 않는다", async (context) => {
+    const outside = mkdtempSync(join(tmpdir(), "visual-spec-outside-"));
+    writeFileSync(join(outside, "salary-2026.json"), "{}");
+    rmSync(join(workspaceRoot, "specs"), { recursive: true, force: true });
+    try {
+      symlinkSync(outside, join(workspaceRoot, "specs"), "junction");
+    } catch {
+      rmSync(outside, { recursive: true, force: true });
+      context.skip();
+      return;
+    }
+
+    const response = await fetch(`${baseUrl}/__vs/list/specs`);
+    const text = await response.text();
+
+    expect(response.status).toBe(403);
+    expect(text).not.toContain("salary-2026");
+    rmSync(join(workspaceRoot, "specs"), { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  it("폴더 안의 링크가 밖을 가리켜도 그 너머 파일은 목록에 못 담는다", async (context) => {
+    // 위 케이스가 폴더 자체를 바꾼 것이라면, 이쪽은 `assets`는 그대로 두고 그 안에
+    // 링크를 둔 모양이다. 링크는 파일이 아니라 목록에서 이미 빠지지만, 그렇다고
+    // `assets` 자신에 대한 containment 검사를 건너뛰어도 되는 것은 아니다.
+    const outside = mkdtempSync(join(tmpdir(), "visual-spec-outside-"));
+    writeFileSync(join(outside, "private.png"), "x");
+    try {
+      symlinkSync(outside, join(workspaceRoot, "assets", "link"), "junction");
+    } catch {
+      rmSync(outside, { recursive: true, force: true });
+      context.skip();
+      return;
+    }
+
+    const response = await fetch(`${baseUrl}/__vs/list/assets`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ files: [] });
+    rmSync(join(workspaceRoot, "assets", "link"), { recursive: true, force: true });
     rmSync(outside, { recursive: true, force: true });
   });
 });
