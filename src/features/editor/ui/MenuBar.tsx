@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
+import { formatDocumentTitle } from "@/features/editor/ui/documentTitle";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
@@ -70,6 +72,13 @@ export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const rootRef = useRef<HTMLElement>(null);
 
+  // 제목에 필요한 작은 조각만 구독한다. spec 전체를 구독하면 속성 하나를 고칠
+  // 때마다 메뉴바까지 다시 렌더되는 기존 주석의 문제가 되살아난다.
+  const projectName = useEditorStore((s) => s.spec.name);
+  const pageName = useEditorStore(
+    (s) => s.spec.pages[s.activePageId]?.name ?? "페이지 없음",
+  );
+  const fileName = useDocumentStore((s) => s.fileName);
   const openHome = useNavigationStore((s) => s.openHome);
   const zoomIn = useViewStore((s) => s.zoomIn);
   const zoomOut = useViewStore((s) => s.zoomOut);
@@ -166,8 +175,11 @@ export function MenuBar() {
         </button>
       </div>
 
-      <span className="min-w-0 flex-1 truncate text-center text-xs text-content-subtle">
-        Untitled Project — DashboardPage.gui
+      <span
+        className="min-w-0 flex-1 truncate text-center text-xs text-content-subtle"
+        title={formatDocumentTitle(projectName, pageName, fileName)}
+      >
+        {formatDocumentTitle(projectName, pageName, fileName)}
       </span>
 
       <ThemeToggle />
