@@ -32,27 +32,61 @@ export function buildParentMap(nodes: NodeMap): Map<NodeId, NodeId> {
   return parents;
 }
 
-/** root 바로 아래에 있는 최상위 조상. clickedId가 root면 root 자신. */
-function topLevelAncestor(
+/**
+ * `container` 바로 아래에 있는 조상. clickedId가 container 자신이면 그대로 준다.
+ *
+ * 예전에는 기준이 언제나 root였다. 진입(더블클릭)이 생기면서 **어디까지를 하나의
+ * 덩어리로 볼지가 상황에 따라 달라지므로** 기준을 인자로 받는다 — 아무 데도
+ * 안 들어갔으면 root이고, 카드 안에 들어갔으면 그 카드다.
+ */
+function childOfContainer(
   parents: Map<NodeId, NodeId>,
-  root: NodeId,
+  container: NodeId,
   clickedId: NodeId,
 ): NodeId {
-  if (clickedId === root) return root;
+  if (clickedId === container) return container;
 
   const seen = new Set<NodeId>([clickedId]);
   let current = clickedId;
 
   for (;;) {
     const parent = parents.get(current);
-    // 부모가 없으면(고아 노드) 더 오를 곳이 없고, 부모가 root면 여기가 최상위다.
-    // 순환 스펙에서도 같은 노드를 두 번 밟는 순간 멈춘다.
-    if (parent === undefined || parent === root || seen.has(parent)) {
+    // 부모가 없으면(고아 노드) 더 오를 곳이 없고, 부모가 기준이면 여기가 그 아래
+    // 첫 칸이다. 순환 스펙에서도 같은 노드를 두 번 밟는 순간 멈춘다.
+    if (parent === undefined || parent === container || seen.has(parent)) {
       return current;
     }
     seen.add(parent);
     current = parent;
   }
+}
+
+/**
+ * `clickedId`가 `container`의 자손인가. container 자신도 참으로 본다.
+ *
+ * 진입한 상태에서 **바깥을 클릭했는지** 판단하는 데 쓴다 — 바깥이면 한 겹
+ * 빠져나와야 한다(피그마와 같다).
+ */
+export function isWithin(
+  nodes: NodeMap,
+  container: NodeId,
+  clickedId: NodeId,
+): boolean {
+  if (container === clickedId) return true;
+
+  const parents = buildParentMap(nodes);
+  const seen = new Set<NodeId>([clickedId]);
+  let current: NodeId | undefined = clickedId;
+
+  while (current !== undefined) {
+    const parent: NodeId | undefined = parents.get(current);
+    if (parent === container) return true;
+    if (parent === undefined || seen.has(parent)) return false;
+    seen.add(parent);
+    current = parent;
+  }
+
+  return false;
 }
 
 export interface ClickTargetInput {
@@ -62,22 +96,37 @@ export interface ClickTargetInput {
   clickedId: NodeId;
   /** Cmd(macOS) / Ctrl(Windows)를 누른 클릭인지. 상세 지정 여부. */
   deep: boolean;
+  /**
+   * 지금 "들어가 있는" 컨테이너. 없으면 root — 즉 진입 전과 똑같이 동작한다.
+   *
+   * 더블클릭으로 들어가면(#151) 그 안에서는 자식이 클릭 단위가 된다. 스펙에서
+   * 사라진 id 가 들어오면 root 로 떨어뜨린다 — 노드를 지운 뒤에도 그 안에 갇혀
+   * 아무것도 못 고르는 상태가 되면 안 된다.
+   */
+  container?: NodeId;
 }
 
 /**
  * 클릭 대상 노드를 정한다.
- * - 일반 클릭: root 바로 아래 최상위 조상 (그룹 단위로 잡는다)
+ * - 일반 클릭: **지금 들어가 있는 컨테이너 바로 아래** 조상 (덩어리 단위로 잡는다)
  * - Cmd/Ctrl+클릭: 실제로 클릭한 최하위 노드 (중첩 안쪽을 상세 지정한다)
+ *
+ * 컨테이너는 기본이 root 라, 아무 데도 안 들어갔으면 예전과 똑같이 "root 바로
+ * 아래 최상위 조상"이 된다. 더블클릭으로 들어가면(#151) 기준만 그 노드로 옮겨진다.
  */
 export function resolveClickTarget({
   nodes,
   root,
   clickedId,
   deep,
+  container,
 }: ClickTargetInput): NodeId {
   if (nodes[clickedId] === undefined) return root;
   if (deep) return clickedId;
-  return topLevelAncestor(buildParentMap(nodes), root, clickedId);
+
+  // 스펙에서 사라진 컨테이너는 무시한다 — 진입한 노드를 지우면 그 안에 갇힌다.
+  const base = container !== undefined && nodes[container] !== undefined ? container : root;
+  return childOfContainer(buildParentMap(nodes), base, clickedId);
 }
 
 /**
@@ -172,4 +221,57 @@ export function siblingId(
 
   const delta = direction === "next" ? 1 : -1;
   return siblings[(index + delta + siblings.length) % siblings.length];
+}
+
+export interface EnterInput {
+  nodes: NodeMap;
+  root: NodeId;
+  /** 더블클릭이 실제로 시작된 노드 — 언제나 가장 안쪽 노드다. */
+  clickedId: NodeId;
+  /** 지금 들어가 있는 컨테이너. 없으면 root. */
+  container?: NodeId;
+}
+
+/**
+ * 더블클릭으로 **한 겹 더 들어갈** 컨테이너. 더 들어갈 곳이 없으면 null.
+ *
+ * 피그마와 같다 — 카드를 더블클릭하면 카드 안으로 들어가고, 그다음부터는 카드의
+ * 자식이 클릭 단위가 된다. 한 번에 한 겹씩만 내려간다. 깊이 중첩된 글자를 바로
+ * 더블클릭해도 중간 단계를 건너뛰지 않는다.
+ *
+ * **들어갈 수 있는 것은 자식을 가진 프레임뿐이다.** 텍스트나 빈 프레임에
+ * 들어가면 그 안에 고를 것이 없어 아무것도 못 고르는 상태가 된다.
+ */
+export function resolveEnterTarget({
+  nodes,
+  root,
+  clickedId,
+  container,
+}: EnterInput): NodeId | null {
+  if (nodes[clickedId] === undefined) return null;
+
+  const base = container !== undefined && nodes[container] !== undefined ? container : root;
+  // 지금 기준 바로 아래 조상 — 그것이 다음 컨테이너 후보다.
+  const next = childOfContainer(buildParentMap(nodes), base, clickedId);
+  if (next === base) return null;
+
+  const node = nodes[next];
+  if (node?.type !== "frame" || node.children.length === 0) return null;
+
+  return next;
+}
+
+/**
+ * 바깥을 클릭했을 때 빠져나갈 컨테이너. root 로 돌아가면 null.
+ *
+ * 들어간 상태에서 컨테이너 **밖**을 클릭하면 한 겹 올라온다 — 피그마와 같다.
+ * 한 번에 root 로 튀지 않는 이유는 여러 겹 들어간 상태에서 바로 위 형제를
+ * 고르려는 경우가 흔해서다.
+ */
+export function resolveExitTarget(
+  nodes: NodeMap,
+  container: NodeId,
+): NodeId | null {
+  const parent = buildParentMap(nodes).get(container);
+  return parent ?? null;
 }
