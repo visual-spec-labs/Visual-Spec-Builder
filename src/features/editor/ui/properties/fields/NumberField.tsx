@@ -15,6 +15,14 @@ interface NumberFieldProps {
   min?: number;
   max?: number;
   step?: number;
+  /**
+   * 정수만 받는다. 스키마가 `"type": "integer"`인 필드에 필수다.
+   *
+   * 없으면 소수가 그대로 스펙에 들어가 **내보낸 JSON이 검증에 실패한다.** 게다가
+   * 그 값이 CSS로 나가면 조용히 무너진다 — `grid-template-columns: repeat(2.5, 1fr)`
+   * 은 무효 값이라 브라우저가 통째로 버리고 1열이 된다(2026-09-16 리뷰에서 잡힘).
+   */
+  integer?: boolean;
   /** px, ° 같은 단위 표기 */
   unit?: string;
 }
@@ -27,6 +35,7 @@ export function NumberField({
   min,
   max,
   step,
+  integer = false,
   unit,
 }: NumberFieldProps) {
   const { draft, invalid, handleChange, handleBlur } = useDraftInput(value, {
@@ -36,6 +45,9 @@ export function NumberField({
       const ok =
         raw.trim() !== "" &&
         Number.isFinite(parsed) &&
+        // 반올림하지 않고 거절한다. 2.5를 3으로 바꿔 넣으면 사용자가 친 값과
+        // 저장된 값이 달라지는데, 빨간 테두리로 막으면 무엇이 문제인지 보인다.
+        (!integer || Number.isInteger(parsed)) &&
         (min === undefined || parsed >= min) &&
         (max === undefined || parsed <= max);
       return ok ? parsed : undefined;
@@ -49,7 +61,7 @@ export function NumberField({
         <input
           type="number"
           onWheel={blurOnWheel}
-          inputMode="decimal"
+          inputMode={integer ? "numeric" : "decimal"}
           className={`${inputClass} ${invalid ? invalidClass : ""} ${unit ? "pr-7" : ""}`}
           value={draft}
           min={min}
