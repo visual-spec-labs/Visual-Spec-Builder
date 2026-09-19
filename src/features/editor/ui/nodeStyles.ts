@@ -8,25 +8,17 @@ import type {
   TextNode,
 } from "@/features/editor/schema";
 
-import { boxStyle, radiusCss, type Direction } from "./canvasLayout";
+import { boxStyle, effectStyle, strokeAndShadowStyle, type Direction } from "./canvasLayout";
 import { imageUrlCss } from "./properties/imageSrc";
 
 /**
- * 홈 화면 카드가 스펙을 축소해서 즉석 렌더할 때 쓰는 순수 스타일 계산.
+ * 노드 하나를 CSS 로 옮기는 함수들 — 타입마다 하나씩.
  *
- * **이 파일이 따로 있는 근거는 2026-09-19(이슈 #148)로 절반이 무너졌다.**
- * 예전 이유는 "Canvas.tsx 는 임시 스탠드인이라 export 가 없고 select·드래그
- * 인터랙션에 묶여 있다"였는데, 그 스타일 함수들이 `nodeStyles.ts` 로 빠지면서
- * **export 되는 순수 함수가 됐다.** `previewDisplayStyle` 은 `nodeStyles.displayStyle`
- * 과 글자 하나까지 같고, `MAIN_AXIS`·`CROSS_AXIS` 표도 그대로 복사본이다.
+ * `canvasLayout.ts` 와 나눠 둔 경계는 **무엇을 아는가**다. 저쪽은 `Box` 하나를
+ * flex 속성으로 옮기는 순수 계산이라 노드 타입을 모르고 `test/` 에서 직접
+ * 테스트한다. 여기는 노드 타입별로 그 조각들을 조립한다.
  *
- * 남는 차이는 하나뿐이다 — 미리보기는 **인터랙션이 없어야 한다**(카드 클릭 하나로
- * 에디터에 들어가는 것 말고는). 지금 `nodeStyles` 쪽에도 인터랙션이 없으므로
- * 그 차이조차 실질적이지 않다.
- *
- * **합칠지는 별도로 판단한다.** 합치면 미리보기가 캔버스 렌더러의 변경을 그대로
- * 받게 되는데, `Canvas.tsx` 가 정식 구현으로 교체될 예정이라 그때 함께 보는 편이
- * 낫다. 지금 섣불리 합쳤다가 교체 작업에서 다시 갈라야 할 수 있다.
+ * `Canvas.tsx` 에서 잘라 온 것이고 동작은 바뀌지 않았다(2026-09-19·이슈 #148).
  */
 
 const MAIN_AXIS: Record<string, CSSProperties["justifyContent"]> = {
@@ -44,11 +36,20 @@ const CROSS_AXIS: Record<string, CSSProperties["alignItems"]> = {
 };
 
 /**
- * grid는 최소 구현이다 — Canvas.tsx의 displayStyle()과 같은 규칙(균등 N열
- * 자동 배치만, 셀 지정 없음, mainAxis/crossAxis 무시). 카드 미리보기는
- * Canvas.tsx와 별개 구현이라(위 주석 참고) 여기도 같이 맞춘다.
+ * grid는 최소 구현이다 — 열 N개짜리 균등 그리드로만 그린다(자동 배치, 아이템별
+ * 셀 지정 없음).
+ *
+ * **`crossAxis`는 grid에서도 동작한다.** 한때 "mainAxis/crossAxis는 grid에 뜻이
+ * 없어 무시한다"고 적혀 있었는데 절반만 맞았다 — `justify-content`는 트랙이
+ * `repeat(n, 1fr)`이라 밀 여백이 없어 정말 무의미하지만, `align-items`는 아이템이
+ * 행 트랙을 채울지(`stretch`) 붙을지를 정한다. `frameStyle`이 아래에서 조건 없이
+ * 얹는 것이 맞고, 그래서 상세 패널도 교차축 칸을 감추지 않는다(이슈 #160).
+ *
+ * 정식 grid 배치(셀 지정·여러 칸 차지)는 후속 작업이다 — `Canvas.tsx`가 정식
+ * 캔버스로 교체될 때 함께 본다(그쪽 파일 머리 주석 참고).
  */
-function previewDisplayStyle(layout: FrameNode["layout"]): CSSProperties {
+// export 하지 않는다 — frameStyle 이 유일한 호출자다.
+function displayStyle(layout: FrameNode["layout"]): CSSProperties {
   if (layout.direction === "grid") {
     return {
       display: "grid",
@@ -58,13 +59,13 @@ function previewDisplayStyle(layout: FrameNode["layout"]): CSSProperties {
   return { display: "flex", flexDirection: layout.direction };
 }
 
-export function previewFrameStyle(
+export function frameStyle(
   node: FrameNode,
   parentDirection: Direction | undefined,
 ): CSSProperties {
   const { layout } = node;
   return {
-    ...previewDisplayStyle(layout),
+    ...displayStyle(layout),
     gap: layout.gap,
     paddingTop: layout.padding.top,
     paddingRight: layout.padding.right,
@@ -74,15 +75,13 @@ export function previewFrameStyle(
     alignItems: CROSS_AXIS[layout.crossAxis],
     ...boxStyle(node.box, parentDirection),
     background: node.background?.color,
-    border: node.border
-      ? `${node.border.width}px solid ${node.border.color}`
-      : undefined,
-    borderRadius: radiusCss(node.border?.radius),
+    ...strokeAndShadowStyle(node.border, node.shadow),
+    ...effectStyle(node.opacity, node.blur),
     boxSizing: "border-box",
   };
 }
 
-export function previewTextStyle(
+export function textStyle(
   node: TextNode,
   parentDirection: Direction | undefined,
 ): CSSProperties {
@@ -97,10 +96,11 @@ export function previewTextStyle(
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
     whiteSpace: "pre-wrap",
+    ...effectStyle(node.opacity, node.blur),
   };
 }
 
-export function previewImageStyle(
+export function imageStyle(
   node: ImageNode,
   parentDirection: Direction | undefined,
 ): CSSProperties {
@@ -110,10 +110,12 @@ export function previewImageStyle(
     backgroundSize: node.fit === "fill" ? "100% 100%" : node.fit,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
+    ...effectStyle(node.opacity, node.blur),
   };
 }
 
-export function previewButtonStyle(
+/** frame(배경/테두리) + text(타이포그래피)를 합친 모양 — 최소 구현. 클릭 동작은 없다(인터랙션은 v0.1 제외). */
+export function buttonStyle(
   node: ButtonNode,
   parentDirection: Direction | undefined,
 ): CSSProperties {
@@ -131,15 +133,23 @@ export function previewButtonStyle(
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
     background: node.background?.color,
-    border: node.border
-      ? `${node.border.width}px solid ${node.border.color}`
-      : undefined,
-    borderRadius: radiusCss(node.border?.radius),
+    // button·input에는 shadow 필드가 아직 없다(속성 패널이 없어 편집할 수 없다).
+    // Border는 공유하므로 정렬만 같은 합성기로 처리한다.
+    ...strokeAndShadowStyle(node.border, undefined),
     boxSizing: "border-box",
+    cursor: "default",
   };
 }
 
-export function previewInputStyle(
+/**
+ * placeholder 텍스트만 흐리게 보여준다 — 실제 입력 상호작용은 없다(value/onChange는
+ * 스키마에 없음).
+ *
+ * 흐리게 만드는 opacity는 요소가 아니라 글자에 건다(아래 render의 span). 요소에 걸면
+ * 배경색·테두리색까지 60%로 섞여 패널에서 고른 색이 그대로 안 나오고, 자식으로 들어가는
+ * 리사이즈 핸들까지 흐려진다.
+ */
+export function inputStyle(
   node: InputNode,
   parentDirection: Direction | undefined,
 ): CSSProperties {
@@ -149,7 +159,6 @@ export function previewInputStyle(
     display: "flex",
     alignItems: "center",
     color: node.color,
-    opacity: 0.6,
     fontFamily: typography.fontFamily,
     fontSize: typography.fontSize,
     fontWeight: typography.fontWeight,
@@ -157,28 +166,7 @@ export function previewInputStyle(
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
     background: node.background?.color,
-    border: node.border
-      ? `${node.border.width}px solid ${node.border.color}`
-      : undefined,
-    borderRadius: radiusCss(node.border?.radius),
+    ...strokeAndShadowStyle(node.border, undefined),
     boxSizing: "border-box",
   };
-}
-
-/**
- * 화면(콘텐츠) 크기를 카드 미리보기 박스 안에 통째로 넣는 축소 배율.
- * viewStore의 fitZoom과 같은 목적(안 잘리게 맞추기)이지만 그쪽은 %
- * 확대율 문자열이 아니라 여기서는 transform: scale에 바로 쓸 소수를 낸다.
- */
-export function previewScale(
-  contentWidth: number,
-  contentHeight: number,
-  boxWidth: number,
-  boxHeight: number,
-): number {
-  if (contentWidth <= 0 || contentHeight <= 0) {
-    return 1;
-  }
-
-  return Math.min(boxWidth / contentWidth, boxHeight / contentHeight);
 }
