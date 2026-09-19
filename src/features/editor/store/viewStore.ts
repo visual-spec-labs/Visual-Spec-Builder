@@ -43,6 +43,13 @@ export interface ViewState {
   zoomIn: () => void;
   zoomOut: () => void;
   /**
+   * 확대율을 직접 지정한다(ZOOM_MIN..ZOOM_MAX로 자른다).
+   *
+   * `zoomIn`/`zoomOut`이 ZOOM_STEP 눈금에 붙는 것과 달리 눈금을 타지 않는다 —
+   * "100%로" 같은 단축키가 57%에서 75%로 가버리면 안 된다.
+   */
+  setZoom: (zoom: number) => void;
+  /**
    * `content`가 뷰포트에 맞도록 확대율을 다시 계산한다.
    * 아직 실측값을 못 받았으면 기본 확대율로 리셋한다.
    *
@@ -121,6 +128,7 @@ export const useViewStore = create<ViewState>((set) => ({
     set((state) => ({
       zoom: clampZoom((Math.ceil(state.zoom / ZOOM_STEP) - 1) * ZOOM_STEP),
     })),
+  setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
   fitToScreen: () => set((state) => ({ zoom: fitZoom(state.viewport, state.content) })),
   toggleGrid: () => set((state) => ({ showGrid: !state.showGrid })),
   togglePanels: () => set((state) => ({ showPanels: !state.showPanels })),

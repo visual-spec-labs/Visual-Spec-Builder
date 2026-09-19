@@ -99,7 +99,17 @@ export function MenuBar() {
       }
     }
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpenMenu(null);
+      if (event.key !== "Escape") return;
+      // **여기서 삼킨다.** 캔버스도 window에서 Escape를 듣고 선택을 해제하는데
+      // (canvasInput.viewCommandForKey), 막지 않으면 메뉴만 닫으려고 누른 Escape가
+      // 선택과 속성 패널까지 함께 지운다.
+      //
+      // 이 리스너는 위의 `if (!openMenu) return`으로 **메뉴가 열려 있을 때만**
+      // 붙으므로 조건을 더 볼 필요가 없다. document 리스너가 window 리스너보다
+      // 먼저 도니까(이벤트가 target에서 window로 오르는 길에 document를 지난다)
+      // 여기서 멈추면 캔버스에는 닿지 않는다.
+      event.stopPropagation();
+      setOpenMenu(null);
     }
 
     document.addEventListener("mousedown", handlePointerDown);
