@@ -1,30 +1,53 @@
-import type { Node } from "@/features/editor/schema";
+import type { Node, ScreenSpec } from "@/features/editor/schema";
 import visualSpecJsonSchema from "@/features/editor/schema/visual-spec.schema.json";
 
 /**
  * updateScreen·updateNode가 건드려도 되는 점 표기 경로인지 판정한다(#146).
  *
- * store/path.ts의 setByPath는 **없는 키를 새로 만들고** 중간 경로가 없으면 빈
- * 객체를 만들어 내려간다. 그래서 경로를 검사하지 않으면 오타 하나가 no-op이
+ * store/path.ts의 setByPath는 **없는 키를 새로 만들고** 중간 값이 객체가 아니면
+ * 빈 객체를 만들어 내려간다. 그래서 경로를 검사하지 않으면 오타 하나가 no-op이
  * 아니라 스키마에 없는 필드를 붙인 새 객체가 된다 — 새 객체라서 editorStore의
  * applied()가 no-op으로 못 보고 history에 한 단계로 쌓인다.
  *
- * 허용 목록은 손으로 적지 않고 정본 스키마(visual-spec.schema.json)를 걸어서
- * 만든다. 스키마의 객체가 전부 additionalProperties: false라 "스키마가 선언한
- * 속성"이 곧 "허용된 경로"이고, 스키마가 늘면 목록도 같이 늘어 둘이 어긋날 일이
- * 없다(손으로 적은 화이트리스트의 유일한 약점이 그거다).
+ * 판정 기준은 정본 스키마(visual-spec.schema.json)다. 손으로 화이트리스트를 적지
+ * 않는다 — 스키마의 객체가 전부 additionalProperties: false라 "스키마가 선언한
+ * 속성"이 곧 "허용된 경로"이고, 스키마가 늘면 판정도 같이 늘어 둘이 어긋날 일이
+ * 없다.
  *
- * "지금 그 경로에 값이 있는지"(getByPath !== undefined)로 판정하지 않는 이유는
- * 선택 필드다. visible·background·border·shadow·opacity·blur는 스키마상 선택이라
- * 값이 없는 게 정상이고, 레이어 트리의 표시 토글과 속성 패널의 배경·효과 섹션이
- * 바로 그 "없던 필드를 처음 설정하는" 호출을 한다. 값 유무로 판정하면 그 기능들이
- * 통째로 막힌다.
+ * **다만 경로 이름만 봐서는 부족하다**(PR #147 리뷰). 스키마 구조만 걷고 지금 값을
+ * 보지 않으면 "이름이 맞는 경로"가 "지금 값 위에 써도 되는 경로"와 어긋난다:
+ *
+ * - `border`가 없는 노드에 `border.width = 3`을 쓰면 `{ width: 3 }`만 생겨
+ *   필수 `color`·`radius`가 빠진다.
+ * - `border.radius`가 숫자 `12`인 노드에 `border.radius.topLeft = 4`를 쓰면
+ *   `{ topLeft: 4 }`가 되어 나머지 필수 모서리 세 개가 빠진다.
+ *
+ * 둘 다 새 screen 참조가 나와 history에 성공 단계로 쌓이지만 결과는 스키마 검증에
+ * 실패한다 — #146이 잡으려던 "조용한 오염"의 다른 형태다. 그래서 스키마와 **지금
+ * 값을 함께** 걷는다: 중간 값이 이미 객체면 형제 필드가 보존되므로 그대로 내려가고,
+ * 객체가 아니면(없거나 · 유니온의 비객체 분기거나) setByPath가 새로 만들 객체가
+ * 그 키 하나만 갖게 되므로 **그 분기의 필수 필드가 그 키 하나뿐일 때만** 허용한다.
+ *
+ * "지금 그 경로에 값이 있는지"만으로 막지 않는 이유는 선택 필드다.
+ * visible·background·border·shadow·opacity·blur는 스키마상 선택이라 값이 없는 게
+ * 정상이고, 레이어 트리의 표시 토글과 속성 패널의 배경 섹션이 바로 그 "없던 필드를
+ * 처음 설정하는" 호출을 한다. 값 유무만으로 판정하면 그 기능들이 통째로 막힌다.
+ * 위의 필수 필드 조건이 그 둘을 가른다 — Background는 필수가 `color` 하나라
+ * `background.color`가 없던 배경을 새로 만들어도 결과가 완전하지만, Border는 필수가
+ * 셋이라 `border.width` 하나로는 완전해지지 않는다.
+ *
+ * 그래서 리뷰가 제시한 두 방향 중 (가) 값을 함께 보는 쪽을 골랐다. (나) "복합
+ * optional/union 필드는 객체 통째로만 교체"는 `background.color`를 같이 막는데,
+ * 그 경로는 ui/properties/BackgroundSection.tsx가 실제로 쓰는 정상 호출이다.
+ * border·radius·shadow를 객체 통째로 patch하는 건 ui 쪽(borderPatch·radiusPatch·
+ * shadowPatch)이 이미 하고 있으므로, 여기서는 "완전해지지 않는 쓰기"만 막으면 된다.
  */
 
 type JsonSchemaNode = {
   $ref?: string;
   oneOf?: JsonSchemaNode[];
   properties?: Record<string, JsonSchemaNode>;
+  required?: string[];
 };
 
 const REF_PREFIX = "#/$defs/";
@@ -57,6 +80,27 @@ const NODE_DEF_BY_TYPE: Record<Node["type"], string> = {
   input: "InputNode",
 };
 
+/** store/path.ts의 setByPath가 "내려갈 수 있는 값"으로 보는 것과 같은 기준이다. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 스키마가 **자기 것으로** 선언한 속성만 꺼낸다.
+ * `properties[key]`로 바로 읽으면 "__proto__"·"constructor"·"toString"이
+ * Object.prototype의 것을 집어 스키마에 있는 키처럼 보인다 — 막으려던 오염 경로가
+ * 그대로 뚫린다.
+ */
+function ownProperty(
+  properties: Record<string, JsonSchemaNode> | undefined,
+  key: string,
+): JsonSchemaNode | undefined {
+  if (properties === undefined) return undefined;
+  return Object.prototype.hasOwnProperty.call(properties, key)
+    ? properties[key]
+    : undefined;
+}
+
 interface ResolvedSchema {
   schema: JsonSchemaNode;
   /** 지금 가지에서 이미 지나온 $def 이름들. 순환 $ref가 생겨도 여기서 멈춘다. */
@@ -74,75 +118,93 @@ function resolveRef(
   const name = ref.slice(REF_PREFIX.length);
   if (visitedRefs.has(name)) return undefined;
 
-  const target = schemaDefs[name];
+  const target = ownProperty(schemaDefs, name);
   if (target === undefined) return undefined;
 
   return resolveRef(target, new Set([...visitedRefs, name]));
 }
 
-function collectPaths(
+/**
+ * `segments`가 가리키는 자리에 setByPath로 값을 써도, 지나는 모든 단계가 스키마를
+ * 만족한 채로 남는가. `value`는 그 단계의 **지금 값**이다(없으면 undefined).
+ */
+function canWrite(
   schema: JsonSchemaNode,
-  prefix: string,
+  value: unknown,
+  segments: readonly string[],
   visitedRefs: ReadonlySet<string>,
-  out: Set<string>,
-): void {
+): boolean {
   const resolved = resolveRef(schema, visitedRefs);
-  if (resolved === undefined) return;
+  if (resolved === undefined) return false;
 
-  const { oneOf, properties } = resolved.schema;
+  const { oneOf, properties, required } = resolved.schema;
 
-  // 어느 분기로도 쓸 수 있으니 분기별 경로의 합집합을 받는다
-  // (Radius: 숫자 하나이거나 모서리별 객체).
+  // 유니온은 분기별 경로를 합집합으로 받지 않는다. "지금 값 위에서 성립하는 분기가
+  // 하나라도 있는가"로 본다 — 분기마다 아래 필수 필드 검사를 다시 거치므로,
+  // Radius가 숫자 12일 때 모서리별 객체 분기로 내려가는 길은 여기서 닫힌다.
   if (oneOf !== undefined) {
-    for (const branch of oneOf) {
-      collectPaths(branch, prefix, resolved.visitedRefs, out);
-    }
-    return;
+    return oneOf.some((branch) =>
+      canWrite(branch, value, segments, resolved.visitedRefs),
+    );
   }
 
-  // properties가 없으면 더 내려갈 곳이 없다 — 배열(children)과 키가 자유로운
-  // 맵(nodes)이 여기에 해당한다. 둘 다 점 표기 경로로 들어갈 대상이 아니다.
-  if (properties === undefined) return;
+  // properties가 없으면 더 내려갈 곳이 없다 — 스칼라, 배열(children), 키가 자유로운
+  // 맵(nodes)이 여기에 해당한다. 셋 다 점 표기 경로로 들어갈 대상이 아니다.
+  const [key, ...rest] = segments;
+  const child = ownProperty(properties, key);
+  if (child === undefined) return false;
 
-  for (const [key, child] of Object.entries(properties)) {
-    const path = prefix === "" ? key : `${prefix}.${key}`;
-    out.add(path);
-    collectPaths(child, path, resolved.visitedRefs, out);
+  // 지금 값이 객체가 아니면 setByPath가 `{}`를 새로 만들어 내려간다. 그러면 이
+  // 단계의 결과는 `key` 하나만 든 객체라, 필수 필드가 `key` 하나뿐일 때만 스키마를
+  // 만족한다. Background(필수 color 하나)는 통과하고 Border(width·color·radius)와
+  // Radius의 객체 분기(모서리 넷)는 막힌다.
+  // 값이 이미 객체면 형제 필드가 그대로 보존되므로 검사할 게 없다.
+  if (!isRecord(value) && (required ?? []).some((name) => name !== key)) {
+    return false;
   }
-}
 
-function buildEditablePaths(
-  defName: string,
-  structuralRoots: ReadonlySet<string>,
-): ReadonlySet<string> {
-  const collected = new Set<string>();
-  collectPaths({ $ref: `${REF_PREFIX}${defName}` }, "", new Set(), collected);
+  if (rest.length === 0) return true;
 
-  return new Set(
-    [...collected].filter((path) => !structuralRoots.has(path.split(".")[0])),
+  return canWrite(
+    child,
+    isRecord(value) ? value[key] : undefined,
+    rest,
+    resolved.visitedRefs,
   );
 }
 
-// 스키마는 실행 중에 바뀌지 않으므로 한 번만 걷는다.
-let screenPaths: ReadonlySet<string> | undefined;
-const nodePathsByType = new Map<Node["type"], ReadonlySet<string>>();
+function isEditablePath(
+  defName: string,
+  structuralRoots: ReadonlySet<string>,
+  target: unknown,
+  path: string,
+): boolean {
+  const segments = path.split(".");
+  if (structuralRoots.has(segments[0])) return false;
 
-/** ScreenSpec 자신의 편집 가능한 경로인지. "name" · "size.width" 등. */
-export function isEditableScreenPath(path: string): boolean {
-  screenPaths ??= buildEditablePaths("ScreenSpec", SCREEN_STRUCTURAL_ROOTS);
-  return screenPaths.has(path);
+  return canWrite({ $ref: `${REF_PREFIX}${defName}` }, target, segments, new Set());
 }
 
 /**
- * 해당 타입의 노드가 편집 가능한 경로인지. 타입별로 따로 본다 —
- * "layout.gap"은 frame에만 있고 text 노드에는 없다.
+ * 이 화면에 이 경로로 값을 써도 되는지. "name" · "size.width" 등.
+ * 판정에 화면의 지금 값을 함께 쓴다 — 이유는 파일 머리말 참고.
  */
-export function isEditableNodePath(nodeType: Node["type"], path: string): boolean {
-  let paths = nodePathsByType.get(nodeType);
-  if (paths === undefined) {
-    paths = buildEditablePaths(NODE_DEF_BY_TYPE[nodeType], NODE_STRUCTURAL_ROOTS);
-    nodePathsByType.set(nodeType, paths);
-  }
+export function isEditableScreenPath(screen: ScreenSpec, path: string): boolean {
+  return isEditablePath("ScreenSpec", SCREEN_STRUCTURAL_ROOTS, screen, path);
+}
 
-  return paths.has(path);
+/**
+ * 이 노드에 이 경로로 값을 써도 되는지.
+ *
+ * 노드 타입을 함께 본다 — "layout.gap"은 frame에만 있고 text 노드에는 없다.
+ * 타입만이 아니라 노드의 지금 값도 본다 — 같은 "border.radius.topLeft"라도
+ * radius가 이미 모서리별 객체면 허용하고, 숫자 하나면 막는다.
+ */
+export function isEditableNodePath(node: Node, path: string): boolean {
+  return isEditablePath(
+    NODE_DEF_BY_TYPE[node.type],
+    NODE_STRUCTURAL_ROOTS,
+    node,
+    path,
+  );
 }

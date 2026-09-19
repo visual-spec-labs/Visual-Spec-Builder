@@ -108,7 +108,9 @@ function applyUpdateNode(screen: ScreenSpec, command: UpdateNodeCommand): Screen
   if (node === undefined) return screen;
   // 대상이 있는지와 같은 무게로 경로도 본다(#146) — setByPath는 없는 키를 새로
   // 만들어서, 검사 없이 부르면 오타가 no-op이 아니라 스키마에 없는 필드가 된다.
-  if (!isEditableNodePath(node.type, command.path)) return screen;
+  // 노드를 통째로 넘긴다: 경로 이름만이 아니라 "지금 값 위에 써도 결과가 스키마를
+  // 만족하는가"까지 보기 때문이다(PR #147 리뷰).
+  if (!isEditableNodePath(node, command.path)) return screen;
 
   const nextNode = setByPath(node, command.path, command.value);
   return withNodes(screen, { ...nodes, [command.id]: nextNode });
@@ -167,7 +169,7 @@ function applySetLayout(screen: ScreenSpec, command: SetLayoutCommand): ScreenSp
 }
 
 function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): ScreenSpec {
-  if (!isEditableScreenPath(command.path)) return screen; // applyUpdateNode와 같은 이유(#146)
+  if (!isEditableScreenPath(screen, command.path)) return screen; // applyUpdateNode와 같은 이유(#146)
 
   return setByPath(screen, command.path, command.value);
 }
