@@ -5,11 +5,13 @@ import {
   isScrolledToBottom,
   isSpacePanKey,
   isTypingTarget,
+  nodeClipboardCommandForKey,
   shouldDeleteSelection,
   shouldSuppressContextMenu,
   toolCursorClass,
   toolForKey,
   viewCommandForKey,
+  type ClipboardKeyInput,
   type DeleteKeyInput,
   type ToolKeyInput,
 } from "@/features/editor/ui/canvasInput";
@@ -130,6 +132,77 @@ describe("shouldDeleteSelection", () => {
     // DeleteKeyInput에 shiftKey가 없는 것 자체가 이 결정이다. 수식키 가드를
     // 넓힐 때 Shift까지 끌어오지 않도록 의도를 남긴다.
     expect(shouldDeleteSelection(deleteKey())).toBe(true);
+  });
+});
+
+/** 노드가 선택된 채 Ctrl+D를 누른 상태. 케이스마다 필요한 칸만 덮어쓴다. */
+function clipboardKey(patch: Partial<ClipboardKeyInput> = {}): ClipboardKeyInput {
+  return {
+    code: "KeyD",
+    ctrlKey: true,
+    metaKey: false,
+    altKey: false,
+    tagName: "DIV",
+    contentEditable: false,
+    hasSelection: true,
+    hasClipboard: true,
+    ...patch,
+  };
+}
+
+describe("nodeClipboardCommandForKey — 복제·복사·붙여넣기(#151)", () => {
+  it("Ctrl+D·Ctrl+C·Ctrl+V를 각각 구분한다", () => {
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyD" }))).toBe("duplicate");
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyC" }))).toBe("copy");
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyV" }))).toBe("paste");
+  });
+
+  it("Cmd(meta)도 같게 본다", () => {
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyD", ctrlKey: false, metaKey: true })),
+    ).toBe("duplicate");
+  });
+
+  it("수식키가 없으면 받지 않는다 — 그냥 D·C·V 타이핑과 겹친다", () => {
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyD", ctrlKey: false }))).toBeNull();
+  });
+
+  it("Alt가 섞이면 받지 않는다", () => {
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyD", altKey: true })),
+    ).toBeNull();
+  });
+
+  it("고른 노드가 없으면 복제·복사를 받지 않는다 — 대상이 없다", () => {
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyD", hasSelection: false })),
+    ).toBeNull();
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyC", hasSelection: false })),
+    ).toBeNull();
+  });
+
+  it("클립보드가 비어 있으면 붙여넣기를 받지 않는다", () => {
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyV", hasClipboard: false })),
+    ).toBeNull();
+  });
+
+  it("붙여넣기는 선택 여부와 무관하다 — 선택 없어도 root에 붙는다", () => {
+    expect(
+      nodeClipboardCommandForKey(
+        clipboardKey({ code: "KeyV", hasSelection: false, hasClipboard: true }),
+      ),
+    ).toBe("paste");
+  });
+
+  it("타이핑 중에는 받지 않는다 — 레이어 이름·속성 패널의 Ctrl+C/V는 글자 복사다", () => {
+    expect(nodeClipboardCommandForKey(clipboardKey({ tagName: "INPUT" }))).toBeNull();
+    expect(nodeClipboardCommandForKey(clipboardKey({ contentEditable: true }))).toBeNull();
+  });
+
+  it("관계없는 키는 받지 않는다", () => {
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyZ" }))).toBeNull();
   });
 });
 

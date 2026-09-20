@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import dashboardCards from "../examples/dashboard-cards.json";
-import { applyCommand, applyTransaction } from "@/features/editor/command/applyCommand";
+import {
+  applyCommand,
+  applyTransaction,
+  buildDuplicateCommands,
+  findParentId,
+} from "@/features/editor/command/applyCommand";
 import type { Command } from "@/features/editor/command/types";
 import { validateVisualSpec } from "@/features/editor/schema";
 import type { FrameNode, ScreenSpec, VisualSpec } from "@/features/editor/schema";
@@ -540,5 +545,79 @@ describe("applyTransaction", () => {
 
   it("빈 목록이면 같은 참조를 그대로 돌려준다", () => {
     expect(applyTransaction(BASE, [])).toBe(BASE);
+  });
+});
+
+describe("findParentId", () => {
+  it("children 참조로 갖고 있는 frame을 찾는다", () => {
+    expect(findParentId(BASE.nodes, "cardA")).toBe("content");
+    expect(findParentId(BASE.nodes, "cardALabel")).toBe("cardA");
+  });
+
+  it("root이거나 고아면 undefined다", () => {
+    expect(findParentId(BASE.nodes, "root")).toBeUndefined();
+  });
+});
+
+describe("buildDuplicateCommands — 복제·붙여넣기 Command 묶음(#151)", () => {
+  it("서브트리 전체를 새 id로 복제하고 원본 뒤에 끼워 넣는 moveNode를 덧붙인다", () => {
+    const built = buildDuplicateCommands(BASE.nodes, "cardA", BASE.nodes, "content", 1);
+    expect(built).not.toBeNull();
+    if (built === null) return;
+
+    // cardA + cardALabel + cardAValue, 부모보다 자식이 나중이라 createNode
+    // Command가 부모부터 나와야 자식의 parentId가 그 시점에 이미 존재한다.
+    expect(built.commands).toHaveLength(4);
+    const [createRoot, createLabel, createValue, move] = built.commands;
+    expect(createRoot).toMatchObject({ type: "createNode", parentId: "content" });
+    expect(createLabel).toMatchObject({ type: "createNode", parentId: built.newRootId });
+    expect(createValue).toMatchObject({ type: "createNode", parentId: built.newRootId });
+    expect(move).toEqual({
+      type: "moveNode",
+      id: built.newRootId,
+      newParentId: "content",
+      index: 1,
+    });
+
+    // 새 id는 원본과 겹치지 않고, frame 타입 접두사를 그대로 쓴다.
+    expect(built.newRootId).not.toBe("cardA");
+    expect(built.newRootId.startsWith("frame-")).toBe(true);
+  });
+
+  it("적용하면 자식 참조가 새 id를 가리키고 내용은 원본과 같다", () => {
+    const built = buildDuplicateCommands(BASE.nodes, "cardA", BASE.nodes, "content", 1);
+    if (built === null) throw new Error("built는 null이 아니어야 한다");
+
+    const next = applyTransaction(BASE, built.commands);
+    const duplicated = next.nodes[built.newRootId] as FrameNode;
+
+    expect(duplicated.children).toHaveLength(2);
+    expect(duplicated.background).toEqual((BASE.nodes.cardA as FrameNode).background);
+    const [labelRef, valueRef] = duplicated.children;
+    expect(next.nodes[labelRef.node]).toMatchObject({ content: "총 방문자" });
+    expect(next.nodes[valueRef.node]).toMatchObject({ content: "12,480" });
+
+    // 원본은 그대로 있고, content의 children이 [cardA, 복제본, cardB] 순서다.
+    expect(next.nodes.cardA).toBe(BASE.nodes.cardA);
+    expect(next.nodes.content).toMatchObject({
+      children: [{ node: "cardA" }, { node: built.newRootId }, { node: "cardB" }],
+    });
+
+    expect(screenIssues(next)).toEqual([]);
+  });
+
+  it("liveNodes에 있는 id와는 겹치지 않는다", () => {
+    // sourceNodes(클립보드)는 원본 id를 그대로 담고 있지만, 겹치면 안 되는
+    // 대상은 liveNodes(지금 문서)다 — 붙여넣기가 실제로 쓰는 모양이다.
+    const clipboardNodes = { cardA: BASE.nodes.cardA, cardALabel: BASE.nodes.cardALabel, cardAValue: BASE.nodes.cardAValue };
+    const liveNodes = { ...BASE.nodes, "frame-1": BASE.nodes.cardA };
+
+    const built = buildDuplicateCommands(clipboardNodes, "cardA", liveNodes, "content", 2);
+    expect(built).not.toBeNull();
+    expect(built?.newRootId).toBe("frame-2"); // frame-1이 이미 있으니 건너뛴다
+  });
+
+  it("대상이 없으면 null이다", () => {
+    expect(buildDuplicateCommands(BASE.nodes, "missing", BASE.nodes, "content", 0)).toBeNull();
   });
 });

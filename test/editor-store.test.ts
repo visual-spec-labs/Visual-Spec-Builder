@@ -1003,4 +1003,105 @@ describe("editorStore", () => {
       ]);
     });
   });
+
+  describe("duplicateNode (#151)", () => {
+    it("자손까지 복제해 원본 바로 뒤 형제로 끼워 넣고 복제본을 선택한다", () => {
+      useEditorStore.getState().duplicateNode("cardA");
+
+      const content = activePage().nodes.content;
+      expect(content.type === "frame" && content.children).toHaveLength(3);
+      const newId = (content as { children: { node: string }[] }).children[1].node;
+
+      expect(newId).not.toBe("cardA");
+      expect(activePage().nodes[newId]).toMatchObject({ name: "Card" });
+      expect(useEditorStore.getState().selectedId).toBe(newId);
+
+      // 자손도 함께 복제됐다 — 원본과 자손 수가 같다.
+      const duplicated = activePage().nodes[newId];
+      expect(duplicated.type === "frame" && duplicated.children).toHaveLength(2);
+    });
+
+    it("결과가 여전히 유효한 프로젝트다", () => {
+      useEditorStore.getState().duplicateNode("cardA");
+      expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+    });
+
+    it("root는 복제하지 않는다", () => {
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().duplicateNode(activePage().root);
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("없는 노드 id는 무시한다", () => {
+      const before = useEditorStore.getState().spec;
+      useEditorStore.getState().duplicateNode("does-not-exist");
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("자식이 여러 개인 프레임을 복제해도 undo 한 번으로 전부 되돌아간다", () => {
+      // createNode가 서브트리 크기(cardA + 자손 둘 = 3개)만큼 나오지만 한
+      // 트랜잭션이라 history는 한 단계다.
+      const before = useEditorStore.getState().spec;
+
+      useEditorStore.getState().duplicateNode("cardA");
+      expect(undoEnabled()).toBe(true);
+
+      useEditorStore.getState().undo();
+
+      expect(useEditorStore.getState().spec).toEqual(before);
+      expect(undoEnabled()).toBe(false);
+    });
+  });
+
+  describe("pasteNode (#151)", () => {
+    it("클립보드 서브트리를 parentId 자식 끝에 붙이고 그 루트를 선택한다", () => {
+      const { nodes } = activePage();
+      const entry = {
+        rootId: "cardA",
+        nodes: { cardA: nodes.cardA, cardALabel: nodes.cardALabel, cardAValue: nodes.cardAValue },
+      };
+
+      useEditorStore.getState().pasteNode(entry, "header");
+
+      const header = activePage().nodes.header;
+      expect(header.type === "frame" && header.children).toHaveLength(2);
+      const newId = (header as { children: { node: string }[] }).children[1].node;
+
+      expect(activePage().nodes[newId]).toMatchObject({ name: "Card" });
+      expect(useEditorStore.getState().selectedId).toBe(newId);
+    });
+
+    it("클립보드 id가 지금 문서의 id와 겹쳐도 새 id를 새로 뽑는다", () => {
+      // 클립보드는 복사할 때의 원본 id를 그대로 담고 있을 수 있다(같은 문서에서
+      // 복사했다면 반드시 겹친다) — liveNodes 기준으로 id를 다시 뽑아야 한다.
+      const { nodes } = activePage();
+      const entry = { rootId: "cardALabel", nodes: { cardALabel: nodes.cardALabel } };
+
+      useEditorStore.getState().pasteNode(entry, "header");
+
+      expect(activePage().nodes.cardALabel).toBe(nodes.cardALabel); // 원본은 그대로
+      const header = activePage().nodes.header;
+      const newId = (header as { children: { node: string }[] }).children[1].node;
+      expect(newId).not.toBe("cardALabel");
+    });
+
+    it("parentId가 frame이 아니면 아무 것도 하지 않는다", () => {
+      const before = useEditorStore.getState().spec;
+      const { nodes } = activePage();
+      const entry = { rootId: "cardALabel", nodes: { cardALabel: nodes.cardALabel } };
+
+      useEditorStore.getState().pasteNode(entry, "cardBLabel");
+
+      expect(useEditorStore.getState().spec).toBe(before);
+    });
+
+    it("결과가 여전히 유효한 프로젝트다", () => {
+      const { nodes } = activePage();
+      const entry = { rootId: "cardALabel", nodes: { cardALabel: nodes.cardALabel } };
+
+      useEditorStore.getState().pasteNode(entry, "header");
+
+      expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+    });
+  });
 });

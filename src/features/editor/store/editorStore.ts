@@ -1,6 +1,11 @@
 import { create } from "zustand";
 
-import { applyTransaction } from "@/features/editor/command/applyCommand";
+import {
+  applyTransaction,
+  buildDuplicateCommands,
+  findParentId,
+  type NodeSubtree,
+} from "@/features/editor/command/applyCommand";
 import {
   canRedo as historyCanRedo,
   canUndo as historyCanUndo,
@@ -191,6 +196,22 @@ export interface EditorState {
    * 쌓인다. 레이어 트리가 드래그로 순서를 바꿀 때 호출한다.
    */
   moveNode: (id: NodeId, newParentId: NodeId, index: number) => void;
+  /**
+   * 활성 페이지에서 노드(와 그 자손 전체)를 복제해 원본 바로 뒤 형제로 끼워
+   * 넣고 그 복제본을 선택한다(#151, `Ctrl+D`). root는 대상이 아니다.
+   *
+   * 서브트리 크기만큼 createNode Command가 나오지만 `setNodeFields`(#149)와
+   * 같은 이유로 `appliedTransaction`을 한 번만 호출해 history도 한 단계다 —
+   * 자식이 여러 개인 프레임을 복제했다고 Undo를 여러 번 누르게 하지 않는다.
+   */
+  duplicateNode: (id: NodeId) => void;
+  /**
+   * 클립보드에서 온 서브트리를 parentId(frame) 자식 목록 끝에 붙여넣고 그
+   * 루트를 선택한다(#151, `Ctrl+V`). `insertNode`처럼 어디에 넣을지는 호출자가
+   * 정해서 넘긴다 — `ui/clipboard.ts`가 지금 선택 기준으로 `resolveInsertParent`
+   * (F/T 도구가 새 노드를 놓을 때 쓰는 것과 같은 규칙)를 골라 넘겨준다.
+   */
+  pasteNode: (entry: NodeSubtree, parentId: NodeId) => void;
   /**
    * 프로젝트의 마지막 편집을 한 단계 되돌린다. 되돌릴 것이 없으면 아무 일도
    * 안 한다. 되돌린 편집이 다른 페이지에 있었으면 그 페이지로 옮겨 간다(#131).
@@ -470,6 +491,50 @@ export const useEditorStore = create<EditorState>((set) => ({
         index,
       });
       return next ?? state;
+    }),
+  duplicateNode: (id) =>
+    set((state) => {
+      const { nodes, root } = state.spec.pages[state.activePageId];
+      if (id === root) return state; // root는 복제하지 않는다 — moveNode·deleteNode와 같은 보호
+
+      const parentId = findParentId(nodes, id);
+      const parent = parentId !== undefined ? nodes[parentId] : undefined;
+      if (parentId === undefined || parent === undefined || parent.type !== "frame") {
+        return state;
+      }
+
+      const index = parent.children.findIndex((child) => child.node === id);
+      if (index === -1) return state;
+
+      // 원본 바로 뒤(index + 1)에 끼워 넣는다 — createNode는 항상 끝에 붙으므로
+      // buildDuplicateCommands가 그 자리로 옮기는 moveNode를 마지막에 덧붙인다.
+      const built = buildDuplicateCommands(nodes, id, nodes, parentId, index + 1);
+      if (built === null) return state;
+
+      const next = appliedTransaction(state, state.activePageId, built.commands);
+      if (next === null) return state;
+
+      return { ...next, selectedId: built.newRootId };
+    }),
+  pasteNode: (entry, parentId) =>
+    set((state) => {
+      const { nodes } = state.spec.pages[state.activePageId];
+      const parent = nodes[parentId];
+      if (parent === undefined || parent.type !== "frame") return state;
+
+      const built = buildDuplicateCommands(
+        entry.nodes,
+        entry.rootId,
+        nodes,
+        parentId,
+        parent.children.length,
+      );
+      if (built === null) return state;
+
+      const next = appliedTransaction(state, state.activePageId, built.commands);
+      if (next === null) return state;
+
+      return { ...next, selectedId: built.newRootId };
     }),
   undo: () =>
     set((state) => {

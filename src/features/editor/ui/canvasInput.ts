@@ -82,6 +82,50 @@ export function shouldDeleteSelection(input: DeleteKeyInput): boolean {
   return input.hasSelection;
 }
 
+/** 노드 복제·복사·붙여넣기 단축키가 시키는 일. */
+export type NodeClipboardCommand = "duplicate" | "copy" | "paste";
+
+/** `nodeClipboardCommandForKey`가 보는 것 — KeyboardEvent에서 필요한 값만 추린 모양. */
+export interface ClipboardKeyInput {
+  /** `event.code` — 물리 키 위치. 도구 단축키와 같은 이유(TOOL_KEYS 주석 참고). */
+  code: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  /** `event.target`의 태그 이름. 못 읽었으면 undefined. */
+  tagName: string | undefined;
+  contentEditable: boolean;
+  /** `Ctrl+D`·`Ctrl+C`가 대상으로 삼을 노드가 있는가. */
+  hasSelection: boolean;
+  /** `Ctrl+V`가 붙여넣을 내용이 클립보드에 있는가. */
+  hasClipboard: boolean;
+}
+
+/**
+ * 이 키 입력이 시키는 노드 복제·복사·붙여넣기. 해당 없으면 null.
+ *
+ * `shouldDeleteSelection`과 같은 이유로 "할 수 있는 일이 있는가"까지 판정에
+ * 넣는다(`hasSelection`·`hasClipboard`) — 그러면 호출부는 값을 받았을 때
+ * 곧바로 `preventDefault`를 걸어도 안전하다. 대상이 없을 때도 가로채 버리면
+ * `Ctrl+D`(브라우저 북마크)·`Ctrl+C`/`Ctrl+V`(브라우저 복사·붙여넣기)가
+ * 캔버스에 아무 선택도 없을 때조차 죽는다.
+ *
+ * 타이핑 중이면 전부 물러선다 — 레이어 이름을 고치거나 속성 패널 입력칸에서
+ * 쓰는 `Ctrl+C`/`Ctrl+V`는 글자 복사·붙여넣기지 노드 복제가 아니다.
+ */
+export function nodeClipboardCommandForKey(
+  input: ClipboardKeyInput,
+): NodeClipboardCommand | null {
+  if (isTypingTarget(input.tagName, input.contentEditable)) return null;
+  if (input.altKey) return null;
+  if (!(input.ctrlKey || input.metaKey)) return null;
+
+  if (input.code === "KeyD") return input.hasSelection ? "duplicate" : null;
+  if (input.code === "KeyC") return input.hasSelection ? "copy" : null;
+  if (input.code === "KeyV") return input.hasClipboard ? "paste" : null;
+  return null;
+}
+
 /**
  * 물리 키 위치 → 도구. 피그마와 같은 배치다.
  *

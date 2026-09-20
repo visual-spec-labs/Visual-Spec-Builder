@@ -7,12 +7,14 @@ import { fitZoom, useViewStore, ZOOM_DEFAULT } from "@/features/editor/store/vie
 
 import {
   isSpacePanKey,
+  nodeClipboardCommandForKey,
   shouldDeleteSelection,
   toolForKey,
   viewCommandForKey,
   type ViewCommand,
 } from "./canvasInput";
 import { readZoomAnchor, type ZoomAnchor } from "./canvasZoom";
+import { copySelection, hasClipboard, pasteClipboard } from "./clipboard";
 
 /**
  * 캔버스의 키보드 입력 — 받을지 말지는 `canvasInput.ts` 의 순수 함수가 정하고,
@@ -78,6 +80,34 @@ export function useCanvasKeys(
       if (tool !== null) {
         event.preventDefault();
         useToolStore.getState().setActiveTool(tool);
+        return;
+      }
+
+      // 노드 복제·복사·붙여넣기(#151). "할 수 있는 일이 있는가"까지 판정에
+      // 들어 있어(nodeClipboardCommandForKey 주석) 값을 받으면 바로 preventDefault
+      // 해도 안전하다 — 대상이 없을 때는 null이 와서 Ctrl+D(북마크)·Ctrl+C/V
+      // (브라우저 복사·붙여넣기)가 그대로 살아 있다.
+      const { selectedId: clipboardTarget } = useEditorStore.getState();
+      const clip = nodeClipboardCommandForKey({
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        tagName: target?.tagName,
+        contentEditable: target?.isContentEditable ?? false,
+        hasSelection: clipboardTarget !== null,
+        hasClipboard: hasClipboard(),
+      });
+      if (clip !== null) {
+        event.preventDefault();
+        if (clip === "duplicate" && clipboardTarget !== null) {
+          useEditorStore.getState().duplicateNode(clipboardTarget);
+        } else if (clip === "copy" && clipboardTarget !== null) {
+          const { spec, activePageId } = useEditorStore.getState();
+          copySelection(spec.pages[activePageId].nodes, clipboardTarget);
+        } else if (clip === "paste") {
+          pasteClipboard();
+        }
         return;
       }
 
