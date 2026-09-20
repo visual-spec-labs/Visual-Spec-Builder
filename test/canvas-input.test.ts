@@ -304,6 +304,15 @@ describe("viewCommandForKey — 보기 단축키", () => {
     expect(view({ code: "Digit1", shiftKey: true })).toBe("zoomFit");
   });
 
+  it("Shift+2 는 선택 영역 맞춤이다(#151) — 피그마와 같다", () => {
+    expect(view({ code: "Digit2", shiftKey: true })).toBe("zoomFitSelection");
+    expect(view({ code: "Numpad2", shiftKey: true })).toBe("zoomFitSelection");
+  });
+
+  it("Shift 없는 2 는 받지 않는다", () => {
+    expect(view({ code: "Digit2" })).toBeNull();
+  });
+
   it("Escape 는 선택 해제다", () => {
     expect(view({ code: "Escape" })).toBe("deselect");
   });
@@ -321,12 +330,14 @@ describe("viewCommandForKey — 보기 단축키", () => {
   it("Alt 가 섞이면 받지 않는다 — 브라우저·OS 단축키 자리다", () => {
     expect(view({ code: "Equal", ctrlKey: true, altKey: true })).toBeNull();
     expect(view({ code: "Digit1", shiftKey: true, altKey: true })).toBeNull();
+    expect(view({ code: "Digit2", shiftKey: true, altKey: true })).toBeNull();
   });
 
   it("타이핑 중에는 받지 않는다 — Ctrl+0 도 입력칸에서는 브라우저 몫이다", () => {
     expect(view({ code: "Digit0", ctrlKey: true, tagName: "INPUT" })).toBeNull();
     expect(view({ code: "Escape", tagName: "INPUT" })).toBeNull();
     expect(view({ code: "Digit1", shiftKey: true, contentEditable: true })).toBeNull();
+    expect(view({ code: "Digit2", shiftKey: true, contentEditable: true })).toBeNull();
   });
 
   it("도구 단축키와 서로 침범하지 않는다", () => {

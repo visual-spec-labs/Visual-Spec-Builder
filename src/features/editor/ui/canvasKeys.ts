@@ -1,8 +1,9 @@
 import { useEffect, type RefObject } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
-import { useViewStore, ZOOM_DEFAULT } from "@/features/editor/store/viewStore";
+import { fitZoom, useViewStore, ZOOM_DEFAULT } from "@/features/editor/store/viewStore";
 
 import {
   isSpacePanKey,
@@ -156,6 +157,20 @@ function runViewCommand(
     fitToScreen();
     // 이미 맞춤 배율이면 값이 안 바뀌어 effect 가 안 돈다 — 앵커를 남기면 나중
     // 줌이 소비한다(아래 끝값 처리와 같은 이유).
+    if (useViewStore.getState().zoom === before) anchorRef.current = null;
+    return;
+  }
+
+  if (command === "zoomFitSelection") {
+    const { selectedId } = useEditorStore.getState();
+    const size = useMeasureStore.getState().size;
+    const { viewport } = useViewStore.getState();
+    // 고른 것이 없거나 아직 실측 전이면 맞출 대상이 없다 — 조용히 아무 일도
+    // 하지 않는다(zoomFit이 앵커 없이 아무 값도 안 바꾸는 것과 같은 무반응).
+    if (selectedId !== null && size !== null && viewport !== null) {
+      anchorRef.current = { fit: true, nodeId: selectedId };
+      setZoom(fitZoom(viewport, size));
+    }
     if (useViewStore.getState().zoom === before) anchorRef.current = null;
     return;
   }

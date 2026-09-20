@@ -168,7 +168,13 @@ export function isSpacePanKey(input: ToolKeyInput): boolean {
 }
 
 /** 보기 단축키가 시키는 일. 캔버스가 이 값으로 viewStore를 부른다. */
-export type ViewCommand = "zoomIn" | "zoomOut" | "zoomReset" | "zoomFit" | "deselect";
+export type ViewCommand =
+  | "zoomIn"
+  | "zoomOut"
+  | "zoomReset"
+  | "zoomFit"
+  | "zoomFitSelection"
+  | "deselect";
 
 /**
  * 보기 단축키를 명령으로 옮긴다. 해당 없으면 null.
@@ -196,9 +202,12 @@ export function viewCommandForKey(input: ToolKeyInput): ViewCommand | null {
 
   if (mod || input.altKey) return null;
 
-  // Shift+1 = 화면 맞춤. 피그마와 같다.
+  // Shift+1 = 화면 맞춤, Shift+2 = 선택 영역 맞춤. 둘 다 피그마와 같은 배치다.
   if (input.shiftKey && (input.code === "Digit1" || input.code === "Numpad1")) {
     return "zoomFit";
+  }
+  if (input.shiftKey && (input.code === "Digit2" || input.code === "Numpad2")) {
+    return "zoomFitSelection";
   }
   if (!input.shiftKey && input.code === "Escape") return "deselect";
 

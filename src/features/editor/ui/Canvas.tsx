@@ -441,7 +441,7 @@ export function Canvas() {
   const measureRect = useRectOf(outerRef, artboardRef, altHeld ? hover.target.deepId : null);
   const artboardHeight = useArtboardHeight(artboardRef);
   const anchorRef = useRef<ZoomAnchor | null>(null);
-  useZoomAnchor(mainRef, outerRef, anchorRef, zoom);
+  useZoomAnchor(mainRef, outerRef, artboardRef, anchorRef, zoom);
   useCanvasKeys(mainRef, outerRef, anchorRef);
 
   // 띠에 pointer-events 를 주지 않고 좌표로 판정한다 — 오버레이가 마우스를 받으면
