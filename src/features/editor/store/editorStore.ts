@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { applyCommand } from "@/features/editor/command/applyCommand";
+import { applyTransaction } from "@/features/editor/command/applyCommand";
 import {
   canRedo as historyCanRedo,
   canUndo as historyCanUndo,
@@ -65,6 +65,13 @@ export interface EditorSnapshot {
   activePageId: PageId;
 }
 
+/** `setNodeFields`가 한 번에 적용할 노드 필드 변경 하나. */
+export interface NodeFieldPatch {
+  id: NodeId;
+  path: string;
+  value: unknown;
+}
+
 /**
  * 캔버스 · 레이어 트리 · 세부설정 패널이 공유하는 단일 스토어.
  * 계약 상세: docs/EDITOR_STORE_CONTRACT.md
@@ -110,6 +117,20 @@ export interface EditorState {
    * 모르는 기존 호출부는 전과 똑같이 호출마다 새 단계를 쌓는다.
    */
   setNodeField: (id: NodeId, path: string, value: unknown, continueEdit?: boolean) => void;
+  /**
+   * 활성 페이지의 여러 노드 필드를 한 동작으로 바꾼다(#149).
+   * 모든 patch를 순서대로 적용한 최종 결과만 한 번 set하고 history에도 한 단계만
+   * 쌓는다. 크기 맞추기·정렬·다중 선택처럼 사용자 동작 하나가 여러 노드에 걸칠 때
+   * 쓴다. 빈 배열이나 전부 no-op인 배열은 아무 단계도 만들지 않는다.
+   *
+   * `continueEdit`은 setNodeField와 같은 뜻이다. 다중 선택된 노드의 값을 입력칸
+   * 하나로 연속 편집할 때, 두 번째 batch부터 true를 넘기면 첫 batch가 만든 undo
+   * 단계에 이어 붙는다.
+   *
+   * 생성·삭제·이동은 포함하지 않는다. 그 액션들은 selectedId 변경/해제 규칙까지
+   * 동반하므로 필드 patch와 같은 배치 계약으로 묶지 않고 필요할 때 별도로 정한다.
+   */
+  setNodeFields: (patches: readonly NodeFieldPatch[], continueEdit?: boolean) => void;
   /**
    * 페이지 자체의 값을 바꾼다. 이름과 크기(해상도)가 대상이다.
    * 예: setPageField("home", "size.width", 1920)
@@ -237,19 +258,32 @@ function applied(
   command: Command,
   continueEdit = false,
 ): Pick<EditorState, "spec" | "history"> | null {
+  return appliedTransaction(state, pageId, [command], continueEdit);
+}
+
+/**
+ * Command 여러 개를 한 페이지 사본에 먼저 적용하고 최종 결과만 history에 얹는다.
+ * Zustand의 set 콜백 한 번 안에서 호출되므로 중간 화면은 구독자에게 보이지 않는다.
+ */
+function appliedTransaction(
+  state: EditorState,
+  pageId: PageId,
+  commands: Command[],
+  continueEdit = false,
+): Pick<EditorState, "spec" | "history"> | null {
   const page = state.spec.pages[pageId];
   if (page === undefined) return null;
 
-  const nextPage = applyCommand(page, command);
+  const nextPage = applyTransaction(page, commands);
   if (nextPage === page) return null;
 
-  // 스냅숏의 activePageId는 `state.activePageId`가 아니라 편집이 일어난 `pageId`다.
-  // 스냅숏은 "이 편집 직후의 상태"이고, 그 상태에서 보고 있어야 할 페이지는 편집된
-  // 페이지다 — 이 단계로 undo/redo하면 바뀐 내용이 눈앞에 있어야 한다.
-  // #131 리뷰(wook3964, PR #142): 지금 호출부는 전부 활성 페이지를 넘겨서 둘이
-  // 같지만, 타입도 런타임도 그걸 강제하지 않는다. 비활성 페이지를 편집하는 기능이
-  // 생기면 스냅숏이 편집된 페이지가 아니라 그때 보고 있던 페이지를 기록하게 된다.
   const spec = withPage(state.spec, pageId, nextPage);
+  // #131 리뷰(wook3964, PR #142): 지금 호출부는 전부 활성 페이지를 넘겨서 둘이
+  // 같지만, 타입도 런타임도 그걸 강제하지 않는다. 비활성 페이지 편집이 생겨도
+  // state.activePageId로 바꾸면 스냅숏이 편집된 페이지가 아니라 보고 있던 페이지를
+  // 기록한다. history가 실제 변경을 보여 주도록 편집 대상 pageId를 유지한다.
+  // 스냅숏의 activePageId는 `state.activePageId`가 아니라 편집이 일어난 `pageId`다.
+  // 이 단계로 undo/redo하면 바뀐 내용이 눈앞에 있어야 한다(#131, PR #142).
   const next = makeSnapshot(spec, pageId);
 
   return {
@@ -292,6 +326,22 @@ export const useEditorStore = create<EditorState>((set) => ({
         state,
         state.activePageId,
         { type: "updateNode", id, path, value },
+        continueEdit,
+      );
+      return next ?? state;
+    }),
+  setNodeFields: (patches, continueEdit = false) =>
+    set((state) => {
+      const commands: Command[] = patches.map(({ id, path, value }) => ({
+        type: "updateNode",
+        id,
+        path,
+        value,
+      }));
+      const next = appliedTransaction(
+        state,
+        state.activePageId,
+        commands,
         continueEdit,
       );
       return next ?? state;
