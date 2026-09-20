@@ -18,8 +18,11 @@ import {
 } from "lucide-react";
 
 import type { FrameNode } from "@/features/editor/schema";
+import { useEditorStore } from "@/features/editor/store/editorStore";
 
 import {
+  canEqualizeChildren,
+  equalizeChildrenPatches,
   gridColumnsValue,
   layoutWithDirection,
   MAX_GRID_COLUMNS,
@@ -109,12 +112,48 @@ export function LayoutSection() {
   const [padBottom, setPadBottom] = useNodeField<number>("layout.padding.bottom");
   const [padLeft, setPadLeft] = useNodeField<number>("layout.padding.left");
 
+  const selectedId = useEditorStore((state) => state.selectedId);
+  const node = useEditorStore((state) =>
+    selectedId === null
+      ? undefined
+      : state.spec.pages[state.activePageId].nodes[selectedId],
+  );
+  const setNodeFields = useEditorStore((state) => state.setNodeFields);
+  const frameNode = node !== undefined && node.type === "frame" ? node : undefined;
+  const children = frameNode?.children ?? [];
+
   const direction = layout?.direction;
   const dir: FlexDirection = direction === "row" ? "row" : "column";
+
+  // 부모 자신의 주축 크기 — canEqualizeChildren이 Hug(auto)를 걸러내는 데 쓴다.
+  const parentMainAxisSize =
+    frameNode === undefined
+      ? undefined
+      : direction === "row"
+        ? frameNode.box.width
+        : frameNode.box.height;
+  const canEqualize =
+    direction !== undefined &&
+    parentMainAxisSize !== undefined &&
+    canEqualizeChildren(direction, parentMainAxisSize, children.length);
 
   function changeDirection(next: Direction) {
     if (layout === undefined) return;
     setLayout(layoutWithDirection(layout, next));
+  }
+
+  function equalizeChildren() {
+    if (selectedId === null || direction === undefined || parentMainAxisSize === undefined) {
+      return;
+    }
+    setNodeFields(
+      equalizeChildrenPatches(
+        direction,
+        parentMainAxisSize,
+        selectedId,
+        children.map((child) => child.node),
+      ),
+    );
   }
 
   return (
@@ -169,6 +208,21 @@ export function LayoutSection() {
           options={CROSS_AXIS_OPTIONS[dir]}
           onChange={setCrossAxis}
         />
+      )}
+      {direction !== undefined && direction !== "grid" && (
+        <button
+          type="button"
+          onClick={equalizeChildren}
+          disabled={!canEqualize}
+          title={
+            parentMainAxisSize === "auto"
+              ? "부모 크기가 Hug라 채울 공간이 없다. 너비/높이를 Fixed나 Fill로 바꾼 뒤 눌러라."
+              : "모든 자식의 크기를 같게 맞춘다 (주축 → Fill, 교차축 → 채움)"
+          }
+          className="w-full rounded-control border border-line bg-surface py-1.5 text-xs font-medium text-content hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          자식 크기 균등
+        </button>
       )}
     </PropertySection>
   );
