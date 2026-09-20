@@ -9,12 +9,14 @@ import {
   isSpacePanKey,
   nodeClipboardCommandForKey,
   shouldDeleteSelection,
+  siblingNavDirectionForKey,
   toolForKey,
   viewCommandForKey,
   type ViewCommand,
 } from "./canvasInput";
 import { readZoomAnchor, type ZoomAnchor } from "./canvasZoom";
 import { copySelection, hasClipboard, pasteClipboard } from "./clipboard";
+import { siblingId } from "./selection";
 
 /**
  * 캔버스의 키보드 입력 — 받을지 말지는 `canvasInput.ts` 의 순수 함수가 정하고,
@@ -108,6 +110,28 @@ export function useCanvasKeys(
         } else if (clip === "paste") {
           pasteClipboard();
         }
+        return;
+      }
+
+      // 형제 이동(#151). Tab은 브라우저의 포커스 이동 키라 판정 자체가
+      // "선택이 있을 때만"(hasSelection) 훔친다 — siblingNavDirectionForKey 주석 참고.
+      const { selectedId: siblingTarget, select: selectSibling } = useEditorStore.getState();
+      const siblingDirection = siblingNavDirectionForKey({
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+        tagName: target?.tagName,
+        contentEditable: target?.isContentEditable ?? false,
+        role: target?.getAttribute("role") ?? undefined,
+        hasSelection: siblingTarget !== null,
+      });
+      if (siblingDirection !== null && siblingTarget !== null) {
+        event.preventDefault();
+        const { spec, activePageId } = useEditorStore.getState();
+        const next = siblingId(spec.pages[activePageId].nodes, siblingTarget, siblingDirection);
+        if (next !== null) selectSibling(next);
         return;
       }
 

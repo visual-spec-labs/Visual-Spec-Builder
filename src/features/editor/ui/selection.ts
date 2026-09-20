@@ -142,3 +142,34 @@ export function resolveInsertParent({
 
   return root;
 }
+
+/**
+ * 같은 부모 안에서 다음(`"next"`) · 이전(`"prev"`) 형제 id(#151, `Tab`/`Shift+Tab`).
+ * 대상이 없으면(root거나 고아라 부모가 없는 경우, 또는 부모가 지금 스펙에
+ * 없거나 frame이 아닌 깨진 경우) null.
+ *
+ * **`focusRootId`(진입 문맥)를 보지 않는다.** 형제는 지금 선택된 노드의
+ * 실제 트리 부모로만 정해지는 사실이라 — 진입 여부가 무엇을 클릭이 고를지는
+ * 바꿔도 이미 고른 다음의 "누가 형제인가"는 바꾸지 않는다.
+ *
+ * 끝에서는 반대쪽 끝으로 **순환한다** — 멈추면 "다음이 없다"는 신호가 없어
+ * 눌러도 반응이 없는 것처럼 보인다. 형제가 자기 하나뿐이면 자기 자신을 돌려준다.
+ */
+export function siblingId(
+  nodes: NodeMap,
+  id: NodeId,
+  direction: "next" | "prev",
+): NodeId | null {
+  const parentId = buildParentMap(nodes).get(id);
+  if (parentId === undefined) return null;
+
+  const parent = nodes[parentId];
+  if (parent === undefined || parent.type !== "frame") return null;
+
+  const siblings = parent.children.map((child) => child.node);
+  const index = siblings.indexOf(id);
+  if (index === -1) return null;
+
+  const delta = direction === "next" ? 1 : -1;
+  return siblings[(index + delta + siblings.length) % siblings.length];
+}

@@ -6,6 +6,7 @@ import {
   clickBoundary,
   resolveClickTarget,
   resolveInsertParent,
+  siblingId,
 } from "@/features/editor/ui/selection";
 
 function frame(name: string, children: string[]): Node {
@@ -199,5 +200,42 @@ describe("resolveInsertParent", () => {
 
   it("대상을 찾을 수 없으면 root에 넣는다", () => {
     expect(resolveInsertParent({ nodes, root, clickedId: "없는노드" })).toBe(root);
+  });
+});
+
+describe("siblingId — Tab/Shift+Tab 형제 이동(#151)", () => {
+  // root의 자식은 [header, content] 둘이라 순환을 볼 수 있다.
+  it("다음 형제로 옮긴다", () => {
+    expect(siblingId(nodes, "header", "next")).toBe("content");
+  });
+
+  it("이전 형제로 옮긴다", () => {
+    expect(siblingId(nodes, "content", "prev")).toBe("header");
+  });
+
+  it("끝에서는 반대쪽 끝으로 순환한다", () => {
+    expect(siblingId(nodes, "content", "next")).toBe("header"); // 마지막 → 처음
+    expect(siblingId(nodes, "header", "prev")).toBe("content"); // 처음 → 마지막
+  });
+
+  it("형제가 자기 하나뿐이면 자기 자신이다", () => {
+    // cardA의 자식은 cardALabel 하나뿐이다.
+    expect(siblingId(nodes, "cardALabel", "next")).toBe("cardALabel");
+    expect(siblingId(nodes, "cardALabel", "prev")).toBe("cardALabel");
+  });
+
+  it("root는 부모가 없어 형제가 없다", () => {
+    expect(siblingId(nodes, root, "next")).toBeNull();
+  });
+
+  it("고아 노드는 부모가 없어 형제가 없다", () => {
+    const orphaned = { ...nodes, floating: text("Floating") };
+    expect(siblingId(orphaned, "floating", "next")).toBeNull();
+  });
+
+  it("진입 문맥과 무관하다 — focusRootId를 받지 않는다", () => {
+    // header 안에 들어가 있어도(headerTitle 선택) 형제는 여전히 실제 트리
+    // 기준이다 — 여기엔 그 개념 자체가 없다(함수 시그니처에 경계 인자가 없다).
+    expect(siblingId(nodes, "headerTitle", "next")).toBe("headerTitle");
   });
 });

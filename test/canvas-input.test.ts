@@ -8,11 +8,13 @@ import {
   nodeClipboardCommandForKey,
   shouldDeleteSelection,
   shouldSuppressContextMenu,
+  siblingNavDirectionForKey,
   toolCursorClass,
   toolForKey,
   viewCommandForKey,
   type ClipboardKeyInput,
   type DeleteKeyInput,
+  type SiblingNavKeyInput,
   type ToolKeyInput,
 } from "@/features/editor/ui/canvasInput";
 
@@ -417,5 +419,53 @@ describe("viewCommandForKey — 보기 단축키", () => {
     // Ctrl+V 는 도구도 보기도 아니다(붙여넣기).
     expect(view({ code: "KeyV", ctrlKey: true })).toBeNull();
     expect(toolForKey(toolKey({ code: "Equal", ctrlKey: true }))).toBeNull();
+  });
+});
+
+/** 노드가 선택된 채 Tab을 누른 상태. 케이스마다 필요한 칸만 덮어쓴다. */
+function tabKey(patch: Partial<SiblingNavKeyInput> = {}): SiblingNavKeyInput {
+  return {
+    code: "Tab",
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+    tagName: "DIV",
+    contentEditable: false,
+    role: undefined,
+    hasSelection: true,
+    ...patch,
+  };
+}
+
+describe("siblingNavDirectionForKey — Tab/Shift+Tab 형제 이동(#151)", () => {
+  it("Tab은 다음, Shift+Tab은 이전이다", () => {
+    expect(siblingNavDirectionForKey(tabKey())).toBe("next");
+    expect(siblingNavDirectionForKey(tabKey({ shiftKey: true }))).toBe("prev");
+  });
+
+  it("Tab이 아닌 키는 받지 않는다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ code: "KeyD" }))).toBeNull();
+  });
+
+  it("수식키(Ctrl/Cmd/Alt)가 섞이면 받지 않는다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ ctrlKey: true }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ metaKey: true }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ altKey: true }))).toBeNull();
+  });
+
+  it("선택이 없으면 받지 않는다 — 페이지 포커스 이동에 Tab을 돌려준다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ hasSelection: false }))).toBeNull();
+  });
+
+  it("타이핑 중에는 받지 않는다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ tagName: "INPUT" }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ contentEditable: true }))).toBeNull();
+  });
+
+  it("버튼·링크에 포커스가 있으면 받지 않는다 — 거기서는 Tab이 포커스 이동이다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ tagName: "BUTTON" }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ tagName: "A" }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ role: "button" }))).toBeNull();
   });
 });

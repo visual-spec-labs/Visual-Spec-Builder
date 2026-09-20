@@ -211,6 +211,50 @@ export function isSpacePanKey(input: ToolKeyInput): boolean {
   return !isActivationTarget(input.tagName, input.role);
 }
 
+/** Tab/Shift+Tab 형제 이동이 시키는 방향. */
+export type SiblingNavDirection = "next" | "prev";
+
+/** `siblingNavDirectionForKey`가 보는 것 — KeyboardEvent에서 필요한 값만 추린 모양. */
+export interface SiblingNavKeyInput {
+  code: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  /** `event.target`의 태그 이름. 못 읽었으면 undefined. */
+  tagName: string | undefined;
+  contentEditable: boolean;
+  /** `event.target`의 `role` 속성. 없으면 undefined. */
+  role?: string | undefined;
+  /** 옮길 대상이 있는가 — 형제 이동은 지금 선택된 노드를 기준으로 한다. */
+  hasSelection: boolean;
+}
+
+/**
+ * `Tab`/`Shift+Tab`으로 형제를 옮겨야 하는가, 옮긴다면 어느 방향인가. 해당
+ * 없으면 null.
+ *
+ * **`Tab`은 브라우저의 포커스 이동 키다.** 여기서 가로채면 캔버스 다음으로
+ * 포커스가 갈 곳(속성 패널 입력칸 등)에 키보드만으로 못 간다. `shouldDeleteSelection`
+ * 과 같은 이유로 "옮길 대상이 있는가"(`hasSelection`)까지 판정에 넣는다 —
+ * 선택이 없으면 형제 이동이 의미가 없으니 그때는 아예 가로채지 않고 Tab을
+ * 페이지 포커스 이동에 돌려준다. 그래도 선택이 있는 동안은 여전히 훔치므로,
+ * `isActivationTarget`(Space와 같은 가드)로 버튼·링크에 포커스가 있을 때는
+ * 한 번 더 물러난다 — 그러지 않으면 도구 모음 버튼에서 Tab으로 다음 버튼에
+ * 갈 수 없다.
+ */
+export function siblingNavDirectionForKey(
+  input: SiblingNavKeyInput,
+): SiblingNavDirection | null {
+  if (input.code !== "Tab") return null;
+  if (input.ctrlKey || input.metaKey || input.altKey) return null;
+  if (!input.hasSelection) return null;
+  if (isTypingTarget(input.tagName, input.contentEditable)) return null;
+  if (isActivationTarget(input.tagName, input.role)) return null;
+
+  return input.shiftKey ? "prev" : "next";
+}
+
 /** 보기 단축키가 시키는 일. 캔버스가 이 값으로 viewStore를 부른다. */
 export type ViewCommand =
   | "zoomIn"
