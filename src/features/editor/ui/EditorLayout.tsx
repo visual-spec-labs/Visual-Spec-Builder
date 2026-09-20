@@ -1,12 +1,14 @@
 import type { MouseEvent } from "react";
 
 import { useViewStore } from "@/features/editor/store/viewStore";
+import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { Canvas } from "@/features/editor/ui/Canvas";
 import { shouldSuppressContextMenu } from "@/features/editor/ui/canvasInput";
 import { LayerTree } from "@/features/editor/ui/LayerTree";
 import { MenuBar } from "@/features/editor/ui/MenuBar";
 import { PropertiesPanel } from "@/features/editor/ui/PropertiesPanel";
 import { Toolbar } from "@/features/editor/ui/Toolbar";
+import { TicketPanel } from "@/features/editor/ui/TicketPanel";
 
 /**
  * 브라우저 기본 우클릭 메뉴를 막는다 — 입력란만 빼고(#138).
@@ -34,6 +36,7 @@ function handleContextMenu(event: MouseEvent<HTMLElement>) {
  */
 export function EditorLayout() {
   const showPanels = useViewStore((s) => s.showPanels);
+  const showTickets = useTicketStore((s) => s.isOpen);
 
   const gridColsClass = showPanels
     ? "grid-cols-[var(--layout-tree-width)_1fr_var(--layout-props-width)]"
@@ -51,7 +54,7 @@ export function EditorLayout() {
       <MenuBar />
       {showPanels && <LayerTree />}
       <Canvas />
-      {showPanels && <PropertiesPanel />}
+      {showPanels && (showTickets ? <TicketPanel /> : <PropertiesPanel />)}
       <Toolbar />
     </div>
   );
