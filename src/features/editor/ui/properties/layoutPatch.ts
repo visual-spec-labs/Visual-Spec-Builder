@@ -1,4 +1,5 @@
-import type { FrameNode } from "@/features/editor/schema";
+import type { FrameNode, NodeId, Size } from "@/features/editor/schema";
+import type { NodeFieldPatch } from "@/features/editor/store/editorStore";
 
 type Layout = FrameNode["layout"];
 type Direction = Layout["direction"];
@@ -84,4 +85,53 @@ export function showsMainAxis(direction: Direction): boolean {
  */
 export function showsCrossAxis(): boolean {
   return true;
+}
+
+/**
+ * "자식 크기 균등" 버튼을 활성화할지(#150).
+ *
+ * 부모 자신의 주축 크기가 Hug(auto)면 안 된다. 자식을 fill(flex-grow, flex-basis 0)로
+ * 만들어도 Hug인 부모는 채울 공간을 만들어 주지 않는다 — flex-basis가 0이라 부모의
+ * 콘텐츠 크기 계산에도 안 잡혀, 부모가 거의 0까지 쪼그라들고 자식도 따라 0이 된다.
+ * 시드 문서의 Card(direction: column, height: auto)에 적용해 보면 Label/Value가
+ * 실제로 이렇게 무너진다. Figma의 "Fill container"도 부모가 Hug인 축에서는 그 옵션
+ * 자체를 비활성화한다 — 같은 이유다.
+ *
+ * 교차축(stretch)은 부모가 Hug여도 안전하다. 정렬 후 크기를 나누는 flex-grow와 달리
+ * align-items:stretch는 부모의 hug 크기(가장 큰 자식의 콘텐츠 기준)를 먼저 정하고
+ * 나머지를 그 크기로 늘리는 것이라 collapse가 없다 — 그래서 이 함수는 주축만 본다.
+ */
+export function canEqualizeChildren(
+  direction: Direction,
+  parentMainAxisSize: Size,
+  childCount: number,
+): boolean {
+  return direction !== "grid" && parentMainAxisSize !== "auto" && childCount >= 2;
+}
+
+/**
+ * 자식 전부의 주축 크기를 fill로, 부모 교차축을 stretch로 맞추는 patch 묶음(#150).
+ *
+ * 지금은 자식 각각의 너비(또는 세로 레이아웃이면 높이)를 fill로, 부모의
+ * 교차축 정렬을 stretch로 — 3번 나눠 눌러야 자식들 크기가 같아진다. 이 둘을
+ * `setNodeFields`(#149) 한 번에 실어 보내면 history도 한 단계만 쌓인다.
+ *
+ * 그리드거나 부모의 주축이 Hug면 대상이 아니다 — 그리드는 트랙이 이미
+ * `repeat(n, 1fr)`이라 너비가 자동으로 균등하고, Hug는 `canEqualizeChildren`이
+ * 설명하는 이유로 적용하면 오히려 레이아웃이 무너진다. 호출부가 버튼을 숨기거나
+ * 비활성화하더라도, 이 함수가 직접 no-op을 보장해야 재사용 시점에 실수로 깨지지 않는다.
+ */
+export function equalizeChildrenPatches(
+  direction: Direction,
+  parentMainAxisSize: Size,
+  parentId: NodeId,
+  childIds: readonly NodeId[],
+): NodeFieldPatch[] {
+  if (direction === "grid" || parentMainAxisSize === "auto") return [];
+
+  const mainAxisField = direction === "row" ? "box.width" : "box.height";
+  return [
+    ...childIds.map((id) => ({ id, path: mainAxisField, value: "fill" as const })),
+    { id: parentId, path: "layout.crossAxis", value: "stretch" as const },
+  ];
 }
