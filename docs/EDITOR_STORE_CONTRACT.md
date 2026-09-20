@@ -47,7 +47,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 기존 단일 편집 함수의 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`·`PageProperties.tsx`, 트리의 "표시" 토글·삭제 버튼·드래그)는 바뀌지 않는다. 내부에서는 `command/applyCommand.ts`의 `updateNode`·`updateScreen`·`deleteNode`·`moveNode`·`createNode` Command를 만들어 적용한다. `setNodeFields`는 여러 `updateNode` Command를 `applyTransaction`으로 먼저 한 페이지 사본에 적용한 뒤, 최종 결과만 Zustand `set` 한 번과 history 한 단계로 커밋한다. 따라서 중간 노드만 바뀐 화면은 구독자에게 보이지 않는다.
 
-`setNodeFields`의 patch는 입력 순서대로 적용한다. 없는 노드나 허용되지 않은 경로처럼 `applyCommand`가 no-op으로 판정한 patch는 건너뛰고 나머지는 적용하며, 전부 no-op이거나 배열이 비었으면 spec 참조와 history를 그대로 둔다. `continueEdit`은 `setNodeField`와 같은 계약이라, 다중 선택 입력을 연속 타이핑할 때 두 번째 batch부터 직전 단계에 병합할 수 있다.
+`setNodeFields`의 patch는 입력 순서대로 적용한다. 없는 노드나 허용되지 않은 경로처럼 `applyCommand`가 no-op으로 판정한 patch는 건너뛰고 나머지는 적용하며, 전부 no-op이거나 배열이 비었으면 spec 참조와 history를 그대로 둔다. **이름이 `applyTransaction`이어도 전부 성공하거나 전부 실패하는 원자적 트랜잭션은 아니다.** 유효하지 않은 patch가 섞이면 신호 없이 부분 적용되는 것이 현재 계약이다. `continueEdit`은 `setNodeField`와 같은 계약이라, 다중 선택 입력을 연속 타이핑할 때 두 번째 batch부터 직전 단계에 병합할 수 있다.
 
 이 배치 계약에는 `insertNode`·`removeNode`·`moveNode`를 넣지 않았다. 이 액션들은 `selectedId`를 새 노드로 옮기거나 삭제된 선택을 해제하는 규칙까지 동반해 단순 필드 patch와 결과 계약이 다르다. 여러 구조 변경을 한 동작으로 묶을 실제 기능이 생기면 선택 상태까지 포함한 별도 API로 정한다.
 

@@ -278,6 +278,10 @@ function appliedTransaction(
   if (nextPage === page) return null;
 
   const spec = withPage(state.spec, pageId, nextPage);
+  // #131 리뷰(wook3964, PR #142): 지금 호출부는 전부 활성 페이지를 넘겨서 둘이
+  // 같지만, 타입도 런타임도 그걸 강제하지 않는다. 비활성 페이지 편집이 생겨도
+  // state.activePageId로 바꾸면 스냅숏이 편집된 페이지가 아니라 보고 있던 페이지를
+  // 기록한다. history가 실제 변경을 보여 주도록 편집 대상 pageId를 유지한다.
   // 스냅숏의 activePageId는 `state.activePageId`가 아니라 편집이 일어난 `pageId`다.
   // 이 단계로 undo/redo하면 바뀐 내용이 눈앞에 있어야 한다(#131, PR #142).
   const next = makeSnapshot(spec, pageId);
