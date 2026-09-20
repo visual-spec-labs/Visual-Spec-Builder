@@ -1,6 +1,15 @@
 import type { Layout, Node, NodeId } from "@/features/editor/schema";
 
 /**
+ * 런타임 정본은 command.schema.json이다(#153).
+ *
+ * 이 타입은 손으로 유지한다. createNode.node와 setLayout.layout이 이미 동결된 IR
+ * 타입을 그대로 재사용하고, update*.value는 path에 따라 달라 `unknown`이어야 해서
+ * JSON Schema 생성 타입이 더 정확해지지 않기 때문이다. 스키마와의 동기화는
+ * test/command-schema.test.ts가 6종의 유효/무효 모양을 함께 고정한다.
+ */
+
+/**
  * GUI 이벤트와 자연어 Agent가 공유하는 편집 명령(PRD 1차 11·16장,
  * component-architecture.md §3.3 vsb-command-engine). 노드 5종 + 페이지 1종.
  *
