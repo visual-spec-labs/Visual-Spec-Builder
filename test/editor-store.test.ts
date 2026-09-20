@@ -8,6 +8,7 @@ import {
 } from "@/features/editor/schema";
 import type { ScreenSpec } from "@/features/editor/schema";
 import { blankSpec } from "@/features/editor/store/blankSpec";
+import { collectSubtree } from "@/features/editor/store/duplicateNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { getByPath, setByPath } from "@/features/editor/store/path";
 import { seedSpec } from "@/features/editor/store/seedSpec";
@@ -1215,5 +1216,95 @@ describe("enteredId — 선택 문맥 (#151)", () => {
     useEditorStore.getState().loadSpec(blankSpec);
 
     expect(useEditorStore.getState().enteredId).toBeNull();
+  });
+});
+
+describe("editorStore — 복제·붙여넣기 (#151)", () => {
+  beforeEach(resetToSeed);
+
+  /** content 의 자식 id 목록. 사본이 어디 꽂혔는지 보는 데 쓴다. */
+  function contentChildren(): string[] {
+    const content = activePage().nodes.content;
+    return content.type === "frame" ? content.children.map((child) => child.node) : [];
+  }
+
+  it("duplicateNode 가 사본을 원본 바로 뒤에 넣는다", () => {
+    useEditorStore.getState().duplicateNode("cardA");
+
+    const children = contentChildren();
+    expect(children).toHaveLength(3);
+    expect(children[0]).toBe("cardA");
+    expect(children[2]).toBe("cardB");
+  });
+
+  it("사본을 바로 선택해 준다 — 만들자마자 옮길 수 있어야 한다", () => {
+    useEditorStore.getState().duplicateNode("cardA");
+
+    const selectedId = useEditorStore.getState().selectedId;
+    expect(selectedId).toBe(contentChildren()[1]);
+    expect(selectedId).not.toBe("cardA");
+  });
+
+  it("자손까지 같이 복제하고, 사본의 자식은 새 id 다", () => {
+    useEditorStore.getState().duplicateNode("cardA");
+
+    const copyId = useEditorStore.getState().selectedId as string;
+    const copy = activePage().nodes[copyId];
+    const childIds = copy.type === "frame" ? copy.children.map((c) => c.node) : [];
+
+    expect(childIds).toHaveLength(2);
+    // 원본의 자식을 같이 가리키면 원본을 지울 때 사본 속이 비어 버린다.
+    expect(childIds).not.toContain("cardALabel");
+    expect(activePage().nodes[childIds[0]]).toBeDefined();
+  });
+
+  it("자손이 몇이든 undo 한 번이면 전부 사라진다", () => {
+    useEditorStore.getState().duplicateNode("cardA");
+    const after = Object.keys(activePage().nodes).length;
+
+    useEditorStore.getState().undo();
+
+    expect(Object.keys(activePage().nodes).length).toBe(after - 3);
+    expect(contentChildren()).toEqual(["cardA", "cardB"]);
+  });
+
+  it("root 는 복제하지 않는다 — 페이지에 root 는 하나다", () => {
+    const before = useEditorStore.getState().spec;
+    useEditorStore.getState().duplicateNode(activePage().root);
+
+    expect(useEditorStore.getState().spec).toBe(before);
+    expect(undoEnabled()).toBe(false);
+  });
+
+  it("없는 id 는 아무 일도 하지 않는다", () => {
+    const before = useEditorStore.getState().spec;
+    useEditorStore.getState().duplicateNode("nope");
+
+    expect(useEditorStore.getState().spec).toBe(before);
+  });
+
+  it("복제한 문서도 스키마를 통과한다", () => {
+    useEditorStore.getState().duplicateNode("cardA");
+
+    expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+  });
+
+  it("pasteSubtree 는 넘긴 부모의 끝에 심고 선택한다", () => {
+    const subtree = collectSubtree(activePage().nodes, "cardALabel");
+    useEditorStore.getState().pasteSubtree(subtree!, "content");
+
+    const children = contentChildren();
+    expect(children).toHaveLength(3);
+    expect(children[2]).toBe(useEditorStore.getState().selectedId);
+  });
+
+  it("원본을 지운 뒤에도 붙여넣을 수 있다 — 덩어리는 그때의 사본이다", () => {
+    const subtree = collectSubtree(activePage().nodes, "cardA");
+    useEditorStore.getState().removeNode("cardA");
+    useEditorStore.getState().pasteSubtree(subtree!, "content");
+
+    const pastedId = useEditorStore.getState().selectedId as string;
+    const pasted = activePage().nodes[pastedId];
+    expect(pasted.type === "frame" && pasted.children).toHaveLength(2);
   });
 });
