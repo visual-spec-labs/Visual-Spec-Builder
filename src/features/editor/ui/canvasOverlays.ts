@@ -18,7 +18,7 @@ import {
   type CenterMark,
   type GapStrip,
 } from "./gapStrips";
-import { resolveClickTarget } from "./selection";
+import { clickBoundary, resolveClickTarget } from "./selection";
 import { nodeSelector, relativeRect, sameRect, type Rect } from "./selectionRect";
 
 /**
@@ -247,7 +247,13 @@ export function useHoverTarget(
   // 직전에 푼 입력. 같은 노드 위를 계속 지나갈 때 resolveClickTarget 을 다시
   // 부르지 않으려는 것이다 — 그 안의 buildParentMap 이 문서 전체를 순회하며
   // Map 을 새로 만드는데, mousemove 는 초당 수십 번 들어온다.
-  const lastRef = useRef<{ clickedId: string; deep: boolean } | null>(null);
+  // focusRootId 도 캐시 키에 넣는다 — 마우스가 멈춰 있는 동안 더블클릭으로
+  // 문맥이 바뀌면(#151) 같은 clickedId·deep 이어도 강조 대상이 달라진다.
+  const lastRef = useRef<{
+    clickedId: string;
+    deep: boolean;
+    focusRootId: NodeId | null;
+  } | null>(null);
 
   const clear = useCallback(() => {
     lastRef.current = null;
@@ -277,17 +283,33 @@ export function useHoverTarget(
       }
 
       const deep = event.metaKey || event.ctrlKey;
+      const { focusRootId } = useEditorStore.getState();
       const last = lastRef.current;
-      if (last !== null && last.clickedId === clickedId && last.deep === deep) return;
-      lastRef.current = { clickedId, deep };
+      if (
+        last !== null &&
+        last.clickedId === clickedId &&
+        last.deep === deep &&
+        last.focusRootId === focusRootId
+      ) {
+        return;
+      }
+      lastRef.current = { clickedId, deep, focusRootId };
 
       const { spec, activePageId } = useEditorStore.getState();
       const { nodes, root } = spec.pages[activePageId];
       // **Alt 를 deep 으로 치지 않는다.** Alt 는 피그마에서 거리 재기 전용
       // 수식키지 상세 선택이 아니다. 여기에 얹으면 강조된 노드와 클릭이 고르는
-      // 노드가 갈라져, 주석과 docs/08-shortcuts.md 가 약속한 "강조된 것이 곧
+      // 노드가 갈라져, 주석과 docs/09-shortcuts.md 가 약속한 "강조된 것이 곧
       // 선택된다"가 깨진다. 재는 대상은 deepId 로 따로 들고 간다.
-      const selectId = resolveClickTarget({ nodes, root, clickedId, deep });
+      //
+      // 경계는 클릭 핸들러(Canvas.tsx)와 똑같이 clickBoundary 로 정한다(#151) —
+      // 강조되는 것과 실제로 선택되는 것이 언제나 같아야 한다.
+      const selectId = resolveClickTarget({
+        nodes,
+        root: clickBoundary(nodes, root, focusRootId, clickedId),
+        clickedId,
+        deep,
+      });
 
       // **선택 여부를 여기서 접지 않는다.** 접어 두면 그 뒤에 selectedId 가 바뀌어도
       // 상태가 그대로라, 노드를 hover 한 채 클릭하면 1px 미리보기가 2px 선택 표시

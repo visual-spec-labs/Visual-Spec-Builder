@@ -89,14 +89,38 @@ export interface EditorState {
   /** 현재 선택된 노드 id. 없으면 null. 활성 페이지 안의 id다. */
   selectedId: NodeId | null;
   /**
+   * 더블클릭으로 "들어간" 프레임 — 선택 문맥(#151). null이면 문맥이 root다.
+   *
+   * 클릭이 "root 바로 아래 최상위 조상을 고른다"는 규칙(selection.ts의
+   * `resolveClickTarget`)의 그 "최상위"를 어디부터 셀지 정한다. 평소엔 root부터
+   * 세지만, 프레임에 진입해 있으면 그 프레임의 자식이 최상위가 된다 — 카드
+   * 안의 글자를 한 번 더 클릭하면 카드가 아니라 글자가 잡힌다.
+   *
+   * `selectedId`와 생명주기가 같아 옆에 둔다(viewStore가 아니다) — 선택
+   * 해제(`select(null)`)·페이지 전환(`selectPage`)·문맥의 노드가 지워지는
+   * 경우(`removeNode`)에 함께 초기화된다. Esc·바깥 클릭은 둘 다 내부적으로
+   * `select(null)`을 부르므로 따로 처리할 곳이 없다.
+   */
+  focusRootId: NodeId | null;
+  /**
    * 프로젝트 하나의 실행 취소 스택(#40, 단위는 #131에서 프로젝트로 올렸다 —
    * EditorSnapshot 주석 참고). spec을 바꾸는 모든 액션이 성공할 때마다 여기에
    * 쌓이므로 `present`는 항상 지금 상태와 같다. 그래서 되돌릴 것이 있는지는
    * `command/history.ts`의 `canUndo`/`canRedo`에 그대로 물으면 된다.
    */
   history: HistoryState<EditorSnapshot>;
-  /** 노드 선택/해제. 트리·캔버스가 호출한다. */
+  /**
+   * 노드 선택/해제. 트리·캔버스가 호출한다.
+   * 해제(id === null)는 선택 문맥(focusRootId)도 함께 벗어난다 — Esc·바깥
+   * 클릭이 전부 이 호출을 거치므로, 여기 하나로 그 둘을 함께 처리한다(#151).
+   */
   select: (id: NodeId | null) => void;
+  /**
+   * 선택 문맥을 바꾼다(#151, 더블클릭으로 안쪽 진입). null이면 root 문맥으로
+   * 돌아간다. `selectedId`와는 별개로 바뀐다 — 더블클릭 핸들러가 이걸 먼저
+   * 부르고 이어서 `select`로 그 안의 대상을 고른다.
+   */
+  enterFocus: (id: NodeId | null) => void;
   /**
    * 캔버스에 띄울 페이지를 바꾸고 선택을 해제한다.
    * selectedId를 비우는 이유는 loadSpec과 같다 — 페이지마다 root, cardA 같은
@@ -319,8 +343,11 @@ export const useEditorStore = create<EditorState>((set) => ({
   spec: initialSpec,
   activePageId: initialSpec.pageOrder[0],
   selectedId: null,
+  focusRootId: null,
   history: initHistory(makeSnapshot(initialSpec, initialSpec.pageOrder[0])),
-  select: (id) => set({ selectedId: id }),
+  select: (id) =>
+    set(id === null ? { selectedId: null, focusRootId: null } : { selectedId: id }),
+  enterFocus: (id) => set({ focusRootId: id }),
   selectPage: (id) =>
     set((state) => {
       if (id === state.activePageId || !hasKey(state.spec.pages, id)) {
@@ -334,6 +361,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       return {
         activePageId: id,
         selectedId: null,
+        focusRootId: null, // 페이지마다 id가 겹칠 수 있어 선택 문맥도 비운다(#151)
         history: replacePresent(state.history, makeSnapshot(state.spec, id)),
       };
     }),
@@ -401,6 +429,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         history: pushHistory(state.history, makeSnapshot(spec, id)),
         activePageId: id,
         selectedId: null,
+        focusRootId: null,
       };
     }),
   removePage: (id) =>
@@ -436,6 +465,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         history: pushHistory(state.history, makeSnapshot(spec, activePageId)),
         activePageId,
         selectedId: isActive ? null : state.selectedId,
+        focusRootId: isActive ? null : state.focusRootId,
       };
     }),
   loadSpec: (spec) => {
@@ -444,6 +474,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       spec: project,
       activePageId: project.pageOrder[0],
       selectedId: null,
+      focusRootId: null,
       // #40: 완전히 다른 프로젝트로 갈아 끼우는 시점이라 history도 새로 시작
       // 한다. 이어 쓰면 undo 한 번이 방금 연 파일이 아니라 전에 열려 있던
       // 파일의 옛 상태로 튀어버린다 — New/Open은 되돌릴 대상이 아니다.
@@ -479,6 +510,11 @@ export const useEditorStore = create<EditorState>((set) => ({
           state.selectedId !== null && nodes[state.selectedId] === undefined
             ? null
             : state.selectedId,
+        // 진입해 있던 프레임이 지워졌으면 문맥도 함께 비운다 — 같은 이유다(#151).
+        focusRootId:
+          state.focusRootId !== null && nodes[state.focusRootId] === undefined
+            ? null
+            : state.focusRootId,
       };
     }),
   moveNode: (id, newParentId, index) =>
@@ -551,6 +587,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         // 만든 노드를 지운 상태로 되돌림) — select 로직을 새로 만드는 대신
         // loadSpec/selectPage와 같은 원칙(불확실하면 선택을 비운다)을 따른다.
         selectedId: null,
+        focusRootId: null, // 같은 이유로 선택 문맥도 비운다(#151)
       };
     }),
   redo: () =>
@@ -563,6 +600,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         activePageId: nextHistory.present.activePageId,
         history: nextHistory,
         selectedId: null,
+        focusRootId: null,
       };
     }),
 }));

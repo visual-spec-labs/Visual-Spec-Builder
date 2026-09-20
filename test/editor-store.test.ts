@@ -81,6 +81,77 @@ describe("editorStore", () => {
     expect(useEditorStore.getState().selectedId).toBeNull();
   });
 
+  describe("focusRootId — 더블클릭 진입 문맥(#151)", () => {
+    it("enterFocus로 문맥을 세운다", () => {
+      useEditorStore.getState().enterFocus("cardA");
+      expect(useEditorStore.getState().focusRootId).toBe("cardA");
+    });
+
+    it("select(null)이 문맥도 함께 비운다 — Esc·바깥 클릭이 전부 이 호출을 거친다", () => {
+      useEditorStore.getState().enterFocus("cardA");
+      useEditorStore.getState().select(null);
+
+      expect(useEditorStore.getState().focusRootId).toBeNull();
+    });
+
+    it("select(다른 id)는 문맥을 건드리지 않는다 — 더블클릭이 select를 잇달아 부른다", () => {
+      useEditorStore.getState().enterFocus("cardA");
+      useEditorStore.getState().select("cardALabel");
+
+      expect(useEditorStore.getState().focusRootId).toBe("cardA");
+    });
+
+    it("selectPage가 문맥을 비운다 — 페이지마다 id가 겹칠 수 있다", () => {
+      useEditorStore.getState().enterFocus("cardA");
+      useEditorStore.getState().addPage();
+      const [original] = useEditorStore.getState().spec.pageOrder;
+
+      useEditorStore.getState().selectPage(original);
+
+      expect(useEditorStore.getState().focusRootId).toBeNull();
+    });
+
+    it("addPage가 문맥을 비운다", () => {
+      useEditorStore.getState().enterFocus("cardA");
+      useEditorStore.getState().addPage();
+
+      expect(useEditorStore.getState().focusRootId).toBeNull();
+    });
+
+    it("문맥의 노드가 지워지면 문맥도 비운다", () => {
+      useEditorStore.getState().enterFocus("cardA");
+      useEditorStore.getState().removeNode("cardA");
+
+      expect(useEditorStore.getState().focusRootId).toBeNull();
+    });
+
+    it("문맥과 무관한 노드가 지워지면 문맥은 그대로다", () => {
+      useEditorStore.getState().enterFocus("cardA");
+      useEditorStore.getState().removeNode("cardB");
+
+      expect(useEditorStore.getState().focusRootId).toBe("cardA");
+    });
+
+    it("undo·redo는 문맥을 비운다 — 되돌린 트리에 그 프레임이 없을 수 있다", () => {
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+      useEditorStore.getState().enterFocus("cardA");
+
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().focusRootId).toBeNull();
+
+      useEditorStore.getState().enterFocus("cardA");
+      useEditorStore.getState().redo();
+      expect(useEditorStore.getState().focusRootId).toBeNull();
+    });
+
+    it("loadSpec이 문맥을 비운다 — 새 프로젝트다", () => {
+      useEditorStore.getState().enterFocus("cardA");
+      useEditorStore.getState().loadSpec(seedSpec);
+
+      expect(useEditorStore.getState().focusRootId).toBeNull();
+    });
+  });
+
   it("setNodeField로 중첩 값을 불변 업데이트한다", () => {
     const before = useEditorStore.getState().spec;
     useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);

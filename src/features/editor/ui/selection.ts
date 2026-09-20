@@ -80,6 +80,41 @@ export function resolveClickTarget({
   return topLevelAncestor(buildParentMap(nodes), root, clickedId);
 }
 
+/**
+ * `resolveClickTarget`에 넘길 `root`를 정한다 — 더블클릭으로 들어간 프레임
+ * (`focusRootId`)이 있으면 그걸 경계로, 없으면 진짜 root를 경계로 쓴다(#151).
+ *
+ * **`focusRootId`가 있어도 `clickedId`가 그 서브트리 밖이면 진짜 root로
+ * 물러난다.** `topLevelAncestor`는 부모를 거슬러 올라가다 경계를 못 만나면
+ * 끝까지(진짜 root까지) 오른다 — 문맥 밖의 형제 가지를 클릭했을 때 이 경로를
+ * 타면 "문서 전체"가 잡혀 버린다(카드 안에 들어가 있는데 헤더를 클릭했더니
+ * 페이지 전체가 선택되는 것과 같다). 이슈가 정한 문맥 이탈 트리거는
+ * Esc·바깥 클릭·페이지 전환 셋뿐이고 "다른 가지를 클릭"은 그중 하나가
+ * 아니다 — 그래서 문맥을 벗어나는 게 아니라 "문맥이 원래 못 미치는 곳"으로
+ * 보고, 문맥이 없을 때와 같은 결과(진짜 root 경계)로 돌려보낸다.
+ */
+export function clickBoundary(
+  nodes: NodeMap,
+  root: NodeId,
+  focusRootId: NodeId | null,
+  clickedId: NodeId,
+): NodeId {
+  if (focusRootId === null) return root;
+  if (focusRootId === clickedId) return focusRootId;
+
+  const parents = buildParentMap(nodes);
+  const seen = new Set<NodeId>();
+  let current: NodeId | undefined = clickedId;
+
+  while (current !== undefined && !seen.has(current)) {
+    if (current === focusRootId) return focusRootId;
+    seen.add(current);
+    current = parents.get(current);
+  }
+
+  return root;
+}
+
 export interface InsertParentInput {
   nodes: NodeMap;
   root: NodeId;
