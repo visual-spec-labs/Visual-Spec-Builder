@@ -55,6 +55,7 @@ export function dryRunTransaction(
 
 /** 트랜잭션이 관문을 통과하지 못한 이유 — 어느 관문에서 걸렸는지 구분한다. */
 export type TransactionFailure =
+  | { kind: "pageNotFound"; pageId: PageId }
   | { kind: "noOp"; noOps: NoOpCommand[] }
   | { kind: "invalid"; issues: ValidationIssue[] };
 
@@ -63,10 +64,17 @@ export type TransactionGateResult =
   | { ok: false; failure: TransactionFailure };
 
 /**
- * G2(dry-run) → G3(결과 검증) 순서로 관문을 통과시킨다. 하나라도 걸리면
- * **전부-또는-전무**로 버린다 — 일부만 반영된 화면을 호출부에 넘기지 않는다.
- * dry-run이 순수 함수라 이 판정 자체가 스토어를 전혀 건드리지 않으므로
- * 전부-또는-전무가 공짜다(4.2).
+ * pageId가 유효한지 먼저 확인한 뒤 G2(dry-run) → G3(결과 검증) 순서로 관문을
+ * 통과시킨다. 하나라도 걸리면 **전부-또는-전무**로 버린다 — 일부만 반영된
+ * 화면을 호출부에 넘기지 않는다. dry-run이 순수 함수라 이 판정 자체가 스토어를
+ * 전혀 건드리지 않으므로 전부-또는-전무가 공짜다(4.2).
+ *
+ * pageId 확인은 관문 번호(G2/G3)에 넣지 않았다 — docs/08 4.2가 정의한 관문이
+ * 아니라, 그 이전에 필요한 전제조건이다. 이게 없으면 지워진 페이지를 가리키는
+ * 낡은 pageId(예: 페이지 삭제 뒤에도 자연어 UI가 들고 있던 id)가 들어왔을 때
+ * `spec.pages[pageId]`가 `undefined`라 dry-run 내부에서 그대로 예외로 터진다 —
+ * 신뢰 못 할 입력을 `{ ok:false, failure }`로 걸러낸다는 이 파일의 목적과
+ * 어긋난다.
  */
 export function runTransactionGates(
   spec: ProjectSpec,
@@ -74,6 +82,10 @@ export function runTransactionGates(
   commands: readonly Command[],
 ): TransactionGateResult {
   const screen = spec.pages[pageId];
+  if (screen === undefined) {
+    return { ok: false, failure: { kind: "pageNotFound", pageId } };
+  }
+
   const { screen: nextScreen, noOps } = dryRunTransaction(screen, commands);
 
   if (noOps.length > 0) {

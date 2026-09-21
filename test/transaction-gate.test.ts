@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Command } from "@/features/editor/command/types";
 import { dryRunTransaction, runTransactionGates } from "@/features/editor/command/transactionGate";
 import { migrateV01 } from "@/features/editor/schema";
-import type { Node, ProjectSpec } from "@/features/editor/schema";
+import type { Node, PageId, ProjectSpec } from "@/features/editor/schema";
 import { seedSpec } from "@/features/editor/store/seedSpec";
 
 const SPEC: ProjectSpec = migrateV01(seedSpec);
@@ -65,6 +65,24 @@ describe("runTransactionGates — G2→G3, 전부-또는-전무(#154)", () => {
     if (result.ok) {
       const cardA = result.screen.nodes.cardA;
       expect(cardA.type === "frame" && cardA.layout.gap).toBe(4);
+    }
+  });
+
+  it("존재하지 않는 pageId면 예외를 던지지 않고 ok:false를 돌려준다", () => {
+    const commands: Command[] = [
+      { type: "updateNode", id: "cardA", path: "layout.gap", value: 4 },
+    ];
+    const missingPageId = "존재하지-않는-id" as PageId;
+
+    expect(() => runTransactionGates(SPEC, missingPageId, commands)).not.toThrow();
+
+    const result = runTransactionGates(SPEC, missingPageId, commands);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.kind).toBe("pageNotFound");
+      if (result.failure.kind === "pageNotFound") {
+        expect(result.failure.pageId).toBe(missingPageId);
+      }
     }
   });
 
