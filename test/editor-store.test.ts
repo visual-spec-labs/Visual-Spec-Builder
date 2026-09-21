@@ -1,12 +1,13 @@
 import { describe, expect, it, beforeEach } from "vitest";
 
 import { canRedo, canUndo, initHistory } from "@/features/editor/command/history";
+import type { Command } from "@/features/editor/command/types";
 import {
   migrateV01,
   validateProjectSpec,
   validateVisualSpec,
 } from "@/features/editor/schema";
-import type { ScreenSpec } from "@/features/editor/schema";
+import type { Node, ScreenSpec } from "@/features/editor/schema";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { getByPath, setByPath } from "@/features/editor/store/path";
@@ -1177,43 +1178,91 @@ describe("editorStore", () => {
   });
 });
 
-describe("enteredId — 선택 문맥 (#151)", () => {
+describe("applyGuardedTransaction — 신뢰할 수 없는 Command 배열, 전부-또는-전무(#154)", () => {
   beforeEach(resetToSeed);
 
-  it("enter 로 들어가고 null 로 나온다", () => {
-    useEditorStore.getState().enter("cardA");
-    expect(useEditorStore.getState().enteredId).toBe("cardA");
+  it("전부 통과하면 한 단계로 커밋하고 ok:true를 돌려준다", () => {
+    const before = useEditorStore.getState().spec;
+    const commands: Command[] = [
+      { type: "updateNode", id: "cardA", path: "layout.gap", value: 4 },
+      { type: "updateNode", id: "cardB", path: "layout.gap", value: 4 },
+    ];
 
-    useEditorStore.getState().enter(null);
-    expect(useEditorStore.getState().enteredId).toBeNull();
+    const result = useEditorStore.getState().applyGuardedTransaction(
+      useEditorStore.getState().activePageId,
+      commands,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(useEditorStore.getState().spec).not.toBe(before);
+    const cardA = activePage().nodes.cardA;
+    expect(cardA.type === "frame" && cardA.layout.gap).toBe(4);
+    expect(undoEnabled()).toBe(true);
   });
 
-  it("들어가 있던 노드를 지우면 문맥이 풀린다 — 안 그러면 갇힌다", () => {
-    // 사라진 id 를 기준으로 클릭이 해석되면 아무것도 못 고르게 된다.
-    useEditorStore.getState().enter("cardA");
-    useEditorStore.getState().removeNode("cardA");
+  it("undo 한 번으로 여러 Command가 통째로 되돌아간다", () => {
+    const commands: Command[] = [
+      { type: "updateNode", id: "cardA", path: "layout.gap", value: 4 },
+      { type: "updateNode", id: "cardB", path: "layout.gap", value: 4 },
+    ];
+    useEditorStore.getState().applyGuardedTransaction(
+      useEditorStore.getState().activePageId,
+      commands,
+    );
 
-    expect(useEditorStore.getState().enteredId).toBeNull();
+    useEditorStore.getState().undo();
+
+    const cardA = activePage().nodes.cardA;
+    const cardB = activePage().nodes.cardB;
+    expect(cardA.type === "frame" && cardA.layout.gap).toBe(8);
+    expect(cardB.type === "frame" && cardB.layout.gap).toBe(8);
+    expect(undoEnabled()).toBe(false);
   });
 
-  it("다른 노드를 지우면 문맥은 그대로다", () => {
-    useEditorStore.getState().enter("cardA");
-    useEditorStore.getState().removeNode("cardB");
+  it("G2에서 no-op이 있으면 spec을 전혀 바꾸지 않는다", () => {
+    const before = useEditorStore.getState().spec;
+    const commands: Command[] = [
+      { type: "updateNode", id: "cardA", path: "layout.gap", value: 4 },
+      { type: "updateNode", id: "없음", path: "layout.gap", value: 4 },
+    ];
 
-    expect(useEditorStore.getState().enteredId).toBe("cardA");
+    const result = useEditorStore.getState().applyGuardedTransaction(
+      useEditorStore.getState().activePageId,
+      commands,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(useEditorStore.getState().spec).toBe(before);
+    expect(undoEnabled()).toBe(false);
   });
 
-  it("페이지를 옮기면 문맥이 풀린다 — 페이지마다 id 가 겹친다", () => {
-    useEditorStore.getState().enter("cardA");
-    useEditorStore.getState().addPage();
+  it("G3에서 결과가 무효하면 spec을 전혀 바꾸지 않는다", () => {
+    const before = useEditorStore.getState().spec;
+    const malformedNode = {
+      type: "text",
+      name: "Broken",
+      box: { width: "auto", height: "auto" },
+      content: "x",
+      typography: {
+        fontFamily: "Pretendard",
+        fontSize: 14,
+        fontWeight: 400,
+        lineHeight: 20,
+        letterSpacing: 0,
+        textAlign: "left",
+      },
+      // color가 빠졌다 — 스키마 필수 필드, G3가 잡아야 한다
+    } as unknown as Node;
+    const commands: Command[] = [
+      { type: "createNode", parentId: "content", id: "broken", node: malformedNode },
+    ];
 
-    expect(useEditorStore.getState().enteredId).toBeNull();
-  });
+    const result = useEditorStore.getState().applyGuardedTransaction(
+      useEditorStore.getState().activePageId,
+      commands,
+    );
 
-  it("스펙을 새로 불러오면 문맥이 풀린다", () => {
-    useEditorStore.getState().enter("cardA");
-    useEditorStore.getState().loadSpec(blankSpec);
-
-    expect(useEditorStore.getState().enteredId).toBeNull();
+    expect(result.ok).toBe(false);
+    expect(useEditorStore.getState().spec).toBe(before);
   });
 });

@@ -16,6 +16,10 @@ import {
   undo as historyUndo,
   type HistoryState,
 } from "@/features/editor/command/history";
+import {
+  runTransactionGates,
+  type TransactionGateResult,
+} from "@/features/editor/command/transactionGate";
 import type { Command } from "@/features/editor/command/types";
 import { migrateV01 } from "@/features/editor/schema";
 import type {
@@ -103,16 +107,6 @@ export interface EditorState {
    */
   focusRootId: NodeId | null;
   /**
-   * 더블클릭으로 "들어가 있는" 컨테이너. 없으면 root 기준이다(#151).
-   *
-   * 스펙이 아니라 **선택의 문맥**이다 — 같은 클릭이 무엇을 고르는지를 바꾼다.
-   * 그래서 `viewStore`(줌·격자 같은 표시 상태)가 아니라 `selectedId` 옆에 둔다.
-   *
-   * 페이지를 옮기거나 스펙을 새로 불러오면 비운다 — 다른 페이지의 노드 id 를
-   * 가리킨 채로 남으면 클릭 해석이 통째로 어긋난다. `selectedId` 와 같은 이유다.
-   */
-  enteredId: NodeId | null;
-  /**
    * 프로젝트 하나의 실행 취소 스택(#40, 단위는 #131에서 프로젝트로 올렸다 —
    * EditorSnapshot 주석 참고). spec을 바꾸는 모든 액션이 성공할 때마다 여기에
    * 쌓이므로 `present`는 항상 지금 상태와 같다. 그래서 되돌릴 것이 있는지는
@@ -131,15 +125,6 @@ export interface EditorState {
    * 부르고 이어서 `select`로 그 안의 대상을 고른다.
    */
   enterFocus: (id: NodeId | null) => void;
-  /**
-   * 더블클릭으로 컨테이너 안에 들어간다(#151). 그 안에서는 자식이 클릭 단위가 된다.
-   *
-   * null 이면 root 기준으로 되돌린다 — 바깥을 클릭했을 때 한 겹 빠져나오는 것도
-   * 이 함수로 한다. 무엇으로 들어갈지·어디로 빠져나올지는 캔버스가
-   * `ui/selection.ts` 의 순수 함수(`resolveEnterTarget`·`resolveExitTarget`)로
-   * 정해서 넘긴다 — 스토어는 값을 받아 담기만 한다.
-   */
-  enter: (id: NodeId | null) => void;
   /**
    * 캔버스에 띄울 페이지를 바꾸고 선택을 해제한다.
    * selectedId를 비우는 이유는 loadSpec과 같다 — 페이지마다 root, cardA 같은
@@ -262,6 +247,23 @@ export interface EditorState {
   undo: () => void;
   /** 되돌린 편집을 한 단계 다시 실행한다. 다시 실행할 것이 없으면 아무 일도 안 한다. */
   redo: () => void;
+  /**
+   * 출처를 신뢰할 수 없는 Command 배열(자연어 등)을 관문 G2·G3
+   * (docs/08-natural-language.md 4.2, `command/transactionGate.ts`)에 통과시킨
+   * 뒤 한 단계로 커밋한다. `setNodeFields`(#149)와 달리 **전부-또는-전무**다 —
+   * no-op이 하나라도 있거나(G2) 결과가 무효면(G3) `spec`을 전혀 바꾸지 않는다.
+   *
+   * 다른 편집 액션과 달리 **반환값이 있다** — 실패 이유(어느 Command가
+   * no-op인지, 또는 어떤 스키마 위반인지)를 호출부가 UI에 보여줘야 하기
+   * 때문이다(4.2 G2 "3번째 명령이 아무 일도 하지 않았습니다").
+   *
+   * GUI 경로는 이 액션을 쓰지 않는다 — 패널이 경로·값 모양을 소스에 고정해
+   * 둬서 관문이 필요 없다(4.1). 자연어처럼 Command를 LLM이 만드는 경로 전용이다.
+   */
+  applyGuardedTransaction: (
+    pageId: PageId,
+    commands: readonly Command[],
+  ) => TransactionGateResult;
 }
 
 function hasKey(target: object, key: string): boolean {
@@ -358,17 +360,15 @@ function appliedTransaction(
   };
 }
 
-export const useEditorStore = create<EditorState>((set) => ({
+export const useEditorStore = create<EditorState>((set, get) => ({
   spec: initialSpec,
   activePageId: initialSpec.pageOrder[0],
   selectedId: null,
   focusRootId: null,
-  enteredId: null,
   history: initHistory(makeSnapshot(initialSpec, initialSpec.pageOrder[0])),
   select: (id) =>
     set(id === null ? { selectedId: null, focusRootId: null } : { selectedId: id }),
   enterFocus: (id) => set({ focusRootId: id }),
-  enter: (id) => set({ enteredId: id }),
   selectPage: (id) =>
     set((state) => {
       if (id === state.activePageId || !hasKey(state.spec.pages, id)) {
@@ -383,7 +383,6 @@ export const useEditorStore = create<EditorState>((set) => ({
         activePageId: id,
         selectedId: null,
         focusRootId: null, // 페이지마다 id가 겹칠 수 있어 선택 문맥도 비운다(#151)
-        enteredId: null,
         history: replacePresent(state.history, makeSnapshot(state.spec, id)),
       };
     }),
@@ -452,7 +451,6 @@ export const useEditorStore = create<EditorState>((set) => ({
         activePageId: id,
         selectedId: null,
         focusRootId: null,
-        enteredId: null,
       };
     }),
   removePage: (id) =>
@@ -489,7 +487,6 @@ export const useEditorStore = create<EditorState>((set) => ({
         activePageId,
         selectedId: isActive ? null : state.selectedId,
         focusRootId: isActive ? null : state.focusRootId,
-        enteredId: isActive ? null : state.enteredId,
       };
     }),
   loadSpec: (spec) => {
@@ -499,7 +496,6 @@ export const useEditorStore = create<EditorState>((set) => ({
       activePageId: project.pageOrder[0],
       selectedId: null,
       focusRootId: null,
-      enteredId: null,
       // #40: 완전히 다른 프로젝트로 갈아 끼우는 시점이라 history도 새로 시작
       // 한다. 이어 쓰면 undo 한 번이 방금 연 파일이 아니라 전에 열려 있던
       // 파일의 옛 상태로 튀어버린다 — New/Open은 되돌릴 대상이 아니다.
@@ -540,12 +536,6 @@ export const useEditorStore = create<EditorState>((set) => ({
           state.focusRootId !== null && nodes[state.focusRootId] === undefined
             ? null
             : state.focusRootId,
-        // 들어가 있던 컨테이너를 지우면 그 안에 갇힌다 — 클릭이 사라진 id 를
-        // 기준으로 해석돼 아무것도 못 고르게 된다(#151).
-        enteredId:
-          state.enteredId !== null && nodes[state.enteredId] === undefined
-            ? null
-            : state.enteredId,
       };
     }),
   moveNode: (id, newParentId, index) =>
@@ -619,7 +609,6 @@ export const useEditorStore = create<EditorState>((set) => ({
         // loadSpec/selectPage와 같은 원칙(불확실하면 선택을 비운다)을 따른다.
         selectedId: null,
         focusRootId: null, // 같은 이유로 선택 문맥도 비운다(#151)
-        enteredId: null,
       };
     }),
   redo: () =>
@@ -633,7 +622,15 @@ export const useEditorStore = create<EditorState>((set) => ({
         history: nextHistory,
         selectedId: null,
         focusRootId: null,
-        enteredId: null,
       };
     }),
+  applyGuardedTransaction: (pageId, commands) => {
+    const state = get();
+    const result = runTransactionGates(state.spec, pageId, commands);
+    if (result.ok) {
+      const spec = withPage(state.spec, pageId, result.screen);
+      set({ spec, history: pushHistory(state.history, makeSnapshot(spec, pageId)) });
+    }
+    return result;
+  },
 }));

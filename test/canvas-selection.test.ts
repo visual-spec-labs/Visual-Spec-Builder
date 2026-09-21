@@ -6,8 +6,6 @@ import {
   clickBoundary,
   isWithin,
   resolveClickTarget,
-  resolveEnterTarget,
-  resolveExitTarget,
   resolveInsertParent,
   siblingId,
 } from "@/features/editor/ui/selection";
@@ -329,44 +327,5 @@ describe("isWithin — 바깥을 클릭했는지", () => {
 
   it("조상은 자손 안에 있지 않다", () => {
     expect(isWithin(nodes, "cardA", "content")).toBe(false);
-  });
-});
-
-describe("resolveEnterTarget — 더블클릭으로 한 겹 들어가기", () => {
-  it("한 번에 한 겹만 내려간다 — 깊은 글자를 눌러도 중간을 건너뛰지 않는다", () => {
-    expect(resolveEnterTarget({ nodes, root, clickedId: "cardALabel" })).toBe("content");
-  });
-
-  it("들어간 상태에서 다시 하면 그다음 겹이다", () => {
-    expect(
-      resolveEnterTarget({ nodes, root, clickedId: "cardALabel", container: "content" }),
-    ).toBe("cardA");
-  });
-
-  it("텍스트에는 들어가지 않는다 — 안에 고를 자식이 없다", () => {
-    expect(
-      resolveEnterTarget({ nodes, root, clickedId: "cardALabel", container: "cardA" }),
-    ).toBeNull();
-  });
-
-  it("컨테이너 자신을 더블클릭하면 더 들어갈 곳이 없다", () => {
-    expect(
-      resolveEnterTarget({ nodes, root, clickedId: "cardA", container: "cardA" }),
-    ).toBeNull();
-  });
-
-  it("스펙에 없는 노드면 null 이다", () => {
-    expect(resolveEnterTarget({ nodes, root, clickedId: "없는노드" })).toBeNull();
-  });
-});
-
-describe("resolveExitTarget — 한 겹 빠져나오기", () => {
-  it("부모 컨테이너로 올라간다", () => {
-    expect(resolveExitTarget(nodes, "cardA")).toBe("content");
-  });
-
-  it("root 바로 아래에서 나오면 null — 아무 데도 안 들어간 상태다", () => {
-    expect(resolveExitTarget(nodes, "content")).toBe("root");
-    expect(resolveExitTarget(nodes, "root")).toBeNull();
   });
 });

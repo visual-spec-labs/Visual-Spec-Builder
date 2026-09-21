@@ -14,6 +14,28 @@ function withNodes(screen: ScreenSpec, nodes: Record<NodeId, Node>): ScreenSpec 
 }
 
 /**
+ * `apply*` 함수 하나의 결과 — 바뀐(또는 안 바뀐) 화면과, 안 바뀌었다면 왜인지.
+ *
+ * 이유는 호출부가 같은 조건을 다시 재서 따로 뽑지 않고 판정이 실제로 일어나는
+ * 이 자리에서 함께 낸다(docs/08-natural-language.md 4.2·8절 5번의 "정할 것" —
+ * Command Engine 안에 두는 쪽을 택했다). 조건이 두 곳(여기와 호출부)에 있으면
+ * 하나만 고치고 잊는 순간 이유 문자열이 실제 판정과 조용히 어긋난다.
+ */
+interface ApplyResult {
+  screen: ScreenSpec;
+  /** no-op이면 이유, 실제로 바뀌었으면 undefined. */
+  reason?: string;
+}
+
+function applied(screen: ScreenSpec): ApplyResult {
+  return { screen };
+}
+
+function noOp(screen: ScreenSpec, reason: string): ApplyResult {
+  return { screen, reason };
+}
+
+/**
  * children 참조로 targetId를 갖고 있는 frame의 id. 없으면 undefined(= root이거나 고아).
  *
  * export하는 이유는 ui/layerDrop.ts의 collectSubtreeIds와 같다 — 복제(#151)가
@@ -88,13 +110,20 @@ function insertChildReference(
   return { ...nodes, [parentId]: { ...parent, children } };
 }
 
-function applyCreateNode(screen: ScreenSpec, command: CreateNodeCommand): ScreenSpec {
+function applyCreateNode(screen: ScreenSpec, command: CreateNodeCommand): ApplyResult {
   const { nodes } = screen;
   const parent = nodes[command.parentId];
-  if (parent === undefined || !isFrameNode(parent)) return screen;
+  if (parent === undefined) {
+    return noOp(screen, `parentId '${command.parentId}'가 없습니다`);
+  }
+  if (!isFrameNode(parent)) {
+    return noOp(screen, `parentId '${command.parentId}'가 frame이 아닙니다`);
+  }
   // 이미 있는 id는 덮어쓰지 않는다 — 호출자가 store/nodeId.ts의 generateNodeId로
   // 겹치지 않는 id를 먼저 만들어서 넘겨야 한다.
-  if (Object.prototype.hasOwnProperty.call(nodes, command.id)) return screen;
+  if (Object.prototype.hasOwnProperty.call(nodes, command.id)) {
+    return noOp(screen, `id '${command.id}'가 이미 있습니다`);
+  }
 
   const nextNodes: Record<NodeId, Node> = {
     ...nodes,
@@ -105,27 +134,35 @@ function applyCreateNode(screen: ScreenSpec, command: CreateNodeCommand): Screen
     [command.id]: command.node,
   };
 
-  return withNodes(screen, nextNodes);
+  return applied(withNodes(screen, nextNodes));
 }
 
-function applyUpdateNode(screen: ScreenSpec, command: UpdateNodeCommand): ScreenSpec {
+function applyUpdateNode(screen: ScreenSpec, command: UpdateNodeCommand): ApplyResult {
   const { nodes } = screen;
   const node = nodes[command.id];
-  if (node === undefined) return screen;
+  if (node === undefined) {
+    return noOp(screen, `id '${command.id}'가 없습니다`);
+  }
   // 대상이 있는지와 같은 무게로 경로도 본다(#146) — setByPath는 없는 키를 새로
   // 만들어서, 검사 없이 부르면 오타가 no-op이 아니라 스키마에 없는 필드가 된다.
   // 노드를 통째로 넘긴다: 경로 이름만이 아니라 "지금 값 위에 써도 결과가 스키마를
   // 만족하는가"까지 보기 때문이다(PR #147 리뷰).
-  if (!isEditableNodePath(node, command.path)) return screen;
+  if (!isEditableNodePath(node, command.path)) {
+    return noOp(screen, `path '${command.path}'는 이 노드에 쓸 수 없습니다`);
+  }
 
   const nextNode = setByPath(node, command.path, command.value);
-  return withNodes(screen, { ...nodes, [command.id]: nextNode });
+  return applied(withNodes(screen, { ...nodes, [command.id]: nextNode }));
 }
 
-function applyDeleteNode(screen: ScreenSpec, command: DeleteNodeCommand): ScreenSpec {
+function applyDeleteNode(screen: ScreenSpec, command: DeleteNodeCommand): ApplyResult {
   const { nodes, root } = screen;
-  if (command.id === root) return screen; // root는 지울 수 없다 — root-missing이 된다
-  if (nodes[command.id] === undefined) return screen;
+  if (command.id === root) {
+    return noOp(screen, "root는 지울 수 없습니다"); // root-missing이 된다
+  }
+  if (nodes[command.id] === undefined) {
+    return noOp(screen, `id '${command.id}'가 없습니다`);
+  }
 
   const parentId = findParentId(nodes, command.id);
   // 자식까지 함께 지운다. 부모 참조만 지우면 자손이 nodes에 남아 orphan-node가 된다.
@@ -139,22 +176,32 @@ function applyDeleteNode(screen: ScreenSpec, command: DeleteNodeCommand): Screen
     Object.entries(nextNodes).filter(([id]) => !toRemove.has(id)),
   );
 
-  return withNodes(screen, nextNodes);
+  return applied(withNodes(screen, nextNodes));
 }
 
-function applyMoveNode(screen: ScreenSpec, command: MoveNodeCommand): ScreenSpec {
+function applyMoveNode(screen: ScreenSpec, command: MoveNodeCommand): ApplyResult {
   const { nodes, root } = screen;
-  if (command.id === root) return screen; // root는 옮길 수 없다
+  if (command.id === root) {
+    return noOp(screen, "root는 옮길 수 없습니다");
+  }
 
   const node = nodes[command.id];
+  if (node === undefined) {
+    return noOp(screen, `id '${command.id}'가 없습니다`);
+  }
   const newParent = nodes[command.newParentId];
-  if (node === undefined || newParent === undefined || !isFrameNode(newParent)) {
-    return screen;
+  if (newParent === undefined) {
+    return noOp(screen, `newParentId '${command.newParentId}'가 없습니다`);
+  }
+  if (!isFrameNode(newParent)) {
+    return noOp(screen, `newParentId '${command.newParentId}'가 frame이 아닙니다`);
   }
 
   // 자기 자신이나 자기 자손 밑으로는 옮길 수 없다 — cycle이 생긴다.
   const subtree = collectSubtreeIds(nodes, command.id);
-  if (subtree.has(command.newParentId)) return screen;
+  if (subtree.has(command.newParentId)) {
+    return noOp(screen, `id '${command.id}'를 자기 자신이나 자손 밑으로 옮길 수 없습니다`);
+  }
 
   const oldParentId = findParentId(nodes, command.id);
   let nextNodes = nodes;
@@ -163,25 +210,37 @@ function applyMoveNode(screen: ScreenSpec, command: MoveNodeCommand): ScreenSpec
   }
   nextNodes = insertChildReference(nextNodes, command.newParentId, command.id, command.index);
 
-  return withNodes(screen, nextNodes);
+  return applied(withNodes(screen, nextNodes));
 }
 
-function applySetLayout(screen: ScreenSpec, command: SetLayoutCommand): ScreenSpec {
+function applySetLayout(screen: ScreenSpec, command: SetLayoutCommand): ApplyResult {
   const { nodes } = screen;
   const node = nodes[command.id];
-  if (node === undefined || !isFrameNode(node)) return screen; // text/image/button/input은 layout이 없다
+  if (node === undefined) {
+    return noOp(screen, `id '${command.id}'가 없습니다`);
+  }
+  if (!isFrameNode(node)) {
+    // text/image/button/input은 layout이 없다
+    return noOp(screen, `id '${command.id}'는 frame이 아니라 layout이 없습니다`);
+  }
 
-  return withNodes(screen, { ...nodes, [command.id]: { ...node, layout: command.layout } });
+  return applied(withNodes(screen, { ...nodes, [command.id]: { ...node, layout: command.layout } }));
 }
 
-function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): ScreenSpec {
-  if (!isEditableScreenPath(screen, command.path)) return screen; // applyUpdateNode와 같은 이유(#146)
+function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): ApplyResult {
+  if (!isEditableScreenPath(screen, command.path)) {
+    // applyUpdateNode와 같은 이유(#146)
+    return noOp(screen, `path '${command.path}'는 화면에 쓸 수 없습니다`);
+  }
 
-  return setByPath(screen, command.path, command.value);
+  return applied(setByPath(screen, command.path, command.value));
 }
 
 /**
- * Command 하나를 화면(ScreenSpec) 하나에 적용해 새 화면을 반환한다(불변, 순수 함수).
+ * Command 하나를 화면(ScreenSpec) 하나에 적용해 새 화면과, no-op이면 그 이유를
+ * 반환한다(불변, 순수 함수). `applyCommand`가 이 함수의 `.screen`만 꺼낸 얇은
+ * 래퍼다 — 이유까지 필요한 호출부(dry-run, docs/08-natural-language.md 4.2 G2)는
+ * 이 함수를 직접 쓴다.
  *
  * v0.1의 VisualSpec.screen이든 v0.2 ProjectSpec.pages[id]든 같은 ScreenSpec
  * 모양이라 이 함수 하나로 둘 다 쓴다 — 어느 페이지에 적용할지는 호출자(editorStore)
@@ -193,7 +252,7 @@ function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): Sc
  * IR 불변조건(schema/validate.ts의 root-missing/orphan-node/cycle/multiple-parents)을
  * 깨는 조합은 애초에 만들어지지 않도록 여기서 막는다.
  */
-export function applyCommand(screen: ScreenSpec, command: Command): ScreenSpec {
+export function applyCommandWithReason(screen: ScreenSpec, command: Command): ApplyResult {
   switch (command.type) {
     case "createNode":
       return applyCreateNode(screen, command);
@@ -208,6 +267,11 @@ export function applyCommand(screen: ScreenSpec, command: Command): ScreenSpec {
     case "updateScreen":
       return applyUpdateScreen(screen, command);
   }
+}
+
+/** `applyCommandWithReason`에서 화면만 꺼낸다 — 이유가 필요 없는 기존 호출부 전부가 쓴다. */
+export function applyCommand(screen: ScreenSpec, command: Command): ScreenSpec {
+  return applyCommandWithReason(screen, command).screen;
 }
 
 /**
