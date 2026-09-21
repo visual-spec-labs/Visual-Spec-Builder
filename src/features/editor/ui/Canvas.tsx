@@ -8,6 +8,7 @@ import {
   type RefObject,
 } from "react";
 
+import { useContextMenuStore } from "@/features/editor/store/contextMenuStore";
 import { createNode, type NodeKind } from "@/features/editor/store/createNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
@@ -17,6 +18,7 @@ import { useViewStore } from "@/features/editor/store/viewStore";
 import type { Box, NodeId, PageId } from "@/features/editor/schema";
 
 import { isScrolledToBottom, toolCursorClass } from "./canvasInput";
+import { ContextMenu } from "./ContextMenu";
 import {
   badgeAnchor,
   sameStrip,
@@ -40,6 +42,7 @@ import {
   type ZoomAnchor,
 } from "./canvasZoom";
 import { measureSegments, segmentBadge } from "./measureDistance";
+import { buildNodeContextMenuEntries } from "./nodeContextMenuEntries";
 import {
   buttonStyle,
   frameStyle,
@@ -169,6 +172,39 @@ function handleNodeDoubleClick(clickedId: NodeId, event: ReactMouseEvent) {
 
   enterFocus(entered);
   select(resolveClickTarget({ nodes, root: entered, clickedId, deep: false }));
+}
+
+/**
+ * 노드를 우클릭했을 때 컨텍스트 메뉴를 연다(#152).
+ *
+ * 선택 해석은 좌클릭(handleNodeClick)과 완전히 같다 — 같은 `clickBoundary`로
+ * 진입 문맥을 존중하고, Ctrl/Cmd로 상세 지정도 그대로 받는다. 새 규칙을 만들지
+ * 않고 기존 걸 얹기만 한다. 대상을 먼저 선택한 뒤 메뉴를 연다 — 우클릭이
+ * 선택을 바꾸는 건 대부분의 편집기와 같은 관례다.
+ *
+ * Hand 도구는 팬 전용이라 좌클릭도 선택을 안 바꾸므로 메뉴도 안 띄운다.
+ * `preventDefault`는 항상 부른다 — EditorLayout의 블랭킷 차단(shouldSuppressContextMenu)
+ * 에 기대지 않고 이 자리에서 스스로 브라우저 메뉴를 막는다.
+ */
+function handleNodeContextMenu(clickedId: NodeId, event: ReactMouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const tool = useToolStore.getState().activeTool;
+  if (tool !== "select") return;
+
+  const { spec, activePageId, focusRootId, select } = useEditorStore.getState();
+  const { nodes, root } = spec.pages[activePageId];
+
+  const resolved = resolveClickTarget({
+    nodes,
+    root: clickBoundary(nodes, root, focusRootId, clickedId),
+    clickedId,
+    deep: event.metaKey || event.ctrlKey,
+  });
+
+  select(resolved);
+  useContextMenuStore.getState().open({ nodeId: resolved, x: event.clientX, y: event.clientY });
 }
 
 /** 아트보드 바깥(캔버스 바탕)을 클릭했을 때. */
@@ -379,6 +415,7 @@ function RenderNode({
         style={{ ...textStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
         onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
+        onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         {node.content}
         {selected && <ResizeHandles id={id} box={node.box} />}
@@ -394,6 +431,7 @@ function RenderNode({
         style={{ ...imageStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
         onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
+        onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         {selected && <ResizeHandles id={id} box={node.box} />}
       </div>
@@ -408,6 +446,7 @@ function RenderNode({
         style={{ ...buttonStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
         onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
+        onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         {node.content}
         {selected && <ResizeHandles id={id} box={node.box} />}
@@ -423,6 +462,7 @@ function RenderNode({
         style={{ ...inputStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
         onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
+        onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         <span style={{ opacity: 0.6 }}>{node.placeholder}</span>
         {selected && <ResizeHandles id={id} box={node.box} />}
@@ -437,6 +477,7 @@ function RenderNode({
       style={{ ...frameStyle(node, parentDirection), ...resizeAnchor }}
       onClick={(event) => handleNodeClick(id, event)}
       onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
+      onContextMenu={(event) => handleNodeContextMenu(id, event)}
     >
       {node.children.map((child) => (
         <RenderNode
@@ -480,9 +521,10 @@ export function Canvas() {
   const previewRect = useRectOf(outerRef, artboardRef, altHeld ? null : previewId);
   const measureRect = useRectOf(outerRef, artboardRef, altHeld ? hover.target.deepId : null);
   const artboardHeight = useArtboardHeight(artboardRef);
+  const contextMenuTarget = useContextMenuStore((s) => s.target);
   const anchorRef = useRef<ZoomAnchor | null>(null);
   useZoomAnchor(mainRef, outerRef, artboardRef, anchorRef, zoom);
-  useCanvasKeys(mainRef, outerRef, anchorRef);
+  useCanvasKeys(mainRef, outerRef, artboardRef, anchorRef);
 
   // 띠에 pointer-events 를 주지 않고 좌표로 판정한다 — 오버레이가 마우스를 받으면
   // 틈을 클릭했을 때 아래 프레임이 선택되지 않는다(gapStrips.stripAtPoint 주석).
@@ -924,6 +966,19 @@ export function Canvas() {
           {Math.round(zoom)}%
         </span>
       </div>
+
+      {/*
+        컨텍스트 메뉴(#152)는 여기 둔다 — transform이 걸린 조상(아트보드) 밖이라
+        position: fixed가 진짜 뷰포트 기준으로 뜬다. transform이 있는 조상 안에
+        두면 fixed가 그 조상 기준으로 다시 잡혀 커서 좌표와 어긋난다.
+      */}
+      {contextMenuTarget !== null && (
+        <ContextMenu
+          state={contextMenuTarget}
+          entries={buildNodeContextMenuEntries(contextMenuTarget.nodeId)}
+          onClose={() => useContextMenuStore.getState().close()}
+        />
+      )}
     </div>
   );
 }

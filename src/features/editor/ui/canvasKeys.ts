@@ -1,11 +1,13 @@
 import { useEffect, type RefObject } from "react";
 
+import { useContextMenuStore } from "@/features/editor/store/contextMenuStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
 import { fitZoom, useViewStore, ZOOM_DEFAULT } from "@/features/editor/store/viewStore";
 
 import {
+  isContextMenuKey,
   isSpacePanKey,
   nodeClipboardCommandForKey,
   shouldDeleteSelection,
@@ -17,6 +19,7 @@ import {
 import { readZoomAnchor, type ZoomAnchor } from "./canvasZoom";
 import { copySelection, hasClipboard, pasteClipboard } from "./clipboard";
 import { siblingId } from "./selection";
+import { nodeSelector } from "./selectionRect";
 
 /**
  * 캔버스의 키보드 입력 — 받을지 말지는 `canvasInput.ts` 의 순수 함수가 정하고,
@@ -39,6 +42,7 @@ import { siblingId } from "./selection";
 export function useCanvasKeys(
   mainRef: RefObject<HTMLElement | null>,
   outerRef: RefObject<HTMLDivElement | null>,
+  artboardRef: RefObject<HTMLDivElement | null>,
   anchorRef: RefObject<ZoomAnchor | null>,
 ) {
   useEffect(() => {
@@ -135,6 +139,35 @@ export function useCanvasKeys(
         return;
       }
 
+      // 키보드로 컨텍스트 메뉴 열기(#152) — 컨텍스트 메뉴 키 또는 Shift+F10.
+      // 마우스 좌표가 없으니 선택 노드의 실제 화면 사각형(좌하단)을 앵커로 쓴다
+      // (canvasOverlays.ts가 노드를 화면 사각형으로 재는 것과 같은 방식).
+      const { selectedId: menuTarget } = useEditorStore.getState();
+      if (
+        isContextMenuKey({
+          key: event.key,
+          code: event.code,
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          altKey: event.altKey,
+          tagName: target?.tagName,
+          contentEditable: target?.isContentEditable ?? false,
+          hasSelection: menuTarget !== null,
+        }) &&
+        menuTarget !== null
+      ) {
+        event.preventDefault();
+        const nodeEl = artboardRef.current?.querySelector(nodeSelector(menuTarget));
+        const rect = nodeEl?.getBoundingClientRect();
+        useContextMenuStore.getState().open({
+          nodeId: menuTarget,
+          x: rect?.left ?? window.innerWidth / 2,
+          y: rect?.bottom ?? window.innerHeight / 2,
+        });
+        return;
+      }
+
       // 노드 삭제(#91). 만들기만 되고 지우는 방법이 없었다 — 레이어 트리에는 삭제
       // 버튼이 생겼지만(#101) 캔버스에서 고른 노드를 캔버스에서 지울 수 없었다.
       // root 보호·자손 연쇄 삭제·선택 해제·history 적재는 editorStore.removeNode
@@ -174,7 +207,7 @@ export function useCanvasKeys(
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", releaseSpacePan);
     };
-  }, [mainRef, outerRef, anchorRef]);
+  }, [mainRef, outerRef, artboardRef, anchorRef]);
 }
 
 /**
