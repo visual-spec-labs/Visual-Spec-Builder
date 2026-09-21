@@ -1,4 +1,5 @@
 import type { FrameNode, Node, NodeId, ScreenSpec } from "@/features/editor/schema";
+import { generateNodeIds } from "@/features/editor/store/nodeId";
 import { setByPath } from "@/features/editor/store/path";
 
 import { isEditableNodePath, isEditableScreenPath } from "./editablePath";
@@ -12,8 +13,13 @@ function withNodes(screen: ScreenSpec, nodes: Record<NodeId, Node>): ScreenSpec 
   return { ...screen, nodes };
 }
 
-/** children 참조로 targetId를 갖고 있는 frame의 id. 없으면 undefined(= root이거나 고아). */
-function findParentId(
+/**
+ * children 참조로 targetId를 갖고 있는 frame의 id. 없으면 undefined(= root이거나 고아).
+ *
+ * export하는 이유는 ui/layerDrop.ts의 collectSubtreeIds와 같다 — 복제(#151)가
+ * 원본의 부모·순서를 알아야 그 바로 뒤에 끼워 넣을 수 있다.
+ */
+export function findParentId(
   nodes: Record<NodeId, Node>,
   targetId: NodeId,
 ): NodeId | undefined {
@@ -211,4 +217,75 @@ export function applyCommand(screen: ScreenSpec, command: Command): ScreenSpec {
  */
 export function applyTransaction(screen: ScreenSpec, commands: Command[]): ScreenSpec {
   return commands.reduce((current, command) => applyCommand(current, command), screen);
+}
+
+/**
+ * 서브트리 하나(노드 자신 + 자손)를 id→Node 맵으로 담은 것.
+ * 복제·클립보드(#151)가 "붙여넣을 내용"을 들고 다니는 모양이다.
+ */
+export interface NodeSubtree {
+  rootId: NodeId;
+  nodes: Record<NodeId, Node>;
+}
+
+/**
+ * `sourceId`(+ 그 자손 전체)를 새 id로 복제하는 Command 묶음을 만든다(#151).
+ * 대상이 없으면 null.
+ *
+ * **복제(원본과 같은 문서)와 붙여넣기(클립보드에서 온, 원본 id가 이제는 의미
+ * 없는 서브트리)를 같은 함수로 푼다** — `sourceNodes`(서브트리 데이터·부모-자식
+ * 관계를 읽을 곳)와 `liveNodes`(새 id가 겹치면 안 되는 대상 문서)를 따로 받는다.
+ * 복제는 둘이 같은 맵이고, 붙여넣기는 `sourceNodes`가 클립보드의 작은 맵이다.
+ *
+ * 새 id가 여러 개 필요해 `generateNodeIds`(#151)로 한 번에 뽑는다 — 반복
+ * 호출은 두 노드가 같은 빈 번호를 받을 수 있다(store/nodeId.ts 주석 참고).
+ *
+ * `collectSubtreeIds`가 Set에 부모를 자식보다 먼저 넣으므로(visit이 그 순서로
+ * 쌓는다) 그 순서 그대로 createNode Command를 만든다 — 자식 Command가 가리킬
+ * 새 부모가 그 시점에 이미 만들어져 있어야 한다(applyCreateNode는 부모가 없으면
+ * no-op이다).
+ *
+ * createNode는 항상 자식 배열 끝에 붙으므로(applyCreateNode), 복제 루트를
+ * 원하는 자리(`insertIndex`)에 놓는 moveNode Command를 마지막에 하나 더 둔다.
+ * **새 Command 타입은 필요 없다** — 기존 createNode·moveNode의 조합이다.
+ */
+export function buildDuplicateCommands(
+  sourceNodes: Record<NodeId, Node>,
+  sourceId: NodeId,
+  liveNodes: Record<NodeId, Node>,
+  parentId: NodeId,
+  insertIndex: number,
+): { commands: Command[]; newRootId: NodeId } | null {
+  if (sourceNodes[sourceId] === undefined) return null;
+
+  const subtreeIds = [...collectSubtreeIds(sourceNodes, sourceId)];
+  const newIds = generateNodeIds(
+    subtreeIds.map((id) => sourceNodes[id].type),
+    liveNodes,
+  );
+  const idMap = new Map(subtreeIds.map((oldId, i) => [oldId, newIds[i]]));
+
+  const commands: Command[] = subtreeIds.map((oldId) => {
+    const original = sourceNodes[oldId];
+    const newId = idMap.get(oldId) as NodeId;
+    // frame이면 children을 비운 채로 만든다 — applyCreateNode가 각 자식의
+    // createNode Command를 적용할 때마다 새 부모의 children 끝에 자기 자신을
+    // 스스로 추가한다(부모가 자식보다 먼저 만들어지는 순서 덕분에 가능하다).
+    // 여기서 미리 채워 넣으면 그 자동 추가와 겹쳐 자식이 두 번씩 들어간다.
+    const clonedNode: Node = isFrameNode(original)
+      ? { ...original, children: [] }
+      : { ...original };
+
+    const newParentId =
+      oldId === sourceId
+        ? parentId
+        : (idMap.get(findParentId(sourceNodes, oldId) as NodeId) as NodeId);
+
+    return { type: "createNode", parentId: newParentId, id: newId, node: clonedNode };
+  });
+
+  const newRootId = idMap.get(sourceId) as NodeId;
+  commands.push({ type: "moveNode", id: newRootId, newParentId: parentId, index: insertIndex });
+
+  return { commands, newRootId };
 }

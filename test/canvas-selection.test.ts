@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { Node } from "@/features/editor/schema";
 import {
   buildParentMap,
+  clickBoundary,
   resolveClickTarget,
   resolveInsertParent,
+  siblingId,
 } from "@/features/editor/ui/selection";
 
 function frame(name: string, children: string[]): Node {
@@ -132,6 +134,58 @@ describe("resolveClickTarget — 망가진 스펙 방어", () => {
   });
 });
 
+describe("resolveClickTarget — 진입 문맥(focusRootId) 경계(#151)", () => {
+  // 더블클릭으로 프레임에 "들어가면" root 대신 그 프레임을 경계로 넘긴다 —
+  // 함수는 새 개념을 모르고, 호출부가 넘기는 root 인자의 뜻만 넓어진다.
+  it("경계를 content로 좁히면 그 자식이 최상위가 된다", () => {
+    expect(
+      resolveClickTarget({ nodes, root: "content", clickedId: "cardALabel", deep: false }),
+    ).toBe("cardA"); // root 경계였으면 "content"가 나왔을 것(위 테스트 참고)
+  });
+
+  it("경계 자신을 클릭하면 그대로 경계가 선택된다", () => {
+    expect(
+      resolveClickTarget({ nodes, root: "content", clickedId: "content", deep: false }),
+    ).toBe("content");
+  });
+
+  it("경계 바깥(형제 서브트리)을 클릭하면 진짜 root까지 올라간다", () => {
+    // content로 들어가 있어도 header 쪽을 클릭하면 그 경계("content")를 못
+    // 만나 끝까지 오른다 — 부모 체인이 "content"를 지나지 않기 때문이다.
+    // resolveClickTarget 자신은 이걸 모르고 그냥 끝까지 오른다("root"가 된다).
+    // 호출부가 이 경우를 어떻게 다루는지는 clickBoundary가 대신 판단한다.
+    expect(
+      resolveClickTarget({ nodes, root: "content", clickedId: "headerTitle", deep: false }),
+    ).toBe("root");
+  });
+});
+
+describe("clickBoundary — 실제 클릭이 쓸 경계(#151)", () => {
+  it("문맥이 없으면(focusRootId null) 진짜 root를 그대로 쓴다", () => {
+    expect(clickBoundary(nodes, root, null, "cardALabel")).toBe(root);
+  });
+
+  it("클릭이 문맥 서브트리 안이면 문맥을 경계로 쓴다", () => {
+    expect(clickBoundary(nodes, root, "content", "cardALabel")).toBe("content");
+  });
+
+  it("문맥 자신을 클릭해도 문맥을 그대로 쓴다", () => {
+    expect(clickBoundary(nodes, root, "content", "content")).toBe("content");
+  });
+
+  it("클릭이 문맥 서브트리 밖(다른 가지)이면 진짜 root로 물러난다", () => {
+    // "다른 가지를 클릭"은 이슈가 정한 문맥 이탈 트리거(Esc·바깥 클릭·페이지
+    // 전환)가 아니다 — 문맥을 벗어나는 게 아니라 문맥이 원래 못 미치는 곳이라
+    // 문맥이 없을 때와 같은 결과로 돌려보낸다.
+    expect(clickBoundary(nodes, root, "content", "headerTitle")).toBe(root);
+    expect(clickBoundary(nodes, root, "content", "header")).toBe(root);
+  });
+
+  it("문맥이 클릭 대상의 자손이면(있을 수 없는 모양이지만) 진짜 root로 물러난다", () => {
+    expect(clickBoundary(nodes, root, "cardALabel", "content")).toBe(root);
+  });
+});
+
 describe("resolveInsertParent", () => {
   it("프레임을 클릭하면 그 프레임 안에 넣는다", () => {
     expect(resolveInsertParent({ nodes, root, clickedId: "cardA" })).toBe("cardA");
@@ -146,5 +200,42 @@ describe("resolveInsertParent", () => {
 
   it("대상을 찾을 수 없으면 root에 넣는다", () => {
     expect(resolveInsertParent({ nodes, root, clickedId: "없는노드" })).toBe(root);
+  });
+});
+
+describe("siblingId — Tab/Shift+Tab 형제 이동(#151)", () => {
+  // root의 자식은 [header, content] 둘이라 순환을 볼 수 있다.
+  it("다음 형제로 옮긴다", () => {
+    expect(siblingId(nodes, "header", "next")).toBe("content");
+  });
+
+  it("이전 형제로 옮긴다", () => {
+    expect(siblingId(nodes, "content", "prev")).toBe("header");
+  });
+
+  it("끝에서는 반대쪽 끝으로 순환한다", () => {
+    expect(siblingId(nodes, "content", "next")).toBe("header"); // 마지막 → 처음
+    expect(siblingId(nodes, "header", "prev")).toBe("content"); // 처음 → 마지막
+  });
+
+  it("형제가 자기 하나뿐이면 자기 자신이다", () => {
+    // cardA의 자식은 cardALabel 하나뿐이다.
+    expect(siblingId(nodes, "cardALabel", "next")).toBe("cardALabel");
+    expect(siblingId(nodes, "cardALabel", "prev")).toBe("cardALabel");
+  });
+
+  it("root는 부모가 없어 형제가 없다", () => {
+    expect(siblingId(nodes, root, "next")).toBeNull();
+  });
+
+  it("고아 노드는 부모가 없어 형제가 없다", () => {
+    const orphaned = { ...nodes, floating: text("Floating") };
+    expect(siblingId(orphaned, "floating", "next")).toBeNull();
+  });
+
+  it("진입 문맥과 무관하다 — focusRootId를 받지 않는다", () => {
+    // header 안에 들어가 있어도(headerTitle 선택) 형제는 여전히 실제 트리
+    // 기준이다 — 여기엔 그 개념 자체가 없다(함수 시그니처에 경계 인자가 없다).
+    expect(siblingId(nodes, "headerTitle", "next")).toBe("headerTitle");
   });
 });

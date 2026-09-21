@@ -5,12 +5,16 @@ import {
   isScrolledToBottom,
   isSpacePanKey,
   isTypingTarget,
+  nodeClipboardCommandForKey,
   shouldDeleteSelection,
   shouldSuppressContextMenu,
+  siblingNavDirectionForKey,
   toolCursorClass,
   toolForKey,
   viewCommandForKey,
+  type ClipboardKeyInput,
   type DeleteKeyInput,
+  type SiblingNavKeyInput,
   type ToolKeyInput,
 } from "@/features/editor/ui/canvasInput";
 
@@ -130,6 +134,77 @@ describe("shouldDeleteSelection", () => {
     // DeleteKeyInput에 shiftKey가 없는 것 자체가 이 결정이다. 수식키 가드를
     // 넓힐 때 Shift까지 끌어오지 않도록 의도를 남긴다.
     expect(shouldDeleteSelection(deleteKey())).toBe(true);
+  });
+});
+
+/** 노드가 선택된 채 Ctrl+D를 누른 상태. 케이스마다 필요한 칸만 덮어쓴다. */
+function clipboardKey(patch: Partial<ClipboardKeyInput> = {}): ClipboardKeyInput {
+  return {
+    code: "KeyD",
+    ctrlKey: true,
+    metaKey: false,
+    altKey: false,
+    tagName: "DIV",
+    contentEditable: false,
+    hasSelection: true,
+    hasClipboard: true,
+    ...patch,
+  };
+}
+
+describe("nodeClipboardCommandForKey — 복제·복사·붙여넣기(#151)", () => {
+  it("Ctrl+D·Ctrl+C·Ctrl+V를 각각 구분한다", () => {
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyD" }))).toBe("duplicate");
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyC" }))).toBe("copy");
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyV" }))).toBe("paste");
+  });
+
+  it("Cmd(meta)도 같게 본다", () => {
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyD", ctrlKey: false, metaKey: true })),
+    ).toBe("duplicate");
+  });
+
+  it("수식키가 없으면 받지 않는다 — 그냥 D·C·V 타이핑과 겹친다", () => {
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyD", ctrlKey: false }))).toBeNull();
+  });
+
+  it("Alt가 섞이면 받지 않는다", () => {
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyD", altKey: true })),
+    ).toBeNull();
+  });
+
+  it("고른 노드가 없으면 복제·복사를 받지 않는다 — 대상이 없다", () => {
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyD", hasSelection: false })),
+    ).toBeNull();
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyC", hasSelection: false })),
+    ).toBeNull();
+  });
+
+  it("클립보드가 비어 있으면 붙여넣기를 받지 않는다", () => {
+    expect(
+      nodeClipboardCommandForKey(clipboardKey({ code: "KeyV", hasClipboard: false })),
+    ).toBeNull();
+  });
+
+  it("붙여넣기는 선택 여부와 무관하다 — 선택 없어도 root에 붙는다", () => {
+    expect(
+      nodeClipboardCommandForKey(
+        clipboardKey({ code: "KeyV", hasSelection: false, hasClipboard: true }),
+      ),
+    ).toBe("paste");
+  });
+
+  it("타이핑 중에는 받지 않는다 — 레이어 이름·속성 패널의 Ctrl+C/V는 글자 복사다", () => {
+    expect(nodeClipboardCommandForKey(clipboardKey({ tagName: "INPUT" }))).toBeNull();
+    expect(nodeClipboardCommandForKey(clipboardKey({ contentEditable: true }))).toBeNull();
+  });
+
+  it("관계없는 키는 받지 않는다", () => {
+    expect(nodeClipboardCommandForKey(clipboardKey({ code: "KeyZ" }))).toBeNull();
   });
 });
 
@@ -304,6 +379,15 @@ describe("viewCommandForKey — 보기 단축키", () => {
     expect(view({ code: "Digit1", shiftKey: true })).toBe("zoomFit");
   });
 
+  it("Shift+2 는 선택 영역 맞춤이다(#151) — 피그마와 같다", () => {
+    expect(view({ code: "Digit2", shiftKey: true })).toBe("zoomFitSelection");
+    expect(view({ code: "Numpad2", shiftKey: true })).toBe("zoomFitSelection");
+  });
+
+  it("Shift 없는 2 는 받지 않는다", () => {
+    expect(view({ code: "Digit2" })).toBeNull();
+  });
+
   it("Escape 는 선택 해제다", () => {
     expect(view({ code: "Escape" })).toBe("deselect");
   });
@@ -321,17 +405,67 @@ describe("viewCommandForKey — 보기 단축키", () => {
   it("Alt 가 섞이면 받지 않는다 — 브라우저·OS 단축키 자리다", () => {
     expect(view({ code: "Equal", ctrlKey: true, altKey: true })).toBeNull();
     expect(view({ code: "Digit1", shiftKey: true, altKey: true })).toBeNull();
+    expect(view({ code: "Digit2", shiftKey: true, altKey: true })).toBeNull();
   });
 
   it("타이핑 중에는 받지 않는다 — Ctrl+0 도 입력칸에서는 브라우저 몫이다", () => {
     expect(view({ code: "Digit0", ctrlKey: true, tagName: "INPUT" })).toBeNull();
     expect(view({ code: "Escape", tagName: "INPUT" })).toBeNull();
     expect(view({ code: "Digit1", shiftKey: true, contentEditable: true })).toBeNull();
+    expect(view({ code: "Digit2", shiftKey: true, contentEditable: true })).toBeNull();
   });
 
   it("도구 단축키와 서로 침범하지 않는다", () => {
     // Ctrl+V 는 도구도 보기도 아니다(붙여넣기).
     expect(view({ code: "KeyV", ctrlKey: true })).toBeNull();
     expect(toolForKey(toolKey({ code: "Equal", ctrlKey: true }))).toBeNull();
+  });
+});
+
+/** 노드가 선택된 채 Tab을 누른 상태. 케이스마다 필요한 칸만 덮어쓴다. */
+function tabKey(patch: Partial<SiblingNavKeyInput> = {}): SiblingNavKeyInput {
+  return {
+    code: "Tab",
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+    tagName: "DIV",
+    contentEditable: false,
+    role: undefined,
+    hasSelection: true,
+    ...patch,
+  };
+}
+
+describe("siblingNavDirectionForKey — Tab/Shift+Tab 형제 이동(#151)", () => {
+  it("Tab은 다음, Shift+Tab은 이전이다", () => {
+    expect(siblingNavDirectionForKey(tabKey())).toBe("next");
+    expect(siblingNavDirectionForKey(tabKey({ shiftKey: true }))).toBe("prev");
+  });
+
+  it("Tab이 아닌 키는 받지 않는다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ code: "KeyD" }))).toBeNull();
+  });
+
+  it("수식키(Ctrl/Cmd/Alt)가 섞이면 받지 않는다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ ctrlKey: true }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ metaKey: true }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ altKey: true }))).toBeNull();
+  });
+
+  it("선택이 없으면 받지 않는다 — 페이지 포커스 이동에 Tab을 돌려준다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ hasSelection: false }))).toBeNull();
+  });
+
+  it("타이핑 중에는 받지 않는다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ tagName: "INPUT" }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ contentEditable: true }))).toBeNull();
+  });
+
+  it("버튼·링크에 포커스가 있으면 받지 않는다 — 거기서는 Tab이 포커스 이동이다", () => {
+    expect(siblingNavDirectionForKey(tabKey({ tagName: "BUTTON" }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ tagName: "A" }))).toBeNull();
+    expect(siblingNavDirectionForKey(tabKey({ role: "button" }))).toBeNull();
   });
 });

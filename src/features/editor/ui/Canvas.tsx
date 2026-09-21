@@ -47,7 +47,7 @@ import {
   inputStyle,
   textStyle,
 } from "./nodeStyles";
-import { resolveClickTarget, resolveInsertParent } from "./selection";
+import { clickBoundary, resolveClickTarget, resolveInsertParent } from "./selection";
 
 /**
  * 중앙 캔버스.
@@ -117,7 +117,7 @@ function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
   const tool = useToolStore.getState().activeTool;
   if (tool === "hand") return; // 팬 전용 도구 — 선택을 바꾸지 않는다
 
-  const { spec, activePageId, select } = useEditorStore.getState();
+  const { spec, activePageId, focusRootId, select } = useEditorStore.getState();
   const { nodes, root } = spec.pages[activePageId];
 
   if (tool === "frame" || tool === "text") {
@@ -125,15 +125,50 @@ function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
     return;
   }
 
-  // Select 도구 — Cmd(macOS) / Ctrl(Windows)를 누르면 상세 지정(최하위)
+  // Select 도구 — Cmd(macOS) / Ctrl(Windows)를 누르면 상세 지정(최하위).
+  // 경계는 clickBoundary가 정한다(#151) — 더블클릭으로 들어간 프레임 안에서는
+  // 그 프레임의 자식이 "최상위"가 되지만, 클릭이 그 밖(다른 가지)이면 진짜
+  // root로 물러난다.
   select(
     resolveClickTarget({
       nodes,
-      root,
+      root: clickBoundary(nodes, root, focusRootId, clickedId),
       clickedId,
       deep: event.metaKey || event.ctrlKey,
     }),
   );
+}
+
+/**
+ * 노드를 더블클릭했을 때 그 안으로 "들어간다"(#151, 피그마와 같은 진입).
+ *
+ * 지금 클릭 경계로 한 번 골라(= 평소 클릭이 고를 대상) 그게 자식 있는 프레임이면
+ * 그 프레임을 새 경계(focusRootId)로 세우고, 그 새 경계로 다시 한 번 골라 그
+ * 안의 대상을 선택한다 — 새 해석 규칙을 만들지 않고 `resolveClickTarget`를
+ * 경계만 바꿔 두 번 부르는 것으로 푼다.
+ */
+function handleNodeDoubleClick(clickedId: NodeId, event: ReactMouseEvent) {
+  event.stopPropagation();
+
+  const tool = useToolStore.getState().activeTool;
+  if (tool !== "select") return; // 진입은 Select 도구에서만 뜻이 있다
+
+  const { spec, activePageId, focusRootId, select, enterFocus } = useEditorStore.getState();
+  const { nodes, root } = spec.pages[activePageId];
+
+  const entered = resolveClickTarget({
+    nodes,
+    root: clickBoundary(nodes, root, focusRootId, clickedId),
+    clickedId,
+    deep: false,
+  });
+  const enteredNode = nodes[entered];
+  if (enteredNode === undefined || enteredNode.type !== "frame" || enteredNode.children.length === 0) {
+    return; // 들어갈 자식이 없다 — 문맥을 바꿀 이유가 없다
+  }
+
+  enterFocus(entered);
+  select(resolveClickTarget({ nodes, root: entered, clickedId, deep: false }));
 }
 
 /** 아트보드 바깥(캔버스 바탕)을 클릭했을 때. */
@@ -148,7 +183,7 @@ function handleBackgroundClick() {
     return;
   }
 
-  select(null);
+  select(null); // 선택 문맥(focusRootId)도 함께 비워진다 — select의 계약(#151)
 }
 
 /** 우측(e) · 하단(s) · 우하단(se) 세 방향만 지원한다 — ResizeHandles 주석 참고. */
@@ -343,6 +378,7 @@ function RenderNode({
         data-node-id={id}
         style={{ ...textStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
+        onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
       >
         {node.content}
         {selected && <ResizeHandles id={id} box={node.box} />}
@@ -357,6 +393,7 @@ function RenderNode({
         data-node-id={id}
         style={{ ...imageStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
+        onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
       >
         {selected && <ResizeHandles id={id} box={node.box} />}
       </div>
@@ -370,6 +407,7 @@ function RenderNode({
         data-node-id={id}
         style={{ ...buttonStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
+        onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
       >
         {node.content}
         {selected && <ResizeHandles id={id} box={node.box} />}
@@ -384,6 +422,7 @@ function RenderNode({
         data-node-id={id}
         style={{ ...inputStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
+        onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
       >
         <span style={{ opacity: 0.6 }}>{node.placeholder}</span>
         {selected && <ResizeHandles id={id} box={node.box} />}
@@ -397,6 +436,7 @@ function RenderNode({
       data-node-id={id}
       style={{ ...frameStyle(node, parentDirection), ...resizeAnchor }}
       onClick={(event) => handleNodeClick(id, event)}
+      onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
     >
       {node.children.map((child) => (
         <RenderNode
@@ -441,7 +481,7 @@ export function Canvas() {
   const measureRect = useRectOf(outerRef, artboardRef, altHeld ? hover.target.deepId : null);
   const artboardHeight = useArtboardHeight(artboardRef);
   const anchorRef = useRef<ZoomAnchor | null>(null);
-  useZoomAnchor(mainRef, outerRef, anchorRef, zoom);
+  useZoomAnchor(mainRef, outerRef, artboardRef, anchorRef, zoom);
   useCanvasKeys(mainRef, outerRef, anchorRef);
 
   // 띠에 pointer-events 를 주지 않고 좌표로 판정한다 — 오버레이가 마우스를 받으면

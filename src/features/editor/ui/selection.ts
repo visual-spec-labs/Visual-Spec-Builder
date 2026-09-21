@@ -80,6 +80,41 @@ export function resolveClickTarget({
   return topLevelAncestor(buildParentMap(nodes), root, clickedId);
 }
 
+/**
+ * `resolveClickTarget`에 넘길 `root`를 정한다 — 더블클릭으로 들어간 프레임
+ * (`focusRootId`)이 있으면 그걸 경계로, 없으면 진짜 root를 경계로 쓴다(#151).
+ *
+ * **`focusRootId`가 있어도 `clickedId`가 그 서브트리 밖이면 진짜 root로
+ * 물러난다.** `topLevelAncestor`는 부모를 거슬러 올라가다 경계를 못 만나면
+ * 끝까지(진짜 root까지) 오른다 — 문맥 밖의 형제 가지를 클릭했을 때 이 경로를
+ * 타면 "문서 전체"가 잡혀 버린다(카드 안에 들어가 있는데 헤더를 클릭했더니
+ * 페이지 전체가 선택되는 것과 같다). 이슈가 정한 문맥 이탈 트리거는
+ * Esc·바깥 클릭·페이지 전환 셋뿐이고 "다른 가지를 클릭"은 그중 하나가
+ * 아니다 — 그래서 문맥을 벗어나는 게 아니라 "문맥이 원래 못 미치는 곳"으로
+ * 보고, 문맥이 없을 때와 같은 결과(진짜 root 경계)로 돌려보낸다.
+ */
+export function clickBoundary(
+  nodes: NodeMap,
+  root: NodeId,
+  focusRootId: NodeId | null,
+  clickedId: NodeId,
+): NodeId {
+  if (focusRootId === null) return root;
+  if (focusRootId === clickedId) return focusRootId;
+
+  const parents = buildParentMap(nodes);
+  const seen = new Set<NodeId>();
+  let current: NodeId | undefined = clickedId;
+
+  while (current !== undefined && !seen.has(current)) {
+    if (current === focusRootId) return focusRootId;
+    seen.add(current);
+    current = parents.get(current);
+  }
+
+  return root;
+}
+
 export interface InsertParentInput {
   nodes: NodeMap;
   root: NodeId;
@@ -106,4 +141,35 @@ export function resolveInsertParent({
   }
 
   return root;
+}
+
+/**
+ * 같은 부모 안에서 다음(`"next"`) · 이전(`"prev"`) 형제 id(#151, `Tab`/`Shift+Tab`).
+ * 대상이 없으면(root거나 고아라 부모가 없는 경우, 또는 부모가 지금 스펙에
+ * 없거나 frame이 아닌 깨진 경우) null.
+ *
+ * **`focusRootId`(진입 문맥)를 보지 않는다.** 형제는 지금 선택된 노드의
+ * 실제 트리 부모로만 정해지는 사실이라 — 진입 여부가 무엇을 클릭이 고를지는
+ * 바꿔도 이미 고른 다음의 "누가 형제인가"는 바꾸지 않는다.
+ *
+ * 끝에서는 반대쪽 끝으로 **순환한다** — 멈추면 "다음이 없다"는 신호가 없어
+ * 눌러도 반응이 없는 것처럼 보인다. 형제가 자기 하나뿐이면 자기 자신을 돌려준다.
+ */
+export function siblingId(
+  nodes: NodeMap,
+  id: NodeId,
+  direction: "next" | "prev",
+): NodeId | null {
+  const parentId = buildParentMap(nodes).get(id);
+  if (parentId === undefined) return null;
+
+  const parent = nodes[parentId];
+  if (parent === undefined || parent.type !== "frame") return null;
+
+  const siblings = parent.children.map((child) => child.node);
+  const index = siblings.indexOf(id);
+  if (index === -1) return null;
+
+  const delta = direction === "next" ? 1 : -1;
+  return siblings[(index + delta + siblings.length) % siblings.length];
 }

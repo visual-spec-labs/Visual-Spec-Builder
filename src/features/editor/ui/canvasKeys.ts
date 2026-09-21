@@ -1,17 +1,22 @@
 import { useEffect, type RefObject } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
-import { useViewStore, ZOOM_DEFAULT } from "@/features/editor/store/viewStore";
+import { fitZoom, useViewStore, ZOOM_DEFAULT } from "@/features/editor/store/viewStore";
 
 import {
   isSpacePanKey,
+  nodeClipboardCommandForKey,
   shouldDeleteSelection,
+  siblingNavDirectionForKey,
   toolForKey,
   viewCommandForKey,
   type ViewCommand,
 } from "./canvasInput";
 import { readZoomAnchor, type ZoomAnchor } from "./canvasZoom";
+import { copySelection, hasClipboard, pasteClipboard } from "./clipboard";
+import { siblingId } from "./selection";
 
 /**
  * 캔버스의 키보드 입력 — 받을지 말지는 `canvasInput.ts` 의 순수 함수가 정하고,
@@ -77,6 +82,56 @@ export function useCanvasKeys(
       if (tool !== null) {
         event.preventDefault();
         useToolStore.getState().setActiveTool(tool);
+        return;
+      }
+
+      // 노드 복제·복사·붙여넣기(#151). "할 수 있는 일이 있는가"까지 판정에
+      // 들어 있어(nodeClipboardCommandForKey 주석) 값을 받으면 바로 preventDefault
+      // 해도 안전하다 — 대상이 없을 때는 null이 와서 Ctrl+D(북마크)·Ctrl+C/V
+      // (브라우저 복사·붙여넣기)가 그대로 살아 있다.
+      const { selectedId: clipboardTarget } = useEditorStore.getState();
+      const clip = nodeClipboardCommandForKey({
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        tagName: target?.tagName,
+        contentEditable: target?.isContentEditable ?? false,
+        hasSelection: clipboardTarget !== null,
+        hasClipboard: hasClipboard(),
+      });
+      if (clip !== null) {
+        event.preventDefault();
+        if (clip === "duplicate" && clipboardTarget !== null) {
+          useEditorStore.getState().duplicateNode(clipboardTarget);
+        } else if (clip === "copy" && clipboardTarget !== null) {
+          const { spec, activePageId } = useEditorStore.getState();
+          copySelection(spec.pages[activePageId].nodes, clipboardTarget);
+        } else if (clip === "paste") {
+          pasteClipboard();
+        }
+        return;
+      }
+
+      // 형제 이동(#151). Tab은 브라우저의 포커스 이동 키라 판정 자체가
+      // "선택이 있을 때만"(hasSelection) 훔친다 — siblingNavDirectionForKey 주석 참고.
+      const { selectedId: siblingTarget, select: selectSibling } = useEditorStore.getState();
+      const siblingDirection = siblingNavDirectionForKey({
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+        tagName: target?.tagName,
+        contentEditable: target?.isContentEditable ?? false,
+        role: target?.getAttribute("role") ?? undefined,
+        hasSelection: siblingTarget !== null,
+      });
+      if (siblingDirection !== null && siblingTarget !== null) {
+        event.preventDefault();
+        const { spec, activePageId } = useEditorStore.getState();
+        const next = siblingId(spec.pages[activePageId].nodes, siblingTarget, siblingDirection);
+        if (next !== null) selectSibling(next);
         return;
       }
 
@@ -156,6 +211,20 @@ function runViewCommand(
     fitToScreen();
     // 이미 맞춤 배율이면 값이 안 바뀌어 effect 가 안 돈다 — 앵커를 남기면 나중
     // 줌이 소비한다(아래 끝값 처리와 같은 이유).
+    if (useViewStore.getState().zoom === before) anchorRef.current = null;
+    return;
+  }
+
+  if (command === "zoomFitSelection") {
+    const { selectedId } = useEditorStore.getState();
+    const size = useMeasureStore.getState().size;
+    const { viewport } = useViewStore.getState();
+    // 고른 것이 없거나 아직 실측 전이면 맞출 대상이 없다 — 조용히 아무 일도
+    // 하지 않는다(zoomFit이 앵커 없이 아무 값도 안 바꾸는 것과 같은 무반응).
+    if (selectedId !== null && size !== null && viewport !== null) {
+      anchorRef.current = { fit: true, nodeId: selectedId };
+      setZoom(fitZoom(viewport, size));
+    }
     if (useViewStore.getState().zoom === before) anchorRef.current = null;
     return;
   }

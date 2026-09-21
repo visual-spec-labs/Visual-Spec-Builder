@@ -1,5 +1,9 @@
 import { useEffect, useLayoutEffect, useState, type RefObject } from "react";
 
+import type { NodeId } from "@/features/editor/schema";
+
+import { nodeSelector } from "./selectionRect";
+
 /**
  * 확대율과 수식키에 딸린 상태.
  *
@@ -56,9 +60,16 @@ interface PointAnchor {
   specY: number;
 }
 
-/** 화면 맞춤 — 붙잡을 점이 없다. 새 배율로 그려진 뒤 문서 위로 보낸다. */
+/**
+ * 화면 맞춤 — 붙잡을 점이 없다. 새 배율로 그려진 뒤 문서 위로 보낸다.
+ *
+ * `nodeId`가 있으면 "선택 영역 맞춤"(Shift+2)이다 — 문서 위가 아니라 그 노드가
+ * 뷰포트 한가운데 오도록 스크롤한다. 좌표를 미리 계산하지 않고 새 배율로 그려진
+ * **뒤에 그 노드를 다시 찾아 잰다** — 화면 맞춤과 같은 이유다(위 주석 참고).
+ */
 interface FitAnchor {
   fit: true;
+  nodeId?: NodeId;
 }
 
 export type ZoomAnchor = PointAnchor | FitAnchor;
@@ -99,6 +110,7 @@ export function readZoomAnchor(
 export function useZoomAnchor(
   mainRef: RefObject<HTMLElement | null>,
   outerRef: RefObject<HTMLDivElement | null>,
+  artboardRef: RefObject<HTMLDivElement | null>,
   anchorRef: RefObject<ZoomAnchor | null>,
   zoom: number,
 ) {
@@ -110,9 +122,23 @@ export function useZoomAnchor(
     const outer = outerRef.current;
     if (anchor === null || main === null || outer === null) return;
 
-    // 화면 맞춤은 문서 위·가운데로 보낸다. 여기는 새 배율로 그려진 **뒤**라
-    // scrollWidth 가 새 값이다 — 호출 시점에 읽으면 옛 너비를 쓰게 된다.
+    // 화면 맞춤은 문서 위·가운데로, 선택 영역 맞춤(nodeId 있음)은 그 노드
+    // 한가운데로 보낸다. 여기는 새 배율로 그려진 **뒤**라 scrollWidth·노드 위치가
+    // 새 값이다 — 호출 시점에 읽으면 옛 값을 쓰게 된다.
     if (anchor.fit === true) {
+      if (anchor.nodeId !== undefined) {
+        const target = artboardRef.current?.querySelector(nodeSelector(anchor.nodeId));
+        if (target !== null && target !== undefined) {
+          const mainRect = main.getBoundingClientRect();
+          const nodeRect = target.getBoundingClientRect();
+          main.scrollLeft +=
+            nodeRect.left + nodeRect.width / 2 - (mainRect.left + mainRect.width / 2);
+          main.scrollTop +=
+            nodeRect.top + nodeRect.height / 2 - (mainRect.top + mainRect.height / 2);
+        }
+        return;
+      }
+
       main.scrollTop = 0;
       main.scrollLeft = Math.max(0, (main.scrollWidth - main.clientWidth) / 2);
       return;
@@ -124,5 +150,5 @@ export function useZoomAnchor(
 
     main.scrollLeft += nowX - anchor.clientX;
     main.scrollTop += nowY - anchor.clientY;
-  }, [mainRef, outerRef, anchorRef, zoom]);
+  }, [mainRef, outerRef, artboardRef, anchorRef, zoom]);
 }
