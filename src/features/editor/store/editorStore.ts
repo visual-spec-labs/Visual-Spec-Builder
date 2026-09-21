@@ -28,15 +28,7 @@ import type {
 } from "@/features/editor/schema";
 
 import { blankSpec } from "./blankSpec";
-import {
-  collectSubtree,
-  duplicateCommands,
-  placeAfterCommand,
-  type NodeSubtree,
-} from "./duplicateNode";
 import { generateNodeId } from "./nodeId";
-// 부모 역맵은 선택 해석기가 이미 갖고 있다 — 같은 규칙을 두 벌 두지 않는다.
-import { buildParentMap } from "@/features/editor/ui/selection";
 import { seedSpec } from "./seedSpec";
 import { loadStoredSpec } from "./specStorage";
 
@@ -187,20 +179,6 @@ export interface EditorState {
    * 동반하므로 필드 patch와 같은 배치 계약으로 묶지 않고 필요할 때 별도로 정한다.
    */
   setNodeFields: (patches: readonly NodeFieldPatch[], continueEdit?: boolean) => void;
-  /**
-   * 노드와 그 자손을 통째로 복제해 원본 바로 뒤에 넣고, 사본을 선택한다(#151).
-   * root 는 복제하지 않는다 — 페이지에 root 는 하나여야 한다.
-   *
-   * 자손이 몇이든 **Undo 한 단계**다. createNode Command 를 자손 수만큼 만들어
-   * 한 트랜잭션으로 적용한다(새 Command 타입을 만들지 않는 이유는
-   * store/duplicateNode.ts 주석 참고).
-   */
-  duplicateNode: (id: NodeId) => void;
-  /**
-   * 잘라 둔 덩어리를 parentId 밑에 새 id 로 심고 선택한다(붙여넣기, #151).
-   * 복제와 같은 경로를 쓰므로 자손이 몇이든 Undo 한 단계다.
-   */
-  pasteSubtree: (subtree: NodeSubtree, parentId: NodeId) => void;
   /**
    * 페이지 자체의 값을 바꾼다. 이름과 크기(해상도)가 대상이다.
    * 예: setPageField("home", "size.width", 1920)
@@ -422,40 +400,6 @@ export const useEditorStore = create<EditorState>((set) => ({
         continueEdit,
       );
       return next ?? state;
-    }),
-  duplicateNode: (id) =>
-    set((state) => {
-      const page = state.spec.pages[state.activePageId];
-      // root 는 페이지에 하나여야 한다 — 복제하면 스키마가 깨진다.
-      if (id === page.root) return state;
-
-      const parentId = buildParentMap(page.nodes).get(id);
-      if (parentId === undefined) return state;
-
-      const subtree = collectSubtree(page.nodes, id);
-      if (subtree === null) return state;
-
-      const { commands, newRootId } = duplicateCommands(subtree, parentId, page.nodes);
-      // 사본을 원본 바로 뒤로. 같은 트랜잭션이라 Undo 는 여전히 한 단계다.
-      const place = placeAfterCommand(page.nodes, parentId, id, newRootId);
-      const next = appliedTransaction(
-        state,
-        state.activePageId,
-        place === null ? commands : [...commands, place],
-      );
-      if (next === null) return state;
-
-      // 방금 만든 것을 바로 만질 수 있게 선택한다 — 노드를 만들 때와 같은 흐름이다.
-      return { ...next, selectedId: newRootId };
-    }),
-  pasteSubtree: (subtree, parentId) =>
-    set((state) => {
-      const page = state.spec.pages[state.activePageId];
-      const { commands, newRootId } = duplicateCommands(subtree, parentId, page.nodes);
-      const next = appliedTransaction(state, state.activePageId, commands);
-      if (next === null) return state;
-
-      return { ...next, selectedId: newRootId };
     }),
   setNodeFields: (patches, continueEdit = false) =>
     set((state) => {
