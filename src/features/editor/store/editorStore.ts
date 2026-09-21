@@ -16,6 +16,10 @@ import {
   undo as historyUndo,
   type HistoryState,
 } from "@/features/editor/command/history";
+import {
+  runTransactionGates,
+  type TransactionGateResult,
+} from "@/features/editor/command/transactionGate";
 import type { Command } from "@/features/editor/command/types";
 import { migrateV01 } from "@/features/editor/schema";
 import type {
@@ -243,6 +247,23 @@ export interface EditorState {
   undo: () => void;
   /** 되돌린 편집을 한 단계 다시 실행한다. 다시 실행할 것이 없으면 아무 일도 안 한다. */
   redo: () => void;
+  /**
+   * 출처를 신뢰할 수 없는 Command 배열(자연어 등)을 관문 G2·G3
+   * (docs/08-natural-language.md 4.2, `command/transactionGate.ts`)에 통과시킨
+   * 뒤 한 단계로 커밋한다. `setNodeFields`(#149)와 달리 **전부-또는-전무**다 —
+   * no-op이 하나라도 있거나(G2) 결과가 무효면(G3) `spec`을 전혀 바꾸지 않는다.
+   *
+   * 다른 편집 액션과 달리 **반환값이 있다** — 실패 이유(어느 Command가
+   * no-op인지, 또는 어떤 스키마 위반인지)를 호출부가 UI에 보여줘야 하기
+   * 때문이다(4.2 G2 "3번째 명령이 아무 일도 하지 않았습니다").
+   *
+   * GUI 경로는 이 액션을 쓰지 않는다 — 패널이 경로·값 모양을 소스에 고정해
+   * 둬서 관문이 필요 없다(4.1). 자연어처럼 Command를 LLM이 만드는 경로 전용이다.
+   */
+  applyGuardedTransaction: (
+    pageId: PageId,
+    commands: readonly Command[],
+  ) => TransactionGateResult;
 }
 
 function hasKey(target: object, key: string): boolean {
@@ -339,7 +360,7 @@ function appliedTransaction(
   };
 }
 
-export const useEditorStore = create<EditorState>((set) => ({
+export const useEditorStore = create<EditorState>((set, get) => ({
   spec: initialSpec,
   activePageId: initialSpec.pageOrder[0],
   selectedId: null,
@@ -603,4 +624,13 @@ export const useEditorStore = create<EditorState>((set) => ({
         focusRootId: null,
       };
     }),
+  applyGuardedTransaction: (pageId, commands) => {
+    const state = get();
+    const result = runTransactionGates(state.spec, pageId, commands);
+    if (result.ok) {
+      const spec = withPage(state.spec, pageId, result.screen);
+      set({ spec, history: pushHistory(state.history, makeSnapshot(spec, pageId)) });
+    }
+    return result;
+  },
 }));

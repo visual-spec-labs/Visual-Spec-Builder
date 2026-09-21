@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import dashboardCards from "../examples/dashboard-cards.json";
 import {
   applyCommand,
+  applyCommandWithReason,
   applyTransaction,
   buildDuplicateCommands,
   findParentId,
@@ -619,5 +620,163 @@ describe("buildDuplicateCommands — 복제·붙여넣기 Command 묶음(#151)",
 
   it("대상이 없으면 null이다", () => {
     expect(buildDuplicateCommands(BASE.nodes, "missing", BASE.nodes, "content", 0)).toBeNull();
+  });
+});
+
+describe("applyCommandWithReason — no-op 이유(#154)", () => {
+  it("성공하면 이유가 없다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "updateNode",
+      id: "cardA",
+      path: "layout.gap",
+      value: 40,
+    });
+    expect(result.reason).toBeUndefined();
+    expect(result.screen).not.toBe(BASE);
+  });
+
+  it("createNode — parentId가 없다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "createNode",
+      parentId: "없음",
+      id: "x",
+      node: NEW_TEXT_NODE,
+    });
+    expect(result.reason).toBe("parentId '없음'가 없습니다");
+    expect(result.screen).toBe(BASE);
+  });
+
+  it("createNode — parentId가 frame이 아니다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "createNode",
+      parentId: "headerTitle",
+      id: "x",
+      node: NEW_TEXT_NODE,
+    });
+    expect(result.reason).toBe("parentId 'headerTitle'가 frame이 아닙니다");
+  });
+
+  it("createNode — id가 이미 있다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "createNode",
+      parentId: "content",
+      id: "cardA",
+      node: NEW_TEXT_NODE,
+    });
+    expect(result.reason).toBe("id 'cardA'가 이미 있습니다");
+  });
+
+  it("updateNode — id가 없다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "updateNode",
+      id: "없음",
+      path: "layout.gap",
+      value: 1,
+    });
+    expect(result.reason).toBe("id '없음'가 없습니다");
+  });
+
+  it("updateNode — 경로를 쓸 수 없다(구조 필드)", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "updateNode",
+      id: "cardA",
+      path: "type",
+      value: "text",
+    });
+    expect(result.reason).toBe("path 'type'는 이 노드에 쓸 수 없습니다");
+  });
+
+  it("deleteNode — root는 지울 수 없다", () => {
+    const result = applyCommandWithReason(BASE, { type: "deleteNode", id: BASE.root });
+    expect(result.reason).toBe("root는 지울 수 없습니다");
+  });
+
+  it("deleteNode — id가 없다", () => {
+    const result = applyCommandWithReason(BASE, { type: "deleteNode", id: "없음" });
+    expect(result.reason).toBe("id '없음'가 없습니다");
+  });
+
+  it("moveNode — root는 옮길 수 없다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "moveNode",
+      id: BASE.root,
+      newParentId: "content",
+      index: 0,
+    });
+    expect(result.reason).toBe("root는 옮길 수 없습니다");
+  });
+
+  it("moveNode — id가 없다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "moveNode",
+      id: "없음",
+      newParentId: "content",
+      index: 0,
+    });
+    expect(result.reason).toBe("id '없음'가 없습니다");
+  });
+
+  it("moveNode — newParentId가 없다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "moveNode",
+      id: "cardA",
+      newParentId: "없음",
+      index: 0,
+    });
+    expect(result.reason).toBe("newParentId '없음'가 없습니다");
+  });
+
+  it("moveNode — newParentId가 frame이 아니다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "moveNode",
+      id: "cardA",
+      newParentId: "headerTitle",
+      index: 0,
+    });
+    expect(result.reason).toBe("newParentId 'headerTitle'가 frame이 아닙니다");
+  });
+
+  it("moveNode — 자기 자손 밑으로는 못 옮긴다(순환)", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "moveNode",
+      id: "content",
+      newParentId: "cardA", // cardA는 content의 자손
+      index: 0,
+    });
+    expect(result.reason).toBe(
+      "id 'content'를 자기 자신이나 자손 밑으로 옮길 수 없습니다",
+    );
+  });
+
+  it("setLayout — id가 없다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "setLayout",
+      id: "없음",
+      layout: (BASE.nodes.cardA as FrameNode).layout,
+    });
+    expect(result.reason).toBe("id '없음'가 없습니다");
+  });
+
+  it("setLayout — frame이 아니라 layout이 없다", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "setLayout",
+      id: "headerTitle",
+      layout: (BASE.nodes.cardA as FrameNode).layout,
+    });
+    expect(result.reason).toBe("id 'headerTitle'는 frame이 아니라 layout이 없습니다");
+  });
+
+  it("updateScreen — 경로를 쓸 수 없다(구조 필드)", () => {
+    const result = applyCommandWithReason(BASE, {
+      type: "updateScreen",
+      path: "root",
+      value: "없는id",
+    });
+    expect(result.reason).toBe("path 'root'는 화면에 쓸 수 없습니다");
+  });
+
+  it("applyCommand는 이 함수의 screen만 꺼낸 것과 같다", () => {
+    const command: Command = { type: "updateNode", id: "cardA", path: "layout.gap", value: 7 };
+    expect(applyCommand(BASE, command)).toEqual(applyCommandWithReason(BASE, command).screen);
   });
 });

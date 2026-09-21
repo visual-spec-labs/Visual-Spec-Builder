@@ -19,7 +19,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 ---
 
-## 2. 스토어가 제공하는 것 — 계약의 전부 (17개)
+## 2. 스토어가 제공하는 것 — 계약의 전부 (20개)
 
 **파일 1개 = 프로젝트 1개**다. 프로젝트는 페이지 여러 장을 담고, 캔버스에는 그중 한 장만 뜬다. 그 한 장을 가리키는 것이 `activePageId`다.
 
@@ -28,8 +28,10 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `spec` | `ProjectSpec` | 편집 중인 **프로젝트 전체** | 셋 다 **읽음** |
 | `activePageId` | `PageId` | 지금 캔버스에 떠 있는 페이지 | 셋 다 **읽음** |
 | `selectedId` | `NodeId \| null` | 선택된 노드 id (활성 페이지 안) | 셋 다 **읽음** (하이라이트) |
+| `focusRootId` | `NodeId \| null` | 더블클릭으로 "들어간" 프레임 — 선택 문맥(#151). null이면 root 기준 | **캔버스**가 읽음(클릭 해석 기준점) |
 | `history` | `HistoryState<EditorSnapshot>` | 프로젝트 하나의 실행 취소 스택(#40, 단위는 #131에서 프로젝트로 올렸다) | 보통 안 읽는다 — `undo`/`redo`가 대신 씀. 트리 footer만 버튼 비활성화 판정에 읽는다 |
-| `select` | `(id: NodeId \| null) => void` | 노드 선택 / 해제 | **트리 · 캔버스**가 호출 |
+| `select` | `(id: NodeId \| null) => void` | 노드 선택 / 해제. `null`이면 `focusRootId`도 함께 비운다(#151) | **트리 · 캔버스**가 호출 |
+| `enterFocus` | `(id: NodeId \| null) => void` | 더블클릭으로 `focusRootId`를 바꾼다(#151). `null`이면 root 문맥으로 복귀 | **캔버스**가 호출(더블클릭 진입/이탈) |
 | `selectPage` | `(id: PageId) => void` | 캔버스에 띄울 페이지 전환 | **트리**가 호출 |
 | `setNodeField` | `(id: NodeId, path: string, value: unknown, continueEdit?: boolean) => void` | 노드 값 하나 변경 | **패널 · 캔버스(드래그)**가 호출 |
 | `setNodeFields` | `(patches: readonly NodeFieldPatch[], continueEdit?: boolean) => void` | 여러 노드 필드를 **한 번의 렌더·Undo 단계**로 변경(#149) | 정렬·배분·크기 맞추기·다중 선택 기능이 호출 |
@@ -42,6 +44,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `moveNode` | `(id: NodeId, newParentId: NodeId, index: number) => void` | 노드를 newParentId의 children 중 index 위치로 옮김. root 이동 불가, 순환 방지 | **트리**가 호출(드래그) |
 | `undo` | `() => void` | 프로젝트의 마지막 편집을 한 단계 되돌림(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Z, #118) |
 | `redo` | `() => void` | 되돌린 편집을 한 단계 다시 실행(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Shift+Z · Ctrl+Y, #118) |
+| `applyGuardedTransaction` | `(pageId: PageId, commands: readonly Command[]) => TransactionGateResult` | 출처를 신뢰할 수 없는 Command 배열을 G2(dry-run)·G3(결과 검증) 관문에 통과시킨 뒤 **전부-또는-전무**로 커밋(#154) | 자연어 편집 등 **LLM이 만든 Command** 경로 전용 — GUI는 안 쓴다 |
 
 ### setNodeField·setNodeFields·setPageField·removeNode·moveNode·insertNode는 Command Engine을 거친다 (#40, #101, #110, #131, #149)
 
@@ -54,6 +57,19 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 부수 효과로 성공한 변경마다 `history`에도 쌓인다 — `removeNode`·`moveNode`·`insertNode`도 undo 대상이다. **`addPage`·`removePage`는 Command Engine을 안 거치지만 `history`에는 쌓인다**(#131) — `applyCommand`는 화면 한 장(`ScreenSpec`)만 다루고 "페이지가 여러 장"이라는 개념을 아예 모르므로, `pages`·`pageOrder`를 바꾸는 이 둘은 Command로 표현되지 않는다(페이지 단위 Command는 필요해지면 별도 이슈로 다룬다). 스토어가 직접 스냅숏을 만들어 얹는다.
 
 이제 `spec`을 바꾸는 모든 액션이 `history`에 쌓이므로 **"이 액션 뒤에 바로 `undo`를 부르면 그 앞의 편집까지 함께 되돌아간다"는 #40의 한계는 없어졌다.** 그걸 방어하던 `editorStore.ts`의 `reconciledHistory`(push·점프 직전에 `present`를 실제 현재 상태로 맞춰주던 함수)도 함께 지웠다 — `present`가 낡을 수 있는 경로 자체가 없어졌다. 대신 `selectPage`는 새 단계를 쌓지 않으면서 `present`의 `activePageId`만 갈아 끼운다(페이지 전환은 편집이 아니지만, 안 맞춰두면 다음 편집이 past에 밀어 넣는 스냅숏이 "전에 보던 페이지"를 가리킨다). `removePage`가 지운 페이지의 `history` 항목을 지우던 처리(#40 리뷰, GAMMJ, PR #102)도 사라졌다 — 스택이 페이지 id로 묶여 있지 않으니 `generateNodeId`의 id 재사용으로 남의 undo 스택을 물려받는 누수가 구조적으로 불가능하다.
+
+### applyGuardedTransaction은 setNodeFields와 달리 전부-또는-전무다 (#154)
+
+`setNodeFields`(#149)는 **신뢰할 수 있는 GUI 경로 전용**이다. 패널이 경로·값 모양을 소스에서 이미 고정해 두므로, no-op patch가 섞여도 나머지만 적용하고 조용히 넘어가는 것이 지금까지 문제가 되지 않았다.
+
+`applyGuardedTransaction(pageId, commands)`(`command/transactionGate.ts`)은 **출처를 신뢰할 수 없는 Command 배열**(자연어 편집 등 LLM이 만든 배열, `docs/08-natural-language.md` §4.2)을 위한 별도 경로다. G1(Command 배열의 형태 검사)은 #153의 `validateTransaction`이 이미 맡으므로, 여기 들어오는 배열은 그 검사를 통과했다고 가정한다. 이 액션은 두 관문을 순서대로 통과시킨다.
+
+- **G2(dry-run)** — `dryRunTransaction`이 Command를 하나씩 사본에 접으며 no-op을 전부 기록한다. 스토어를 건드리지 않는 순수 계산이라, no-op이 하나라도 있으면 `spec`을 아예 갈아 끼우지 않는다.
+- **G3(결과 검증)** — G2를 통과한 최종 화면을 끼운 프로젝트 전체를 `validateProjectSpec`으로 검사한다. 한 Command 안의 경로 방어(#146)로는 못 잡는, 여러 Command에 걸친 조합 위반을 여기서 잡는다.
+
+두 관문을 모두 통과해야만 `spec`을 갈아 끼우고 `history`에 한 단계를 쌓는다 — **`setNodeFields`처럼 일부만 반영된 채로 넘어가는 경우가 없다.** dry-run이 순수 함수라 이 판정 자체가 스토어를 안 건드리므로 전부-또는-전무가 별도 트랜잭션 장치 없이 공짜로 성립한다.
+
+다른 편집 액션과 달리 **반환값이 있다** — `{ ok: true, screen }` 아니면 `{ ok: false, failure }`이고, `failure.kind`가 `"noOp"`(G2에서 걸린 Command들과 이유)인지 `"invalid"`(G3의 `ValidationIssue[]`)인지를 구분해 돌려준다. 호출부(`docs/08-natural-language.md` §6의 미래 자연어 입력 UI)가 이 실패 이유를 그대로 사용자에게 보여줘야 하기 때문이다. GUI 경로(패널·트리·캔버스)는 이 액션을 쓰지 않는다.
 
 ### Undo/Redo는 프로젝트 하나의 스택이다 (#131)
 
