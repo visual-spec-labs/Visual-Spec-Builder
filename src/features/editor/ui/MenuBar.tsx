@@ -9,16 +9,11 @@ import { formatDocumentTitle } from "@/features/editor/ui/documentTitle";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
+import { MenuList, type MenuEntry } from "@/features/editor/ui/menu";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 
 type MenuKey = "file" | "view";
-
-type ActionEntry = { kind: "action"; label: string; onSelect: () => void };
-type ToggleEntry = { kind: "toggle"; label: string; checked: boolean; onToggle: () => void };
-type SeparatorEntry = { kind: "separator" };
-
-type MenuEntry = ActionEntry | ToggleEntry | SeparatorEntry;
 
 /**
  * spec을 렌더 시점 구독값이 아니라 클릭 시점에 getState()로 읽는다.
@@ -214,36 +209,9 @@ function MenuButton({
         {label}
       </button>
       {isOpen && (
-        <ul
-          role="menu"
-          className="absolute top-full left-0 z-10 mt-1 w-48 rounded-panel border border-line bg-surface py-1 shadow-popover"
-        >
-          {entries.map((entry, index) =>
-            entry.kind === "separator" ? (
-              <li key={`sep-${index}`} className="my-1 border-t border-line" />
-            ) : (
-              <li key={entry.label} role="menuitem">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (entry.kind === "action") {
-                      entry.onSelect();
-                      onCloseMenu();
-                    } else {
-                      entry.onToggle();
-                    }
-                  }}
-                  className="flex w-full items-center justify-between px-3 py-1.5 text-left text-content hover:bg-hover"
-                >
-                  {entry.label}
-                  {entry.kind === "toggle" && entry.checked && (
-                    <span className="text-xs text-content-muted">✓</span>
-                  )}
-                </button>
-              </li>
-            ),
-          )}
-        </ul>
+        <div className="absolute top-full left-0 z-10 mt-1">
+          <MenuList entries={entries} onCloseMenu={onCloseMenu} />
+        </div>
       )}
     </div>
   );
