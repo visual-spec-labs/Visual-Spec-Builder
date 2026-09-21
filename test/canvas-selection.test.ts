@@ -4,7 +4,10 @@ import type { Node } from "@/features/editor/schema";
 import {
   buildParentMap,
   clickBoundary,
+  isWithin,
   resolveClickTarget,
+  resolveEnterTarget,
+  resolveExitTarget,
   resolveInsertParent,
   siblingId,
 } from "@/features/editor/ui/selection";
@@ -237,5 +240,133 @@ describe("siblingId — Tab/Shift+Tab 형제 이동(#151)", () => {
     // header 안에 들어가 있어도(headerTitle 선택) 형제는 여전히 실제 트리
     // 기준이다 — 여기엔 그 개념 자체가 없다(함수 시그니처에 경계 인자가 없다).
     expect(siblingId(nodes, "headerTitle", "next")).toBe("headerTitle");
+  });
+});
+
+describe("resolveClickTarget — 컨테이너 안에 들어간 뒤 (#151)", () => {
+  it("들어간 컨테이너 바로 아래가 클릭 단위가 된다", () => {
+    // content 에 들어가 있으면 그 안의 cardA 가 잡힌다 — 예전엔 언제나 content 였다.
+    expect(
+      resolveClickTarget({
+        nodes,
+        root,
+        clickedId: "cardALabel",
+        deep: false,
+        container: "content",
+      }),
+    ).toBe("cardA");
+  });
+
+  it("한 겹 더 들어가면 그만큼 더 안쪽이 잡힌다", () => {
+    expect(
+      resolveClickTarget({
+        nodes,
+        root,
+        clickedId: "cardALabel",
+        deep: false,
+        container: "cardA",
+      }),
+    ).toBe("cardALabel");
+  });
+
+  it("컨테이너 자신을 클릭하면 자신이 잡힌다", () => {
+    expect(
+      resolveClickTarget({
+        nodes,
+        root,
+        clickedId: "cardA",
+        deep: false,
+        container: "cardA",
+      }),
+    ).toBe("cardA");
+  });
+
+  it("컨테이너를 안 주면 예전과 똑같다 — 기존 호출부가 안 깨진다", () => {
+    expect(
+      resolveClickTarget({ nodes, root, clickedId: "cardALabel", deep: false }),
+    ).toBe("content");
+  });
+
+  it("스펙에 없는 컨테이너는 무시하고 root 기준으로 돌아간다", () => {
+    // 들어가 있던 노드를 지우면 이 상태가 된다. 그 안에 갇혀 아무것도 못 고르면 안 된다.
+    expect(
+      resolveClickTarget({
+        nodes,
+        root,
+        clickedId: "cardALabel",
+        deep: false,
+        container: "지워진노드",
+      }),
+    ).toBe("content");
+  });
+
+  it("Ctrl+클릭은 컨테이너와 무관하게 최하위다", () => {
+    expect(
+      resolveClickTarget({
+        nodes,
+        root,
+        clickedId: "cardALabel",
+        deep: true,
+        container: "content",
+      }),
+    ).toBe("cardALabel");
+  });
+});
+
+describe("isWithin — 바깥을 클릭했는지", () => {
+  it("자손이면 참이다", () => {
+    expect(isWithin(nodes, "content", "cardALabel")).toBe(true);
+    expect(isWithin(nodes, "root", "cardALabel")).toBe(true);
+  });
+
+  it("자기 자신도 참이다", () => {
+    expect(isWithin(nodes, "cardA", "cardA")).toBe(true);
+  });
+
+  it("다른 가지면 거짓이다 — 이때 한 겹 빠져나온다", () => {
+    expect(isWithin(nodes, "content", "headerTitle")).toBe(false);
+  });
+
+  it("조상은 자손 안에 있지 않다", () => {
+    expect(isWithin(nodes, "cardA", "content")).toBe(false);
+  });
+});
+
+describe("resolveEnterTarget — 더블클릭으로 한 겹 들어가기", () => {
+  it("한 번에 한 겹만 내려간다 — 깊은 글자를 눌러도 중간을 건너뛰지 않는다", () => {
+    expect(resolveEnterTarget({ nodes, root, clickedId: "cardALabel" })).toBe("content");
+  });
+
+  it("들어간 상태에서 다시 하면 그다음 겹이다", () => {
+    expect(
+      resolveEnterTarget({ nodes, root, clickedId: "cardALabel", container: "content" }),
+    ).toBe("cardA");
+  });
+
+  it("텍스트에는 들어가지 않는다 — 안에 고를 자식이 없다", () => {
+    expect(
+      resolveEnterTarget({ nodes, root, clickedId: "cardALabel", container: "cardA" }),
+    ).toBeNull();
+  });
+
+  it("컨테이너 자신을 더블클릭하면 더 들어갈 곳이 없다", () => {
+    expect(
+      resolveEnterTarget({ nodes, root, clickedId: "cardA", container: "cardA" }),
+    ).toBeNull();
+  });
+
+  it("스펙에 없는 노드면 null 이다", () => {
+    expect(resolveEnterTarget({ nodes, root, clickedId: "없는노드" })).toBeNull();
+  });
+});
+
+describe("resolveExitTarget — 한 겹 빠져나오기", () => {
+  it("부모 컨테이너로 올라간다", () => {
+    expect(resolveExitTarget(nodes, "cardA")).toBe("content");
+  });
+
+  it("root 바로 아래에서 나오면 null — 아무 데도 안 들어간 상태다", () => {
+    expect(resolveExitTarget(nodes, "content")).toBe("root");
+    expect(resolveExitTarget(nodes, "root")).toBeNull();
   });
 });
