@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   TOOLBAR_CLEARANCE_PX,
+  isContextMenuKey,
   isScrolledToBottom,
   isSpacePanKey,
   isTypingTarget,
@@ -13,6 +14,7 @@ import {
   toolForKey,
   viewCommandForKey,
   type ClipboardKeyInput,
+  type ContextMenuKeyInput,
   type DeleteKeyInput,
   type SiblingNavKeyInput,
   type ToolKeyInput,
@@ -467,5 +469,63 @@ describe("siblingNavDirectionForKey — Tab/Shift+Tab 형제 이동(#151)", () =
     expect(siblingNavDirectionForKey(tabKey({ tagName: "BUTTON" }))).toBeNull();
     expect(siblingNavDirectionForKey(tabKey({ tagName: "A" }))).toBeNull();
     expect(siblingNavDirectionForKey(tabKey({ role: "button" }))).toBeNull();
+  });
+});
+
+/** 노드가 선택된 채 컨텍스트 메뉴 키를 누른 상태. 케이스마다 필요한 칸만 덮어쓴다. */
+function menuKey(patch: Partial<ContextMenuKeyInput> = {}): ContextMenuKeyInput {
+  return {
+    key: "ContextMenu",
+    code: "ContextMenu",
+    shiftKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    tagName: "DIV",
+    contentEditable: false,
+    hasSelection: true,
+    ...patch,
+  };
+}
+
+describe("isContextMenuKey — 키보드로 컨텍스트 메뉴 열기(#152)", () => {
+  it("컨텍스트 메뉴 전용 키를 받는다", () => {
+    expect(isContextMenuKey(menuKey())).toBe(true);
+  });
+
+  it("Shift+F10도 같은 뜻이다", () => {
+    expect(isContextMenuKey(menuKey({ key: "F10", code: "F10", shiftKey: true }))).toBe(
+      true,
+    );
+  });
+
+  it("Shift 없는 F10은 받지 않는다", () => {
+    expect(isContextMenuKey(menuKey({ key: "F10", code: "F10", shiftKey: false }))).toBe(
+      false,
+    );
+  });
+
+  it("Ctrl/Cmd/Alt가 섞인 Shift+F10은 받지 않는다", () => {
+    expect(
+      isContextMenuKey(menuKey({ key: "F10", code: "F10", shiftKey: true, ctrlKey: true })),
+    ).toBe(false);
+    expect(
+      isContextMenuKey(menuKey({ key: "F10", code: "F10", shiftKey: true, altKey: true })),
+    ).toBe(false);
+  });
+
+  it("선택이 없으면 받지 않는다 — 열어도 빈 메뉴다", () => {
+    expect(isContextMenuKey(menuKey({ hasSelection: false }))).toBe(false);
+  });
+
+  it("타이핑 중에는 받지 않는다", () => {
+    expect(isContextMenuKey(menuKey({ tagName: "INPUT" }))).toBe(false);
+    expect(isContextMenuKey(menuKey({ contentEditable: true }))).toBe(false);
+  });
+
+  it("관계없는 키는 받지 않는다", () => {
+    expect(isContextMenuKey(menuKey({ key: "F9", code: "F9", shiftKey: true }))).toBe(
+      false,
+    );
   });
 });

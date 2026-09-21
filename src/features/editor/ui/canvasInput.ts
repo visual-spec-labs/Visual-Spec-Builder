@@ -255,6 +255,37 @@ export function siblingNavDirectionForKey(
   return input.shiftKey ? "prev" : "next";
 }
 
+/** `isContextMenuKey`가 보는 것 — KeyboardEvent에서 필요한 값만 추린 모양. */
+export interface ContextMenuKeyInput {
+  /** 컨텍스트 메뉴 전용 키가 있는 키보드에서 온다. `event.key`(code가 아니다) 기준. */
+  key: string;
+  code: string;
+  shiftKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  tagName: string | undefined;
+  contentEditable: boolean;
+  /** 메뉴를 띄울 대상 — 선택된 노드가 있어야 한다. */
+  hasSelection: boolean;
+}
+
+/**
+ * 키보드로 컨텍스트 메뉴를 열어야 하는가(#152).
+ *
+ * 두 키를 받는다 — 컨텍스트 메뉴 전용 키(`event.key === "ContextMenu"`, 있는
+ * 키보드에서만)와 `Shift+F10`(그 키가 없는 키보드의 관례적 대체). `shouldDeleteSelection`
+ * 과 같은 이유로 "열 대상이 있는가"(`hasSelection`)까지 판정에 넣는다 —
+ * 선택이 없으면 열어도 빈 메뉴라 아예 가로채지 않는다.
+ */
+export function isContextMenuKey(input: ContextMenuKeyInput): boolean {
+  if (isTypingTarget(input.tagName, input.contentEditable)) return false;
+  if (!input.hasSelection) return false;
+
+  if (input.key === "ContextMenu") return true;
+  return input.code === "F10" && input.shiftKey && !input.ctrlKey && !input.metaKey && !input.altKey;
+}
+
 /** 보기 단축키가 시키는 일. 캔버스가 이 값으로 viewStore를 부른다. */
 export type ViewCommand =
   | "zoomIn"
