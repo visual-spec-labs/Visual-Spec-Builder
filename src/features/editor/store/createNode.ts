@@ -3,6 +3,8 @@ import type {
   FrameNode,
   ImageNode,
   InputNode,
+  Radius,
+  Shadow,
   TextNode,
 } from "@/features/editor/schema";
 
@@ -22,14 +24,27 @@ type NodeByKind = {
 };
 
 /**
+ * 06-schema-freeze.md가 "객체를 통째로 받는 선택 필드는 내부 칸을 모두
+ * 필수로 둔다"고 정한 타입들. Radius의 객체 변형(모서리 4칸)과 Shadow가
+ * 여기 해당한다 — 한쪽만 채운 반쪽 객체는 그 필드 전체를 깨뜨리므로
+ * (types.ts의 Radius 설명 참고) DeepPartial이 안까지 파고들면 안 된다.
+ */
+type Atomic = Radius | Shadow;
+
+/**
  * T를 재귀적으로 부분화한다. 배열은 통째로 교체 대상이라 원소 단위로 파고들지
  * 않는다 — children처럼 부분 병합이 의미 없는 필드가 이 규칙을 따른다.
+ * Atomic 타입도 통째로 교체 대상이다 — 부분 값을 허용하면 deepMerge가
+ * 기본값과 병합하지 못했을 때(기본값이 없거나 다른 union 변형일 때)
+ * 필수 칸이 빠진 객체를 그대로 통과시키게 된다.
  */
-type DeepPartial<T> = T extends readonly unknown[]
+type DeepPartial<T> = T extends Atomic
   ? T
-  : T extends object
-    ? { [K in keyof T]?: DeepPartial<T[K]> }
-    : T;
+  : T extends readonly unknown[]
+    ? T
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T;
 
 /**
  * kind별 부분 덮어쓰기 값. `type`은 kind가 이미 정하므로 여기서는 받지 않는다.
@@ -155,6 +170,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * base에 overrides를 재귀적으로 얹는다. 두 쪽 다 plain object인 칸만 파고들고
  * 병합한다 — 그 외(배열, 원시값, "auto"/"fill" 같은 union 대표값)는 overrides
  * 쪽 값이 통째로 이긴다. base는 건드리지 않는다.
+ *
+ * `undefined`인 칸은 "안 줬다"로 본다 — TS는 옵셔널(`?`) 칸에 명시적으로
+ * `undefined`를 넣는 걸 허용하는데, 그걸 그대로 덮으면 `name` 같은 필수
+ * 문자열 필드가 `undefined`로 지워질 수 있다.
  */
 function deepMerge<T extends Record<string, unknown>>(
   base: T,
@@ -164,6 +183,8 @@ function deepMerge<T extends Record<string, unknown>>(
 
   for (const key of Object.keys(overrides)) {
     const overrideValue = overrides[key];
+    if (overrideValue === undefined) continue;
+
     const baseValue = result[key];
 
     result[key] =

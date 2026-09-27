@@ -115,6 +115,65 @@ describe("createNode", () => {
       expect(node.box).toEqual({ width: "fill", height: 120 });
     });
 
+    it("border.radius는 온전한 객체를 주면 통째로 바뀐다 (부분 객체는 컴파일 타임에 막힌다)", () => {
+      // @ts-expect-error radius의 객체 변형은 모서리 4칸이 모두 필수다 — 반쪽만
+      // 주면 deepMerge가 기본값(숫자)과 병합할 수 없어 필수 칸이 빠진 채로 통과한다.
+      // 그래서 DeepPartial이 Radius 안까지 파고들지 않게 막아 뒀다(타입 레벨 회귀 테스트).
+      createNode("frame", { border: { radius: { topLeft: 4 } } });
+
+      const node = createNode("frame", {
+        border: { radius: { topLeft: 4, topRight: 4, bottomRight: 4, bottomLeft: 4 } },
+      });
+
+      if (node.type !== "frame") throw new Error("frame이어야 한다");
+      expect(node.border).toEqual({
+        width: 1,
+        color: "#E5E7EB",
+        radius: { topLeft: 4, topRight: 4, bottomRight: 4, bottomLeft: 4 },
+      });
+    });
+
+    it("기본값이 아예 없는 선택 필드(shadow)도 온전한 객체로만 채울 수 있다", () => {
+      // @ts-expect-error Shadow도 모든 칸이 필수다. frame 기본값은 shadow를 아예
+      // 만들지 않으므로(never seeded) 부분 객체를 주면 병합할 base 자체가 없다.
+      createNode("frame", { shadow: { blur: 10 } });
+
+      let spec = migrateV01(blankSpec);
+      const pageId = spec.pageOrder[0];
+      const page = spec.pages[pageId];
+      const parent = page.nodes[page.root];
+      if (parent.type !== "frame") throw new Error("root는 프레임이어야 한다");
+
+      const id = generateNodeId("frame", page.nodes);
+      const node = createNode("frame", {
+        shadow: { x: 0, y: 2, blur: 10, spread: 0, color: "#00000020" },
+      });
+
+      spec = {
+        ...spec,
+        pages: {
+          ...spec.pages,
+          [pageId]: {
+            ...page,
+            nodes: {
+              ...page.nodes,
+              [id]: node,
+              [page.root]: { ...parent, children: [...parent.children, { node: id }] },
+            },
+          },
+        },
+      };
+
+      expect(validateProjectSpec(spec).issues).toEqual([]);
+    });
+
+    it("override 값이 명시적으로 undefined면 기본값을 지우지 않는다", () => {
+      const node = createNode("text", { name: undefined, content: "안녕" });
+
+      expect(node.name).toBe("Text");
+      expect(node.content).toBe("안녕");
+    });
+
     it("원본 기본값 객체를 변형하지 않는다", () => {
       const before = createNode("frame");
       createNode("frame", { layout: { gap: 999 } });
