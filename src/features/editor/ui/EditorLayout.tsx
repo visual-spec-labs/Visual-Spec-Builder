@@ -6,6 +6,7 @@ import { Canvas } from "@/features/editor/ui/Canvas";
 import { shouldSuppressContextMenu } from "@/features/editor/ui/canvasInput";
 import { LayerTree } from "@/features/editor/ui/LayerTree";
 import { MenuBar } from "@/features/editor/ui/MenuBar";
+import { NaturalLanguageBar } from "@/features/editor/ui/NaturalLanguageBar";
 import { PropertiesPanel } from "@/features/editor/ui/PropertiesPanel";
 import { Toolbar } from "@/features/editor/ui/Toolbar";
 import { TicketPanel } from "@/features/editor/ui/TicketPanel";
@@ -33,6 +34,11 @@ function handleContextMenu(event: MouseEvent<HTMLElement>) {
  * docs/04-gui-spec.md의 5개 영역(상단 메뉴바 / 좌측 레이어 트리 / 중앙 캔버스 /
  * 우측 세부설정 패널 / 하단 도구 모음)을 CSS Grid로 배치한다.
  * View 메뉴의 Panels/Sidebars 토글에 따라 좌우 패널 컬럼을 접는다.
+ *
+ * 캔버스 아래 **3열 전폭** 행 하나가 자연어 입력창이다(#155, docs/08 6.3 결정).
+ * 높이가 `auto`인 이유는 그 행의 내용(적용 대상 · 입력칸 · 결과 한 줄)이 상태에
+ * 따라 늘고 줄기 때문이다 — 고정 높이로 잡으면 결과 문장이 길 때 잘린다.
+ * 좌우 패널을 접어도 이 행은 그대로 남는다(폭이 3열 전체라 컬럼 접힘과 무관하다).
  */
 export function EditorLayout() {
   const showPanels = useViewStore((s) => s.showPanels);
@@ -49,13 +55,14 @@ export function EditorLayout() {
     // 앱 셸은 화면 크기에 딱 맞아야 하므로 여기서 잘라낸다.
     <div
       onContextMenu={handleContextMenu}
-      className={`relative grid h-screen w-screen overflow-hidden ${gridColsClass} grid-rows-[var(--layout-menubar-height)_1fr] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'] bg-surface-sunken text-content`}
+      className={`relative grid h-screen w-screen overflow-hidden ${gridColsClass} grid-rows-[var(--layout-menubar-height)_1fr_auto] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'_'ai_ai_ai'] bg-surface-sunken text-content`}
     >
       <MenuBar />
       {showPanels && <LayerTree />}
       <Canvas />
       {showPanels && (showTickets ? <TicketPanel /> : <PropertiesPanel />)}
       <Toolbar />
+      <NaturalLanguageBar />
     </div>
   );
 }

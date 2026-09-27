@@ -122,7 +122,8 @@ export function resolveWorkspaceRoot(
  * `npx visual-spec init`을 안 거치고 바로 GUI를 띄운 경우에도 Save가 되어야 한다 —
  * "폴더가 없어서 저장이 안 된다"는 실패는 사용자가 고칠 방법을 짐작하기 어렵다.
  * `bin/visual-spec.mjs`의 `initWorkspace`가 만드는 다섯 폴더 중 GUI가 실제로 만지는
- * 셋만 만든다(`preview`·`runtime`은 이 미들웨어가 열지 않는다).
+ * 넷만 만든다(`preview`는 이 미들웨어가 열지 않는다). `runtime`은 #155에서
+ * 자연어 요청/응답 교환소로 열렸다.
  */
 export function ensureWorkspaceDirs(workspaceRoot: string): void {
   for (const dir of WORKSPACE_ACCESSIBLE_DIRS) {

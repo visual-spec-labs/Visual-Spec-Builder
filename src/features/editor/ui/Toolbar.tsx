@@ -41,11 +41,19 @@ export function Toolbar() {
     // 세로를 덜 줄이면서 동시에 내려가면 그 점으로 말려 들어가는 것처럼 보인다.
     // 사라질 때는 ease-in(점점 빨라짐)이라 빨려드는 가속이 생기고, 돌아올 때는
     // ease-out 으로 짧게 튀어나온다.
+    //
+    // `[grid-area:canvas]` — #155가 캔버스 아래에 자연어 입력창 행을 더하면서
+    // 기준을 **셸에서 캔버스 영역으로** 옮겼다(docs/08 8절 물음 6의 답). 셸 기준의
+    // `bottom-4` 는 그대로 두면 새 행 위에 얹히고, 새 행은 높이가 `auto` 라
+    // `bottom` 값을 상수로 올려 피할 수도 없다. 절대 배치된 그리드 컨테이너의
+    // 자식은 grid-placement 가 있으면 **그 영역**이 담는 블록이 되므로
+    // (CSS Grid 명세), 이 한 줄이 도구 모음을 캔버스 바닥 기준으로 되돌린다.
+    // 덤으로 좌우 패널을 접어도 캔버스 한가운데에 그대로 선다.
     <div
       role="toolbar"
       aria-label="도구"
       aria-hidden={hidden}
-      className={`absolute bottom-4 left-1/2 z-10 flex origin-bottom items-center gap-1 rounded-panel border border-line bg-surface-raised p-1 shadow-popover transition-[transform,opacity] ${
+      className={`absolute bottom-4 left-1/2 z-10 flex origin-bottom items-center gap-1 rounded-panel border border-line bg-surface-raised p-1 shadow-popover transition-[transform,opacity] [grid-area:canvas] ${
         hidden
           ? "pointer-events-none -translate-x-1/2 translate-y-[calc(100%+1.25rem)] scale-x-[0.28] scale-y-[0.5] opacity-0 duration-300 ease-in"
           : "-translate-x-1/2 translate-y-0 scale-100 opacity-100 duration-200 ease-out"
