@@ -117,9 +117,9 @@ function splitSegments(requestPath: string): string[] | null {
  * 파일 라우트 뒤에 붙은 경로(`specs/home.json`, `generated/pages/Home.tsx`)를
  * 작업공간 안의 실제 경로로 해석한다.
  *
- * 읽기와 쓰기에 같은 규칙을 쓴다 — 읽기만 느슨하게 열어두면 `runtime/`이나
- * `preview/`에 놓인 값이 브라우저로 새 나가고, 그 구분을 기억해야 하는 자리가
- * 하나 더 생긴다. 지금 GUI가 필요로 하는 건 화이트리스트 세 폴더뿐이다.
+ * 읽기와 쓰기에 같은 규칙을 쓴다 — 읽기만 느슨하게 열어두면 `preview/`에 놓인
+ * 값이 브라우저로 새 나가고, 그 구분을 기억해야 하는 자리가 하나 더 생긴다.
+ * 지금 GUI가 필요로 하는 건 화이트리스트 네 폴더뿐이다(#155에서 `runtime`이 늘었다).
  */
 export function resolveWorkspaceFile(
   workspaceRoot: string,

@@ -90,7 +90,7 @@ describe("resolveWorkspaceFile — 탈출 시도는 전부 막는다", () => {
       ok: false,
       reason: "malformed",
     });
-    expect(resolveWorkspaceFile(ROOT, "runtime/config.json")).toEqual({
+    expect(resolveWorkspaceFile(ROOT, "preview/config.json")).toEqual({
       ok: false,
       reason: "forbidden-dir",
     });
@@ -102,9 +102,37 @@ describe("resolveWorkspaceFile — 탈출 시도는 전부 막는다", () => {
 });
 
 describe("resolveWorkspaceFile — 폴더·확장자 화이트리스트", () => {
-  it("화이트리스트 밖 폴더는 거부한다 — runtime·preview 는 GUI가 만지지 않는다", () => {
-    for (const path of ["runtime/state.json", "preview/index.json", "node_modules/x.json"]) {
-      expect(resolveWorkspaceFile(ROOT, path)).toEqual({ ok: false, reason: "forbidden-dir" });
+  it("화이트리스트 밖 폴더는 거부한다 — preview 는 GUI가 만지지 않는다", () => {
+    for (const path of ["preview/index.json", "node_modules/x.json", "../x.json"]) {
+      expect(resolveWorkspaceFile(ROOT, path).ok).toBe(false);
+    }
+    expect(resolveWorkspaceFile(ROOT, "preview/index.json")).toEqual({
+      ok: false,
+      reason: "forbidden-dir",
+    });
+  });
+
+  // #155가 자연어 요청/응답 교환소로 `runtime`을 열었다. 넓힌 만큼 **같은 방어가
+  // 그대로 서는지**를 여기서 고정한다 — 확장자는 `.json` 하나뿐이고, 탈출·
+  // 이상한 이름은 다른 폴더와 똑같이 막힌다.
+  it("runtime 은 .json 만 받는다 — 코드·텍스트는 못 쓴다", () => {
+    expect(resolveWorkspaceFile(ROOT, "runtime/nl-request.json").ok).toBe(true);
+    expect(resolveWorkspaceFile(ROOT, "runtime/nl-response.json").ok).toBe(true);
+    for (const path of [
+      "runtime/evil.js",
+      "runtime/evil.html",
+      "runtime/evil.mjs",
+      "runtime/notes.txt",
+      "runtime/Makefile",
+      "runtime/.json",
+    ]) {
+      expect(resolveWorkspaceFile(ROOT, path).ok).toBe(false);
+    }
+  });
+
+  it("runtime 도 탈출 경로는 그대로 막힌다", () => {
+    for (const path of ["runtime/../../escaped.json", "runtime/..", "runtime"]) {
+      expect(resolveWorkspaceFile(ROOT, path).ok).toBe(false);
     }
   });
 
@@ -154,7 +182,7 @@ describe("resolveWorkspaceDir — 목록 라우트", () => {
 
   it("하위 경로·화이트리스트 밖·탈출은 거부한다", () => {
     expect(resolveWorkspaceDir(ROOT, "specs/nested").ok).toBe(false);
-    expect(resolveWorkspaceDir(ROOT, "runtime").ok).toBe(false);
+    expect(resolveWorkspaceDir(ROOT, "preview").ok).toBe(false);
     expect(resolveWorkspaceDir(ROOT, "..").ok).toBe(false);
   });
 });

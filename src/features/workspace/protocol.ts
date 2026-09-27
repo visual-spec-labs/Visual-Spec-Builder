@@ -57,7 +57,7 @@ export const WORKSPACE_MARKER_HEADER = "x-visual-spec-workspace";
 /**
  * 읽기·쓰기가 허용되는 작업공간 하위 폴더와, 폴더별 허용 확장자.
  *
- * 화이트리스트다 — 여기 없는 폴더(`runtime`, `preview`)와 확장자는 전부 거부한다.
+ * 화이트리스트다 — 여기 없는 폴더(`preview`)와 확장자는 전부 거부한다.
  * `.visual-spec/` 전체를 열지 않는 이유: 이 미들웨어는 브라우저에서 오는 요청을
  * 그대로 파일 입출력으로 바꾸므로, 열어둔 만큼이 그대로 공격면이다.
  *
@@ -66,11 +66,26 @@ export const WORKSPACE_MARKER_HEADER = "x-visual-spec-workspace";
  * - `generated` — 생성된 React 코드. **이 작업은 쓸 수 있는 "경로를 여는 것"까지다**
  *                 (실제 코드 생성은 별도 작업). 하위 폴더(`pages/`, `components/`)를
  *                 쓰므로 중첩 경로를 허용한다
+ * - `runtime`   — GUI ↔ 외부 에이전트 요청/응답 교환소(이슈 #155). `.json`만 받는다.
+ *                 **왜 `specs`를 같이 쓰지 않았나**: `specs`는 Open 목록이 읽는
+ *                 폴더라, 거기에 요청/응답 파일을 두면 사용자가 열 수 있는 화면
+ *                 목록에 편집 요청 찌꺼기가 섞여 나온다. 폴더를 나누면 목록 라우트가
+ *                 폴더별로 갈라져 있어 그 일이 생기지 않는다
+ *                 (`workspaceServer.handleList`).
+ *
+ * **넓힌 범위**(#155): `runtime`은 `.json` 하나뿐이라 이미 열려 있는 `generated`
+ * (`.ts`·`.tsx`·`.js`…)보다 좁다. 경로 검증(`workspacePath.resolveWorkspaceFile`)·
+ * 심볼릭 링크 검사(`workspaceServer.realPathStaysInside`)·요청 출처 검사
+ * (`requestOrigin.checkRequestOrigin`)는 폴더를 가리지 않고 모든 요청에 그대로
+ * 걸리므로, 이 한 줄이 그 방어들을 비켜가지 않는다.
+ * `test/workspace-path.test.ts`·`test/workspace-middleware.test.ts`가 `runtime`에
+ * 대해서도 같은 방어가 서는지 따로 고정한다.
  */
 export const WORKSPACE_DIR_RULES = {
   specs: [".json"],
   assets: [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".bmp", ".ico"],
   generated: [".tsx", ".ts", ".jsx", ".js", ".css", ".json", ".md"],
+  runtime: [".json"],
 } as const;
 
 export type WorkspaceDir = keyof typeof WORKSPACE_DIR_RULES;
@@ -80,6 +95,9 @@ export const SPEC_DIR: WorkspaceDir = "specs";
 
 /** Import한 이미지가 들어가는 폴더. `ImageNode.src`의 `assets/...`가 이걸 가리킨다. */
 export const ASSET_DIR: WorkspaceDir = "assets";
+
+/** 자연어 요청/응답 파일이 오가는 폴더(#155). `editor/nl/nlProtocol.ts`가 경로를 만든다. */
+export const RUNTIME_DIR: WorkspaceDir = "runtime";
 
 /** 화이트리스트에 있는 폴더 이름들. 미들웨어가 서버 시작 때 만들어 둔다. */
 export const WORKSPACE_ACCESSIBLE_DIRS = Object.keys(WORKSPACE_DIR_RULES) as WorkspaceDir[];

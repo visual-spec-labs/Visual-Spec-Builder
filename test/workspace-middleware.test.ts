@@ -115,10 +115,14 @@ describe("resolveWorkspaceRoot — 워크스페이스 루트 전달", () => {
 });
 
 describe("ensureWorkspaceDirs", () => {
-  it("화이트리스트 세 폴더를 만든다 — init 없이 GUI만 띄워도 Save가 되어야 한다", () => {
-    for (const dir of ["specs", "assets", "generated"]) {
+  it("화이트리스트 네 폴더를 만든다 — init 없이 GUI만 띄워도 Save가 되어야 한다", () => {
+    for (const dir of ["specs", "assets", "generated", "runtime"]) {
       expect(existsSync(join(workspaceRoot, dir))).toBe(true);
     }
+  });
+
+  it("preview 는 열지 않으므로 만들지도 않는다", () => {
+    expect(existsSync(join(workspaceRoot, "preview"))).toBe(false);
   });
 });
 
@@ -128,7 +132,10 @@ describe("GET /__vs/status", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toMatchObject({ ok: true, dirs: ["specs", "assets", "generated"] });
+    expect(body).toMatchObject({
+      ok: true,
+      dirs: ["specs", "assets", "generated", "runtime"],
+    });
   });
 
   it("우리 응답임을 표시하는 헤더가 붙는다 — 정적 서버의 SPA 폴백과 구분한다", async () => {
@@ -238,7 +245,7 @@ describe("GET /__vs/list", () => {
   });
 
   it("화이트리스트 밖 폴더는 목록도 거부한다", async () => {
-    const response = await fetch(`${baseUrl}/__vs/list/runtime`);
+    const response = await fetch(`${baseUrl}/__vs/list/preview`);
 
     expect(response.status).toBe(403);
   });
@@ -303,9 +310,12 @@ describe("화이트리스트 밖 경로는 거부한다 — 읽기도 쓰기도"
     ["절대 경로", "/__vs/file//etc/passwd.json", 403],
     ["Windows 드라이브 문자", "/__vs/file/C:/Windows/win.ini", 400],
     ["NUL 바이트", "/__vs/file/specs/home.json%00.png", 400],
-    ["화이트리스트 밖 폴더", "/__vs/file/runtime/state.json", 403],
+    ["화이트리스트 밖 폴더", "/__vs/file/preview/state.json", 403],
     ["specs 에 .json 아닌 확장자", "/__vs/file/specs/shell.js", 403],
     ["assets 에 이미지 아닌 확장자", "/__vs/file/assets/evil.html", 403],
+    // #155가 runtime 을 열었다 — 연 것은 `.json` 하나뿐이다.
+    ["runtime 에 .json 아닌 확장자", "/__vs/file/runtime/evil.js", 403],
+    ["runtime 으로 상위 폴더 탈출", "/__vs/file/runtime/..%2f..%2fescaped.json", 400],
   ];
 
   for (const [label, path, status] of forbidden) {
@@ -319,6 +329,89 @@ describe("화이트리스트 밖 경로는 거부한다 — 읽기도 쓰기도"
       expect(existsSync(join(workspaceRoot, "..", "escaped.json"))).toBe(false);
     });
   }
+});
+
+/**
+ * `runtime/` — 자연어 요청/응답 교환소 (이슈 #155).
+ *
+ * #133이 좁혀 둔 화이트리스트를 폴더 하나만큼 넓혔다. 넓힌 쪽이 **기존 방어를
+ * 비켜가지 않는지**가 이 블록의 전부다. 새로 판단하는 코드는 없다 —
+ * `protocol.ts`의 표에 `runtime: [".json"]` 한 줄이 늘었을 뿐이고,
+ * `resolveWorkspaceFile`·`realPathStaysInside`·`checkRequestOrigin`은
+ * 폴더를 가리지 않는다. 그 "가리지 않음"을 여기서 실제 요청으로 확인한다.
+ */
+describe("runtime/ — 자연어 요청/응답 교환소(#155)", () => {
+  it("GUI가 요청을 쓰고 에이전트가 쓴 응답을 다시 읽는다 — 한 바퀴", async () => {
+    const written = await fetch(`${baseUrl}/__vs/file/runtime/nl-request.json`, {
+      method: "PUT",
+      body: JSON.stringify({ protocol: 1, id: "req-1", instruction: "간격을 24로 해줘" }),
+    });
+
+    expect(written.status).toBe(200);
+
+    // 에이전트 역할 — 파일 시스템으로 직접 답을 쓴다(앱은 LLM을 부르지 않는다).
+    writeFileSync(
+      join(workspaceRoot, "runtime", "nl-response.json"),
+      JSON.stringify({ protocol: 1, requestId: "req-1", commands: [] }),
+    );
+
+    const read = await fetch(`${baseUrl}/__vs/file/runtime/nl-response.json`);
+
+    expect(read.status).toBe(200);
+    expect(await read.json()).toMatchObject({ requestId: "req-1" });
+  });
+
+  it("교차 출처 PUT은 runtime 에도 못 쓴다 — Command를 심을 수 있는 자리다", async () => {
+    // 여기에 파일을 쓸 수 있으면 남의 페이지가 GUI에 적용될 Command 배열을
+    // 심는 셈이 된다. specs 와 **같은** 방어가 서야 하는 이유다.
+    const response = await rawRequest(
+      "PUT",
+      "/__vs/file/runtime/nl-response.json",
+      '{"protocol":1,"requestId":"req-1","commands":[]}',
+      { host: `localhost:${port}`, origin: "http://evil.example" },
+    );
+
+    expect(response.status).toBe(403);
+    expect(existsSync(join(workspaceRoot, "runtime", "nl-response.json"))).toBe(false);
+  });
+
+  it("위조 Host로 온 GET은 runtime 내용을 내보내지 않는다", async () => {
+    writeFileSync(join(workspaceRoot, "runtime", "nl-request.json"), '{"secret":1}');
+
+    const response = await rawRequest("GET", "/__vs/file/runtime/nl-request.json", undefined, {
+      host: "evil.example",
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.text).not.toContain("secret");
+  });
+
+  it("runtime 안의 링크가 밖을 가리켜도 그 너머로는 못 쓴다", async (context) => {
+    const outside = mkdtempSync(join(tmpdir(), "visual-spec-outside-"));
+    try {
+      symlinkSync(outside, join(workspaceRoot, "runtime", "link"), "junction");
+    } catch {
+      rmSync(outside, { recursive: true, force: true });
+      context.skip();
+      return;
+    }
+
+    const response = await rawRequest("PUT", "/__vs/file/runtime/link/escaped.json", "{}");
+
+    expect(response.status).toBe(403);
+    expect(existsSync(join(outside, "escaped.json"))).toBe(false);
+    rmSync(join(workspaceRoot, "runtime", "link"), { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  it("목록에는 .json 만 올라온다 — 열린 확장자가 하나뿐임을 서버가 그대로 지킨다", async () => {
+    writeFileSync(join(workspaceRoot, "runtime", "nl-request.json"), "{}");
+    writeFileSync(join(workspaceRoot, "runtime", "notes.txt"), "x");
+
+    const response = await fetch(`${baseUrl}/__vs/list/runtime`);
+
+    expect(await response.json()).toMatchObject({ files: ["nl-request.json"] });
+  });
 });
 
 describe("요청 출처를 미들웨어가 스스로 본다 — Vite 앞단에 기대지 않는다", () => {
