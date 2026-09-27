@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useExportStore } from "@/features/editor/store/exportStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
@@ -45,6 +46,17 @@ function handleCompileTickets() {
 }
 
 /**
+ * File ▸ Export Code — `.visual-spec/generated/`의 코드를 훑어 검증하고 결과 폴더
+ * ZIP을 만든다(#157). 바로 위 `handleExport`(스펙 JSON 다운로드)와 **다른 기능**이다.
+ */
+function handleExportCode() {
+  const { spec, activePageId } = useEditorStore.getState();
+  const view = useViewStore.getState();
+  if (!view.showPanels) view.togglePanels();
+  void useExportStore.getState().open(spec.pages[activePageId]);
+}
+
+/**
  * 상단 메뉴바 — Figma 디자인 기준 레이아웃(로고·브랜드·중앙 프로젝트명·테마 토글) +
  * File/View 드롭다운.
  * New는 newSpec(빈 스펙 + 현재 문서 이름 비우기), Open은 openSpec(.visual-spec/specs/
@@ -53,6 +65,8 @@ function handleCompileTickets() {
  * **Save의 대상은 지금 열려 있는 파일이다** — Open/Save as가 적어 둔
  * `documentStore.fileName`을 쓴다(PR #145 리뷰). Export는 그대로 브라우저
  * 다운로드다 — 스펙을 저장소 밖으로 꺼내는 경로는 남겨 둔다.
+ * **Export와 Export Code는 다른 기능이다** — Export는 스펙 JSON, Export Code는
+ * `.visual-spec/generated/`의 React 코드를 검증해 결과 폴더 ZIP으로 내보낸다(#157).
  * Import는 importImageFromFile(이미지 선택 → .visual-spec/assets/에 저장 → 선택된
  * 프레임/root에 삽입)로 연결돼 있다 — 코드·디자인 파일 가져오기는 이번 범위 밖(별도 이슈).
  * 검증 실패 시 Export는 다운로드 대신 콘솔 경고만 남기고(메뉴 컨텍스트에
@@ -91,6 +105,7 @@ export function MenuBar() {
     { kind: "separator" },
     { kind: "action", label: "Import", onSelect: importImageFromFile },
     { kind: "action", label: "Export", onSelect: handleExport },
+    { kind: "action", label: "Export Code", onSelect: handleExportCode },
   ];
 
   const VIEW_MENU: MenuEntry[] = [

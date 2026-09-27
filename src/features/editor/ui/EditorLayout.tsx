@@ -1,9 +1,11 @@
 import type { MouseEvent } from "react";
 
+import { useExportStore } from "@/features/editor/store/exportStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { Canvas } from "@/features/editor/ui/Canvas";
 import { shouldSuppressContextMenu } from "@/features/editor/ui/canvasInput";
+import { ExportPanel } from "@/features/editor/ui/ExportPanel";
 import { LayerTree } from "@/features/editor/ui/LayerTree";
 import { MenuBar } from "@/features/editor/ui/MenuBar";
 import { NaturalLanguageBar } from "@/features/editor/ui/NaturalLanguageBar";
@@ -43,6 +45,9 @@ function handleContextMenu(event: MouseEvent<HTMLElement>) {
 export function EditorLayout() {
   const showPanels = useViewStore((s) => s.showPanels);
   const showTickets = useTicketStore((s) => s.isOpen);
+  // 코드 Export 패널이 구현 티켓 패널보다 앞선다 — 둘 다 열려 있으면 **방금 연 쪽**이
+  // Export다(티켓을 보다가 내보내는 순서라서). 닫으면 그대로 티켓 패널로 돌아간다.
+  const showExport = useExportStore((s) => s.isOpen);
 
   const gridColsClass = showPanels
     ? "grid-cols-[var(--layout-tree-width)_1fr_var(--layout-props-width)]"
@@ -60,7 +65,8 @@ export function EditorLayout() {
       <MenuBar />
       {showPanels && <LayerTree />}
       <Canvas />
-      {showPanels && (showTickets ? <TicketPanel /> : <PropertiesPanel />)}
+      {showPanels &&
+        (showExport ? <ExportPanel /> : showTickets ? <TicketPanel /> : <PropertiesPanel />)}
       <Toolbar />
       <NaturalLanguageBar />
     </div>

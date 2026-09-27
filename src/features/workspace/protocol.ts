@@ -20,6 +20,20 @@ export const WORKSPACE_FILE_ROUTE = `${WORKSPACE_API_PREFIX}/file/`;
 export const WORKSPACE_LIST_ROUTE = `${WORKSPACE_API_PREFIX}/list/`;
 
 /**
+ * 목록을 하위 폴더까지 훑게 하는 질의 문자열 이름 — `?recursive=1` (이슈 #157).
+ *
+ * **기본값은 지금까지와 같은 한 단계 목록이다.** `specs/`·`assets/`는 평평해서
+ * 재귀할 것이 없고, Open 목록이 갑자기 `a/b.json` 같은 값을 받기 시작하면 그걸
+ * 파일명으로 쓰는 쪽(`documentStore.fileName`)이 조용히 어긋난다.
+ *
+ * 붙여야 하는 쪽은 `generated/` 하나다 — 코드 생성 스킬이
+ * `generated/pages/<PageName>.tsx`·`generated/components/<ComponentName>.tsx`에 쓰므로
+ * (`skills/visual-spec-to-react/SKILL.md`) 한 단계 목록으로는 **항상 빈 배열**이
+ * 돌아온다. 하위 폴더를 못 보면 Export가 내보낼 것을 찾지 못한다.
+ */
+export const WORKSPACE_LIST_RECURSIVE_PARAM = "recursive";
+
+/**
  * 작업공간 루트 기준 상대 경로(`specs/home.json`)를 파일 라우트 URL로 바꾼다.
  *
  * **세그먼트마다 인코딩한다.** 파일 이름에는 URL에서 뜻을 갖는 글자가 얼마든지
@@ -98,6 +112,9 @@ export const ASSET_DIR: WorkspaceDir = "assets";
 
 /** 자연어 요청/응답 파일이 오가는 폴더(#155). `editor/nl/nlProtocol.ts`가 경로를 만든다. */
 export const RUNTIME_DIR: WorkspaceDir = "runtime";
+
+/** 외부 에이전트가 생성한 React 코드가 놓이는 폴더. Export가 여기를 읽는다(이슈 #157). */
+export const GENERATED_DIR: WorkspaceDir = "generated";
 
 /** 화이트리스트에 있는 폴더 이름들. 미들웨어가 서버 시작 때 만들어 둔다. */
 export const WORKSPACE_ACCESSIBLE_DIRS = Object.keys(WORKSPACE_DIR_RULES) as WorkspaceDir[];
