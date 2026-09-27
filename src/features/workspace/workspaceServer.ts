@@ -49,6 +49,7 @@ import {
   WORKSPACE_API_PREFIX,
   WORKSPACE_DIR_NAME,
   WORKSPACE_DIR_RULES,
+  WORKSPACE_LIST_RECURSIVE_PARAM,
   WORKSPACE_MARKER_HEADER,
   WORKSPACE_STATUS_ROUTE,
 } from "./protocol";
@@ -301,7 +302,93 @@ function handleWrite(
   });
 }
 
-function handleList(res: ServerResponse, absolutePath: string, dir: string): void {
+/**
+ * 재귀 목록의 한계 (이슈 #157).
+ *
+ * `generated/`는 스킬이 정한 `pages/`·`components/` 두 단계면 충분하지만, 사용자가
+ * 손으로 넣은 폴더가 얼마나 깊을지는 모른다. 응답 하나가 무한정 커지지 않게 깊이와
+ * 개수에 상한을 둔다 — 넘치면 조용히 자른다. 목록은 Export가 "무엇이 있나"를 보는
+ * 수단이지 파일 시스템 탐색기가 아니다.
+ */
+const MAX_LIST_DEPTH = 8;
+const MAX_LIST_ENTRIES = 2000;
+
+/**
+ * 폴더를 훑어 허용 확장자 파일의 **상대 경로**를 모은다(`pages/Home.tsx`).
+ *
+ * **심볼릭 링크는 따라가지 않는다.** `withFileTypes`가 주는 `Dirent`는 링크에 대해
+ * `isFile()`·`isDirectory()`가 둘 다 false라(`isSymbolicLink()`만 true) 링크는 파일이든
+ * 폴더든 애초에 걸러진다 — 재귀 고리가 생길 자리도, 링크로 작업공간 밖 이름을
+ * 흘릴 자리도 없다. 그럼에도 내려가기 전에 `realPathStaysInside`를 한 번 더 부른다:
+ * 이 판단이 `Dirent`의 성질에 기대고 있다는 사실이 나중에 잊히더라도 마지막 관문은
+ * 남아야 한다(PR #145 리뷰에서 목록 라우트가 링크 경계를 안 보던 것이 실제 취약점이었다).
+ */
+function collectFilesRecursively(
+  workspaceRoot: string,
+  absoluteDir: string,
+  allowed: readonly string[],
+  prefix: string,
+  depth: number,
+  out: string[],
+): void {
+  if (depth > MAX_LIST_DEPTH || out.length >= MAX_LIST_ENTRIES) return;
+
+  let entries;
+  try {
+    entries = readdirSync(absoluteDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (out.length >= MAX_LIST_ENTRIES) return;
+
+    if (entry.isFile()) {
+      if (allowed.includes(extname(entry.name).toLowerCase())) {
+        out.push(`${prefix}${entry.name}`);
+      }
+      continue;
+    }
+    if (!entry.isDirectory()) continue;
+
+    const child = join(absoluteDir, entry.name);
+    if (!realPathStaysInside(workspaceRoot, child)) continue;
+    collectFilesRecursively(
+      workspaceRoot,
+      child,
+      allowed,
+      `${prefix}${entry.name}/`,
+      depth + 1,
+      out,
+    );
+  }
+}
+
+/**
+ * 폴더 목록. `recursive`면 하위 폴더까지 훑고 이름 대신 **폴더 기준 상대 경로**를 준다.
+ *
+ * 구분자는 플랫폼과 무관하게 항상 `/`다 — 응답을 받는 쪽이 그대로 URL 경로에
+ * 이어 붙인다(`workspaceFileUrl`).
+ */
+function handleList(
+  res: ServerResponse,
+  workspaceRoot: string,
+  absolutePath: string,
+  dir: string,
+  recursive: boolean,
+): void {
+  const allowed: readonly string[] = WORKSPACE_DIR_RULES[dir as keyof typeof WORKSPACE_DIR_RULES];
+
+  if (recursive) {
+    const files: string[] = [];
+    // 폴더가 없으면 collectFilesRecursively가 조용히 빈 배열로 끝난다 — 아래
+    // 비재귀 경로가 readdir 실패를 "빈 폴더"로 답하는 것과 같은 규칙이다.
+    collectFilesRecursively(workspaceRoot, absolutePath, allowed, "", 0, files);
+    files.sort((a, b) => a.localeCompare(b));
+    sendJson(res, 200, { ok: true, dir, files });
+    return;
+  }
+
   let entries;
   try {
     entries = readdirSync(absolutePath, { withFileTypes: true });
@@ -312,7 +399,6 @@ function handleList(res: ServerResponse, absolutePath: string, dir: string): voi
     return;
   }
 
-  const allowed: readonly string[] = WORKSPACE_DIR_RULES[dir as keyof typeof WORKSPACE_DIR_RULES];
   const files = entries
     .filter((entry) => entry.isFile() && allowed.includes(extname(entry.name).toLowerCase()))
     .map((entry) => entry.name)
@@ -386,7 +472,16 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
         sendError(res, 403, "거부: traversal");
         return;
       }
-      handleList(res, resolved.absolutePath, resolved.dir);
+      // 질의 문자열은 여기서만 본다 — 경로 판정(`matchWorkspaceRoute`)은 이미
+      // `?` 뒤를 떼어냈다. `recursive=1`만 재귀로 치고 나머지 값은 무시한다.
+      const query = new URLSearchParams(url.split("#")[0].split("?")[1] ?? "");
+      handleList(
+        res,
+        root,
+        resolved.absolutePath,
+        resolved.dir,
+        query.get(WORKSPACE_LIST_RECURSIVE_PARAM) === "1",
+      );
       return;
     }
 

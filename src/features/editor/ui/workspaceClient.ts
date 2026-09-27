@@ -14,6 +14,7 @@
  */
 
 import {
+  WORKSPACE_LIST_RECURSIVE_PARAM,
   WORKSPACE_LIST_ROUTE,
   WORKSPACE_MARKER_HEADER,
   WORKSPACE_STATUS_ROUTE,
@@ -51,12 +52,22 @@ export async function isWorkspaceAvailable(): Promise<boolean> {
   return available;
 }
 
-/** 폴더 안 파일 이름 목록. 작업공간이 없으면 null. */
-export async function listWorkspaceFiles(dir: WorkspaceDir): Promise<string[] | null> {
+/**
+ * 폴더 안 파일 이름 목록. 작업공간이 없으면 null.
+ *
+ * `recursive`를 주면 하위 폴더까지 훑고 이름 대신 폴더 기준 상대 경로를 준다
+ * (`pages/Home.tsx`, 이슈 #157). `generated/`처럼 하위 폴더를 쓰는 곳에만 쓴다 —
+ * 기본값이 한 단계인 이유는 `protocol.ts`의 상수 주석에 적었다.
+ */
+export async function listWorkspaceFiles(
+  dir: WorkspaceDir,
+  options: { recursive?: boolean } = {},
+): Promise<string[] | null> {
   if (!(await isWorkspaceAvailable())) return null;
 
+  const query = options.recursive === true ? `?${WORKSPACE_LIST_RECURSIVE_PARAM}=1` : "";
   try {
-    const response = await fetch(`${WORKSPACE_LIST_ROUTE}${dir}`);
+    const response = await fetch(`${WORKSPACE_LIST_ROUTE}${dir}${query}`);
     if (!response.ok || !isWorkspaceResponse(response)) return null;
     const body: unknown = await response.json();
     const files = (body as { files?: unknown }).files;
@@ -74,6 +85,26 @@ export async function readWorkspaceTextFile(relativePath: string): Promise<strin
     const response = await fetch(workspaceFileUrl(relativePath));
     if (!response.ok || !isWorkspaceResponse(response)) return null;
     return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 바이너리 파일 내용. 없거나 읽을 수 없으면 null (이슈 #157).
+ *
+ * Export가 `assets/`의 이미지를 ZIP에 그대로 담을 때 쓴다 — `readWorkspaceTextFile`로
+ * 읽으면 UTF-8로 해석되며 바이트가 망가진다.
+ */
+export async function readWorkspaceBinaryFile(
+  relativePath: string,
+): Promise<Uint8Array | null> {
+  if (!(await isWorkspaceAvailable())) return null;
+
+  try {
+    const response = await fetch(workspaceFileUrl(relativePath));
+    if (!response.ok || !isWorkspaceResponse(response)) return null;
+    return new Uint8Array(await response.arrayBuffer());
   } catch {
     return null;
   }

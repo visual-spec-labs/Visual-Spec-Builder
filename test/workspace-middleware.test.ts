@@ -252,6 +252,82 @@ describe("GET /__vs/list", () => {
 });
 
 /**
+ * `?recursive=1` — `generated/`를 위해 열었다 (이슈 #157).
+ *
+ * 코드 생성 스킬은 `generated/pages/`·`generated/components/`에 쓴다. 한 단계
+ * 목록으로는 **항상 빈 배열**이라 Export가 내보낼 것을 찾지 못한다. 기본값은
+ * 그대로 한 단계다 — Open 목록(`specs/`)이 갑자기 하위 경로를 받기 시작하면
+ * 그 값을 파일명으로 쓰는 쪽이 조용히 어긋난다.
+ */
+describe("GET /__vs/list?recursive=1", () => {
+  it("하위 폴더의 파일을 폴더 기준 상대 경로로 준다", async () => {
+    mkdirSync(join(workspaceRoot, "generated", "pages"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "generated", "components"), { recursive: true });
+    writeFileSync(join(workspaceRoot, "generated", "pages", "Home.tsx"), "x");
+    writeFileSync(join(workspaceRoot, "generated", "components", "Card.tsx"), "x");
+    writeFileSync(join(workspaceRoot, "generated", "README.md"), "x");
+
+    const response = await fetch(`${baseUrl}/__vs/list/generated?recursive=1`);
+
+    expect(await response.json()).toEqual({
+      ok: true,
+      dir: "generated",
+      // localeCompare는 대소문자를 가리지 않는다 — components < pages < README 순이다.
+      files: ["components/Card.tsx", "pages/Home.tsx", "README.md"],
+    });
+  });
+
+  it("recursive 없이는 지금까지와 같이 한 단계만 본다", async () => {
+    mkdirSync(join(workspaceRoot, "generated", "pages"), { recursive: true });
+    writeFileSync(join(workspaceRoot, "generated", "pages", "Home.tsx"), "x");
+
+    const response = await fetch(`${baseUrl}/__vs/list/generated`);
+
+    expect(await response.json()).toMatchObject({ files: [] });
+  });
+
+  it("재귀 목록에서도 허용 확장자만 나간다", async () => {
+    mkdirSync(join(workspaceRoot, "generated", "pages"), { recursive: true });
+    writeFileSync(join(workspaceRoot, "generated", "pages", "Home.tsx"), "x");
+    writeFileSync(join(workspaceRoot, "generated", "pages", "notes.txt"), "x");
+
+    const response = await fetch(`${baseUrl}/__vs/list/generated?recursive=1`);
+
+    expect(await response.json()).toMatchObject({ files: ["pages/Home.tsx"] });
+  });
+
+  it("폴더가 아예 없으면 빈 목록이다 — 아직 아무것도 생성하지 않은 정상 상태다", async () => {
+    rmSync(join(workspaceRoot, "generated"), { recursive: true, force: true });
+
+    const response = await fetch(`${baseUrl}/__vs/list/generated?recursive=1`);
+
+    expect(await response.json()).toEqual({ ok: true, dir: "generated", files: [] });
+  });
+
+  /**
+   * 목록 라우트가 symlink 경계를 안 보던 것은 PR #145 리뷰에서 잡힌 **실제
+   * 취약점**이다. 재귀는 하위 폴더마다 같은 물음이 다시 생기므로 여기서 못박는다 —
+   * 작업공간 밖을 가리키는 하위 폴더 링크는 따라가지 않는다(이름조차 나가지 않는다).
+   */
+  it("작업공간 밖을 가리키는 하위 폴더 링크는 따라가지 않는다", async () => {
+    const outside = mkdtempSync(join(tmpdir(), "vs-outside-"));
+    writeFileSync(join(outside, "secret.tsx"), "x");
+
+    mkdirSync(join(workspaceRoot, "generated"), { recursive: true });
+    try {
+      symlinkSync(outside, join(workspaceRoot, "generated", "linked"), "dir");
+    } catch {
+      return; // Windows에서 권한이 없으면 링크를 못 만든다 — 그땐 확인할 것도 없다
+    }
+
+    const response = await fetch(`${baseUrl}/__vs/list/generated?recursive=1`);
+
+    expect(await response.json()).toMatchObject({ files: [] });
+    rmSync(outside, { recursive: true, force: true });
+  });
+});
+
+/**
  * Import 저장 → 캔버스 렌더까지 **같은 URL 규칙**으로 오가는지 본다
  * (PR #145 리뷰, wook3964).
  *
