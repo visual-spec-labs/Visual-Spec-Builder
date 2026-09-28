@@ -27,4 +27,9 @@ export interface Ticket {
   /** 이 티켓을 만들기 전에 먼저 끝나 있어야 하는 티켓 id들. */
   dependsOn: string[];
   status: TicketStatus;
+  /**
+   * `status`가 `"failed"`일 때 에이전트가 보낸 실패 사유(이슈 #184 — 티켓 실행 연결).
+   * 다른 상태에서는 항상 비운다 — `ticketStatus.markTicketStatus`가 지운다.
+   */
+  error?: string;
 }
