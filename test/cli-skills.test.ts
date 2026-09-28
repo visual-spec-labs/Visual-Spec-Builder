@@ -14,6 +14,7 @@ const SKILL_NAMES = [
   "visual-spec",
   "visual-spec-authoring",
   "visual-spec-docs",
+  "visual-spec-nl-response",
   "visual-spec-to-react",
   "visual-spec-validate",
 ];
@@ -39,7 +40,7 @@ describe("visual-spec skills (#104)", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("스킬 5종을 .claude/skills/ 아래 설치한다 — 이 저장소의 skills/와 내용이 같다", () => {
+  it("스킬 6종을 .claude/skills/ 아래 설치한다 — 이 저장소의 skills/와 내용이 같다", () => {
     const result = runCli(["skills"], projectDir);
 
     expect(result.exitCode).toBe(0);

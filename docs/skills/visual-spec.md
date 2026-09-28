@@ -45,8 +45,9 @@ Visual Spec Builder가 라이브러리로 설치돼 프로젝트마다 다른 �
 
 - 실제 작업 (스펙 작성·검증·코드 생성은 전부 다른 스킬이 맡는다)
 - 스키마 지식 제공 → [visual-spec-docs](./visual-spec-docs.md)가 맡는다
-- 미구현 기능 안내. CLI(`npx visual-spec`), Command Engine, Export, GUI의 화면 생성·편집은
-  아직 없다. 이 기능들의 사용법을 물으면 미구현이라고 답한다
+- 구현 상태 안내. CLI·Command Engine·Export·GUI 화면 생성/편집은 전부 구현돼 있다
+  (2026-09-28 기준) — 여기서 다시 나열하지 않는다. 최신 상태는
+  `docs/07-implementation-status.md`를 확인한다
 
 ## 연결된 스킬
 
@@ -54,6 +55,8 @@ Visual Spec Builder가 라이브러리로 설치돼 프로젝트마다 다른 �
 - [visual-spec-validate](./visual-spec-validate.md) — 검증 실패를 해석한다
 - [visual-spec-to-react](./visual-spec-to-react.md) — Spec을 React 코드로 옮긴다
 - [visual-spec-docs](./visual-spec-docs.md) — 스키마·문서 원문을 찾는다
+- [visual-spec-nl-response](./visual-spec-nl-response.md) — GUI 자연어 입력창의 요청에
+  Command 배열로 응답한다
 
 분기표와 세부 조건은 `skills/visual-spec/SKILL.md` 본문을 본다.
 
@@ -102,10 +105,21 @@ Visual Spec Builder가 라이브러리로 설치돼 프로젝트마다 다른 �
       작업공간" 원칙과도 긴장 관계라 재검토 필요)
 - [ ] **Command 기반 편집으로 전환** — `visual-spec-authoring`은 지금도 JSON을 텍스트로
       직접 고친다. PRD 16장 원칙("GUI와 자연어는 동일한 Command Engine API만 호출한다")과
-      어긋나는 임시방편이다. `src/features/editor/command/`에 Command 타입 5종·적용기·
+      어긋나는 임시방편이다. `src/features/editor/command/`에 Command 타입 6종·적용기·
       history 스택이 생겼지만(#73), `editorStore`·`docs/EDITOR_STORE_CONTRACT.md`가
       여전히 `setNodeField` 직접 호출을 팀 계약으로 삼고 있어서 이 스킬을 그 위로 옮기는
-      건 GUI 트랙과 같이 정할 문제로 남겨뒀다.
+      건 GUI 트랙과 같이 정할 문제로 남겨뒀다. **`visual-spec-nl-response`가 다른 경로로
+      이미 Command 배열을 산출물로 삼는다(#194)** — 다만 GUI의 `.visual-spec/runtime/`
+      요청/응답 왕복 전용이고, `visual-spec-authoring`이 겨냥하는 "파일을 직접 고친다"
+      쪽은 그대로 남아 있어 이 항목이 흡수한 건 아니다.
+- [x] **자연어 요청에 Command로 응답하는 스킬** —
+      [visual-spec-nl-response](./visual-spec-nl-response.md). GUI가
+      `.visual-spec/runtime/nl-request.json`에 쓴 요청을 읽어 Command 배열을
+      `nl-response.json`에 쓴다. `visual-spec-authoring`의 노드 타입·관용구 지식을
+      그대로 참조하고, 새 노드 기본값은 `store/createNode.ts`(#182)와 같은 값을 표로
+      옮겨 실었다 — 그 함수는 이 경로(앱 바깥에서 쓰이는 텍스트 파일)를 타지 않기
+      때문이다(#193의 `CreateNodeCommand.index`도 다룬다). PRD 13장의 "요청 하나 = Undo
+      한 단계"·G1–G3 전부-또는-전무 관문은 GUI 코드가 맡고, 이 스킬은 재검증하지 않는다.
 
 새 스킬을 추가하면 이 목록에서 체크하고, 필요하면 `docs/skills/<이름>.md`로 같은 형식을
 이어간다.

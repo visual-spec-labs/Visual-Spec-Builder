@@ -74,10 +74,21 @@
 (`examples/invalid/` 대응). 자연어 경로를 코드로 내리더라도 **이 지식의 자리는 여전히 프롬프트/스킬 문서다.**
 코드로 내려가는 것은 지식이 아니라 **형식 강제와 실패 처리**다.
 
-> **관찰(이 문서에서 고치지 않음)** — `skills/visual-spec/SKILL.md:25`–`:26` 은
+> **갱신 — 2026-09-28(이슈 #194).** "이 문서가 설계하는 경로"(오른쪽 칸)도 이제 스킬
+> 지시문을 갖는다 — [`skills/visual-spec-nl-response/SKILL.md`](../skills/visual-spec-nl-response/SKILL.md).
+> 이 절이 예측한 그대로다: 그 스킬은 뼈대·관용구·노드 타입 제약 같은 지식을 다시 적지
+> 않고 `visual-spec-authoring`을 그대로 참조하며, 더하는 건 산출물을 Command 배열이라는
+> 그릇에 담는 법뿐이다. `store/createNode.ts`(#182)의 기본값은 이 새 스킬이 정적 표로
+> 옮겨 실었다 — 그 함수 자신은 `.visual-spec/runtime/` 파일 교환 경로를 타지 않기
+> 때문이다(응답 JSON은 브라우저 바깥, 다른 프로젝트에서 만들어질 수 있어 이 저장소의
+> TypeScript 함수를 부를 수 없다).
+
+> **관찰 — 2026-09-28(이슈 #194)에 고쳤다.** `skills/visual-spec/SKILL.md`가
 > *"CLI(`npx visual-spec`), Command Engine(자연어 명령), Export, GUI의 화면 생성·편집은 아직 구현되지 않았다.
-> 현재 동작하는 것은 스키마와 검증기뿐이다."* 라고 적고 있다. CLI(이슈 #42·#104·#105) · Command Engine(이슈 #73·#40)
-> · GUI 편집은 그 뒤 생겼으므로 이 두 줄은 낡았다. 스킬 파일 수정은 이 작업의 범위 밖이라 관찰로만 남긴다.
+> 현재 동작하는 것은 스키마와 검증기뿐이다."* 라고 적고 있던 것을 이 관찰이 처음 지적했다(당시엔
+> "이 작업의 범위 밖"으로 남겨 뒀다). 그 두 줄은 이제 "구현 상태는 이 문서가 아니라
+> [docs/07-implementation-status.md](07-implementation-status.md)를 본다"는 안내로 바뀌었다 —
+> 상태를 스킬 문서 안에 다시 나열하면 이 관찰과 같은 일이 또 생기기 때문이다.
 
 ### 1.3 설계가 이미 문서로 정해 둔 것
 
@@ -287,6 +298,12 @@ frame 일 때만 동작한다(`:87`). 부모를 먼저 만들지 않으면 그 C
 > 붙이므로 기존 호출부(`editorStore.insertNode` → `ui/importImageFromFile.ts`·`ui/Toolbar.tsx` 경로·
 > `ui/LayerTree.tsx` 의 "레이어 추가")는 영향을 받지 않는다. 다만 **Command 스키마 변경**이라
 > 02가 말한 "v0.1로 고정"과 06의 변경 절차를 어떻게 적용할지 먼저 정해야 한다 — 8절.
+>
+> **갱신 — 2026-09-29, 이 제안대로 결정·구현됐다**(이슈 #193, [PR #195](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/195),
+> 머지됨). `command/types.ts`의 `CreateNodeCommand.index?: number`, `applyCreateNode`가
+> `moveNode`와 같은 `insertChildReference`를 재사용해 0..children.length로 clamp한다.
+> 09-command-schema-freeze.md에 변경 이력이 있다. 이 절 본문(위 문단)은 제안 당시의
+> 분석 기록이라 그대로 두지만, "표현되지 않는 것"이라는 절 제목의 (1)번은 이제 해소됐다.
 
 **(2) 페이지 단위 조작이 없다.**
 `applyCommand` 는 **화면 한 장(`ScreenSpec`)만 안다** — `applyCommand.ts:169`–`:180` 주석이
@@ -563,12 +580,12 @@ grid-rows-[var(--layout-menubar-height)_1fr]
 | # | 정해야 하는 것 | 이 문서의 입장 | 딸려오는 것 |
 |---|---|---|---|
 | 1 | **실행 주체 (a)/(b)/(c)** | **#155에서 (b)로 결정·구현** | 전달 매체는 **파일 교환**이다 — GUI가 `.visual-spec/runtime/nl-request.json`을 쓰고 에이전트가 `nl-response.json`에 Command 배열을 쓴다. #133(PR #145)이 연 `/__vs/file/<폴더>/<경로>`를 그대로 쓰고 화이트리스트에 `runtime: [".json"]` 한 줄을 더했다. 규약과 선택 근거는 `src/features/editor/nl/nlProtocol.ts` 상단 |
-| 2 | **"자연어 화면 생성"의 해석** | 정하지 않았다 | **빈 페이지 채우기**로 읽으면 지금 Command 6종으로 된다(3.3). **새 페이지 만들기**로 읽으면 페이지 단위 Command 가 필요하고, 그건 `applyCommand` 의 단위(`ScreenSpec`)를 넘어선다(3.4-(2)) |
-| 3 | **`CreateNodeCommand.index` 추가 여부** | 제안일 뿐이다(3.4-(1)) | Command 스키마 변경이다. 02의 "Command 스키마 v0.1 고정"과 06의 변경 절차를 어떻게 적용할지 함께 정해야 한다 |
+| 2 | **"자연어 화면 생성"의 해석** | **#183에서 "빈 페이지 채우기"로 결정·구현** | 지금 Command 6종만으로 된다(3.3 login-screen 재현이 근거) — 새 메커니즘이 필요 없었다(`test/nl-screen-generation.test.ts`). **새 페이지 만들기**는 여전히 안 된다 — `applyCommand` 의 단위(`ScreenSpec`)를 넘어서고, 이 결정은 바뀌지 않았다(3.4-(2)) |
+| 3 | **`CreateNodeCommand.index` 추가 여부** | **#193에서 추가로 결정·구현**([PR #195](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/195), 머지됨) | 선택 필드라 breaking change 아님, 09 문서(변경 절차)에 기록됨. 생략하면 지금까지처럼 끝에 붙는다 |
 | 4 | **Command 스키마를 JSON Schema 정본으로 고정할지** | **#153에서 결정·완료** | `command.schema.json` + `validateTransaction` + [09-command-schema-freeze.md](09-command-schema-freeze.md) |
 | 5 | **no-op 이유 문자열을 누가 내는가** | 정하지 않았다(4.2 G2) | `applyCommand` 옆에 이유를 함께 내는 함수를 두는 안 / 호출부가 같은 조건을 다시 재는 안. 전자는 Command Engine 의 공개 표면이 넓어진다 |
 | 6 | **자연어 입력창 행 추가에 따른 도구 모음 재배치** | **#155에서 결정** | 도구 모음에 `[grid-area:canvas]` 한 줄을 더해 기준을 셸에서 **캔버스 영역**으로 옮겼다 — 절대 배치된 그리드 자식은 grid-placement 가 있으면 그 영역이 담는 블록이 된다. `bottom-4` 와 `canvasAtBottom` 숨김 동작은 그대로다. 새 행은 `z-20`, 도구 모음은 `z-10` 이라 숨는 동안 스쳐 지나가도 입력칸을 가리지 않는다 |
-| 7 | **기본값 채우기 계층을 둘지** | 제안이다(3.2) | 두면 LLM 출력이 짧아지고 검증 실패가 준다. 대신 "사용자가 말하지 않은 값을 도구가 고른다"는 동작이 생긴다 — `store/createNode.ts` 가 이미 도구 모음에 대해 하고 있는 일이긴 하다 |
+| 7 | **기본값 채우기 계층을 둘지** | **#182에서 두기로 결정·구현** | `store/createNode.ts` 가 노드 5종 + 부분 덮어쓰기를 지원한다. 다만 이 함수는 GUI 내부(도구 모음·`Canvas.tsx`)에서만 불린다 — `.visual-spec/runtime/` 응답 JSON은 이 함수를 거치지 않으므로(#194), 그쪽은 같은 기본값을 스킬 문서의 정적 표로 옮겨 뒀다 |
 
 ---
 
@@ -617,7 +634,8 @@ cat skills/visual-spec-authoring/SKILL.md
 - **비용·지연 시간을 재지 않았다.** (a)와 (b)의 비교(2.2)는 구조상의 대가만 다룬다.
 - **07 5.3의 네 경로(File > Export·Save·Save as·Open)를 통일하는 방법은 다루지 않았다.**
   4.3은 자연어 경로 자신만 정한다.
-- **`skills/` 5종을 어떻게 고쳐야 하는지 정하지 않았다.** 2.3의 (b)를 택하면
-  `skills/visual-spec-authoring/SKILL.md` 의 출력 형식과 도착지가 바뀌고
-  `skills/visual-spec/SKILL.md` 의 분기표도 줄이 하나 는다.
-  스킬 수정은 이 문서의 범위 밖이다.
+- ~~**`skills/` 5종을 어떻게 고쳐야 하는지 정하지 않았다.**~~ **#194에서 정했다** —
+  기존 스킬의 출력 형식·도착지를 바꾸는 대신 **새 스킬을 하나 더 뒀다**
+  (`skills/visual-spec-nl-response/SKILL.md`, 6종째). `visual-spec-authoring`은 그대로
+  둔다 — "파일을 직접 쓰거나 고친다"는 산출물이 여전히 유효한 별개 요청이기 때문이다.
+  `skills/visual-spec/SKILL.md`의 분기표는 예측대로 줄이 하나 늘었다.
