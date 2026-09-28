@@ -28,5 +28,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["test/document-path.test.ts"]
+  "include": ["test/document-path.test.ts", "test/ticket-runner.test.ts"]
 }

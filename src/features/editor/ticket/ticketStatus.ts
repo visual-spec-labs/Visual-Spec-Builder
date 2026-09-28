@@ -1,3 +1,4 @@
+import type { TicketResultItem } from "./ticketProtocol";
 import type { Ticket, TicketStatus } from "./types";
 
 /**
@@ -6,13 +7,41 @@ import type { Ticket, TicketStatus } from "./types";
  * 함수들로 불변 업데이트한다.
  */
 
-/** id가 가리키는 티켓 하나만 상태를 바꾼 새 배열을 반환한다. 없는 id는 그대로 둔다. */
+/**
+ * id가 가리키는 티켓 하나만 상태를 바꾼 새 배열을 반환한다. 없는 id는 그대로 둔다.
+ *
+ * `error`는 `status`가 `"failed"`일 때만 남는다 — 다른 상태로 바뀌면(사람이 드롭다운으로
+ * 되돌리든, 재실행이 성공하든) 지운다. 낡은 실패 사유가 다음 성공 뒤에도 화면에 남는
+ * 것을 막는다(이슈 #184).
+ */
 export function markTicketStatus(
   tickets: Ticket[],
   id: string,
   status: TicketStatus,
+  error?: string,
 ): Ticket[] {
-  return tickets.map((ticket) => (ticket.id === id ? { ...ticket, status } : ticket));
+  return tickets.map((ticket) =>
+    ticket.id === id
+      ? { ...ticket, status, error: status === "failed" ? error : undefined }
+      : ticket,
+  );
+}
+
+/**
+ * 에이전트 응답의 `results`를 티켓 배열에 반영한다(이슈 #184). 순수 함수 — 여러 티켓을
+ * 한 번에 갱신한다는 점만 `markTicketStatus`와 다르다.
+ *
+ * `results`에 없는 티켓은 손대지 않는다 — 응답은 그 웨이브에 실었던 티켓만 담는다.
+ * `results`에 있지만 `tickets`에 없는 id는 무시한다(`markTicketStatus`와 같은 관용 —
+ * 응답이 바깥에서 온 값이라 티켓 배열과 어긋날 수 있다).
+ */
+export function applyTicketResults(tickets: Ticket[], results: TicketResultItem[]): Ticket[] {
+  const byId = new Map(results.map((result) => [result.ticketId, result]));
+  return tickets.map((ticket) => {
+    const result = byId.get(ticket.id);
+    if (result === undefined) return ticket;
+    return { ...ticket, status: result.status, error: result.status === "failed" ? result.message : undefined };
+  });
 }
 
 /**
