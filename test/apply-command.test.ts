@@ -90,6 +90,78 @@ describe("applyCommand — createNode", () => {
     };
     expect(applyCommand(BASE, command)).toBe(BASE);
   });
+
+  describe("index — 삽입 위치(#193)", () => {
+    it("index를 주면 끝이 아니라 그 위치에 끼워 넣는다", () => {
+      const next = applyCommand(BASE, {
+        type: "createNode",
+        parentId: "header",
+        id: "newText",
+        node: NEW_TEXT_NODE,
+        index: 0,
+      });
+
+      expect(next.nodes.header).toMatchObject({
+        children: [{ node: "newText" }, { node: "headerTitle" }],
+      });
+    });
+
+    it("생략하면 지금까지처럼 끝에 붙는다 — 회귀", () => {
+      const withIndex = applyCommand(BASE, {
+        type: "createNode",
+        parentId: "header",
+        id: "newText",
+        node: NEW_TEXT_NODE,
+        index: 1, // header.children은 [headerTitle] 하나뿐이라 1 === length(끝)
+      });
+      const withoutIndex = applyCommand(BASE, {
+        type: "createNode",
+        parentId: "header",
+        id: "newText",
+        node: NEW_TEXT_NODE,
+      });
+
+      expect(withoutIndex).toEqual(withIndex);
+      expect(withoutIndex.nodes.header).toMatchObject({
+        children: [{ node: "headerTitle" }, { node: "newText" }],
+      });
+    });
+
+    it("범위를 벗어난 index는 0..children.length로 clamp된다 — moveNode와 같은 규칙", () => {
+      const tooLarge = applyCommand(BASE, {
+        type: "createNode",
+        parentId: "header",
+        id: "newText",
+        node: NEW_TEXT_NODE,
+        index: 999,
+      });
+      const negative = applyCommand(BASE, {
+        type: "createNode",
+        parentId: "header",
+        id: "newText",
+        node: NEW_TEXT_NODE,
+        index: -5,
+      });
+
+      expect(tooLarge.nodes.header).toMatchObject({
+        children: [{ node: "headerTitle" }, { node: "newText" }],
+      });
+      expect(negative.nodes.header).toMatchObject({
+        children: [{ node: "newText" }, { node: "headerTitle" }],
+      });
+    });
+
+    it("index를 줘도 결과가 정본 스키마를 통과한다", () => {
+      const next = applyCommand(BASE, {
+        type: "createNode",
+        parentId: "header",
+        id: "newText",
+        node: NEW_TEXT_NODE,
+        index: 0,
+      });
+      expect(screenIssues(next)).toEqual([]);
+    });
+  });
 });
 
 describe("applyCommand — updateNode", () => {

@@ -38,6 +38,12 @@ export interface CreateNodeCommand {
   parentId: NodeId;
   id: NodeId;
   node: Node;
+  /**
+   * parentId의 children에서 삽입할 위치. 생략하면 지금까지처럼 끝에 붙는다
+   * (하위 호환, applyCreateNode). MoveNodeCommand.index와 같은 규칙이다 —
+   * 범위를 벗어나면 0..children.length로 clamp된다(insertChildReference).
+   */
+  index?: number;
 }
 
 export interface UpdateNodeCommand {

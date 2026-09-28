@@ -22,7 +22,8 @@
         "type": { "const": "createNode" },
         "parentId": { "$ref": "visual-spec#/$defs/NodeId" },
         "id": { "$ref": "visual-spec#/$defs/NodeId" },
-        "node": { "$ref": "visual-spec#/$defs/Node" }
+        "node": { "$ref": "visual-spec#/$defs/Node" },
+        "index": { "type": "integer", "minimum": 0 }
       }
     },
     "UpdateNodeCommand": {

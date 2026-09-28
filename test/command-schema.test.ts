@@ -42,6 +42,14 @@ describe("Command Schema v0.1", () => {
     expect(validateCommand({ ...commands[1], path: "" }).valid).toBe(false);
   });
 
+  it("createNode.index는 선택 필드다 — 생략해도, 줘도 받는다(#193)", () => {
+    expect(validateCommand(commands[0]).valid).toBe(true); // index 없음
+    expect(validateCommand({ ...commands[0], index: 0 }).valid).toBe(true);
+    // moveNode.index와 같은 제약(정수, 0 이상)이다.
+    expect(validateCommand({ ...commands[0], index: -1 }).valid).toBe(false);
+    expect(validateCommand({ ...commands[0], index: 1.5 }).valid).toBe(false);
+  });
+
   it("createNode.node와 setLayout.layout은 IR 스키마로 검사한다", () => {
     expect(validateCommand({ ...commands[0], node: { type: "text" } }).valid).toBe(false);
     expect(
