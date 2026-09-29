@@ -112,7 +112,10 @@ function listFilesRecursive(dir) {
 }
 
 /**
- * 이 패키지의 skills/ 5종을 cwd/.claude/skills/로 복사한다.
+ * 이 패키지의 skills/ 아래 폴더 전부를 cwd/.claude/skills/로 복사한다.
+ * 개수를 여기 적지 않는다 — `readdirSync`로 폴더를 그대로 훑으므로 스킬이 늘어도
+ * 이 함수는 안 바뀌는데, 개수를 주석에 박아 두면 그 숫자만 매번 낡는다(2026-09-28,
+ * 이슈 #194로 5종에서 6종이 되며 실제로 낡아 있었다).
  *
  * init과 달리 **덮어쓴다** — 스킬은 사용자가 손으로 고치는 파일이 아니라 이 도구가
  * 배포하는 콘텐츠라, "다시 설치"는 "최신으로 맞춘다"는 뜻이어야 한다. 다만 내용이
@@ -214,7 +217,7 @@ function printUsage() {
       "",
       "명령:",
       "  init    현재 폴더에 .visual-spec/ 작업공간을 만든다",
-      "  skills  스킬 5종을 .claude/skills/에 설치·갱신한다",
+      "  skills  스킬을 .claude/skills/에 설치·갱신한다",
       "  help    이 사용법을 보여준다",
     ].join("\n"),
   );
