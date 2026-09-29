@@ -50,11 +50,14 @@ v0.1 문서를 열면 `migrateV01`이 페이지 1개짜리 `ProjectSpec`으로 �
 - FrameNode
 - TextNode
 - ImageNode (`src` + `fit`: `cover` | `contain` | `fill`)
+  - `src`는 비어 있지 않은 문자열이다. assets 기준 상대 경로, `assetId`, 기존 문서와 폴백의 base64 data URI를 허용한다.
+    JSON Schema는 문자열 형태만 검사한다. Import가 쓰는 경로와 폴백은
+    [06-schema-freeze.md](06-schema-freeze.md)의 assets 절을 따른다.
 - ButtonNode (`content` — 표시용 라벨)
 - InputNode (`placeholder` — 표시용 텍스트)
 - 부모-자식 참조
-- Layout (`direction`: `row` | `column` | `grid`, grid일 때 `columns`)
-- Box (`width` / `height` — `number` | `"auto"` | `"fill"`)
+- Layout (`direction`: `row` | `column` | `grid`; `columns`는 선택 정수이며 1 이상, 생략 시 grid는 1열)
+- Box (`width` / `height` — 0 이상 숫자(px) | `"auto"` | `"fill"`)
 - Background (단색 한 겹)
 - Border (`width` / `color` / `radius` / `align`)
   - `radius`는 숫자 하나 또는 모서리별 객체(`topLeft` `topRight` `bottomRight` `bottomLeft`)
