@@ -125,14 +125,17 @@ function applyCreateNode(screen: ScreenSpec, command: CreateNodeCommand): ApplyR
     return noOp(screen, `id '${command.id}'가 이미 있습니다`);
   }
 
-  const nextNodes: Record<NodeId, Node> = {
-    ...nodes,
-    [command.parentId]: {
-      ...parent,
-      children: [...parent.children, { node: command.id }],
-    },
-    [command.id]: command.node,
-  };
+  // index 생략 시 children.length로 떨어져 지금까지와 같은 "끝에 붙인다"가 된다 —
+  // insertChildReference의 clamp(0..children.length)가 그대로 append와 같다.
+  // moveNode(#183 이슈 #193 참고)와 같은 헬퍼를 써서 두 Command의 삽입 규칙이
+  // 갈라지지 않게 한다.
+  const index = command.index ?? parent.children.length;
+  const nextNodes = insertChildReference(
+    { ...nodes, [command.id]: command.node },
+    command.parentId,
+    command.id,
+    index,
+  );
 
   return applied(withNodes(screen, nextNodes));
 }
