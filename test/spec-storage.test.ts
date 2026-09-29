@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrateV01 } from "@/features/editor/schema";
 import type { ProjectSpec, VisualSpec } from "@/features/editor/schema";
 import {
+  loadStoredFileName,
   loadStoredSpec,
   saveSpecToStorage,
   SPEC_STORAGE_KEY,
@@ -37,7 +38,7 @@ function createMemoryStorage(): Storage {
   } as Storage;
 }
 
-describe("specStorage (#128)", () => {
+describe("specStorage (#128 → #185: 파일명도 함께 저장)", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", createMemoryStorage());
   });
@@ -47,23 +48,29 @@ describe("specStorage (#128)", () => {
   });
 
   it("저장한 프로젝트를 그대로 읽어온다", () => {
-    saveSpecToStorage(validSpec);
+    saveSpecToStorage(validSpec, "customer-copy.json");
     expect(loadStoredSpec()).toEqual(validSpec);
   });
 
-  it("저장된 값이 없으면 undefined다", () => {
+  it("저장된 값이 없으면 둘 다 undefined다", () => {
     expect(loadStoredSpec()).toBeUndefined();
+    expect(loadStoredFileName()).toBeUndefined();
   });
 
-  it("JSON으로 파싱되지 않는 값이 저장돼 있으면 undefined다", () => {
+  it("JSON으로 파싱되지 않는 값이 저장돼 있으면 둘 다 undefined다", () => {
     localStorage.setItem(SPEC_STORAGE_KEY, "이건 JSON이 아니다 {");
     expect(loadStoredSpec()).toBeUndefined();
+    expect(loadStoredFileName()).toBeUndefined();
   });
 
-  it("스키마 검증에 실패하는 값이 저장돼 있으면 undefined다", () => {
+  it("스키마 검증에 실패하는 값이 저장돼 있으면 둘 다 undefined다", () => {
     // required 필드(pages·pageOrder 등)가 빠진, 구조가 깨진 값.
-    localStorage.setItem(SPEC_STORAGE_KEY, JSON.stringify({ version: "0.2" }));
+    localStorage.setItem(
+      SPEC_STORAGE_KEY,
+      JSON.stringify({ fileName: "a.json", spec: { version: "0.2" } }),
+    );
     expect(loadStoredSpec()).toBeUndefined();
+    expect(loadStoredFileName()).toBeUndefined();
   });
 
   it("localStorage 접근이 막혀 있으면(프라이빗 모드 등) 조용히 undefined/no-op이다", () => {
@@ -77,15 +84,48 @@ describe("specStorage (#128)", () => {
     });
 
     expect(loadStoredSpec()).toBeUndefined();
-    expect(() => saveSpecToStorage(validSpec)).not.toThrow();
+    expect(loadStoredFileName()).toBeUndefined();
+    expect(() => saveSpecToStorage(validSpec, "customer-copy.json")).not.toThrow();
   });
 
   it("저장을 덮어쓰면 새 값으로 읽힌다", () => {
-    saveSpecToStorage(validSpec);
+    saveSpecToStorage(validSpec, "customer-copy.json");
 
     const renamed: ProjectSpec = { ...validSpec, name: "renamed" };
-    saveSpecToStorage(renamed);
+    saveSpecToStorage(renamed, "renamed.json");
 
     expect(loadStoredSpec()).toEqual(renamed);
+    expect(loadStoredFileName()).toBe("renamed.json");
+  });
+
+  describe("파일명(이슈 #185)", () => {
+    it("저장한 파일명을 그대로 읽어온다", () => {
+      saveSpecToStorage(validSpec, "customer-copy.json");
+      expect(loadStoredFileName()).toBe("customer-copy.json");
+    });
+
+    it("null(한 번도 저장 안 한 세션)도 유효한 값으로 왕복한다 — undefined와 다르다", () => {
+      saveSpecToStorage(validSpec, null);
+      expect(loadStoredFileName()).toBeNull();
+      // spec 내용은 정상 복원된다 — 파일명이 null이라고 spec까지 버리지 않는다.
+      expect(loadStoredSpec()).toEqual(validSpec);
+    });
+
+    it("#128 시절 저장된 옛 형태(봉투 없이 ProjectSpec이 최상위)는 조용히 폐기된다", () => {
+      localStorage.setItem(SPEC_STORAGE_KEY, JSON.stringify(validSpec));
+
+      expect(loadStoredSpec()).toBeUndefined();
+      expect(loadStoredFileName()).toBeUndefined();
+    });
+
+    it("fileName이 문자열도 null도 아니면 폐기된다", () => {
+      localStorage.setItem(
+        SPEC_STORAGE_KEY,
+        JSON.stringify({ fileName: 42, spec: validSpec }),
+      );
+
+      expect(loadStoredFileName()).toBeUndefined();
+      expect(loadStoredSpec()).toBeUndefined();
+    });
   });
 });
