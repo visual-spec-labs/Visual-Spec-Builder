@@ -17,6 +17,7 @@ import { migrateV01 } from "@/features/editor/schema";
 import type { ProjectSpec, VisualSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { saveSpecToStorage } from "@/features/editor/store/specStorage";
 import { saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
@@ -61,6 +62,30 @@ function specsDir(): string[] {
 
 function readSpecFile(name: string): ProjectSpec {
   return JSON.parse(readFileSync(join(workspaceRoot, "specs", name), "utf8")) as ProjectSpec;
+}
+
+/**
+ * localStorage 최소 구현(이슈 #185) — `test/spec-storage.test.ts`와 같은 이유로 이
+ * 파일도 직접 흉내 낸다(vitest environment가 "node"라 이 API 자체가 없다).
+ */
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>();
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, value);
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size;
+    },
+  } as Storage;
 }
 
 /** 지금 열린 문서의 활성 페이지 이름을 바꾼다 — "열어서 고쳤다"를 흉내 내는 편집. */
@@ -280,6 +305,89 @@ describe("한 번도 저장하지 않은 문서", () => {
 
     expect(specsDir()).toEqual([created]);
     expect(readSpecFile(created).pages[pageId].name).toBe("두 번째 저장");
+  });
+});
+
+/**
+ * 새로고침한 뒤에도 Save가 연 파일에 그대로 쓴다 (이슈 #185).
+ *
+ * `documentStore.fileName`은 zustand 메모리 상태라 새로고침하면 모듈이 다시
+ * 평가되며 사라졌다 — spec **내용**은 `specStorage.ts`(#128)가 복원해 줘도 파일명만
+ * 잃어, 위 "Open 다음의 Save" 블록이 고정한 계약이 새로고침이라는 경로로 다시
+ * 깨졌다. `vi.resetModules()` + 동적 `import()`로 실제 새로고침(모듈 상태가 전부
+ * 사라지고 다시 읽히는 것)을 흉내 낸다 — `documentStore.ts`를 다시 읽으면 그
+ * 최상단의 `loadStoredFileName() ?? null`이 다시 평가된다.
+ *
+ * `editorStore.ts`는 다시 import하지 않는다 — spec 내용 복원은 #128이 이미
+ * 증명했고, 이 이슈가 새로 건드리는 것은 `documentStore.fileName` 하나뿐이다.
+ * `saveSpec`은 spec을 인자로 받으므로 기존(리셋 안 된) `useEditorStore`에서 읽은
+ * 값을 그대로 넘기면 된다 — `saveSpec` 자체는 파일명을 결정하려고
+ * `useDocumentStore`를 내부에서 읽으므로, **그 함수만은** 새로고침 뒤의 새
+ * `documentStore` 인스턴스를 보도록 같이 다시 import해야 한다.
+ */
+describe("새로고침해도 Save는 연 파일에 쓴다 (이슈 #185)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", createMemoryStorage());
+  });
+
+  it("파일명이 새로고침 뒤에도 살아남는다", async () => {
+    writeFileSync(
+      join(workspaceRoot, "specs", "customer-copy.json"),
+      JSON.stringify(dashboardSpec(), null, 2),
+    );
+    promptAnswer = "customer-copy.json";
+    await openSpec();
+    expect(useDocumentStore.getState().fileName).toBe("customer-copy.json");
+
+    // "새로고침 전에 자동저장이 이미 한 번 돌았다"를 흉내 낸다 — App.tsx의
+    // useSpecAutosave가 실제로 하는 일과 같다(effect 타이밍 자체는 이 저장소에
+    // 훅 테스트 도구가 없어 다루지 않는다, 다른 파일들과 같은 한계).
+    saveSpecToStorage(useEditorStore.getState().spec, useDocumentStore.getState().fileName);
+
+    vi.resetModules();
+    const { useDocumentStore: freshDocumentStore } = await import(
+      "@/features/editor/store/documentStore"
+    );
+
+    expect(freshDocumentStore.getState().fileName).toBe("customer-copy.json");
+  });
+
+  it("새로고침 뒤 고쳐서 Save하면 그 파일이 갱신되고 새 파일이 생기지 않는다 — 재현 시나리오", async () => {
+    writeFileSync(
+      join(workspaceRoot, "specs", "customer-copy.json"),
+      JSON.stringify(dashboardSpec(), null, 2),
+    );
+    promptAnswer = "customer-copy.json";
+    await openSpec();
+    saveSpecToStorage(useEditorStore.getState().spec, useDocumentStore.getState().fileName);
+
+    vi.resetModules();
+    const { saveSpec: freshSaveSpec } = await import("@/features/editor/ui/exportSpecAsJson");
+    const { useDocumentStore: freshDocumentStore } = await import(
+      "@/features/editor/store/documentStore"
+    );
+    expect(freshDocumentStore.getState().fileName).toBe("customer-copy.json");
+
+    const pageId = renameActivePage("새로고침 뒤 편집");
+    await freshSaveSpec(useEditorStore.getState().spec);
+
+    expect(specsDir()).toEqual(["customer-copy.json"]);
+    expect(existsSync(join(workspaceRoot, "specs", "Dashboard.json"))).toBe(false);
+    expect(readSpecFile("customer-copy.json").pages[pageId].name).toBe("새로고침 뒤 편집");
+  });
+
+  it("한 번도 저장 안 한 세션은 새로고침해도 여전히 무명이다 — specs/에 아무것도 안 쌓인다", async () => {
+    newSpec();
+    expect(useDocumentStore.getState().fileName).toBeNull();
+    saveSpecToStorage(useEditorStore.getState().spec, null);
+
+    vi.resetModules();
+    const { useDocumentStore: freshDocumentStore } = await import(
+      "@/features/editor/store/documentStore"
+    );
+
+    expect(freshDocumentStore.getState().fileName).toBeNull();
+    expect(specsDir()).toEqual([]);
   });
 });
 

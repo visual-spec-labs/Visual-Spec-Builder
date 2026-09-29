@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { loadStoredFileName } from "@/features/editor/store/specStorage";
+
 /**
  * **지금 편집 중인 문서가 어느 파일인가**만 다루는 스토어 (PR #145 리뷰, wook3964).
  *
@@ -11,6 +13,16 @@ import { create } from "zustand";
  * `Dashboard.json`이 새로 생겼다 — 사용자가 방금 고친 내용은 자기가 연 파일이
  * 아니라 다른 파일에 들어간다. Save as로 이름을 정해 저장한 뒤의 Save도 같았다.
  * 파일 이름은 스펙 내용에서 유도할 수 없는 값이라 **따로 기억하는 수밖에 없다.**
+ *
+ * **이 값은 새로고침을 못 버텼다**(이슈 #185) — zustand 메모리 상태일 뿐이라
+ * 새로고침하면 `null`로 돌아가, spec 내용은 `specStorage.ts`(#128)가 복원해 줘도
+ * 파일명만 잃어 위 버그가 새로고침이라는 경로로 재발했다. 그래서 초기값을
+ * `store/specStorage.ts`의 `loadStoredFileName()`으로 채운다 — `editorStore.ts`가
+ * `loadStoredSpec() ?? migrateV01(seedSpec)`으로 자기 자신을 복원하는 것과 같은
+ * 자리·같은 모양이다. **쓰는 쪽은 여기 없다** — `src/app/App.tsx`의
+ * `useSpecAutosave`가 이 스토어를 구독해 `saveSpecToStorage(spec, fileName)`로
+ * 쓴다. 이 스토어 자체는 자기 상태를 어떻게 영속화할지 모르는 편이 낫다(아래
+ * "왜 editorStore가 아니라 별도 스토어인가"와 같은 이유 — 책임을 좁게 둔다).
  *
  * ## 왜 editorStore가 아니라 별도 스토어인가
  *
@@ -42,7 +54,7 @@ export interface DocumentState {
 }
 
 export const useDocumentStore = create<DocumentState>((set) => ({
-  fileName: null,
+  fileName: loadStoredFileName() ?? null,
   setFileName: (fileName) => set({ fileName }),
   clearFileName: () => set({ fileName: null }),
 }));

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { saveSpecToStorage } from "@/features/editor/store/specStorage";
@@ -22,6 +23,14 @@ const SPEC_SAVE_DEBOUNCE_MS = 500;
  * 타이머를 취소하고 그 자리에서 즉시 저장하도록 `flushPending`을 추가했다.
  * `beforeunload`가 100% 보장되진 않는다(일부 모바일 브라우저, 강제 종료 등)는
  * 알려진 한계다 — 그런 경우는 최후 방어선인 File > Save(수동 다운로드)가 있다.
+ *
+ * **파일명도 같이 저장한다**(이슈 #185) — `saveSpecToStorage`가 `spec`과
+ * `documentStore.fileName`을 한 값으로 묶어 쓰므로(`specStorage.ts` 참고),
+ * 저장 시점의 최신 파일명을 매번 `useDocumentStore.getState()`로 읽는다. 파일명
+ * 변화 자체(Open·Save·Save as·New)는 이 구독과 별개로 아래 두 번째 구독이
+ * **디바운스 없이** 즉시 저장한다 — spec 내용 편집처럼 연달아 바뀌는 값이 아니라
+ * 한 번씩만 바뀌므로 디바운스가 필요 없고, 걸어 두면 "Save as로 이름만 바꾸고
+ * 편집 없이 바로 새로고침"에서 새 이름이 아직 저장 안 된 채로 남는다.
  */
 function useSpecAutosave() {
   useEffect(() => {
@@ -34,20 +43,25 @@ function useSpecAutosave() {
         timer = undefined;
       }
       if (pending !== undefined) {
-        saveSpecToStorage(pending);
+        saveSpecToStorage(pending, useDocumentStore.getState().fileName);
         pending = undefined;
       }
     }
 
-    const unsubscribe = useEditorStore.subscribe((state, prevState) => {
+    const unsubscribeSpec = useEditorStore.subscribe((state, prevState) => {
       if (state.spec === prevState.spec) return;
       pending = state.spec;
       if (timer !== undefined) clearTimeout(timer);
       timer = setTimeout(() => {
-        saveSpecToStorage(state.spec);
+        saveSpecToStorage(state.spec, useDocumentStore.getState().fileName);
         pending = undefined;
         timer = undefined;
       }, SPEC_SAVE_DEBOUNCE_MS);
+    });
+
+    const unsubscribeFileName = useDocumentStore.subscribe((state, prevState) => {
+      if (state.fileName === prevState.fileName) return;
+      saveSpecToStorage(useEditorStore.getState().spec, state.fileName);
     });
 
     window.addEventListener("beforeunload", flushPending);
@@ -55,7 +69,8 @@ function useSpecAutosave() {
     return () => {
       window.removeEventListener("beforeunload", flushPending);
       flushPending();
-      unsubscribe();
+      unsubscribeSpec();
+      unsubscribeFileName();
     };
   }, []);
 }
