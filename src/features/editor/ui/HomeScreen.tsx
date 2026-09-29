@@ -1,13 +1,19 @@
+import { useEffect, useState } from "react";
+
 import type {
   Node as SpecNode,
   NodeId,
   ProjectSpec,
   ScreenSpec,
 } from "@/features/editor/schema";
+import { migrateV01 } from "@/features/editor/schema";
+import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
 import { newSpec } from "@/features/editor/ui/newSpec";
+import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import {
   previewButtonStyle,
   previewFrameStyle,
@@ -16,19 +22,37 @@ import {
   previewScale,
   previewTextStyle,
 } from "@/features/editor/ui/homePreview";
+import { listWorkspaceFiles, readWorkspaceTextFile } from "@/features/editor/ui/workspaceClient";
+import { SPEC_DIR } from "@/features/workspace/protocol";
 
 const PREVIEW_WIDTH = 208;
 const PREVIEW_HEIGHT = 140;
 
 /**
- * 홈(진입) 화면. docs/04-gui-spec.md §2의 "상태 1(저장된 화면이 있을 때)"만
- * 구현한다.
+ * 홈(진입) 화면. docs/04-gui-spec.md §2의 상태 1(목록)·상태 2(첫 실행, 빈 목록,
+ * 세 갈래 선택지)를 `.visual-spec/specs/`의 실제 파일 목록에 따라 가른다(이슈 #186).
  *
- * "상태 2(첫 실행 — 목록이 빔, 세 갈래 선택지)"는 이번엔 만들지 않는다.
- * editorStore.spec은 항상 프로젝트가 정확히 1개고(seedSpec으로 시작, New/Open은
- * 그 자리를 교체할 뿐 목록에 추가하지 않는다), 워크스페이스가 없어(#42) 파일이
- * 여러 개 쌓이거나 0개가 되는 경우 자체가 지금 데이터 모델엔 없다. 목록이
- * "여러 개"이거나 "완전히 빔"을 표현할 방법이 생기면(#42) 그때 상태 2를 만든다.
+ * **예전엔 상태 1만, 그것도 카드 한 장 고정이었다.** "워크스페이스가 없어(#42)
+ * 프로젝트가 항상 정확히 1개"라는 근거가 달려 있었는데, #133(워크스페이스
+ * Open/Save)이 머지되며 사실이 아니게 됐다 — `specs/`에 파일이 여러 개 쌓일 수
+ * 있고 `ui/openSpecFromFile.ts`의 `openSpec()`이 이미 그 목록을 읽고 있었다.
+ * 안 된 건 이 컴포넌트가 메모리상 `editorStore.spec` 대신 그 목록을 읽어오는
+ * 배선뿐이었다.
+ *
+ * 마운트 시 `listWorkspaceFiles(SPEC_DIR)`로 목록을, 파일마다
+ * `readWorkspaceTextFile`+`parseSpecJson`(+v0.1이면 `migrateV01`)로 내용을 읽는다.
+ * **작업공간이 없으면**(`listWorkspaceFiles`가 `null`, 정적 빌드 등) 조용히
+ * 예전처럼 메모리 spec 한 장짜리 상태 1로 되돌아간다. **파싱에 실패한 파일은
+ * 목록에서 조용히 뺀다** — 깨진 파일 하나 때문에 카드 전체가 안 뜨는 것보다 낫다.
+ * 결과가 0개면 상태 2, 1개 이상이면 상태 1 — 같은 조건 하나로 갈린다.
+ *
+ * **"자연어로 초안 만들기"는 지금 "빈 캔버스에서 시작"과 똑같이 동작한다** — 실제
+ * 자연어 작성은 에디터 안 `ui/NaturalLanguageBar.tsx`에서만 되고, 홈 화면에 별도
+ * 입력창을 새로 만드는 건 이 이슈(파일 목록 배선) 범위 밖이다.
+ *
+ * 정렬·수정 시각(04 §2의 "최근 수정순"·mtime)은 이번에 안 넣었다 —
+ * `workspaceServer.ts`의 목록 라우트가 파일 이름만 주고 mtime을 안 줘서 서버
+ * 쪽 변경이 필요하고, 이 이슈의 범위·완료 판정 어디에도 없다. 별도 이슈로 남긴다.
  *
  * **카드 하나 = 프로젝트 하나(화면 아님).** 스키마 v0.2(#60/#61)에서 저장 단위가
  * "화면 1개"(VisualSpec)에서 "프로젝트 1개, 페이지 여러 장"(ProjectSpec)으로
@@ -36,13 +60,57 @@ const PREVIEW_HEIGHT = 140;
  * 에디터 안 레이어 트리에서 한다(#63). 이 목록도 그래서 페이지가 아니라
  * 프로젝트를 나열한다.
  */
+
+/** `specs/` 파일 하나를 카드에 쓸 수 있게 정규화한 것. */
+interface HomeProject {
+  fileName: string;
+  spec: ProjectSpec;
+}
+
+/** 파일 하나를 읽어 ProjectSpec으로 정규화한다. 못 읽거나 검증에 실패하면 null. */
+async function loadHomeProject(fileName: string): Promise<HomeProject | null> {
+  const text = await readWorkspaceTextFile(`${SPEC_DIR}/${fileName}`);
+  if (text === null) return null;
+
+  const result = parseSpecJson(text);
+  if (!result.ok) return null;
+
+  const spec = "screen" in result.spec ? migrateV01(result.spec) : result.spec;
+  return { fileName, spec };
+}
+
+/**
+ * `specs/`의 프로젝트 전부를 읽는다. 작업공간이 없으면 null(호출자가 메모리 spec
+ * 한 장으로 되돌아간다). 있으면 배열이다(비어 있을 수 있다 — 그때가 상태 2).
+ */
+async function loadWorkspaceProjects(): Promise<HomeProject[] | null> {
+  const names = await listWorkspaceFiles(SPEC_DIR);
+  if (names === null) return null;
+
+  const loaded = await Promise.all(names.map(loadHomeProject));
+  return loaded.filter((project): project is HomeProject => project !== null);
+}
+
+type HomeState =
+  | { kind: "loading" }
+  | { kind: "no-workspace" }
+  | { kind: "ready"; projects: HomeProject[] };
+
 export function HomeScreen() {
   const spec = useEditorStore((s) => s.spec);
   const openEditor = useNavigationStore((s) => s.openEditor);
+  const [state, setState] = useState<HomeState>({ kind: "loading" });
 
-  // 지금은 항상 1개다. #42(워크스페이스)가 생기면 이 배열을 실제 목록으로
-  // 바꾼다 — 아래 렌더 로직은 이미 배열 기준이라 그대로 쓸 수 있다.
-  const projects = [spec];
+  useEffect(() => {
+    let cancelled = false;
+    void loadWorkspaceProjects().then((projects) => {
+      if (cancelled) return;
+      setState(projects === null ? { kind: "no-workspace" } : { kind: "ready", projects });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // "+ 새 화면"도 File ▸ New와 같은 동작이다 — 빈 스펙을 열고 **현재 문서 이름을
   // 비운다**(PR #145 리뷰). 비우지 않으면 새로 만든 화면의 Save가 직전에 열어 둔
@@ -50,6 +118,81 @@ export function HomeScreen() {
   function handleNewScreen() {
     newSpec();
     openEditor();
+  }
+
+  // 카드는 목록을 만들 때 이미 내용을 읽어 뒀다 — 다시 읽지 않고 그 spec을 그대로
+  // loadSpec에 넘긴다. setFileName으로 "지금 연 파일"을 기억시켜야 그 뒤의
+  // File ▸ Save가 이 파일에 그대로 쓴다(documentStore.ts, 이슈 #185).
+  function handleOpenProject(project: HomeProject) {
+    useEditorStore.getState().loadSpec(project.spec);
+    useDocumentStore.getState().setFileName(project.fileName);
+    openEditor();
+  }
+
+  // 상태 2의 "기존 화면 불러오기" — File ▸ Open과 같은 openSpec()을 그대로 쓴다.
+  // openSpec()은 성공 여부를 돌려주지 않으므로(prompt 취소·검증 실패 시 아무
+  // 일도 안 하고 조용히 끝난다) spec 참조가 바뀌었는지로 판정한다 — 바뀌었어야만
+  // 에디터로 넘어간다. 취소하면 홈에 그대로 남는다.
+  async function handleOpenExisting() {
+    const before = useEditorStore.getState().spec;
+    await openSpec();
+    if (useEditorStore.getState().spec !== before) openEditor();
+  }
+
+  if (state.kind === "loading") {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-surface-sunken text-sm text-content-subtle">
+        불러오는 중…
+      </div>
+    );
+  }
+
+  // 작업공간이 없으면(정적 빌드) 예전과 똑같이 메모리 spec 한 장을 상태 1로 보여준다.
+  // 파일이 아니니 클릭해도 openEditor()만 한다 — 이미 그 spec이 에디터에도 떠 있다.
+  const cards =
+    state.kind === "no-workspace"
+      ? [{ key: spec.name, spec, onOpen: openEditor }]
+      : state.projects.map((project) => ({
+          key: project.fileName,
+          spec: project.spec,
+          onOpen: () => handleOpenProject(project),
+        }));
+
+  if (cards.length === 0) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-content-strong">첫 화면을 만들어 봅시다</p>
+          <p className="mt-1 text-sm text-content-subtle">어떻게 시작하시겠습니까?</p>
+        </div>
+        <div className="flex w-full max-w-sm flex-col divide-y divide-line overflow-hidden rounded-panel border border-line bg-surface">
+          <button
+            type="button"
+            onClick={handleNewScreen}
+            className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
+          >
+            <span className="text-sm font-medium text-content-strong">자연어로 초안 만들기</span>
+            <span className="text-xs text-content-subtle">설명을 입력하면 구조를 생성합니다</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleNewScreen}
+            className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
+          >
+            <span className="text-sm font-medium text-content-strong">빈 캔버스에서 시작</span>
+            <span className="text-xs text-content-subtle">직접 요소를 배치합니다</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleOpenExisting()}
+            className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
+          >
+            <span className="text-sm font-medium text-content-strong">기존 화면 불러오기</span>
+            <span className="text-xs text-content-subtle">JSON 파일을 엽니다</span>
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -72,11 +215,11 @@ export function HomeScreen() {
 
       <div className="flex-1 overflow-auto p-6">
         <p className="mb-4 text-sm text-content-subtle">
-          프로젝트 {projects.length}개
+          프로젝트 {cards.length}개
         </p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(208px,1fr))] gap-4">
-          {projects.map((project) => (
-            <ProjectCard key={project.name} spec={project} onOpen={openEditor} />
+          {cards.map((card) => (
+            <ProjectCard key={card.key} spec={card.spec} onOpen={card.onOpen} />
           ))}
         </div>
       </div>
