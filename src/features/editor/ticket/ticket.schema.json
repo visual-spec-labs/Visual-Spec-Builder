@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ticket",
+  "description": "Visual Spec Ticket Schema v0.1 — 컴포넌트 구현 작업 단위의 런타임 형태 계약.",
+  "$ref": "#/$defs/Ticket",
+  "$defs": {
+    "TicketStatus": {
+      "type": "string",
+      "enum": ["pending", "in-progress", "done", "failed"]
+    },
+    "Ticket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "componentName", "kind", "instances", "dependsOn", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "componentName": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["page", "component"] },
+        "instances": {
+          "type": "array",
+          "items": { "$ref": "visual-spec#/$defs/NodeId" }
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "status": { "$ref": "#/$defs/TicketStatus" },
+        "error": {
+          "description": "선택 필드. 실패 사유이며 status가 failed일 때만 상태 관리 코드가 유지한다.",
+          "type": "string"
+        }
+      }
+    },
+    "Tickets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Ticket" }
+    }
+  }
+}
