@@ -80,7 +80,7 @@ v0.1 문서를 열면 `migrateV01`이 페이지 1개짜리 `ProjectSpec`으로 �
 - variants
 - states
 - slots
-- 반응형
+- 반응형 IR 필드 — 설계는 [12-responsive-ir-design.md](12-responsive-ir-design.md)에 기록했으며, 정본 스키마 추가는 별도 PR로 진행한다.
 - Tailwind 클래스 변환
 - React 코드 생성
 
