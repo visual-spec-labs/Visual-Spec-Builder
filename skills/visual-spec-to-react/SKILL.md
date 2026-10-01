@@ -187,9 +187,12 @@ shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
 
 `src`는 그대로 쓰지 않는다. 생성 파일(`pages/` 또는 `components/`, 둘 다
 `.visual-spec/generated/` 바로 아래)에서 워크스페이스 assets까지의 상대 경로로 바꾼다.
-지금은 `../assets/<파일명>` 형태로 가정한다 — 정확한 경로 depth는 `.visual-spec/` 작업공간을
-실제로 만드는 CLI가 아직 없어(#42) 확정된 게 아니다. 실제 작업공간 구조가 나오면 이 규칙을
-맞춰 고친다.
+`../assets/<파일명>` 형태로 쓴다 — `export/bundle.ts`(#157)가 내보낸 ZIP 안에서
+`pages/`·`components/` 옆에 `assets/`를 나란히 두므로, **결과물 기준으로는** 이 표기가
+그대로 맞는 경로다. 작업공간 안(`.visual-spec/generated/pages/…`)에서는 실제로 두 단계
+(`../../assets/`)지만, `export/importScan.ts`의 `scanAssetReferences`가 `../`
+개수를 따지지 않고 파일명으로만 맞춰보므로 양쪽 다 받아들인다 — 이 코드가 생성하는
+`../assets/`도 그중 하나다.
 
 ```tsx
 <img src="../assets/hero.png" alt="" className="..." />
