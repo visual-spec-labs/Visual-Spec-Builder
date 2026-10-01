@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 // 검증한다 — 이 CLI가 실제로 하는 일(스킬이 쓸 폴더를 만드는 것)과 가장 가깝다.
 const CLI_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../bin/visual-spec.mjs");
 
-const WORKSPACE_DIRS = ["specs", "generated", "preview", "assets", "runtime"];
+const WORKSPACE_DIRS = ["specs", "generated", "assets", "runtime"];
 
 function runCli(args: string[], cwd: string) {
   try {
@@ -35,13 +35,19 @@ describe("visual-spec init (#42)", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("빈 프로젝트에 .visual-spec/ 아래 다섯 폴더를 만든다", () => {
+  it("빈 프로젝트에 .visual-spec/ 아래 네 폴더를 만든다", () => {
     const result = runCli(["init"], projectDir);
 
     expect(result.exitCode).toBe(0);
     for (const dir of WORKSPACE_DIRS) {
       expect(existsSync(join(projectDir, ".visual-spec", dir))).toBe(true);
     }
+  });
+
+  it("preview는 만들지 않는다 — React Preview가 MVP에서 빠지면서 쓰이지 않는 폴더였다(이슈 #189)", () => {
+    runCli(["init"], projectDir);
+
+    expect(existsSync(join(projectDir, ".visual-spec", "preview"))).toBe(false);
   });
 
   it("이미 있는 워크스페이스에 다시 실행해도 안전하다(멱등) — 기존 파일을 안 지운다", () => {

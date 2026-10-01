@@ -50,7 +50,6 @@ node /path/to/Visual-Spec-Builder/bin/visual-spec.mjs
 .visual-spec/
 ├── specs/        화면 JSON 스펙
 ├── generated/    생성된 React 코드
-├── preview/
 ├── assets/
 └── runtime/
 ```

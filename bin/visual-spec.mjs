@@ -28,10 +28,13 @@ const DEFAULT_PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".
 const PACKAGE_ROOT = process.env.VISUAL_SPEC_TEST_PACKAGE_ROOT ?? DEFAULT_PACKAGE_ROOT;
 const SKILLS_SRC_DIR = join(PACKAGE_ROOT, "skills");
 
-// .visual-spec/ 아래 스킬·GUI가 쓸 것으로 이슈 #42가 못박은 다섯 폴더.
+// .visual-spec/ 아래 스킬·GUI가 쓸 것으로 이슈 #42가 못박은 네 폴더.
 // skills/visual-spec-to-react/SKILL.md가 쓰는 generated/pages, generated/components 같은
 // 더 깊은 하위 폴더는 여기서 만들지 않는다 — 코드 생성 스킬이 파일을 쓸 때 알아서 만든다.
-const WORKSPACE_DIRS = ["specs", "generated", "preview", "assets", "runtime"];
+// preview(React Preview용 자리)는 MVP에서 빠졌다(02-mvp-scope.md·open-questions.md,
+// 2026-08-15) — workspaceServer.ensureWorkspaceDirs도 애초에 안 만든다. 이슈 #189 전까지
+// CLI만 계속 만들고 있었다.
+const WORKSPACE_DIRS = ["specs", "generated", "assets", "runtime"];
 
 /**
  * cwd 아래 .visual-spec/ 워크스페이스를 만든다(멱등적).
