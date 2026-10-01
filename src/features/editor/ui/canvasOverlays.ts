@@ -299,7 +299,7 @@ export function useHoverTarget(
       const { nodes, root } = spec.pages[activePageId];
       // **Alt 를 deep 으로 치지 않는다.** Alt 는 피그마에서 거리 재기 전용
       // 수식키지 상세 선택이 아니다. 여기에 얹으면 강조된 노드와 클릭이 고르는
-      // 노드가 갈라져, 주석과 docs/09-shortcuts.md 가 약속한 "강조된 것이 곧
+      // 노드가 갈라져, 주석과 docs/10-shortcuts.md 가 약속한 "강조된 것이 곧
       // 선택된다"가 깨진다. 재는 대상은 deepId 로 따로 들고 간다.
       //
       // 경계는 클릭 핸들러(Canvas.tsx)와 똑같이 clickBoundary 로 정한다(#151) —
