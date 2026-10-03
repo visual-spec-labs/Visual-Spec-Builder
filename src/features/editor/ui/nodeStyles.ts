@@ -8,7 +8,13 @@ import type {
   TextNode,
 } from "@/features/editor/schema";
 
-import { boxStyle, effectStyle, strokeAndShadowStyle, type Direction } from "./canvasLayout";
+import {
+  backgroundStyle,
+  boxStyle,
+  effectStyle,
+  strokeAndShadowStyle,
+  type Direction,
+} from "./canvasLayout";
 import { imageUrlCss } from "./properties/imageSrc";
 
 /**
@@ -74,7 +80,7 @@ export function frameStyle(
     justifyContent: MAIN_AXIS[layout.mainAxis],
     alignItems: CROSS_AXIS[layout.crossAxis],
     ...boxStyle(node.box, parentDirection),
-    background: node.background?.color,
+    ...backgroundStyle(node.background),
     ...strokeAndShadowStyle(node.border, node.shadow),
     ...effectStyle(node.opacity, node.blur),
     boxSizing: "border-box",
@@ -132,7 +138,7 @@ export function buttonStyle(
     lineHeight: `${typography.lineHeight}px`,
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
-    background: node.background?.color,
+    ...backgroundStyle(node.background),
     // button·input에는 shadow 필드가 아직 없다(속성 패널이 없어 편집할 수 없다).
     // Border는 공유하므로 정렬만 같은 합성기로 처리한다.
     ...strokeAndShadowStyle(node.border, undefined),
@@ -165,7 +171,7 @@ export function inputStyle(
     lineHeight: `${typography.lineHeight}px`,
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
-    background: node.background?.color,
+    ...backgroundStyle(node.background),
     ...strokeAndShadowStyle(node.border, undefined),
     boxSizing: "border-box",
   };

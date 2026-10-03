@@ -1,8 +1,10 @@
 import type { CSSProperties } from "react";
 
 import type {
+  Background,
   Border,
   Box,
+  Fill,
   FrameNode,
   Radius,
   Shadow,
@@ -72,6 +74,51 @@ function strokeRing(border: Border | undefined): string | undefined {
 function dropShadow(shadow: Shadow | undefined): string | undefined {
   if (shadow === undefined) return undefined;
   return `${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${shadow.color}`;
+}
+
+/**
+ * 배경 채우기 겹을 CSS로 옮긴다(#127). 노드 타입을 모르는 순수 함수다 —
+ * frame·button·input의 캔버스(`nodeStyles.ts`)와 홈 미리보기(`homePreview.ts`)가
+ * 모두 이 함수를 부른다.
+ *
+ * 규칙은 docs/13-background-fill-design.md "캔버스 번역"이다.
+ * - **모든 겹을 `background-image` 쉼표 목록 하나로 그린다.** 배열 앞이 위라
+ *   CSS가 먼저 적은 겹을 위에 그리는 순서와 같다 — 뒤집지 않는다. solid는
+ *   `linear-gradient(c, c)`로 바꾼다. 단색과 똑같이 그려진다.
+ * - **`background-color`도 `background` 축약도 쓰지 않는다.** `background-color`는
+ *   언제나 맨 아래 한 겹뿐이라 목록 중간의 solid를 그릴 수 없다. 축약은 같은
+ *   스타일 객체의 `backgroundImage` 같은 개별 속성과 섞이면 React가 다시 그릴 때
+ *   충돌한다.
+ * - **`background-origin: border-box`를 함께 낸다.** 0.2까지의 `background: color`는
+ *   테두리 밑까지 한 장으로 칠했다(`background-clip` 기본값이 border-box). 이미지
+ *   겹은 기본적으로 padding 상자 기준으로 놓이고, 테두리 밑은 그 타일이 반복돼
+ *   채운다. 단색 타일이라 보이는 결과는 같겠지만 "한 장"이 아니라 "이어 붙인 여러
+ *   장"이다. 기준을 상자 전체로 옮기면 옛 렌더와 같은 한 장이 되고 반복에 기대지
+ *   않는다. 다음 단계의 그라디언트도 이 기준이어야 이음매 없이 상자 전체에 걸린다.
+ * - 생략·빈 배열은 아무 속성도 내지 않는다 — 배경이 없던 노드와 같다.
+ *
+ * **linear 겹은 아직 그리지 않는다**(스키마 전환 단계 — 그라디언트 렌더는 다음
+ * 단계에서 이 함수에 갈래를 더한다). 그 겹만 빠지고 나머지 겹은 그려진다.
+ */
+export function backgroundStyle(background: Background | undefined): CSSProperties {
+  const layers = (background ?? [])
+    .map(fillLayer)
+    .filter((layer): layer is string => layer !== undefined);
+
+  if (layers.length === 0) {
+    return { backgroundImage: undefined, backgroundOrigin: undefined };
+  }
+  return { backgroundImage: layers.join(", "), backgroundOrigin: "border-box" };
+}
+
+/** 겹 하나를 `background-image` 목록의 한 항목으로. 아직 못 그리는 종류는 undefined. */
+function fillLayer(fill: Fill): string | undefined {
+  switch (fill.type) {
+    case "solid":
+      return `linear-gradient(${fill.color}, ${fill.color})`;
+    case "linear":
+      return undefined;
+  }
 }
 
 /**
