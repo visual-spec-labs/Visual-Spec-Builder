@@ -6,6 +6,7 @@ import {
   clickBoundary,
   isWithin,
   resolveClickTarget,
+  resolveDragTarget,
   resolveInsertParent,
   siblingId,
 } from "@/features/editor/ui/selection";
@@ -329,3 +330,82 @@ describe("isWithin — 바깥을 클릭했는지", () => {
     expect(isWithin(nodes, "cardA", "content")).toBe(false);
   });
 });
+
+describe("resolveDragTarget — 캔버스 끌기 대상(#187)", () => {
+  const base = { nodes, root, deep: false, focusRootId: null, selectedId: null };
+
+  it("선택이 없으면 클릭과 같다 — 덩어리", () => {
+    expect(resolveDragTarget({ ...base, clickedId: "cardALabel" })).toBe("content");
+  });
+
+  it("선택된 노드 위에서 끌면 그 노드다 — Ctrl+클릭으로 고른 카드를 그대로 끈다", () => {
+    // 클릭 규칙이었다면 덩어리 content 가 끌려가 고른 것과 다른 것이 움직였다.
+    expect(resolveDragTarget({ ...base, clickedId: "cardA", selectedId: "cardA" })).toBe("cardA");
+  });
+
+  it("선택된 노드의 자손 위에서 끌어도 선택된 노드다", () => {
+    expect(resolveDragTarget({ ...base, clickedId: "cardALabel", selectedId: "cardA" })).toBe(
+      "cardA",
+    );
+  });
+
+  it("선택과 무관한 곳에서 끌면 클릭 규칙대로다", () => {
+    expect(resolveDragTarget({ ...base, clickedId: "headerTitle", selectedId: "cardA" })).toBe(
+      "header",
+    );
+  });
+
+  it("선택된 노드의 조상 위는 '선택 위'가 아니다 — 클릭 규칙대로다", () => {
+    // cardALabel 을 골라 두고 그 바깥인 cardA 를 누르면 cardA 가 아니라 덩어리다.
+    expect(resolveDragTarget({ ...base, clickedId: "cardA", selectedId: "cardALabel" })).toBe(
+      "content",
+    );
+  });
+
+  it("선택이 root면 예외를 쓰지 않는다 — 모든 노드가 root 의 자손이라 클릭 규칙을 덮는다", () => {
+    expect(resolveDragTarget({ ...base, clickedId: "cardALabel", selectedId: root })).toBe(
+      "content",
+    );
+  });
+
+  it("Ctrl/Cmd 면 선택보다 가장 안쪽이 먼저다 — 선택된 카드 안의 글자를 꺼내는 끌기", () => {
+    expect(
+      resolveDragTarget({ ...base, clickedId: "cardALabel", selectedId: "cardA", deep: true }),
+    ).toBe("cardALabel");
+  });
+
+  it("스펙에서 사라진 선택은 무시한다", () => {
+    expect(resolveDragTarget({ ...base, clickedId: "cardALabel", selectedId: "ghost" })).toBe(
+      "content",
+    );
+  });
+
+  it("진입 문맥(focusRootId) 안이면 그 안 자식이 덩어리다", () => {
+    expect(
+      resolveDragTarget({ ...base, clickedId: "cardALabel", focusRootId: "content" }),
+    ).toBe("cardA");
+  });
+
+  it("진입 문맥 안에서도 선택된 노드 위면 그 노드다", () => {
+    expect(
+      resolveDragTarget({
+        ...base,
+        clickedId: "cardALabel",
+        focusRootId: "content",
+        selectedId: "cardALabel",
+      }),
+    ).toBe("cardALabel");
+  });
+
+  it("진입 문맥 밖(다른 가지)이면 진짜 root 기준 덩어리다", () => {
+    expect(
+      resolveDragTarget({
+        ...base,
+        clickedId: "headerTitle",
+        focusRootId: "content",
+        selectedId: "cardA",
+      }),
+    ).toBe("header");
+  });
+});
+

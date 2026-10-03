@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  NODE_DRAG_THRESHOLD_PX,
   TOOLBAR_CLEARANCE_PX,
+  canStartNodeDrag,
+  hasPassedDragThreshold,
   isContextMenuKey,
   isScrolledToBottom,
   isSpacePanKey,
@@ -16,6 +19,7 @@ import {
   type ClipboardKeyInput,
   type ContextMenuKeyInput,
   type DeleteKeyInput,
+  type NodeDragStartInput,
   type SiblingNavKeyInput,
   type ToolKeyInput,
 } from "@/features/editor/ui/canvasInput";
@@ -529,3 +533,101 @@ describe("isContextMenuKey — 키보드로 컨텍스트 메뉴 열기(#152)", (
     );
   });
 });
+
+/** Select 도구로 노드 위를 왼쪽 버튼으로 누른 상태. 케이스마다 필요한 칸만 덮어쓴다. */
+function dragStart(patch: Partial<NodeDragStartInput> = {}): NodeDragStartInput {
+  return {
+    button: 0,
+    tool: "select",
+    spacePanning: false,
+    onResizeHandle: false,
+    altKey: false,
+    shiftKey: false,
+    tagName: "DIV",
+    contentEditable: false,
+    ...patch,
+  };
+}
+
+describe("canStartNodeDrag — 캔버스 노드 끌기(#187)를 시작할 수 있는가", () => {
+  it("Select 도구 + 왼쪽 버튼이면 끌기 후보다", () => {
+    expect(canStartNodeDrag(dragStart())).toBe(true);
+  });
+
+  it("Hand 도구는 팬이다 — 노드를 끌지 않는다", () => {
+    expect(canStartNodeDrag(dragStart({ tool: "hand" }))).toBe(false);
+  });
+
+  it("만들기 도구는 클릭이 '여기에 만든다'라 끌지 않는다", () => {
+    expect(canStartNodeDrag(dragStart({ tool: "frame" }))).toBe(false);
+    expect(canStartNodeDrag(dragStart({ tool: "text" }))).toBe(false);
+  });
+
+  it("가운데 버튼은 도구와 무관하게 팬이다", () => {
+    expect(canStartNodeDrag(dragStart({ button: 1 }))).toBe(false);
+  });
+
+  it("오른쪽 버튼은 컨텍스트 메뉴다", () => {
+    expect(canStartNodeDrag(dragStart({ button: 2 }))).toBe(false);
+  });
+
+  it("스페이스 임시 팬 중이면 끌지 않는다 — activeTool 이 아직 select 로 보여도", () => {
+    // 지금 구현은 스페이스를 누르면 activeTool 이 hand 로 바뀌지만, 그 구현에 기대지 않는다.
+    expect(canStartNodeDrag(dragStart({ spacePanning: true }))).toBe(false);
+    expect(canStartNodeDrag(dragStart({ tool: "hand", spacePanning: true }))).toBe(false);
+  });
+
+  it("리사이즈 핸들에서 시작한 mousedown 은 끌기가 아니다 — 크기를 바꾸려다 노드가 딸려 오면 안 된다", () => {
+    expect(canStartNodeDrag(dragStart({ onResizeHandle: true }))).toBe(false);
+  });
+
+  it("Alt·Shift 를 누른 채면 끌지 않는다 — 거리 재기·(피그마의) 복제·축 고정 자리다", () => {
+    expect(canStartNodeDrag(dragStart({ altKey: true }))).toBe(false);
+    expect(canStartNodeDrag(dragStart({ shiftKey: true }))).toBe(false);
+    expect(canStartNodeDrag(dragStart({ altKey: true, shiftKey: true }))).toBe(false);
+  });
+
+  it("Ctrl/Cmd 는 막지 않는다 — 클릭처럼 잡을 대상을 가장 안쪽으로 바꿀 뿐이다", () => {
+    // 그래서 입력 모양에 ctrl/meta 칸이 없다 — Ctrl/Cmd 는 대상 해석(resolveClickTarget)이
+    // deep 으로 받는다. 여기서 막는 칸을 더하면 이 테스트부터 고쳐야 한다.
+    const input: NodeDragStartInput & { ctrlKey?: boolean; metaKey?: boolean } = {
+      ...dragStart(),
+      ctrlKey: true,
+      metaKey: true,
+    };
+    expect(canStartNodeDrag(input)).toBe(true);
+  });
+
+  it("타이핑 중인 곳에서 시작했으면 끌지 않는다 — 글자를 고르려는 끌기다", () => {
+    expect(canStartNodeDrag(dragStart({ tagName: "INPUT" }))).toBe(false);
+    expect(canStartNodeDrag(dragStart({ contentEditable: true }))).toBe(false);
+  });
+});
+
+describe("hasPassedDragThreshold — 클릭과 끌기의 경계", () => {
+  it("임계값은 4px 이다", () => {
+    expect(NODE_DRAG_THRESHOLD_PX).toBe(4);
+  });
+
+  it("안 움직였거나 손 떨림 정도면 아직 클릭이다", () => {
+    expect(hasPassedDragThreshold(0, 0)).toBe(false);
+    expect(hasPassedDragThreshold(2, -2)).toBe(false);
+  });
+
+  it("정확히 임계값이면 아직 클릭이다 — 넘어야 끌기다", () => {
+    expect(hasPassedDragThreshold(4, 0)).toBe(false);
+    expect(hasPassedDragThreshold(0, -4)).toBe(false);
+  });
+
+  it("임계값을 넘으면 끌기다 — 방향과 무관하다", () => {
+    expect(hasPassedDragThreshold(5, 0)).toBe(true);
+    expect(hasPassedDragThreshold(0, -5)).toBe(true);
+    expect(hasPassedDragThreshold(-4, 4)).toBe(true); // 대각선 직선 거리 ≈ 5.66
+  });
+
+  it("축마다가 아니라 직선 거리로 잰다", () => {
+    // 축마다 보면 3px·3px 은 둘 다 4 미만이라 클릭이지만, 직선 거리는 ≈ 4.24 다.
+    expect(hasPassedDragThreshold(3, 3)).toBe(true);
+  });
+});
+

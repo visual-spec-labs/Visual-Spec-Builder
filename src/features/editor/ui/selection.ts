@@ -164,6 +164,62 @@ export function clickBoundary(
   return root;
 }
 
+export interface DragTargetInput {
+  nodes: NodeMap;
+  root: NodeId;
+  /** mousedown 이 실제로 시작된 노드 — 언제나 가장 안쪽 노드다. */
+  clickedId: NodeId;
+  /** Cmd(macOS) / Ctrl(Windows)를 누른 채인지. */
+  deep: boolean;
+  /** 더블클릭으로 들어간 문맥(#151). 없으면 null. */
+  focusRootId: NodeId | null;
+  /** 지금 선택된 노드. 없으면 null. */
+  selectedId: NodeId | null;
+}
+
+/**
+ * 캔버스에서 끌기(#187)로 옮길 노드를 정한다.
+ *
+ * 기본은 클릭과 같은 규칙이다(`clickBoundary` + `resolveClickTarget`) — 덩어리,
+ * Cmd/Ctrl은 가장 안쪽, 더블클릭 진입 문맥이면 그 안 자식.
+ *
+ * **예외 하나: 이미 선택된 노드 위(자신이나 그 자손)에서 수식키 없이 끌면 그 선택된
+ * 노드를 끈다.** 피그마와 같다. Ctrl+클릭으로 카드 하나를 골라 놓고 그 카드를 끌면
+ * 클릭 규칙으로는 카드를 품은 덩어리(Content)가 잡혀, 고른 것과 다른 것이 끌려간다.
+ * "방금 고른 것을 끈다"가 사용자가 기대하는 동작이다.
+ *
+ * - 선택이 root면 예외를 쓰지 않는다 — root는 옮길 수 없고, 모든 노드가 root의
+ *   자손이라 예외가 클릭 규칙을 통째로 덮어 버린다.
+ * - Cmd/Ctrl이면 예외보다 가장 안쪽이 먼저다 — 선택된 카드 안의 글자를 꺼내려는 끌기다.
+ * - **클릭 선택(`resolveClickTarget`)은 바꾸지 않는다.** 끌지 않고 떼면 지금처럼
+ *   덩어리가 선택된다. 바뀌는 것은 끌기 대상뿐이다.
+ */
+export function resolveDragTarget({
+  nodes,
+  root,
+  clickedId,
+  deep,
+  focusRootId,
+  selectedId,
+}: DragTargetInput): NodeId {
+  if (
+    !deep &&
+    selectedId !== null &&
+    selectedId !== root &&
+    nodes[selectedId] !== undefined &&
+    isWithin(nodes, selectedId, clickedId)
+  ) {
+    return selectedId;
+  }
+
+  return resolveClickTarget({
+    nodes,
+    root: clickBoundary(nodes, root, focusRootId, clickedId),
+    clickedId,
+    deep,
+  });
+}
+
 export interface InsertParentInput {
   nodes: NodeMap;
   root: NodeId;
