@@ -147,12 +147,11 @@ describe("migrateToV03 — 아는 모양이 아니면 건드리지 않는다", (
 });
 
 /**
- * 렌더가 같은가. 0.2까지의 렌더는 `background: <color>` 한 칸이었다. 0.3은 그 자리에
- * `backgroundImage: linear-gradient(c, c)` + `backgroundOrigin: border-box`를 낸다
- * (canvasLayout.backgroundStyle — 같은 그림인 근거는 그 함수 주석). 여기서는 **그
- * 한 칸 말고는 스타일이 하나도 안 바뀌었는지**를 본다 — 옛 노드에서 배경을 뺀
- * 스타일에 옛 렌더의 배경 칸을 얹은 것과, 변환한 노드의 스타일에서 새 배경 칸을
- * 옛 칸으로 되돌린 것이 같아야 한다.
+ * 렌더가 같은가. 0.2까지의 렌더는 `background: <color>` 한 칸이었다. 0.3은 solid 한
+ * 겹을 `backgroundColor: <color>` 하나로 낸다(canvasLayout.backgroundStyle — 맨 아래
+ * solid는 background-color). 계산된 CSS로는 같은 값이다. 여기서는 **그 한 칸의
+ * 이름 말고는 스타일이 하나도 안 바뀌었는지**를 본다 — develop의 렌더(옛 노드에서
+ * 배경을 뺀 스타일 + `background: color`)와 변환한 노드의 스타일이 같아야 한다.
  */
 describe("migrateToV03 — 렌더 스타일이 변환 전과 같다", () => {
   const STYLERS = {
@@ -191,16 +190,16 @@ describe("migrateToV03 — 렌더 스타일이 변환 전과 같다", () => {
             ...style(withoutBackground as unknown as Node, undefined),
             background: legacyBackground?.color,
           };
-          const { backgroundImage, backgroundOrigin, ...after } = style(node, undefined);
-          const color = legacyBackground?.color;
+          const { backgroundColor, backgroundImage, backgroundOrigin, ...after } = style(
+            node,
+            undefined,
+          );
 
-          expect(backgroundImage, `${id} backgroundImage`).toBe(
-            color === undefined ? undefined : `linear-gradient(${color}, ${color})`,
-          );
-          expect(backgroundOrigin, `${id} backgroundOrigin`).toBe(
-            color === undefined ? undefined : "border-box",
-          );
-          expect({ ...after, background: color }, id).toEqual(before);
+          // 단색 한 겹은 이미지 겹 없이 background-color 하나다 — 디더링되는
+          // linear-gradient(c, c)로 그리지 않는다.
+          expect(backgroundImage, `${id} backgroundImage`).toBeUndefined();
+          expect(backgroundOrigin, `${id} backgroundOrigin`).toBeUndefined();
+          expect({ ...after, background: backgroundColor }, id).toEqual(before);
         }
       }
     });
