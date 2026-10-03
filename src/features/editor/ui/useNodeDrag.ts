@@ -7,7 +7,7 @@ import type { NodeId } from "@/features/editor/schema";
 import { resolveCanvasDrop, type CanvasDropTarget } from "./canvasDrop";
 import { canStartNodeDrag, hasPassedDragThreshold } from "./canvasInput";
 import { measureNodeRects } from "./canvasOverlays";
-import { clickBoundary, resolveClickTarget } from "./selection";
+import { resolveDragTarget } from "./selection";
 import { sameRect, type Rect } from "./selectionRect";
 
 /** 끄는 동안 오버레이가 그릴 것. */
@@ -47,10 +47,11 @@ const IDLE: NodeDragView = { dragging: false, indicator: null, container: null }
  *   3. **cancelled** — 끄는 중에 Esc. 표시를 지우고 커밋하지 않는다. 버튼은 아직
  *      눌려 있으므로 mouseup 과 그 뒤 click 까지는 계속 붙잡고 있어야 한다.
  *
- * 무엇을 잡는지는 클릭과 **정확히 같은 규칙**이다(`handleNodeClick`과 같은
- * `clickBoundary` + `resolveClickTarget`) — 평소 클릭은 덩어리, Ctrl/Cmd는 가장 안쪽,
- * 더블클릭으로 들어간 문맥(#151)이면 그 안 자식. 미리보기 강조(useHoverTarget)도 같은
- * 규칙이라, 강조된 것이 곧 끌려온다. 결과가 root면 끌지 않는다(root는 옮길 수 없다).
+ * 무엇을 잡는지는 `resolveDragTarget`이 정한다. 기본은 클릭과 같은 규칙이다
+ * (`handleNodeClick`과 같은 `clickBoundary` + `resolveClickTarget`) — 평소 클릭은 덩어리,
+ * Ctrl/Cmd는 가장 안쪽, 더블클릭으로 들어간 문맥(#151)이면 그 안 자식. 단 이미 선택된
+ * 노드 위에서 수식키 없이 끌면 그 선택된 노드를 끈다(피그마와 같다). 결과가 root면
+ * 끌지 않는다(root는 옮길 수 없다).
  *
  * mousedown 에 preventDefault 를 걸지 않는다. 걸면 포커스가 옮겨 가지 않아, 속성 패널
  * 입력칸을 고치던 중 캔버스를 눌러도 blur(= 값 확정)가 일어나지 않는다. 대신 끄는
@@ -103,13 +104,15 @@ export function useNodeDrag(
       const clickedId = hit.dataset.nodeId;
       if (clickedId === undefined) return;
 
-      const { spec, activePageId, focusRootId } = useEditorStore.getState();
+      const { spec, activePageId, focusRootId, selectedId } = useEditorStore.getState();
       const { nodes, root } = spec.pages[activePageId];
-      const dragId = resolveClickTarget({
+      const dragId = resolveDragTarget({
         nodes,
-        root: clickBoundary(nodes, root, focusRootId, clickedId),
+        root,
         clickedId,
         deep: event.metaKey || event.ctrlKey,
+        focusRootId,
+        selectedId,
       });
       if (dragId === root) return;
 
