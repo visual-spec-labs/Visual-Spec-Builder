@@ -421,7 +421,7 @@ IR, Command, Ticket 세 스키마 모두 v0.1 런타임 정본과 동결 절차�
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 6종(2026-09-28, 이슈 #194) | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` · `visual-spec-nl-response` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 6개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33). `visual-spec-nl-response`는 GUI의 `.visual-spec/runtime/` 자연어 요청/응답 교환에 응답하는 법을 담는다 — `visual-spec-authoring`(파일 전체를 직접 쓰거나 고침)과 산출물·도착지가 다르다 |
 
-검증기가 잡아내는 구조 오류는 코드 **8종**이다(2026-09-08 실측 — `schema/validate.ts:7` 의 `IssueCode` 유니온) — `schema`, `root-missing`, `root-not-frame`, `child-missing`, `cycle`, `multiple-parents`, `orphan-node`, **`page-order-mismatch`**. 마지막 하나가 v0.2 와 함께 늘었다 — `pages` 의 키와 `pageOrder` 가 정확히 일치해야 한다는 규칙은 JSON Schema 로 표현할 수 없어 `validateProjectSpec` 이 코드로 검사한다(정본 스키마의 `$defs.ProjectSpec.pageOrder` 설명이 그렇게 밝히고 있다).
+검증기가 잡아내는 구조 오류는 코드 **9종**이다(2026-09-08 실측 8종 + #127 스키마 전환에서 1종 — `schema/validate.ts:7` 의 `IssueCode` 유니온) — `schema`, `root-missing`, `root-not-frame`, `child-missing`, `cycle`, `multiple-parents`, `orphan-node`, **`page-order-mismatch`**, **`gradient-stop-order`**. `page-order-mismatch` 가 v0.2 와 함께 늘었다 — `pages` 의 키와 `pageOrder` 가 정확히 일치해야 한다는 규칙은 JSON Schema 로 표현할 수 없어 `validateProjectSpec` 이 코드로 검사한다(정본 스키마의 `$defs.ProjectSpec.pageOrder` 설명이 그렇게 밝히고 있다). `gradient-stop-order` 는 0.3 에서 늘었다 — 그라디언트 stop 의 `at` 오름차순은 배열 원소끼리 비교하는 문법이 없어 `validateVisualSpec`·`validateProjectSpec` 이 코드로 검사한다([13](13-background-fill-design.md#표현-규칙)).
 
 ---
 
