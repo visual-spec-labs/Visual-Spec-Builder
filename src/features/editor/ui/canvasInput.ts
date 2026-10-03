@@ -348,6 +348,74 @@ export function toolCursorClass(tool: ToolId, panning: boolean): string {
 }
 
 /**
+ * 노드 끌기로 보기 전에 움직여야 하는 거리(화면 px, 축마다가 아니라 직선 거리).
+ *
+ * 클릭과 끌기는 mousedown 이 같아서, 이 거리 안에서 떼면 **지금과 똑같은 클릭
+ * 선택**이어야 한다. 마우스·트랙패드로 클릭할 때 손이 1~2px 떨리는 것은 흔하므로
+ * 그보다 넉넉해야 하고, 너무 크면 짧게 끌 때 "안 잡힌다"고 느낀다. 운영체제 기본
+ * 끌기 임계값(Windows `SM_CXDRAG` 4px)과 같은 값을 쓴다.
+ *
+ * 화면 px 인 이유: 손 떨림은 확대율과 무관하다. 스펙 px 로 재면 25% 에서는 화면
+ * 1px 만 움직여도 넘어가 버린다.
+ */
+export const NODE_DRAG_THRESHOLD_PX = 4;
+
+/** `canStartNodeDrag`가 보는 것 — MouseEvent와 스토어에서 필요한 값만 추린 모양. */
+export interface NodeDragStartInput {
+  /** `event.button`. 0=왼쪽, 1=가운데, 2=오른쪽. */
+  button: number;
+  tool: ToolId;
+  /** 스페이스 임시 팬 중인가(`toolStore.toolBeforeSpace !== null`). */
+  spacePanning: boolean;
+  /** mousedown 이 리사이즈 핸들(`data-resize-handle`)에서 시작했는가. */
+  onResizeHandle: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  /** `event.target`의 태그 이름. 못 읽었으면 undefined. */
+  tagName: string | undefined;
+  contentEditable: boolean;
+}
+
+/**
+ * 이 mousedown 이 노드 끌기(#187)의 후보가 될 수 있는가.
+ *
+ * 후보일 뿐이다 — 실제로 끌기가 되는지는 `hasPassedDragThreshold`가 정하고, 그
+ * 전에 떼면 지금과 똑같은 클릭이다. 그래서 여기서 true 여도 클릭 선택은 그대로 산다.
+ *
+ * - **왼쪽 버튼 + Select 도구만.** 가운데 버튼과 Hand 도구는 팬이고, Frame·Text 는
+ *   클릭이 "여기에 만든다"라 끌기를 얹을 자리가 아니다.
+ * - **스페이스 임시 팬 중이면 아니다.** 지금은 activeTool 이 hand 로 바뀌어 위에서
+ *   걸리지만, 그 구현에 기대지 않고 뜻을 그대로 적어 둔다.
+ * - **리사이즈 핸들에서 시작했으면 아니다.** 핸들은 선택된 노드의 자식이라
+ *   `data-node-id`를 따라 올라가면 그 노드가 잡힌다 — 크기를 바꾸려다 노드가 딸려
+ *   오면 안 된다. 핸들의 React 핸들러가 stopPropagation 을 해도 캔버스의 네이티브
+ *   리스너가 먼저 듣기 때문에 여기서 따로 걸러야 한다.
+ * - **Ctrl/Cmd 는 막지 않는다.** 클릭과 같은 뜻(상세 지정 — 가장 안쪽 노드)으로
+ *   잡을 대상을 바꿀 뿐이다.
+ * - **Alt·Shift 는 막는다.** Alt 는 거리 재기 전용 수식키이고 피그마에서 Alt+끌기는
+ *   복제다. Shift+끌기는 피그마에서 축 고정이고 다중 선택에도 쓰일 자리다. 지금
+ *   뜻을 정해 두지 않은 조합에 이동을 얹으면 나중에 바꿀 때 손버릇을 깨게 된다.
+ * - 타이핑 중인 곳에서 온 mousedown 은 받지 않는다 — 글자를 고르려는 끌기다.
+ */
+export function canStartNodeDrag(input: NodeDragStartInput): boolean {
+  if (input.button !== 0) return false;
+  if (input.tool !== "select" || input.spacePanning) return false;
+  if (input.onResizeHandle) return false;
+  if (input.altKey || input.shiftKey) return false;
+  return !isTypingTarget(input.tagName, input.contentEditable);
+}
+
+/** mousedown 지점에서 (dx, dy)만큼 움직였을 때 끌기로 볼 만큼 움직였는가. 화면 px. */
+export function hasPassedDragThreshold(
+  dx: number,
+  dy: number,
+  threshold: number = NODE_DRAG_THRESHOLD_PX,
+): boolean {
+  // 경계값(정확히 threshold)은 아직 클릭으로 본다 — "넘어야" 끌기다.
+  return dx * dx + dy * dy > threshold * threshold;
+}
+
+/**
  * 도구 모음이 아트보드의 하단 리사이즈 핸들을 가리기 시작하는 지점(px).
  *
  * 도구 모음은 뷰포트 바닥에서 16px(bottom-4) 띄운 채 42px(size-8 + p-1 + 테두리)을

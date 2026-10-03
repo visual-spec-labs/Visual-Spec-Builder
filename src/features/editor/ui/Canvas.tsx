@@ -51,6 +51,7 @@ import {
   textStyle,
 } from "./nodeStyles";
 import { clickBoundary, resolveClickTarget, resolveInsertParent } from "./selection";
+import { useNodeDrag } from "./useNodeDrag";
 
 /**
  * 중앙 캔버스.
@@ -65,7 +66,8 @@ import { clickBoundary, resolveClickTarget, resolveInsertParent } from "./select
  * 한꺼번에 거짓이 된다(2026-09-19·이슈 #148 분할 때 실제로 그랬다).
  *
  * 분할된 이웃들: `nodeStyles.ts`(노드 타입별 CSS 조립) · `canvasOverlays.ts`(측정 훅)
- * · `canvasZoom.ts`(줌 앵커·Alt) · `canvasKeys.ts`(키보드 배선).
+ * · `canvasZoom.ts`(줌 앵커·Alt) · `canvasKeys.ts`(키보드 배선) · `useNodeDrag.ts`
+ * (노드 끌어 옮기기, #187).
  */
 
 /**
@@ -525,6 +527,7 @@ export function Canvas() {
   const anchorRef = useRef<ZoomAnchor | null>(null);
   useZoomAnchor(mainRef, outerRef, artboardRef, anchorRef, zoom);
   useCanvasKeys(mainRef, outerRef, artboardRef, anchorRef);
+  const drag = useNodeDrag(mainRef, outerRef, artboardRef);
 
   // 띠에 pointer-events 를 주지 않고 좌표로 판정한다 — 오버레이가 마우스를 받으면
   // 틈을 클릭했을 때 아래 프레임이 선택되지 않는다(gapStrips.stripAtPoint 주석).
@@ -718,7 +721,11 @@ export function Canvas() {
   }, [viewport, activePageId, size]);
 
   const scale = zoom / 100;
-  const cursorClass = toolCursorClass(activeTool, panning);
+  // 노드를 끄는 동안(#187)은 도구와 무관하게 쥔 손이다. 자손까지 강제하는 이유는
+  // button·input 노드가 인라인 `cursor: default`를 가져 상속이 끊기기 때문이다.
+  const cursorClass = drag.dragging
+    ? "cursor-grabbing [&_*]:cursor-grabbing!"
+    : toolCursorClass(activeTool, panning);
 
   // scrollbar-gutter는 세로 스크롤바 자리를 항상 비워둔다. 없으면 채우기 모드에서
   // 되먹임 진동이 난다: 스크롤바 등장 → clientWidth 감소 → 배율 축소 → 내용이 짧아져
@@ -896,6 +903,34 @@ export function Canvas() {
               </div>
             );
           })}
+
+        {/*
+          노드 끌기(#187)의 놓을 자리. 다른 오버레이와 같은 바깥 상자에 그려 끄는 노드
+          원본의 스타일을 건드리지 않는다(#90). 좌표는 resolveCanvasDrop 이 같은 기준으로
+          준 값을 그대로 쓴다.
+
+          들어갈 frame 은 점선으로 감싼다 — 삽입선만으로는 "몇 번째"는 보여도 "어느
+          frame 안"인지는 안 보인다. 빈 frame 이면 그 frame 자체가 놓을 자리라 면으로
+          칠하고 테두리를 실선으로 올린다.
+        */}
+        {drag.container !== null && drag.indicator?.kind !== "area" && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute outline-1 outline-offset-1 outline-dashed outline-primary/60"
+            style={drag.container}
+          />
+        )}
+        {drag.indicator !== null && (
+          <div
+            aria-hidden
+            className={`pointer-events-none absolute ${
+              drag.indicator.kind === "area"
+                ? "bg-primary/10 outline-2 outline-offset-1 outline-primary"
+                : "rounded-full bg-primary"
+            }`}
+            style={drag.indicator.rect}
+          />
+        )}
 
         {/*
           자식 한가운데 점. 어디까지가 한 아이템인지 알려 준다 — 배경색이 없는

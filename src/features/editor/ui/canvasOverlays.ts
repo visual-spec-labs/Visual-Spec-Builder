@@ -34,6 +34,7 @@ import { nodeSelector, relativeRect, sameRect, type Rect } from "./selectionRect
  * | `useSelectionRect` · `useGapStrips` · `useRectOf` | 매 렌더 + MutationObserver + ResizeObserver |
  * | `useArtboardHeight` | **ResizeObserver 만** — 자라는 원인이 자식 편집이라 자기 크기만 보면 된다 |
  * | `useHoverTarget` | **아무것도 안 잰다** — `mousemove` 로 노드 id 만 고른다. 재는 것은 그 id 를 받은 `useRectOf` 다 |
+ * | `measureNodeRects` | 훅이 아니다 — 부르는 쪽(`useNodeDrag`)이 끄는 동안 매 프레임 부른다 |
  *
  * 앞의 셋은 관찰 옵션(`style`·`childList`·`characterData`·`subtree`)까지 같아서,
  * 흩어져 있을 때는 그 이유를 적은 같은 주석이 세 벌이었다. 각 훅의 주석에 그대로
@@ -425,4 +426,29 @@ export function useArtboardHeight(ref: RefObject<HTMLDivElement | null>): number
   }, [ref]);
 
   return height;
+}
+
+/**
+ * 아트보드 안에 그려진 모든 노드의 사각형. 캔버스 끌기(#187, `useNodeDrag`)의 드롭
+ * 판정이 쓴다.
+ *
+ * 기준은 다른 오버레이와 같은 바깥 상자(outer)다 — 그러면 `resolveCanvasDrop`이
+ * 돌려준 인디케이터를 변환 없이 그대로 그릴 수 있다. 숨긴 노드(visible: false)는
+ * 렌더되지 않아 여기 안 잡히는데, 판정기가 그런 형제를 "비교에서 빼고 순서에는
+ * 남기도록" 짜여 있어 그대로 넘기면 된다.
+ *
+ * 훅이 아니라 함수다. 끄는 동안에만 매 프레임 다시 재야 해서(`useNodeDrag` 주석)
+ * 렌더 주기에 묶인 훅과 수명이 다르다.
+ */
+export function measureNodeRects(
+  outer: HTMLElement,
+  artboard: HTMLElement,
+): Record<NodeId, Rect> {
+  const origin = outer.getBoundingClientRect();
+  const rects: Record<NodeId, Rect> = {};
+  for (const element of artboard.querySelectorAll<HTMLElement>("[data-node-id]")) {
+    const id = element.dataset.nodeId;
+    if (id !== undefined) rects[id] = relativeRect(element.getBoundingClientRect(), origin);
+  }
+  return rects;
 }
