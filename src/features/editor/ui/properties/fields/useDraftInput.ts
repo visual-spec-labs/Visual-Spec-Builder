@@ -10,6 +10,12 @@ interface UseDraftInputOptions<TValue, TParsed> {
   /** draft 문자열을 파싱. 유효하지 않으면 undefined. */
   parse: (draft: string) => TParsed | undefined;
   /**
+   * 파싱 결과를 커밋해도 스펙 값이 그대로인가(#209). true면 커밋하지 않고 burst도
+   * 시작하지 않는다. 입력칸에 보이는 값이 아니라 저장된 값과 견줘야 한다 — 이유는
+   * unchangedCommit.ts 주석 참고.
+   */
+  isUnchanged: (parsed: TParsed) => boolean;
+  /**
    * 파싱에 성공했을 때 커밋(store 반영 등).
    *
    * `continueEdit`(#121)이 true면 지금 커밋이 바로 직전 커밋과 같은 타이핑
@@ -22,11 +28,11 @@ interface UseDraftInputOptions<TValue, TParsed> {
 
 /**
  * NumberField / SizeField / ColorField가 공통으로 쓰는 입력 상태 머신.
- * 타이핑 중엔 draft로 받다가 유효하면 즉시 onCommit하고, 외부에서 값이 바뀌면 draft를 리셋한다.
+ * 타이핑 중엔 draft로 받다가 유효하고 값이 바뀌면 즉시 onCommit하고, 외부에서 값이 바뀌면 draft를 리셋한다.
  */
 export function useDraftInput<TValue, TParsed>(
   value: TValue,
-  { toDraft, normalize, parse, onCommit }: UseDraftInputOptions<TValue, TParsed>,
+  { toDraft, normalize, parse, isUnchanged, onCommit }: UseDraftInputOptions<TValue, TParsed>,
 ) {
   const [draft, setDraft] = useState(() => toDraft(value) ?? "");
   const [invalid, setInvalid] = useState(false);
@@ -51,9 +57,13 @@ export function useDraftInput<TValue, TParsed>(
 
     const parsed = parse(next);
     setInvalid(parsed === undefined);
-    if (parsed !== undefined) {
-      onCommit(parsed, burst.next());
+    // 값이 그대로면 커밋하지 않는다(#209). draft는 사용자가 친 그대로 둔다.
+    // burst.next()보다 먼저 걸러야 한다 — 부르는 순간 burst가 시작돼 다음 입력이
+    // continueEdit: true로 올라간다(TextField.tsx의 같은 가드 참고).
+    if (parsed === undefined || isUnchanged(parsed)) {
+      return;
     }
+    onCommit(parsed, burst.next());
   }
 
   /** 포커스가 빠지면 burst를 끝낸다 — 다음 편집(같은 칸이라도)은 새 undo 단계로 잡힌다. */

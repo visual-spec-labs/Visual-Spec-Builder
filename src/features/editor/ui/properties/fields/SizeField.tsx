@@ -1,4 +1,5 @@
 import { blurOnWheel, Field, inputClass, invalidClass } from "./Field";
+import { isUnchangedNumber } from "./unchangedCommit";
 import { useDraftInput } from "./useDraftInput";
 
 export type Size = number | "auto" | "fill";
@@ -44,6 +45,9 @@ export function SizeField({ label, value, onChange, measured }: SizeFieldProps) 
       const ok = raw.trim() !== "" && Number.isFinite(parsed) && parsed >= 0;
       return ok ? parsed : undefined;
     },
+    // `shown`이 아니라 `value`와 견준다(#209) — Hug/Fill이면 칸에 실측 px가 보이지만,
+    // 같은 숫자를 치는 것은 Fixed로 바꾸는 실제 변경이라 커밋해야 한다.
+    isUnchanged: (n) => isUnchangedNumber(n, value),
     // 숫자를 커밋하면 값이 number가 되므로 모드가 자동으로 Fixed로 바뀐다.
     onCommit: onChange,
   });

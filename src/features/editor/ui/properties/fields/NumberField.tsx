@@ -1,4 +1,5 @@
 import { blurOnWheel, Field, inputClass, invalidClass } from "./Field";
+import { isUnchangedNumber } from "./unchangedCommit";
 import { useDraftInput } from "./useDraftInput";
 
 interface NumberFieldProps {
@@ -52,6 +53,8 @@ export function NumberField({
         (max === undefined || parsed <= max);
       return ok ? parsed : undefined;
     },
+    // "016"·"16.0"처럼 표기만 다른 같은 값은 커밋하지 않는다(#209).
+    isUnchanged: (n) => isUnchangedNumber(n, value),
     onCommit: onChange,
   });
 
