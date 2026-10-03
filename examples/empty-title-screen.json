@@ -1,5 +1,5 @@
 {
-  "version": "0.1",
+  "version": "0.3",
   "screen": {
     "name": "EmptyTitle",
     "size": { "width": 1440, "height": 900 },
@@ -16,7 +16,7 @@
           "mainAxis": "center",
           "crossAxis": "center"
         },
-        "background": { "color": "#FFFFFF" },
+        "background": [{ "type": "solid", "color": "#FFFFFF" }],
         "children": [{ "node": "title" }]
       },
       "title": {

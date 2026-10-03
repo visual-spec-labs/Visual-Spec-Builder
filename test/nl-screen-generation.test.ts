@@ -74,7 +74,7 @@ describe("자연어 화면 생성 — 빈 화면 → login-screen 재현 (#183)"
           box: { width: "fill", height: "auto" },
           // gap·mainAxis만 바꾼다 — padding(사방 16)은 newFrame 기본값과 이미 같다.
           layout: { gap: 12, mainAxis: "center" },
-          background: { color: "#F5F5F5FF" },
+          background: [{ type: "solid", color: "#F5F5F5FF" }],
           border: { color: "#00000020" },
         }),
       },

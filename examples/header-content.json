@@ -1,5 +1,5 @@
 {
-  "version": "0.1",
+  "version": "0.3",
   "screen": {
     "name": "HeaderContentPage",
     "size": { "width": 1280, "height": 800 },
@@ -16,7 +16,7 @@
           "mainAxis": "start",
           "crossAxis": "stretch"
         },
-        "background": { "color": "#FFFFFF" },
+        "background": [{ "type": "solid", "color": "#FFFFFF" }],
         "children": [{ "node": "header" }, { "node": "body" }]
       },
       "header": {
@@ -30,7 +30,7 @@
           "mainAxis": "space-between",
           "crossAxis": "center"
         },
-        "background": { "color": "#111827" },
+        "background": [{ "type": "solid", "color": "#111827" }],
         "border": { "width": 0, "color": "#00000000", "radius": 0 },
         "children": [{ "node": "brand" }, { "node": "nav" }]
       },

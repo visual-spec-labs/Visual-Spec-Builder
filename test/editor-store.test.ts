@@ -167,7 +167,9 @@ describe("editorStore", () => {
   });
 
   it("setNodeField 결과가 여전히 유효한 프로젝트다", () => {
-    useEditorStore.getState().setNodeField("cardA", "background.color", "#123456");
+    useEditorStore
+      .getState()
+      .setNodeField("cardA", "background", [{ type: "solid", color: "#123456" }]);
     useEditorStore.getState().setNodeField("headerTitle", "typography.fontSize", 22);
 
     const result = validateProjectSpec(useEditorStore.getState().spec);
@@ -316,23 +318,23 @@ describe("editorStore", () => {
     expect(after.pages[before.pageOrder[1]]).toBe(before.pages[before.pageOrder[1]]);
   });
 
-  it("blankSpec(File > New)은 그 자체로 유효한 v0.1 스펙이다", () => {
+  it("blankSpec(File > New)은 그 자체로 유효한 화면 문서다", () => {
     expect(validateVisualSpec(blankSpec)).toEqual({ valid: true, issues: [] });
   });
 
   describe("loadSpec", () => {
-    it("v0.1 문서를 받으면 페이지 1개짜리 프로젝트로 넓힌다", () => {
+    it("화면 문서를 받으면 페이지 1개짜리 프로젝트로 넓힌다", () => {
       useEditorStore.getState().select("cardA");
       useEditorStore.getState().loadSpec(blankSpec);
 
       const { spec, activePageId, selectedId } = useEditorStore.getState();
-      expect(spec.version).toBe("0.2");
+      expect(spec.version).toBe("0.3");
       expect(spec.pageOrder).toHaveLength(1);
       expect(spec.pages[activePageId]).toEqual(blankSpec.screen);
       expect(selectedId).toBeNull();
     });
 
-    it("v0.2 프로젝트는 그대로 싣고 첫 페이지를 연다", () => {
+    it("프로젝트 문서는 그대로 싣고 첫 페이지를 연다", () => {
       const project = migrateV01(seedSpec);
       useEditorStore.getState().loadSpec(project);
 

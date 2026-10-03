@@ -1,5 +1,5 @@
 {
-  "version": "0.1",
+  "version": "0.3",
   "screen": {
     "name": "Login",
     "size": { "width": 390, "height": 844 },
@@ -16,7 +16,7 @@
           "mainAxis": "start",
           "crossAxis": "stretch"
         },
-        "background": { "color": "#FFFFFF" },
+        "background": [{ "type": "solid", "color": "#FFFFFF" }],
         "children": [{ "node": "title" }, { "node": "card" }]
       },
       "title": {
@@ -46,7 +46,7 @@
           "mainAxis": "center",
           "crossAxis": "stretch"
         },
-        "background": { "color": "#F5F5F5FF" },
+        "background": [{ "type": "solid", "color": "#F5F5F5FF" }],
         "border": { "width": 1, "color": "#00000020", "radius": 8 },
         "children": [{ "node": "hint" }]
       },

@@ -1,5 +1,5 @@
 {
-  "version": "0.3",
+  "version": "0.1",
   "screen": {
     "name": "CardEffectsPage",
     "size": { "width": 1440, "height": 900 },
@@ -16,7 +16,7 @@
           "mainAxis": "start",
           "crossAxis": "start"
         },
-        "background": [{ "type": "solid", "color": "#F1F5F9" }],
+        "background": { "color": "#F1F5F9" },
         "children": [{ "node": "elevatedCard" }, { "node": "outlinedCard" }, { "node": "fadedCard" }]
       },
       "elevatedCard": {
@@ -30,7 +30,7 @@
           "mainAxis": "start",
           "crossAxis": "start"
         },
-        "background": [{ "type": "solid", "color": "#FFFFFF" }],
+        "background": { "color": "#FFFFFF" },
         "border": { "width": 0, "color": "#00000000", "radius": 12 },
         "shadow": { "x": 0, "y": 8, "blur": 24, "spread": -4, "color": "#0F172A26" },
         "children": [{ "node": "elevatedTitle" }]
@@ -61,7 +61,7 @@
           "mainAxis": "start",
           "crossAxis": "start"
         },
-        "background": [{ "type": "solid", "color": "#FFFFFF" }],
+        "background": { "color": "#FFFFFF" },
         "border": {
           "width": 2,
           "color": "#6366F1",
@@ -96,7 +96,7 @@
           "mainAxis": "start",
           "crossAxis": "start"
         },
-        "background": [{ "type": "solid", "color": "#FFFFFF" }],
+        "background": { "color": "#FFFFFF" },
         "border": { "width": 1, "color": "#E2E8F0", "radius": 12, "align": "inside" },
         "opacity": 0.5,
         "blur": 2,

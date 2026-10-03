@@ -1,5 +1,5 @@
 {
-  "version": "0.1",
+  "version": "0.3",
   "screen": {
     "name": "ImageHeroPage",
     "size": { "width": 390, "height": 844 },
@@ -16,7 +16,7 @@
           "mainAxis": "start",
           "crossAxis": "stretch"
         },
-        "background": { "color": "#FFFFFF" },
+        "background": [{ "type": "solid", "color": "#FFFFFF" }],
         "children": [{ "node": "hero" }, { "node": "caption" }]
       },
       "hero": {

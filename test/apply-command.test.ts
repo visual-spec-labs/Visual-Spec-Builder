@@ -13,8 +13,8 @@ import { validateVisualSpec } from "@/features/editor/schema";
 import type { FrameNode, ScreenSpec, VisualSpec } from "@/features/editor/schema";
 import { getByPath } from "@/features/editor/store/path";
 
-// applyCommand는 ScreenSpec을 받는다(#40) — v0.1 예제 JSON은 VisualSpec이라
-// .screen만 떼어서 쓴다. v0.2 ProjectSpec의 pages[id]도 같은 ScreenSpec 모양이라
+// applyCommand는 ScreenSpec을 받는다(#40) — 화면 문서 예제 JSON은 VisualSpec이라
+// .screen만 떼어서 쓴다. ProjectSpec의 pages[id]도 같은 ScreenSpec 모양이라
 // 이 테스트가 그대로 그쪽 검증도 겸한다.
 const SPEC = dashboardCards as VisualSpec;
 const BASE = SPEC.screen;
@@ -209,6 +209,45 @@ describe("applyCommand — updateNode", () => {
     expect(applyCommand(BASE, onFrame)).not.toBe(BASE);
   });
 
+  // #127: 0.2까지 쓰던 `background.color`는 배열 위에 객체 칸을 만들게 된다.
+  // 섞지 않고 깨끗하게 거부해야 한다 — 인덱스 경로도 열지 않는다(docs/13 "Command와 패널").
+  it("배경은 통째로만 쓴다 — background.color·인덱스 경로는 거부한다", () => {
+    const oldPath: Command = {
+      type: "updateNode",
+      id: "cardA",
+      path: "background.color",
+      value: "#123456",
+    };
+    const indexPath: Command = {
+      type: "updateNode",
+      id: "cardA",
+      path: "background.0.color",
+      value: "#123456",
+    };
+    const onEmpty: Command = {
+      type: "updateNode",
+      id: "header", // 배경 없음
+      path: "background.color",
+      value: "#123456",
+    };
+
+    expect(applyCommand(BASE, oldPath)).toBe(BASE);
+    expect(applyCommand(BASE, indexPath)).toBe(BASE);
+    expect(applyCommand(BASE, onEmpty)).toBe(BASE);
+  });
+
+  it("배경을 빈 배열로 쓰면 채우기 없음이 되고 스키마를 통과한다", () => {
+    const next = applyCommand(BASE, {
+      type: "updateNode",
+      id: "cardA",
+      path: "background",
+      value: [],
+    });
+
+    expect(next.nodes.cardA).toMatchObject({ background: [] });
+    expect(screenIssues(next)).toEqual([]);
+  });
+
   it("구조 필드(type·children)는 경로가 있어도 바꾸지 않는다", () => {
     const changeType: Command = { type: "updateNode", id: "cardA", path: "type", value: "text" };
     const changeChildren: Command = {
@@ -231,8 +270,8 @@ describe("applyCommand — updateNode", () => {
     const setBackground: Command = {
       type: "updateNode",
       id: "header",
-      path: "background.color",
-      value: "#123456",
+      path: "background",
+      value: [{ type: "solid", color: "#123456" }],
     };
     const setVisible: Command = {
       type: "updateNode",
@@ -247,10 +286,11 @@ describe("applyCommand — updateNode", () => {
       value: 0.5,
     };
 
-    // background는 필수 필드가 color 하나뿐이라, 없던 걸 새로 만들어도 결과가
-    // 완전하다 — 그래서 중첩 경로인데도 통과한다(border와 갈리는 지점이다).
+    // background는 0.3에서 채우기 겹 배열이라(#127) 노드 바로 아래 칸을 통째로 쓴다.
     const next = applyCommand(BASE, setBackground);
-    expect(next.nodes.header).toMatchObject({ background: { color: "#123456" } });
+    expect(next.nodes.header).toMatchObject({
+      background: [{ type: "solid", color: "#123456" }],
+    });
     expect(screenIssues(next)).toEqual([]);
 
     const visible = applyCommand(BASE, setVisible);
@@ -280,7 +320,8 @@ describe("applyCommand — updateNode", () => {
     { path: "layout.direction", value: "row" }, // LayoutSection
     { path: "layout.gap", value: 24 },
     { path: "layout.padding.top", value: 12 },
-    { path: "background.color", value: "#123456" }, // BackgroundSection
+    // BackgroundSection은 solidBackgroundPatch가 만든 배열을 통째로 넘긴다(#127).
+    { path: "background", value: [{ type: "solid", color: "#123456" }] },
     // BorderSection은 mergeBorder가 만든 완전한 Border를 통째로 넘긴다.
     { path: "border", value: { width: 2, color: "#FF0000", radius: 8 } },
     // 모서리별로 바꿀 때도 mergeCornerRadius가 네 칸을 다 채워서 넘긴다.

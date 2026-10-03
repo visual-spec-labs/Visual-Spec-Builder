@@ -89,6 +89,45 @@ describe("JSON Schema 검증", () => {
     expectSchemaIssue(input);
   });
 
+  it("옛 버전(0.1) 문서는 그대로는 거부한다 — 변환은 입구(loadSpec)의 몫이다", () => {
+    const input: unknown = {
+      ...structuredClone(loginScreen),
+      version: "0.1",
+    };
+
+    expectSchemaIssue(input);
+  });
+
+  it("배경이 옛 모양({ color })이면 거부한다", () => {
+    const input = structuredClone(loginScreen);
+    (input.screen.nodes.root as { background?: unknown }).background = { color: "#FFFFFF" };
+
+    expectSchemaIssue(input);
+  });
+
+  it.each([
+    ["알 수 없는 type", { type: "radial", color: "#FFFFFF" }],
+    ["solid에 color가 없음", { type: "solid" }],
+    ["linear의 stop이 하나", { type: "linear", angle: 0, stops: [{ color: "#000000", at: 0 }] }],
+    [
+      "linear 각도가 360",
+      { type: "linear", angle: 360, stops: [{ color: "#000000", at: 0 }, { color: "#FFFFFF", at: 1 }] },
+    ],
+    [
+      "linear 각도가 음수",
+      { type: "linear", angle: -90, stops: [{ color: "#000000", at: 0 }, { color: "#FFFFFF", at: 1 }] },
+    ],
+    [
+      "stop 위치가 1보다 큼",
+      { type: "linear", angle: 90, stops: [{ color: "#000000", at: 0 }, { color: "#FFFFFF", at: 100 }] },
+    ],
+  ])("잘못된 채우기 겹을 거부한다 — %s", (_name, fill) => {
+    const input = structuredClone(loginScreen);
+    (input.screen.nodes.root as { background?: unknown }).background = [fill];
+
+    expectSchemaIssue(input);
+  });
+
   it("version 불일치를 거부한다", () => {
     const input: unknown = {
       ...structuredClone(loginScreen),

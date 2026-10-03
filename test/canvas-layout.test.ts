@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { LinearFill } from "@/features/editor/schema";
 import {
   artboardBoxSize,
+  backgroundStyle,
   boxStyle,
   effectStyle,
   radiusCss,
@@ -233,6 +235,66 @@ describe("strokeAndShadowStyle", () => {
 
     expect(style.border).toBe(`1px solid ${RED}`);
     expect(style.boxShadow).toBe("0px 8px 24px -4px #0F172A26");
+  });
+});
+
+describe("backgroundStyle", () => {
+  it("solid 한 겹을 같은 색 두 번의 linear-gradient로 옮기고 상자 전체를 기준으로 둔다", () => {
+    expect(backgroundStyle([{ type: "solid", color: "#4F46E5" }])).toEqual({
+      backgroundImage: "linear-gradient(#4F46E5, #4F46E5)",
+      backgroundOrigin: "border-box",
+    });
+  });
+
+  it("알파가 있는 색도 그대로 옮긴다", () => {
+    expect(backgroundStyle([{ type: "solid", color: "#F5F5F5FF" }]).backgroundImage).toBe(
+      "linear-gradient(#F5F5F5FF, #F5F5F5FF)",
+    );
+  });
+
+  it("여러 겹은 배열 순서 그대로 쉼표로 잇는다 — 앞이 위다", () => {
+    const style = backgroundStyle([
+      { type: "solid", color: "#11111180" },
+      { type: "solid", color: "#FFFFFF" },
+    ]);
+
+    expect(style.backgroundImage).toBe(
+      "linear-gradient(#11111180, #11111180), linear-gradient(#FFFFFF, #FFFFFF)",
+    );
+  });
+
+  it.each([
+    ["생략", undefined],
+    ["빈 배열", []],
+  ] as const)("%s이면 아무 배경 속성도 내지 않는다", (_name, background) => {
+    const style = backgroundStyle(background as Parameters<typeof backgroundStyle>[0]);
+
+    expect(style.backgroundImage).toBeUndefined();
+    expect(style.backgroundOrigin).toBeUndefined();
+  });
+
+  it("background 축약 속성과 background-color를 쓰지 않는다", () => {
+    const style = backgroundStyle([{ type: "solid", color: "#FFFFFF" }]);
+
+    expect(style).not.toHaveProperty("background");
+    expect(style).not.toHaveProperty("backgroundColor");
+  });
+
+  // 스키마 전환 단계(#127 후속 1)에서는 linear를 아직 그리지 않는다 — 렌더 단계 몫이다.
+  it("linear 겹은 아직 그리지 않고 나머지 겹만 그린다", () => {
+    const linear: LinearFill = {
+      type: "linear",
+      angle: 180,
+      stops: [
+        { color: "#00000000", at: 0 },
+        { color: "#000000CC", at: 1 },
+      ],
+    };
+
+    expect(backgroundStyle([linear]).backgroundImage).toBeUndefined();
+    expect(
+      backgroundStyle([linear, { type: "solid", color: "#6366F1" }]).backgroundImage,
+    ).toBe("linear-gradient(#6366F1, #6366F1)");
   });
 });
 

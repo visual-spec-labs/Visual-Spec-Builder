@@ -190,7 +190,7 @@ describe("compileTickets", () => {
         letterSpacing: 0,
         textAlign: "center" as const,
       },
-      background: { color: "#4F46E5" },
+      background: [{ type: "solid", color: "#4F46E5" }],
     });
 
     const screen: ScreenSpec = {
