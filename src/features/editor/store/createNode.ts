@@ -72,7 +72,7 @@ function newFrame(): FrameNode {
       mainAxis: "start",
       crossAxis: "start",
     },
-    background: { color: "#FFFFFF" },
+    background: [{ type: "solid", color: "#FFFFFF" }],
     border: { width: 1, color: "#E5E7EB", radius: 8 },
     children: [],
   };
@@ -128,7 +128,7 @@ function newButton(): ButtonNode {
       letterSpacing: 0,
       textAlign: "center",
     },
-    background: { color: "#4F46E5" },
+    background: [{ type: "solid", color: "#4F46E5" }],
     border: { width: 0, color: "#4F46E5", radius: 8 },
   };
 }
@@ -149,7 +149,7 @@ function newInput(): InputNode {
       letterSpacing: 0,
       textAlign: "left",
     },
-    background: { color: "#F9FAFB" },
+    background: [{ type: "solid", color: "#F9FAFB" }],
     border: { width: 1, color: "#D1D5DB", radius: 8 },
   };
 }
@@ -203,8 +203,10 @@ function deepMerge<T extends Record<string, unknown>>(
  *
  * overrides는 일부 칸만 채워도 된다 — 나머지는 kind별 기본값이 채운다
  * (docs/08-natural-language.md 3.2 "기본값 채우기 계층"). 중첩 객체(box·layout·
- * typography·background·border)는 칸 단위로 병합되고, 배열(children 등)과
- * union 대표값(Size·Radius 등)은 통째로 교체된다. overrides를 생략하면 기존
+ * typography·border)는 칸 단위로 병합되고, 배열(children·background 등)과
+ * union 대표값(Size·Radius 등)은 통째로 교체된다. background가 0.3에서 채우기
+ * 겹 배열이 된 것(#127)도 이 규칙에 그대로 들어간다 — 기본 겹 위에 덮어쓴 겹이
+ * 섞이지 않고 덮어쓴 배열이 이긴다. overrides를 생략하면 기존
  * 도구 모음이 쓰던 것과 같은 완전한 기본 노드를 돌려준다.
  */
 export function createNode<K extends NodeKind>(

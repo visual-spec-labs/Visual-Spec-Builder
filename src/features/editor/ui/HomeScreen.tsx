@@ -40,7 +40,7 @@ const PREVIEW_HEIGHT = 140;
  * 배선뿐이었다.
  *
  * 마운트 시 `listWorkspaceFiles(SPEC_DIR)`로 목록을, 파일마다
- * `readWorkspaceTextFile`+`parseSpecJson`(+v0.1이면 `migrateV01`)로 내용을 읽는다.
+ * `readWorkspaceTextFile`+`parseSpecJson`(+화면 문서면 `migrateV01`)로 내용을 읽는다.
  * **작업공간이 없으면**(`listWorkspaceFiles`가 `null`, 정적 빌드 등) 조용히
  * 예전처럼 메모리 spec 한 장짜리 상태 1로 되돌아간다. **파싱에 실패한 파일은
  * 목록에서 조용히 뺀다** — 깨진 파일 하나 때문에 카드 전체가 안 뜨는 것보다 낫다.

@@ -6,7 +6,7 @@ import type { VisualSpec } from "@/features/editor/schema";
  * 통합 후에는 실제 문서 로드로 대체된다.
  */
 export const seedSpec: VisualSpec = {
-  version: "0.1",
+  version: "0.3",
   screen: {
     name: "DashboardPage",
     size: { width: 1440, height: 900 },
@@ -23,7 +23,7 @@ export const seedSpec: VisualSpec = {
           mainAxis: "start",
           crossAxis: "stretch",
         },
-        background: { color: "#F7F8FA" },
+        background: [{ type: "solid", color: "#F7F8FA" }],
         children: [{ node: "header" }, { node: "content" }],
       },
       header: {
@@ -78,7 +78,7 @@ export const seedSpec: VisualSpec = {
           mainAxis: "start",
           crossAxis: "start",
         },
-        background: { color: "#FFFFFF" },
+        background: [{ type: "solid", color: "#FFFFFF" }],
         border: { width: 1, color: "#E5E7EB", radius: 12 },
         children: [{ node: "cardALabel" }, { node: "cardAValue" }],
       },
@@ -123,7 +123,7 @@ export const seedSpec: VisualSpec = {
           mainAxis: "start",
           crossAxis: "start",
         },
-        background: { color: "#FFFFFF" },
+        background: [{ type: "solid", color: "#FFFFFF" }],
         border: { width: 1, color: "#E5E7EB", radius: 12 },
         children: [{ node: "cardBLabel" }, { node: "cardBValue" }],
       },
