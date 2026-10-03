@@ -41,7 +41,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제 + history 초기화(New/Open) | **MenuBar**가 호출 |
 | `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import) | **MenuBar**가 호출 |
 | `removeNode` | `(id: NodeId) => void` | 노드 삭제. 프레임이면 자손까지 연쇄 삭제, root는 지우지 않음 | **트리**가 호출 |
-| `moveNode` | `(id: NodeId, newParentId: NodeId, index: number) => void` | 노드를 newParentId의 children 중 index 위치로 옮김. root 이동 불가, 순환 방지 | **트리**가 호출(드래그) |
+| `moveNode` | `(id: NodeId, newParentId: NodeId, index: number) => void` | 노드를 newParentId의 children 중 index 위치로 옮김. root 이동 불가, 순환 방지 | **트리·캔버스**가 호출(드래그, #187) |
 | `undo` | `() => void` | 프로젝트의 마지막 편집을 한 단계 되돌림(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Z, #118) |
 | `redo` | `() => void` | 되돌린 편집을 한 단계 다시 실행(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Shift+Z · Ctrl+Y, #118) |
 | `applyGuardedTransaction` | `(pageId: PageId, commands: readonly Command[]) => TransactionGateResult` | 출처를 신뢰할 수 없는 Command 배열을 G2(dry-run)·G3(결과 검증) 관문에 통과시킨 뒤 **전부-또는-전무**로 커밋(#154) | 자연어 편집 등 **LLM이 만든 Command** 경로 전용 — GUI는 안 쓴다 |
