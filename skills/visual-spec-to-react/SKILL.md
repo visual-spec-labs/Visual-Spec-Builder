@@ -31,6 +31,13 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
 5. **파일을 쓰고 결과를 보고한다.** prettier/eslint 같은 포매터는 사용자가 요청하지 않는
    한 자동으로 돌리지 않는다.
 
+**export 방식은 위치로 정해진다.** `pages/`의 페이지 컴포넌트는 `export default function
+<PageName>() {...}`, `components/`의 컴포넌트는 `export function <ComponentName>() {...}`
+(named export)로 쓴다 — 아래 예제가 전부 이 규칙이다. 섞어 쓰는 것처럼 보이지만 의도된
+일관성이다(이슈 #188로 확인) — 페이지는 서로를 import하지 않아 default export라 불러오는
+쪽마다 이름을 자유롭게 붙일 수 있고, 컴포넌트는 다른 파일이 `import { Card } from
+"./Card"`처럼 이름으로 가져오므로 named export가 오타를 막는다.
+
 ## 컴포넌트 단위로 분리 생성한다
 
 지금까지는 화면 하나를 파일 하나에 통째로 담았다. 화면이 커지면(섹션이 여러 개거나,
