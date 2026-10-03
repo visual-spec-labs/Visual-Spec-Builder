@@ -50,6 +50,7 @@ import {
   inputStyle,
   textStyle,
 } from "./nodeStyles";
+import { createResizeGesture, type ResizeTarget } from "./resizeGesture";
 import { clickBoundary, resolveClickTarget, resolveInsertParent } from "./selection";
 import { useNodeDrag } from "./useNodeDrag";
 
@@ -271,6 +272,8 @@ function startResize(event: ReactMouseEvent, id: NodeId, edge: ResizeEdge, box: 
       : (measured?.height ?? 100);
   const startX = event.clientX;
   const startY = event.clientY;
+  // 끌기 한 번 = undo 한 단계(#207). 값이 바뀐 첫 커밋만 새 단계를 만든다.
+  const gesture = createResizeGesture({ width: startWidth, height: startHeight });
 
   function handleMove(moveEvent: MouseEvent) {
     // 창 밖에서 버튼을 떼면 mouseup이 여기까지 안 온다 — 팬과 같은 방어.
@@ -279,17 +282,18 @@ function startResize(event: ReactMouseEvent, id: NodeId, edge: ResizeEdge, box: 
       return;
     }
 
-    const { setNodeField, setPageField } = useEditorStore.getState();
-
+    const target: ResizeTarget = {};
     if (edge === "e" || edge === "se") {
-      const width = resizedValue(startWidth, moveEvent.clientX - startX, zoom);
-      if (isRoot) setPageField(activePageId, "size.width", width);
-      else setNodeField(id, "box.width", width);
+      target.width = resizedValue(startWidth, moveEvent.clientX - startX, zoom);
     }
     if (edge === "s" || edge === "se") {
-      const height = resizedValue(startHeight, moveEvent.clientY - startY, zoom);
-      if (isRoot) setPageField(activePageId, "size.height", height);
-      else setNodeField(id, "box.height", height);
+      target.height = resizedValue(startHeight, moveEvent.clientY - startY, zoom);
+    }
+
+    const { setNodeField, setPageField } = useEditorStore.getState();
+    for (const { axis, value, continueEdit } of gesture.commits(target)) {
+      if (isRoot) setPageField(activePageId, `size.${axis}`, value, continueEdit);
+      else setNodeField(id, `box.${axis}`, value, continueEdit);
     }
   }
 
