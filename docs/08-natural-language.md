@@ -447,7 +447,7 @@ Save as·Open 은 `window.alert`, 패널 하단 Export JSON 버튼은 인라인 
 `continueEdit` 은 `pushHistory` 대신 `replacePresent`(`history.ts:49`)를 부르는데, 이건 새 체크포인트를 만들지 않고
 **직전 체크포인트를 덮어쓴다.** 트랜잭션의 첫 Command 가 no-op 이면 `applied` 가 `null` 을 돌려 체크포인트가
 안 찍히고, 그다음 Command 가 `replacePresent` 로 **직전 *남의* 체크포인트를 덮어쓴다.**
-[EDITOR_STORE_CONTRACT.md](EDITOR_STORE_CONTRACT.md)가 `useDraftInput` 의 **남은 결함**으로 적어 둔 것과 똑같은 모양이다.
+입력칸이 값이 그대로인 입력으로는 burst를 시작하지 않는 것(#132·#209, [EDITOR_STORE_CONTRACT.md](EDITOR_STORE_CONTRACT.md))도 이 함정을 피하려는 것이다.
 게다가 `continueEdit` 은 설계상 *"그걸 실제로 아는 호출부만"* 판단하도록 만든 장치라, 트랜잭션 경계를 태우는 용도가 아니다.
 
 **그래서 필요한 것은 액션 하나다.** 4절의 세 관문을 통과한 결과 페이지를 받아
