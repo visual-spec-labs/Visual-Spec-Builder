@@ -62,10 +62,16 @@ export function gapStrips(children: readonly Rect[], scale: number): GapStrip[] 
   return strips;
 }
 
-/** 세로로 겹치는 자식끼리 한 줄로 묶는다. grid의 줄바꿈이 여기서 드러난다. */
-function groupIntoBands(children: readonly Rect[]): Rect[][] {
+/**
+ * 세로로 겹치는 자식끼리 한 줄로 묶는다. grid의 줄바꿈이 여기서 드러난다.
+ *
+ * 캔버스 드롭 판정(canvasDrop.ts, #187)이 grid의 줄을 찾을 때 같은 기준을 쓰도록
+ * export한다. 넘긴 객체를 그대로 담아 돌려주므로(제네릭) 호출부가 id 같은 꼬리표를
+ * 붙여 넘기면 줄로 묶인 뒤에도 그대로 남는다.
+ */
+export function groupIntoBands<T extends Rect>(children: readonly T[]): T[][] {
   const sorted = [...children].sort((a, b) => a.top - b.top || a.left - b.left);
-  const bands: Rect[][] = [];
+  const bands: T[][] = [];
   // 줄이 지금까지 차지한 세로 구간. 키 큰 자식이 들어오면 함께 늘어난다.
   let bandBottom = Number.NEGATIVE_INFINITY;
 
