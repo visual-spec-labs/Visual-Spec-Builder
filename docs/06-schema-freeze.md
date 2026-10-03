@@ -29,6 +29,7 @@
 - `event`
 - `token`
 - `responsive` — 표현 결정은 [12-responsive-ir-design.md](12-responsive-ir-design.md)에 기록했다. 현재 정본에는 여전히 없으며, 스키마 추가는 이 문서의 동결 변경 규칙을 따르는 별도 PR이다.
+- 배경 그라디언트·다중 채우기 — 표현 결정은 [13-background-fill-design.md](13-background-fill-design.md)에 기록했다. 현재 정본의 `Background`는 여전히 단색 한 겹이며, 스키마 변경은 이 문서의 동결 변경 규칙을 따르는 별도 PR이다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
 `instance`, `props`, `bindings`, `variants`, `states`, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
