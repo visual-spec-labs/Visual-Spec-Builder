@@ -130,3 +130,8 @@ export const WORKSPACE_ACCESSIBLE_DIRS = Object.keys(WORKSPACE_DIR_RULES) as Wor
 export function isWorkspaceDir(value: string): value is WorkspaceDir {
   return Object.prototype.hasOwnProperty.call(WORKSPACE_DIR_RULES, value);
 }
+
+/** Disk compare-and-write tokens; missing is create-only, never overwrite. */
+export const WORKSPACE_REVISION_HEADER = "x-visual-spec-revision";
+export const WORKSPACE_EXPECTED_REVISION_HEADER = "x-visual-spec-expected-revision";
+export const WORKSPACE_MISSING_REVISION = "missing";

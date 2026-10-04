@@ -49,12 +49,14 @@ export interface DocumentState {
    * 그때의 Save는 예전처럼 `spec.name`에서 이름을 만들어 쓴다.
    */
   fileName: string | null;
-  setFileName: (fileName: string) => void;
+  diskRevision: string | null;
+  setFileName: (fileName: string, diskRevision?: string | null) => void;
   clearFileName: () => void;
 }
 
 export const useDocumentStore = create<DocumentState>((set) => ({
   fileName: loadStoredFileName() ?? null,
-  setFileName: (fileName) => set({ fileName }),
-  clearFileName: () => set({ fileName: null }),
+  diskRevision: null,
+  setFileName: (fileName, diskRevision = null) => set({ fileName, diskRevision }),
+  clearFileName: () => set({ fileName: null, diskRevision: null }),
 }));

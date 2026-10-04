@@ -14,6 +14,8 @@
  */
 
 import {
+  WORKSPACE_REVISION_HEADER,
+  WORKSPACE_EXPECTED_REVISION_HEADER,
   WORKSPACE_LIST_RECURSIVE_PARAM,
   WORKSPACE_LIST_METADATA_PARAM,
   type WorkspaceFileEntry,
@@ -132,7 +134,18 @@ export async function readWorkspaceBinaryFile(
   }
 }
 
-export type WriteResult = { ok: true; path: string } | { ok: false; error: string };
+/** The token belongs to these exact bytes, not a later Save-time read. */
+export async function readWorkspaceSpecSnapshot(relativePath: string): Promise<{ text: string; revision: string } | null> {
+  if (!(await isWorkspaceAvailable())) return null;
+  try {
+    const response = await fetch(workspaceFileUrl(relativePath));
+    const revision = response.headers.get(WORKSPACE_REVISION_HEADER);
+    if (!response.ok || !isWorkspaceResponse(response) || !revision) return null;
+    return { text: await response.text(), revision };
+  } catch { return null; }
+}
+
+export type WriteResult = { ok: true; path: string; revision?: string } | { ok: false; error: string; status?: number };
 
 /**
  * 파일을 쓴다. 성공하면 서버가 확정한 상대 경로를 돌려준다.
@@ -144,6 +157,7 @@ export async function writeWorkspaceFile(
   relativePath: string,
   body: BodyInit,
   contentType: string,
+  expectedRevision?: string,
 ): Promise<WriteResult> {
   if (!(await isWorkspaceAvailable())) {
     return { ok: false, error: "작업공간에 연결돼 있지 않습니다." };
@@ -152,7 +166,7 @@ export async function writeWorkspaceFile(
   try {
     const response = await fetch(workspaceFileUrl(relativePath), {
       method: "PUT",
-      headers: { "content-type": contentType },
+      headers: { "content-type": contentType, ...(expectedRevision === undefined ? {} : { [WORKSPACE_EXPECTED_REVISION_HEADER]: expectedRevision }) },
       body,
     });
     if (!isWorkspaceResponse(response)) {
@@ -161,10 +175,11 @@ export async function writeWorkspaceFile(
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
       const message = (payload as { error?: unknown } | null)?.error;
-      return { ok: false, error: typeof message === "string" ? message : `HTTP ${response.status}` };
+      return { ok: false, error: typeof message === "string" ? message : `HTTP ${response.status}`, status: response.status };
     }
     const path = (payload as { path?: unknown } | null)?.path;
-    return { ok: true, path: typeof path === "string" ? path : relativePath };
+    return { ok: true, path: typeof path === "string" ? path : relativePath,
+      revision: response.headers.get(WORKSPACE_REVISION_HEADER) ?? undefined };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }

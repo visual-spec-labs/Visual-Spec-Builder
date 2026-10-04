@@ -1,24 +1,25 @@
 import { migrateV01, type ProjectSpec } from "@/features/editor/schema";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { SPEC_DIR } from "@/features/workspace/protocol";
-import { listWorkspaceFileEntries, readWorkspaceTextFile } from "./workspaceClient";
+import { listWorkspaceFileEntries, readWorkspaceSpecSnapshot } from "./workspaceClient";
 
 /** `specs/` 파일 하나를 카드에 쓸 수 있게 정규화한 것. */
 export interface HomeProject {
   fileName: string;
   spec: ProjectSpec;
+  diskRevision?: string;
 }
 
 /** 파일 하나를 읽어 ProjectSpec으로 정규화한다. 못 읽거나 검증에 실패하면 null. */
 async function loadHomeProject(fileName: string): Promise<HomeProject | null> {
-  const text = await readWorkspaceTextFile(`${SPEC_DIR}/${fileName}`);
-  if (text === null) return null;
+  const snapshot = await readWorkspaceSpecSnapshot(`${SPEC_DIR}/${fileName}`);
+  if (snapshot === null) return null;
 
-  const result = parseSpecJson(text);
+  const result = parseSpecJson(snapshot.text);
   if (!result.ok) return null;
 
   const spec = "screen" in result.spec ? migrateV01(result.spec) : result.spec;
-  return { fileName, spec };
+  return { fileName, spec, diskRevision: snapshot.revision };
 }
 
 /**
