@@ -6,10 +6,8 @@ import type {
   ProjectSpec,
   ScreenSpec,
 } from "@/features/editor/schema";
-import { migrateV01 } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
 import { newSpec } from "@/features/editor/ui/newSpec";
@@ -22,8 +20,7 @@ import {
   previewScale,
   previewTextStyle,
 } from "@/features/editor/ui/homePreview";
-import { listWorkspaceFiles, readWorkspaceTextFile } from "@/features/editor/ui/workspaceClient";
-import { SPEC_DIR } from "@/features/workspace/protocol";
+import { loadWorkspaceProjects, type HomeProject } from "./homeProjects";
 
 const PREVIEW_WIDTH = 208;
 const PREVIEW_HEIGHT = 140;
@@ -39,9 +36,9 @@ const PREVIEW_HEIGHT = 140;
  * 안 된 건 이 컴포넌트가 메모리상 `editorStore.spec` 대신 그 목록을 읽어오는
  * 배선뿐이었다.
  *
- * 마운트 시 `listWorkspaceFiles(SPEC_DIR)`로 목록을, 파일마다
+ * 마운트 시 `listWorkspaceFileEntries(SPEC_DIR)`로 목록을, 파일마다
  * `readWorkspaceTextFile`+`parseSpecJson`(+화면 문서면 `migrateV01`)로 내용을 읽는다.
- * **작업공간이 없으면**(`listWorkspaceFiles`가 `null`, 정적 빌드 등) 조용히
+ * **작업공간이 없으면**(`listWorkspaceFileEntries`가 `null`, 정적 빌드 등) 조용히
  * 예전처럼 메모리 spec 한 장짜리 상태 1로 되돌아간다. **파싱에 실패한 파일은
  * 목록에서 조용히 뺀다** — 깨진 파일 하나 때문에 카드 전체가 안 뜨는 것보다 낫다.
  * 결과가 0개면 상태 2, 1개 이상이면 상태 1 — 같은 조건 하나로 갈린다.
@@ -50,9 +47,8 @@ const PREVIEW_HEIGHT = 140;
  * 자연어 작성은 에디터 안 `ui/NaturalLanguageBar.tsx`에서만 되고, 홈 화면에 별도
  * 입력창을 새로 만드는 건 이 이슈(파일 목록 배선) 범위 밖이다.
  *
- * 정렬·수정 시각(04 §2의 "최근 수정순"·mtime)은 이번에 안 넣었다 —
- * `workspaceServer.ts`의 목록 라우트가 파일 이름만 주고 mtime을 안 줘서 서버
- * 쪽 변경이 필요하고, 이 이슈의 범위·완료 판정 어디에도 없다. 별도 이슈로 남긴다.
+ * 목록의 opt-in mtime 메타데이터로 최근 수정순 정렬한다(#227 일부).
+ * 동률은 파일명순이다. 카드 액션·이름 정책은 여전히 별도 결정 사항이다.
  *
  * **카드 하나 = 프로젝트 하나(화면 아님).** 스키마 v0.2(#60/#61)에서 저장 단위가
  * "화면 1개"(VisualSpec)에서 "프로젝트 1개, 페이지 여러 장"(ProjectSpec)으로
@@ -60,36 +56,6 @@ const PREVIEW_HEIGHT = 140;
  * 에디터 안 레이어 트리에서 한다(#63). 이 목록도 그래서 페이지가 아니라
  * 프로젝트를 나열한다.
  */
-
-/** `specs/` 파일 하나를 카드에 쓸 수 있게 정규화한 것. */
-interface HomeProject {
-  fileName: string;
-  spec: ProjectSpec;
-}
-
-/** 파일 하나를 읽어 ProjectSpec으로 정규화한다. 못 읽거나 검증에 실패하면 null. */
-async function loadHomeProject(fileName: string): Promise<HomeProject | null> {
-  const text = await readWorkspaceTextFile(`${SPEC_DIR}/${fileName}`);
-  if (text === null) return null;
-
-  const result = parseSpecJson(text);
-  if (!result.ok) return null;
-
-  const spec = "screen" in result.spec ? migrateV01(result.spec) : result.spec;
-  return { fileName, spec };
-}
-
-/**
- * `specs/`의 프로젝트 전부를 읽는다. 작업공간이 없으면 null(호출자가 메모리 spec
- * 한 장으로 되돌아간다). 있으면 배열이다(비어 있을 수 있다 — 그때가 상태 2).
- */
-async function loadWorkspaceProjects(): Promise<HomeProject[] | null> {
-  const names = await listWorkspaceFiles(SPEC_DIR);
-  if (names === null) return null;
-
-  const loaded = await Promise.all(names.map(loadHomeProject));
-  return loaded.filter((project): project is HomeProject => project !== null);
-}
 
 type HomeState =
   | { kind: "loading" }
