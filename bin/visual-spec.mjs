@@ -17,7 +17,7 @@
 
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 
 /** 이 파일 자신의 위치 기준 — 대상 프로젝트(cwd)가 아니라 이 패키지 자신의 skills/를 읽는다. */
@@ -150,11 +150,26 @@ export function installSkills(cwd) {
     .map((entry) => entry.name)
     .sort();
 
+  // 쓰기 전에 관리 대상 전체를 검사한다. 링크 경계를 따라 복사·삭제하지 않는다.
+  const plans = skillNames.map((name) => {
+    const sources = listFilesRecursive(join(SKILLS_SRC_DIR, name));
+    const installed = listInstalledSkillFiles(cwd, name);
+    if (installed.unchecked.length) throw new Error(`스킬 경로를 확인해주세요: ${installed.unchecked.join(", ")}. 링크·파일/폴더 종류·읽기 권한을 확인하고 충돌 경로를 옮긴 뒤 다시 실행해주세요.`);
+    for (const source of sources) {
+      const path = join(".claude", "skills", relative(SKILLS_SRC_DIR, source));
+      const status = inspectSkillPath(cwd, path);
+      if (status !== "ok" && status !== "missing") throw new Error(`스킬 경로를 확인해주세요: ${path} (${status}). 링크·파일/폴더 종류·읽기 권한을 확인하고 충돌 경로를 옮긴 뒤 다시 실행해주세요.`);
+    }
+    const expected = new Set(sources.map((path) => relative(SKILLS_SRC_DIR, path)));
+    const obsolete = installed.files.filter((path) => !expected.has(path));
+    return { name, sources, obsolete };
+  });
+
   const installed = [];
   const updated = [];
   const unchanged = [];
 
-  for (const name of skillNames) {
+  for (const { name, sources, obsolete } of plans) {
     const srcDir = join(SKILLS_SRC_DIR, name);
     const destDir = join(targetRoot, name);
 
@@ -167,7 +182,7 @@ export function installSkills(cwd) {
     const destExisted = existsAsDir(destDir);
     let changed = false;
 
-    for (const srcFile of listFilesRecursive(srcDir)) {
+    for (const srcFile of sources) {
       const destFile = join(destDir, relative(srcDir, srcFile));
       const content = readFileSync(srcFile);
 
@@ -176,6 +191,17 @@ export function installSkills(cwd) {
       }
       mkdirSync(dirname(destFile), { recursive: true });
       writeFileSync(destFile, content);
+      changed = true;
+    }
+
+    // 명시적 갱신에 한해 현재 관리 스킬 안의 더 이상 배포하지 않는 파일을 정리한다.
+    // 다른 스킬 디렉터리는 소유 여부를 알 수 없으므로 건드리지 않는다.
+    for (const path of obsolete) {
+      const relativePath = join(".claude", "skills", path);
+      const status = inspectSkillPath(cwd, relativePath);
+      if (status === "missing") continue;
+      if (status !== "ok") throw new Error(`스킬 경로를 확인해주세요: ${relativePath} (${status})`);
+      unlinkSync(join(targetRoot, path));
       changed = true;
     }
 
@@ -206,6 +232,30 @@ function inspectSkillPath(root, relativePath, directory = false) {
   return "ok";
 }
 
+/** 현재 패키지가 관리하는 스킬 디렉터리만 양방향 비교한다. 반환 경로는 skills/ 기준. */
+function listInstalledSkillFiles(cwd, name) {
+  const files = [];
+  const unchecked = [];
+  function visit(path) {
+    const relativePath = join(".claude", "skills", path);
+    const status = inspectSkillPath(cwd, relativePath, true);
+    if (status === "missing") return;
+    if (status !== "ok") { unchecked.push(`${relativePath} (${status})`); return; }
+    try {
+      for (const entry of readdirSync(join(cwd, relativePath), { withFileTypes: true })) {
+        const child = join(path, entry.name);
+        if (entry.isDirectory()) visit(child);
+        else if (entry.isFile()) files.push(child);
+        else unchecked.push(`${join(".claude", "skills", child)} (${entry.isSymbolicLink() ? "symlink" : "unreadable"})`);
+      }
+    } catch {
+      unchecked.push(`${relativePath} (unreadable)`);
+    }
+  }
+  visit(name);
+  return { files, unchecked };
+}
+
 /**
  * 현재 패키지와 설치 사본의 실제 바이트를 비교한다(#229).
  * 차이를 구버전이라고 단정하지 않는다 — 사용자 편집도 차이를 만든다.
@@ -227,8 +277,14 @@ function warnAboutInstalledSkills(cwd) {
     const changed = [];
     const missing = [];
     const unchecked = [];
+    const obsolete = [];
     for (const name of names) {
-      for (const source of listFilesRecursive(join(SKILLS_SRC_DIR, name))) {
+      const sources = listFilesRecursive(join(SKILLS_SRC_DIR, name));
+      const expected = new Set(sources.map((path) => relative(SKILLS_SRC_DIR, path)));
+      const installed = listInstalledSkillFiles(cwd, name);
+      unchecked.push(...installed.unchecked);
+      obsolete.push(...installed.files.filter((path) => !expected.has(path)).map((path) => join(target, path)));
+      for (const source of sources) {
         const path = `${target}/${relative(SKILLS_SRC_DIR, source)}`;
         const status = inspectSkillPath(cwd, path);
         if (status === "missing") { missing.push(path); continue; }
@@ -240,11 +296,12 @@ function warnAboutInstalledSkills(cwd) {
         }
       }
     }
-    if (changed.length || missing.length) {
+    if (changed.length || missing.length || obsolete.length) {
       console.warn("스킬 사본이 현재 패키지와 다르거나 일부 파일이 없습니다. 버전은 추정하지 않습니다.");
       for (const path of changed) console.warn(`  내용 다름: ${path}`);
       for (const path of missing) console.warn(`  없음: ${path}`);
-      console.warn("갱신하려면 `visual-spec skills`를 명시적으로 실행하세요. 해당 명령은 로컬 수정도 덮어씁니다. GUI 시작은 사본을 변경하지 않습니다.");
+      for (const path of obsolete) console.warn(`  패키지에 없는 파일: ${path}`);
+      console.warn("갱신하려면 `visual-spec skills`를 명시적으로 실행하세요. 해당 명령은 로컬 수정도 덮어쓰고 관리 스킬 안의 패키지에 없는 파일을 제거합니다. GUI 시작은 사본을 변경하지 않습니다.");
     }
     if (unchecked.length) {
       console.warn("스킬 사본 일부를 확인할 수 없습니다. 링크·경로·읽기 권한을 확인한 뒤 갱신 여부를 판단해주세요:");

@@ -58,6 +58,62 @@ describe("GUI 시작 시 스킬 사본 경고 (#229)", () => {
     expect(readFileSync(path, "utf8")).toBe("current package contents");
     expect(run().stderr).toBe("");
   });
+  it("삭제·이름 변경된 중첩 파일도 경고하고 명시 갱신 후에는 경고가 사라진다", () => {
+    const oldSource = join(pkg, "skills/visual-spec/references/old.md");
+    write(oldSource, "old reference"); run(["skills"]);
+    rmSync(oldSource);
+    write(join(pkg, "skills/visual-spec/references/new.md"), "new reference");
+    write(join(project, ".claude/skills/unrelated/SKILL.md"), "user skill");
+    const oldTarget = join(project, ".claude/skills/visual-spec/references/old.md");
+    const warning = run();
+    expect(warning.status).toBe(0);
+    expect(warning.stderr).toContain("패키지에 없는 파일:");
+    expect(warning.stderr).toContain("references/old.md");
+    expect(readFileSync(oldTarget, "utf8")).toBe("old reference");
+    const update = run(["skills"]);
+    expect(update.status).toBe(0); expect(update.stdout).toContain("갱신함");
+    expect(existsSync(oldTarget)).toBe(false);
+    expect(readFileSync(join(project, ".claude/skills/visual-spec/references/new.md"), "utf8")).toBe("new reference");
+    expect(readFileSync(join(project, ".claude/skills/unrelated/SKILL.md"), "utf8")).toBe("user skill");
+    expect(run().stderr).toBe("");
+    expect(run(["skills"]).stdout).toContain("전부 최신 상태");
+  });
+  it("삭제만 있어도 갱신함으로 보고하고 관리 스킬 밖의 사본은 보존한다", () => {
+    write(join(pkg, "skills/visual-spec/obsolete.md"), "old"); run(["skills"]);
+    rmSync(join(pkg, "skills/visual-spec/obsolete.md"));
+    write(join(project, ".claude/skills/removed-or-user-skill/SKILL.md"), "unknown ownership");
+    expect(run().stderr).toContain("obsolete.md");
+    expect(run(["skills"]).stdout).toContain("갱신함");
+    expect(existsSync(join(project, ".claude/skills/visual-spec/obsolete.md"))).toBe(false);
+    expect(readFileSync(join(project, ".claude/skills/removed-or-user-skill/SKILL.md"), "utf8")).toBe("unknown ownership");
+    expect(run().stderr).toBe("");
+  });
+  it.each(["obsolete.md", "references"])("배포에서 빠진 %s 링크는 갱신 시에도 따라가거나 삭제하지 않는다", name => {
+    run(["skills"]);
+    const external = join(root, "external"); write(external, "external content");
+    const target = join(project, ".claude/skills/visual-spec", name); symlinkSync(external, target);
+    writeFileSync(join(project, relativeSkill), "local version");
+    expect(run().stderr).toContain("symlink");
+    const update = run(["skills"]);
+    expect(update.status).not.toBe(0); expect(update.stderr).toContain("symlink");
+    expect(readFileSync(external, "utf8")).toBe("external content");
+    expect(readFileSync(join(project, relativeSkill), "utf8")).toBe("local version");
+  });
+  it.each(["file-to-directory", "directory-to-file"])("%s 경로 종류 충돌은 자동 삭제 없이 명확히 거부한다", change => {
+    const source = join(pkg, "skills/visual-spec/shape");
+    if (change === "file-to-directory") write(source, "old file");
+    else write(join(source, "old.md"), "old nested file");
+    run(["skills"]);
+    rmSync(source, {recursive: true});
+    if (change === "file-to-directory") write(join(source, "new.md"), "new nested file");
+    else write(source, "new file");
+    const result = run(["skills"]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("파일/폴더 종류");
+    expect(result.stderr).toContain("충돌 경로를 옮긴 뒤");
+    const retained = join(project, ".claude/skills/visual-spec/shape", change === "file-to-directory" ? "" : "old.md");
+    expect(readFileSync(retained, "utf8")).toBe(change === "file-to-directory" ? "old file" : "old nested file");
+  });
   it("부분 설치의 파일 누락과 패키지에 추가된 스킬을 감지한다", () => {
     run(["skills"]);
     rmSync(join(project, relativeSkill));
