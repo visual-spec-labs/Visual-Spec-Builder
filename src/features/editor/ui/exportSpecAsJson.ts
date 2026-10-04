@@ -69,14 +69,15 @@ async function saveToWorkspace(filename: string, json: string): Promise<boolean>
 
   if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return false;
   const relativePath = `${SPEC_DIR}/${filename}`;
-  const written = await writeWorkspaceFile(relativePath, json, "application/json");
-
-  if (!written.ok) {
-    window.alert(`저장할 수 없습니다: ${written.error}`);
-    return false;
-  }
-  window.alert(`저장했습니다 — .visual-spec/${written.path}`);
-  return true;
+  return useSaveConflictStore.getState().save(filename, json, async () => {
+    const written = await writeWorkspaceFile(relativePath, json, "application/json");
+    if (!written.ok) {
+      window.alert(`저장할 수 없습니다: ${written.error}`);
+      return false;
+    }
+    window.alert(`저장했습니다 — .visual-spec/${written.path}`);
+    return true;
+  });
 }
 
 /**

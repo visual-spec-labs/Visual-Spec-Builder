@@ -109,6 +109,49 @@ describe("same-project autosave conflict preservation", () => {
     expect(parseStoredDocument(localStorage.getItem(key))).toEqual(oldDraft);
     expect(parseStoredDocument(localStorage.getItem(newKey))).toEqual(newDraft);
   });
+  it("manual Save publishes before its pending HTTP write, under the autosave lock", async () => {
+    stop = startSpecAutosave(); edit("mine before debounce");
+    let finish: ((ok: boolean) => void) | undefined;
+    const write = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
+    const saving = useSaveConflictStore.getState().save("same.json", JSON.stringify(useEditorStore.getState().spec), write);
+    expect(write).toHaveBeenCalledOnce();
+    expect(parseStoredDocument(localStorage.getItem(key))?.spec.name).toBe("mine before debounce");
+    finish?.(true); expect(await saving).toBe(true);
+  });
+  it("Save as rejects another project's cached edits before any file write", async () => {
+    stop = startSpecAutosave(); edit("mine");
+    const other = projectStorageKey("other.json", "");
+    const theirs = remote("theirs", other);
+    const write = vi.fn(async () => true);
+    expect(await useSaveConflictStore.getState().save("other.json", JSON.stringify(useEditorStore.getState().spec), write)).toBe(false);
+    expect(write).not.toHaveBeenCalled();
+    expect(parseStoredDocument(localStorage.getItem(other))).toEqual(theirs);
+    expect(useDocumentStore.getState().fileName).toBe("same.json");
+    expect(useEditorStore.getState().spec.name).toBe("mine");
+  });
+  it("rename back consumes each notice and can resume editing without a redirect cycle", async () => {
+    stop = startSpecAutosave(); edit("mine");
+    publishProjectRename("same.json", { ...initial, name: "B" }, "B.json"); notify(`${key}:rename`);
+    expect(useSaveConflictStore.getState().loadLatest()).toBe(true);
+    expect(useSaveConflictStore.getState().check()).toBe(false);
+    edit("B edit"); await vi.advanceTimersByTimeAsync(500);
+    publishProjectRename("B.json", { ...initial, name: "A again" }, "same.json");
+    notify(`${projectStorageKey("B.json", "")}:rename`);
+    expect(useSaveConflictStore.getState().loadLatest()).toBe(true);
+    expect(useDocumentStore.getState().fileName).toBe("same.json");
+    expect(useEditorStore.getState().spec.name).toBe("A again");
+    expect(useSaveConflictStore.getState().check()).toBe(false);
+    edit("A resumed"); await vi.advanceTimersByTimeAsync(500);
+    expect(parseStoredDocument(localStorage.getItem(key))?.spec.name).toBe("A resumed");
+  });
+  it("opening a recreated old path consumes historical rename notices without redirecting", () => {
+    useDocumentStore.getState().setFileName("other.json"); stop = startSpecAutosave();
+    publishProjectRename("same.json", initial, "B.json");
+    edit("recreated A"); useDocumentStore.getState().setFileName("same.json");
+    expect(useSaveConflictStore.getState().check()).toBe(false);
+    expect(useDocumentStore.getState().fileName).toBe("same.json");
+    expect(useEditorStore.getState().spec.name).toBe("recreated A");
+  });
   it("unreadable/deleted latest never discards the draft or resumes", () => {
     stop = startSpecAutosave(); edit("mine"); localStorage.setItem(key, "broken"); notify();
     expect(useSaveConflictStore.getState().loadLatest()).toBe(false);
