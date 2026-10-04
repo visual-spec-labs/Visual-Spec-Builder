@@ -39,7 +39,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `addPage` | `() => void` | 빈 페이지를 끝에 추가하고 이동 | **트리**가 호출 |
 | `removePage` | `(id: PageId) => void` | 페이지 삭제(#131부터 되돌릴 수 있다) | **트리**가 호출 |
 | `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제 + history 초기화(New/Open) | **MenuBar**가 호출 |
-| `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import) | **MenuBar**가 호출 |
+| `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import·Insert) | **MenuBar**가 호출 |
 | `removeNode` | `(id: NodeId) => void` | 노드 삭제. 프레임이면 자손까지 연쇄 삭제, root는 지우지 않음 | **트리**가 호출 |
 | `moveNode` | `(id: NodeId, newParentId: NodeId, index: number) => void` | 노드를 newParentId의 children 중 index 위치로 옮김. root 이동 불가, 순환 방지 | **트리·캔버스**가 호출(드래그, #187) |
 | `undo` | `() => void` | 프로젝트의 마지막 편집을 한 단계 되돌림(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Z, #118) |

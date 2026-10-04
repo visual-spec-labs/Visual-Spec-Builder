@@ -73,6 +73,10 @@ node /path/to/Visual-Spec-Builder/bin/visual-spec.mjs
 | 코드 생성 | Claude Code 또는 Codex 실행 |
 | 출력 | 기능 폴더 Export |
 
+노드 직접 생성은 Frame/Text 도구, **Insert → Button / Input** 메뉴, File → Import 이미지로 제공한다(#226).
+Insert는 선택한 프레임 안에, 비프레임 선택이면 가장 가까운 부모 프레임에, 선택이 없으면 root에 추가한다.
+생성한 노드를 선택하며 Undo/Redo 한 단계로 처리한다.
+
 대표 화면은 **관리자 대시보드**다.
 
 ## MVP 제외 범위
