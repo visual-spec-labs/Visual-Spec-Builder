@@ -42,6 +42,21 @@ export type Opacity = number;
  * 레이어 블러 반경(px). 자기 자신과 자식이 함께 흐려진다(CSS filter: blur). 뒤 배경을 흐리는 backdrop-filter 는 다른 기능이라 여기 포함하지 않는다.
  */
 export type Blur = number;
+/**
+ * 대상 nodes[id].type에 해당하는 override만 허용한다(validator 의미 검증).
+ */
+export type NodeOverride = FrameOverride | TextOverride | ImageOverride | ButtonOverride | InputOverride;
+/**
+ * 반응형 반경 부분값. 객체는 객체에서만 상속한다. 숫자에서 객체로 바꿀 때는 네 모서리가 필요하다.
+ */
+export type PartialRadius =
+  | number
+  | {
+      topLeft?: number;
+      topRight?: number;
+      bottomRight?: number;
+      bottomLeft?: number;
+    };
 
 /**
  * Visual Spec Schema v0.3 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 0.1 문서는 앱이 열 때 0.3으로 변환한다(schema/migrate.ts).
@@ -63,6 +78,7 @@ export interface ScreenSpec {
   nodes: {
     [k: string]: Node;
   };
+  responsive?: Responsive;
 }
 export interface FrameNode {
   type: "frame";
@@ -224,6 +240,118 @@ export interface InputNode {
   color: Color;
   background?: Background;
   border?: Border;
+}
+/**
+ * 생략하면 기존 단일 레이아웃이다. 기본 nodes 위에 minWidthPx 오름차순으로 희소 override를 누적한다. GUI·코드 생성 지원과는 별도 계약이다.
+ */
+export interface Responsive {
+  breakpoints: {
+    [k: string]: Breakpoint;
+  };
+  overrides: {
+    [k: string]: {
+      [k: string]: NodeOverride;
+    };
+  };
+}
+/**
+ * 양의 CSS px 경계. 같은 페이지의 다른 breakpoint와 폭이 달라야 한다.
+ */
+export interface Breakpoint {
+  minWidthPx: number;
+}
+export interface FrameOverride {
+  visible?: boolean;
+  box?: PartialBox;
+  layout?: PartialLayout;
+  background?: Background;
+  border?: PartialBorder;
+  opacity?: Opacity;
+  blur?: Blur;
+}
+/**
+ * 반응형 Box 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Box여야 한다.
+ */
+export interface PartialBox {
+  width?: Size;
+  height?: Size;
+}
+/**
+ * 반응형 Layout 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Layout여야 한다.
+ */
+export interface PartialLayout {
+  direction?: "row" | "column" | "grid";
+  gap?: number;
+  padding?: PartialPadding;
+  mainAxis?: "start" | "center" | "end" | "space-between";
+  crossAxis?: "start" | "center" | "end" | "stretch";
+  /**
+   * direction이 "grid"일 때만 의미가 있는 열 개수. 없으면 1열로 본다. row/column에 이 필드를 강제하면 기존 예제·테스트가 전부 깨지는데, grid에만 뜻이 있는 값을 매번 채우게 하는 것도 부자연스럽다. 선택 필드 추가 조건은 06-schema-freeze.md '변경 규칙' 참고.
+   */
+  columns?: number;
+}
+/**
+ * 반응형 Padding 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Padding여야 한다.
+ */
+export interface PartialPadding {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+}
+/**
+ * 반응형 Border 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Border여야 한다.
+ */
+export interface PartialBorder {
+  width?: number;
+  color?: Color;
+  radius?: PartialRadius;
+  align?: StrokeAlign;
+}
+export interface TextOverride {
+  visible?: boolean;
+  box?: PartialBox;
+  typography?: PartialTypography;
+  color?: Color;
+  opacity?: Opacity;
+  blur?: Blur;
+}
+/**
+ * 반응형 Typography 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Typography여야 한다.
+ */
+export interface PartialTypography {
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  lineHeight?: number;
+  letterSpacing?: number;
+  textAlign?: "left" | "center" | "right";
+}
+export interface ImageOverride {
+  visible?: boolean;
+  box?: PartialBox;
+  /**
+   * MVP는 object-fit 방식만.
+   */
+  fit?: "cover" | "contain" | "fill";
+  opacity?: Opacity;
+  blur?: Blur;
+}
+export interface ButtonOverride {
+  visible?: boolean;
+  box?: PartialBox;
+  typography?: PartialTypography;
+  color?: Color;
+  background?: Background;
+  border?: PartialBorder;
+}
+export interface InputOverride {
+  visible?: boolean;
+  box?: PartialBox;
+  typography?: PartialTypography;
+  color?: Color;
+  background?: Background;
+  border?: PartialBorder;
 }
 
 export type PageId = string;

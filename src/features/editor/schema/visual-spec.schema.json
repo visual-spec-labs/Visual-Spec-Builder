@@ -32,7 +32,8 @@
           "minProperties": 1,
           "propertyNames": { "pattern": "^[A-Za-z0-9_-]+$" },
           "additionalProperties": { "$ref": "#/$defs/Node" }
-        }
+        },
+        "responsive": {"$ref": "#/$defs/Responsive", "description": "생략하면 기존 단일 레이아웃이다. 기본 nodes 위에 minWidthPx 오름차순으로 희소 override를 누적한다. GUI·코드 생성 지원과는 별도 계약이다."}
       }
     },
     "ProjectSpec": {
@@ -374,6 +375,374 @@
         "letterSpacing": { "type": "number" },
         "textAlign": { "type": "string", "enum": ["left", "center", "right"] }
       }
+    },
+    "PartialBox": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "$ref": "#/$defs/Size"
+        },
+        "height": {
+          "$ref": "#/$defs/Size"
+        }
+      },
+      "description": "반응형 Box 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Box여야 한다."
+    },
+    "PartialPadding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "top": {
+          "type": "number",
+          "minimum": 0
+        },
+        "right": {
+          "type": "number",
+          "minimum": 0
+        },
+        "bottom": {
+          "type": "number",
+          "minimum": 0
+        },
+        "left": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "description": "반응형 Padding 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Padding여야 한다."
+    },
+    "PartialLayout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "type": "string",
+          "enum": [
+            "row",
+            "column",
+            "grid"
+          ]
+        },
+        "gap": {
+          "type": "number",
+          "minimum": 0
+        },
+        "padding": {
+          "$ref": "#/$defs/PartialPadding"
+        },
+        "mainAxis": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "space-between"
+          ]
+        },
+        "crossAxis": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "direction이 \"grid\"일 때만 의미가 있는 열 개수. 없으면 1열로 본다. row/column에 이 필드를 강제하면 기존 예제·테스트가 전부 깨지는데, grid에만 뜻이 있는 값을 매번 채우게 하는 것도 부자연스럽다. 선택 필드 추가 조건은 06-schema-freeze.md '변경 규칙' 참고."
+        }
+      },
+      "description": "반응형 Layout 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Layout여야 한다."
+    },
+    "PartialBorder": {
+      "type": "object",
+      "description": "반응형 Border 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Border여야 한다.",
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "type": "number",
+          "minimum": 0
+        },
+        "color": {
+          "$ref": "#/$defs/Color"
+        },
+        "radius": {
+          "$ref": "#/$defs/PartialRadius"
+        },
+        "align": {
+          "$ref": "#/$defs/StrokeAlign"
+        }
+      }
+    },
+    "PartialTypography": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fontFamily": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fontSize": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "fontWeight": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 900,
+          "multipleOf": 100
+        },
+        "lineHeight": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "letterSpacing": {
+          "type": "number"
+        },
+        "textAlign": {
+          "type": "string",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        }
+      },
+      "description": "반응형 Typography 부분값. 생략한 칸은 상속하며 합성 결과는 완전한 Typography여야 한다."
+    },
+    "PartialRadius": {
+      "description": "반응형 반경 부분값. 객체는 객체에서만 상속한다. 숫자에서 객체로 바꿀 때는 네 모서리가 필요하다.",
+      "oneOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "topLeft": {
+              "type": "number",
+              "minimum": 0
+            },
+            "topRight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "bottomRight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "bottomLeft": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "FrameOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "box": {
+          "$ref": "#/$defs/PartialBox"
+        },
+        "layout": {
+          "$ref": "#/$defs/PartialLayout"
+        },
+        "background": {
+          "$ref": "#/$defs/Background"
+        },
+        "border": {
+          "$ref": "#/$defs/PartialBorder"
+        },
+        "opacity": {
+          "$ref": "#/$defs/Opacity"
+        },
+        "blur": {
+          "$ref": "#/$defs/Blur"
+        }
+      }
+    },
+    "TextOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "box": {
+          "$ref": "#/$defs/PartialBox"
+        },
+        "typography": {
+          "$ref": "#/$defs/PartialTypography"
+        },
+        "color": {
+          "$ref": "#/$defs/Color"
+        },
+        "opacity": {
+          "$ref": "#/$defs/Opacity"
+        },
+        "blur": {
+          "$ref": "#/$defs/Blur"
+        }
+      }
+    },
+    "ImageOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "box": {
+          "$ref": "#/$defs/PartialBox"
+        },
+        "fit": {
+          "type": "string",
+          "description": "MVP는 object-fit 방식만.",
+          "enum": [
+            "cover",
+            "contain",
+            "fill"
+          ]
+        },
+        "opacity": {
+          "$ref": "#/$defs/Opacity"
+        },
+        "blur": {
+          "$ref": "#/$defs/Blur"
+        }
+      }
+    },
+    "ButtonOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "box": {
+          "$ref": "#/$defs/PartialBox"
+        },
+        "typography": {
+          "$ref": "#/$defs/PartialTypography"
+        },
+        "color": {
+          "$ref": "#/$defs/Color"
+        },
+        "background": {
+          "$ref": "#/$defs/Background"
+        },
+        "border": {
+          "$ref": "#/$defs/PartialBorder"
+        }
+      }
+    },
+    "InputOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "visible": {
+          "type": "boolean",
+          "default": true
+        },
+        "box": {
+          "$ref": "#/$defs/PartialBox"
+        },
+        "typography": {
+          "$ref": "#/$defs/PartialTypography"
+        },
+        "color": {
+          "$ref": "#/$defs/Color"
+        },
+        "background": {
+          "$ref": "#/$defs/Background"
+        },
+        "border": {
+          "$ref": "#/$defs/PartialBorder"
+        }
+      }
+    },
+    "NodeOverride": {
+      "description": "대상 nodes[id].type에 해당하는 override만 허용한다(validator 의미 검증).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FrameOverride"
+        },
+        {
+          "$ref": "#/$defs/TextOverride"
+        },
+        {
+          "$ref": "#/$defs/ImageOverride"
+        },
+        {
+          "$ref": "#/$defs/ButtonOverride"
+        },
+        {
+          "$ref": "#/$defs/InputOverride"
+        }
+      ]
+    },
+    "Breakpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minWidthPx"
+      ],
+      "properties": {
+        "minWidthPx": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "양의 CSS px 경계. 같은 페이지의 다른 breakpoint와 폭이 달라야 한다."
+    },
+    "Responsive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "breakpoints",
+        "overrides"
+      ],
+      "properties": {
+        "breakpoints": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/NodeId"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/Breakpoint"
+          }
+        },
+        "overrides": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/NodeId"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "$ref": "#/$defs/NodeId"
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/NodeOverride"
+            }
+          }
+        }
+      },
+      "description": "페이지별 breakpoint 및 노드별 희소 표현값. 빈 맵은 변경 없음. 객체는 재귀 병합, 배열은 전체 교체. 기본값은 기존 nodes이고 null 삭제 연산은 없다."
     }
   }
 }
