@@ -127,6 +127,7 @@ describe("Vite 스택 안에서의 등록 위치", () => {
         host: `localhost:${port}`,
         origin: "http://evil.example",
         "content-type": "application/json",
+        "x-visual-spec-expected-revision": "missing",
       },
       '{"evil":1}',
     );
@@ -155,6 +156,7 @@ describe("Vite 스택 안에서의 등록 위치", () => {
         host: `localhost:${port}`,
         origin: `http://localhost:${port}`,
         "content-type": "application/json",
+        "x-visual-spec-expected-revision": "missing",
       },
       '{"version":"0.2"}',
     );
