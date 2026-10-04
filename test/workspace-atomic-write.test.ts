@@ -44,7 +44,7 @@ vi.mock("node:fs", async (importOriginal) => {
   };
 });
 
-const { createWorkspaceMiddleware, ensureWorkspaceDirs } = await import(
+const { createWorkspaceMiddleware, ensureWorkspaceDirs, workspaceRevision } = await import(
   "@/features/workspace/workspaceServer"
 );
 
@@ -96,7 +96,7 @@ describe("기존 스펙 덮어쓰기는 원자적이다 (PR #145 리뷰)", () =>
     failure.atRename = true;
 
     const response = await fetch(`${baseUrl}/__vs/file/specs/home.json`, {
-      method: "PUT",
+      method: "PUT", headers: { "x-visual-spec-expected-revision": existsSync(specPath()) ? workspaceRevision(Buffer.from(original)) : "missing" },
       body: '{"name":"덮어쓰다 만 것"}',
     });
 
@@ -109,7 +109,7 @@ describe("기존 스펙 덮어쓰기는 원자적이다 (PR #145 리뷰)", () =>
     failure.atTempWrite = true;
 
     const response = await fetch(`${baseUrl}/__vs/file/specs/home.json`, {
-      method: "PUT",
+      method: "PUT", headers: { "x-visual-spec-expected-revision": existsSync(specPath()) ? workspaceRevision(Buffer.from(original)) : "missing" },
       body: '{"name":"덮어쓰다 만 것"}',
     });
 
@@ -121,7 +121,7 @@ describe("기존 스펙 덮어쓰기는 원자적이다 (PR #145 리뷰)", () =>
     writeFileSync(specPath(), original);
     failure.atRename = true;
 
-    await fetch(`${baseUrl}/__vs/file/specs/home.json`, { method: "PUT", body: "{}" });
+    await fetch(`${baseUrl}/__vs/file/specs/home.json`, { method: "PUT", headers: { "x-visual-spec-expected-revision": existsSync(specPath()) ? workspaceRevision(Buffer.from(original)) : "missing" }, body: "{}" });
 
     expect(tempLeftovers("specs")).toEqual([]);
   });
@@ -130,7 +130,7 @@ describe("기존 스펙 덮어쓰기는 원자적이다 (PR #145 리뷰)", () =>
     failure.atRename = true;
 
     const response = await fetch(`${baseUrl}/__vs/file/specs/new.json`, {
-      method: "PUT",
+      method: "PUT", headers: { "x-visual-spec-expected-revision": existsSync(specPath()) ? workspaceRevision(Buffer.from(original)) : "missing" },
       body: "{}",
     });
 
@@ -142,7 +142,7 @@ describe("기존 스펙 덮어쓰기는 원자적이다 (PR #145 리뷰)", () =>
     writeFileSync(specPath(), original);
 
     const response = await fetch(`${baseUrl}/__vs/file/specs/home.json`, {
-      method: "PUT",
+      method: "PUT", headers: { "x-visual-spec-expected-revision": existsSync(specPath()) ? workspaceRevision(Buffer.from(original)) : "missing" },
       body: '{"name":"새 내용"}',
     });
 
@@ -153,7 +153,7 @@ describe("기존 스펙 덮어쓰기는 원자적이다 (PR #145 리뷰)", () =>
 
   it("없던 파일도 그대로 만들어진다 — rename 경로가 새 파일을 막지 않는다", async () => {
     const response = await fetch(`${baseUrl}/__vs/file/specs/처음.json`, {
-      method: "PUT",
+      method: "PUT", headers: { "x-visual-spec-expected-revision": existsSync(specPath()) ? workspaceRevision(Buffer.from(original)) : "missing" },
       body: '{"first":true}',
     });
 
@@ -166,7 +166,7 @@ describe("기존 스펙 덮어쓰기는 원자적이다 (PR #145 리뷰)", () =>
   it("이미지 바이너리도 같은 경로로 온전히 저장된다", async () => {
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff]);
 
-    await fetch(`${baseUrl}/__vs/file/assets/hero.png`, { method: "PUT", body: png });
+    await fetch(`${baseUrl}/__vs/file/assets/hero.png`, { method: "PUT", headers: { "x-visual-spec-expected-revision": existsSync(specPath()) ? workspaceRevision(Buffer.from(original)) : "missing" }, body: png });
 
     const saved = new Uint8Array(readFileSync(join(workspaceRoot, "assets", "hero.png")));
     expect(Array.from(saved)).toEqual(Array.from(png));

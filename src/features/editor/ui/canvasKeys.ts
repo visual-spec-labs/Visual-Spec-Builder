@@ -1,3 +1,4 @@
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { useEffect, type RefObject } from "react";
 
 import { useContextMenuStore } from "@/features/editor/store/contextMenuStore";
@@ -48,6 +49,7 @@ export function useCanvasKeys(
 ) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      if (useSaveConflictStore.getState().paused) return;
       const target = event.target as HTMLElement | null;
       const keyInput = {
         code: event.code,

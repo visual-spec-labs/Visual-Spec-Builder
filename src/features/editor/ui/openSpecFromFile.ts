@@ -5,7 +5,7 @@ import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { resolveSpecChoice } from "@/features/editor/ui/specChoice";
 import {
   listWorkspaceFiles,
-  readWorkspaceTextFile,
+  readWorkspaceSpecSnapshot,
 } from "@/features/editor/ui/workspaceClient";
 import { SPEC_DIR } from "@/features/workspace/protocol";
 
@@ -17,8 +17,8 @@ import { SPEC_DIR } from "@/features/workspace/protocol";
  * 스펙도 이름도 바꾸지 않는다: 열리지 않은 파일이 Save 대상이 되면 다음 Save가
  * **화면에 떠 있지도 않은 문서의 파일을 덮어쓴다.**
  */
-function loadSpecText(text: string, fileName: string): void {
-  if (useSaveConflictStore.getState().paused) return;
+function loadSpecText(text: string, fileName: string, diskRevision: string | null = null): void {
+  if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return;
   const result = parseSpecJson(text);
   if (!result.ok) {
     window.alert(
@@ -27,7 +27,7 @@ function loadSpecText(text: string, fileName: string): void {
     return;
   }
   useEditorStore.getState().loadSpec(result.spec);
-  useDocumentStore.getState().setFileName(fileName);
+  useDocumentStore.getState().setFileName(fileName, diskRevision);
 }
 
 /**
@@ -96,10 +96,10 @@ export async function openSpec(): Promise<void> {
     return;
   }
 
-  const text = await readWorkspaceTextFile(`${SPEC_DIR}/${chosen}`);
-  if (text === null) {
+  const snapshot = await readWorkspaceSpecSnapshot(`${SPEC_DIR}/${chosen}`);
+  if (snapshot === null) {
     window.alert(`${chosen}을(를) 읽지 못했습니다.`);
     return;
   }
-  loadSpecText(text, chosen);
+  loadSpecText(snapshot.text, chosen, snapshot.revision);
 }

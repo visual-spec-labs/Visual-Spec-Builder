@@ -45,10 +45,15 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
+import { withWorkspaceMutation } from "./workspaceMutation";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { basename, dirname, extname, join, resolve } from "node:path";
 
 import {
+  WORKSPACE_REVISION_HEADER,
+  WORKSPACE_EXPECTED_REVISION_HEADER,
+  WORKSPACE_MISSING_REVISION,
   WORKSPACE_ACCESSIBLE_DIRS,
   WORKSPACE_API_PREFIX,
   WORKSPACE_DIR_NAME,
@@ -327,7 +332,11 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
   });
 }
 
-function handleRead(res: ServerResponse, absolutePath: string): void {
+export function workspaceRevision(body: Buffer): string {
+  return createHash("sha256").update(body).digest("hex");
+}
+
+function handleRead(res: ServerResponse, absolutePath: string, isSpec: boolean): void {
   let stats;
   try {
     stats = statSync(absolutePath);
@@ -345,7 +354,15 @@ function handleRead(res: ServerResponse, absolutePath: string): void {
   res.setHeader("content-length", stats.size);
   // SVG는 같은 오리진의 문서로 열릴 수 있다 — 스크립트·외부 요청을 원천 차단한다.
   res.setHeader("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'");
-  createReadStream(absolutePath).pipe(res);
+  if (isSpec) {
+    // Hash and send the same snapshot; streaming a later file could mismatch its token.
+    try {
+      const body = readFileSync(absolutePath);
+      res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
+      res.setHeader("content-length", body.length);
+      res.end(body);
+    } catch { sendError(res, 404, "파일을 읽지 못했습니다."); }
+  } else createReadStream(absolutePath).pipe(res);
 }
 
 function handleWrite(
@@ -360,6 +377,7 @@ function handleWrite(
       sendError(res, 413, `본문이 너무 큽니다(최대 ${MAX_BODY_BYTES}바이트).`);
       return;
     }
+    void withWorkspaceMutation([absolutePath], () => {
     try {
       mkdirSync(dirname(absolutePath), { recursive: true });
       // 폴더를 만든 뒤 한 번 더 본다 — 방금 만든 경로 중간에 링크가 끼어 있었다면
@@ -368,12 +386,34 @@ function handleWrite(
         sendError(res, 403, "작업공간 밖으로 나가는 경로입니다.");
         return;
       }
+      if (relativePath.startsWith("specs/")) {
+        const expected = req.headers[WORKSPACE_EXPECTED_REVISION_HEADER];
+        if (typeof expected !== "string" || !/^(missing|[a-f0-9]{64})$/.test(expected)) {
+          sendError(res, 428, "파일을 다시 열어 저장 기준을 확인하세요. 현재 초안은 별도로 보존하세요.");
+          return;
+        }
+        // Case-only aliases must not create a second project on case-sensitive hosts.
+        const aliases = readdirSync(dirname(absolutePath)).filter((name) =>
+          name.toLowerCase() === basename(absolutePath).toLowerCase());
+        if (aliases.some((name) => name !== basename(absolutePath))) {
+          sendError(res, 409, "대소문자가 다른 같은 파일명이 이미 있습니다."); return;
+        }
+        let actual = WORKSPACE_MISSING_REVISION;
+        try { actual = workspaceRevision(readFileSync(absolutePath)); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+        if (expected !== actual) {
+          sendError(res, 409, "다른 화면에서 파일을 변경하거나 이동했습니다. 초안을 별도로 보존한 뒤 최신 파일을 다시 여세요.");
+          return;
+        }
+      }
       writeFileAtomic(absolutePath, body);
+      if (relativePath.startsWith("specs/")) res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
     } catch (error) {
       sendError(res, 500, error instanceof Error ? error.message : String(error));
       return;
     }
     sendJson(res, 200, { ok: true, path: relativePath, bytes: body.length });
+    }).catch((error: unknown) => sendError(res, 500, String(error)));
   });
 }
 
@@ -606,7 +646,7 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
       }
 
       if (method === "GET") {
-        handleRead(res, resolved.absolutePath);
+        handleRead(res, resolved.absolutePath, resolved.relativePath.startsWith("specs/"));
       } else {
         handleWrite(req, res, root, resolved.absolutePath, resolved.relativePath);
       }

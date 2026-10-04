@@ -56,7 +56,7 @@ function rawRequest(
   headers?: Record<string, string>,
 ): Promise<{ status: number; text: string }> {
   return new Promise((resolve, reject) => {
-    const req = request({ host: "127.0.0.1", port, method, path, headers }, (res) => {
+    const req = request({ host: "127.0.0.1", port, method, path, headers: { "x-visual-spec-expected-revision": "missing", ...headers } }, (res) => {
       let text = "";
       res.setEncoding("utf8");
       res.on("data", (chunk: string) => (text += chunk));
@@ -172,7 +172,7 @@ describe("PUT·GET /__vs/file — 실제로 읽고 쓴다", () => {
   it("PUT 한 스펙이 .visual-spec/specs/ 에 파일로 남는다", async () => {
     const response = await fetch(`${baseUrl}/__vs/file/specs/home.json`, {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-visual-spec-expected-revision": "missing" },
       body: '{"version":"0.2"}',
     });
 
@@ -186,6 +186,7 @@ describe("PUT·GET /__vs/file — 실제로 읽고 쓴다", () => {
   it("쓴 것을 그대로 다시 읽는다 — Save → Open 왕복", async () => {
     await fetch(`${baseUrl}/__vs/file/specs/round-trip.json`, {
       method: "PUT",
+      headers: { "x-visual-spec-expected-revision": "missing" },
       body: '{"name":"왕복"}',
     });
     const response = await fetch(`${baseUrl}/__vs/file/specs/round-trip.json`);
@@ -198,7 +199,7 @@ describe("PUT·GET /__vs/file — 실제로 읽고 쓴다", () => {
   it("이미지를 바이너리 그대로 주고받는다", async () => {
     // PNG 시그니처 — 텍스트로 변환되면 깨지는 바이트열이다.
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff]);
-    await fetch(`${baseUrl}/__vs/file/assets/hero.png`, { method: "PUT", body: png });
+    await fetch(`${baseUrl}/__vs/file/assets/hero.png`, { method: "PUT", headers: { "x-visual-spec-expected-revision": "missing" }, body: png });
 
     const response = await fetch(`${baseUrl}/__vs/file/assets/hero.png`);
     const received = new Uint8Array(await response.arrayBuffer());
@@ -210,6 +211,7 @@ describe("PUT·GET /__vs/file — 실제로 읽고 쓴다", () => {
   it("generated 아래 하위 폴더까지 만들면서 쓴다 — 코드 생성이 쓸 경로를 열어둔다", async () => {
     const response = await fetch(`${baseUrl}/__vs/file/generated/pages/Home.tsx`, {
       method: "PUT",
+      headers: { "x-visual-spec-expected-revision": "missing" },
       body: "export const Home = () => null;\n",
     });
 
@@ -376,6 +378,7 @@ describe("특수문자가 든 이미지 이름 — Import 저장부터 렌더까
   it("목록에도 그 이름 그대로 올라온다 — Open·중복 이름 판정이 이걸 쓴다", async () => {
     await fetch(`${baseUrl}${workspaceFileUrl("assets/hero#1.png")}`, {
       method: "PUT",
+      headers: { "x-visual-spec-expected-revision": "missing" },
       body: png,
     });
 
@@ -428,6 +431,7 @@ describe("runtime/ — 자연어 요청/응답 교환소(#155)", () => {
   it("GUI가 요청을 쓰고 에이전트가 쓴 응답을 다시 읽는다 — 한 바퀴", async () => {
     const written = await fetch(`${baseUrl}/__vs/file/runtime/nl-request.json`, {
       method: "PUT",
+      headers: { "x-visual-spec-expected-revision": "missing" },
       body: JSON.stringify({ protocol: 1, id: "req-1", instruction: "간격을 24로 해줘" }),
     });
 

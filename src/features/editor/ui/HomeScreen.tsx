@@ -94,7 +94,7 @@ export function HomeScreen() {
   // File ▸ Save가 이 파일에 그대로 쓴다(documentStore.ts, 이슈 #185).
   function handleOpenProject(project: HomeProject) {
     useEditorStore.getState().loadSpec(project.spec);
-    useDocumentStore.getState().setFileName(project.fileName);
+    useDocumentStore.getState().setFileName(project.fileName, project.diskRevision);
     openEditor();
   }
 

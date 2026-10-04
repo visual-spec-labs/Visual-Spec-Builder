@@ -1,22 +1,32 @@
+import { migrateV01 } from "@/features/editor/schema";
+import { readWorkspaceSpecSnapshot } from "./workspaceClient";
+import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import {
   serializeStoredDocument, parseStoredDocument, projectStorageKey, readRecovery, saveSpecToStorage,
-  writeRecovery, type StoredDocument,
+  writeRecovery, SPEC_STORAGE_KEY, type StoredDocument,
 } from "@/features/editor/store/specStorage";
 
 /** Browser lifecycle adapter; session recovery is written before any asynchronous save. */
 export function startSpecAutosave() {
   const current = (): StoredDocument => ({ spec: useEditorStore.getState().spec,
-    fileName: useDocumentStore.getState().fileName });
+    fileName: useDocumentStore.getState().fileName, diskRevision: useDocumentStore.getState().diskRevision });
   const recovery = readRecovery();
   let untitledId = crypto.randomUUID();
   let document = current();
-  let key = recovery?.key ?? projectStorageKey(document.fileName, untitledId);
-  let baseline = recovery ? recovery.baseline : read(key);
+  // A new browsing context may inherit sessionStorage from its opener. Only
+  // actual reload/history restoration reuses an untitled shared-storage key.
+  const navigation = performance.getEntriesByType?.("navigation")?.[0] as PerformanceNavigationTiming | undefined;
+  const reuseRecovery = document.fileName !== null || navigation?.type === "reload" || navigation?.type === "back_forward";
+  const namedRecovery = reuseRecovery ? recovery : undefined;
+  let key = document.fileName !== null ? projectStorageKey(document.fileName, untitledId)
+    : namedRecovery?.key ?? projectStorageKey(null, untitledId);
+  let baseline = namedRecovery ? namedRecovery.baseline : read(key);
   let conflicted = recovery?.conflicted ?? false;
-  let renameBaseline = recovery?.renameBaseline ?? null;
+  let diskConflict = recovery?.diskConflict ?? false;
+  let renameBaseline = namedRecovery?.renameBaseline ?? null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let generation = 0;
@@ -27,9 +37,10 @@ export function startSpecAutosave() {
     try { return localStorage.getItem(storageKey); } catch { return null; }
   }
   function preserve() {
-    return writeRecovery({ document, key, baseline, conflicted, renameBaseline });
+    return writeRecovery({ document, key, baseline, conflicted, renameBaseline, diskConflict });
   }
-  function pause() {
+  function pause(fromDisk = false) {
+    diskConflict ||= fromDisk;
     conflicted = true;
     clearTimeout(timer);
     preserve();
@@ -48,7 +59,7 @@ export function startSpecAutosave() {
       try {
         localStorage.setItem(key, raw);
         baseline = raw;
-        saveSpecToStorage(document.spec, document.fileName);
+        saveSpecToStorage(document.spec, document.fileName, document.diskRevision);
         preserve();
       } catch { /* The per-tab recovery and explicit download remain available. */ }
     };
@@ -85,12 +96,13 @@ export function startSpecAutosave() {
   }
   function beforeUnload(event: BeforeUnloadEvent) {
     // Async lock acquisition cannot be relied on during unload. Recovery is synchronous.
-    if (!preserve() || conflicted) {
+    if (!preserve() || conflicted || serializeStoredDocument(document) !== read(SPEC_STORAGE_KEY)) {
       event.preventDefault();
       event.returnValue = "";
     }
   }
-  function loadLatest(): boolean {
+  function loadLatest(): boolean | Promise<boolean> {
+    if (diskConflict) return loadLatestDisk();
     const notice = read(`${key}:rename`);
     const redirect = notice !== renameBaseline ? notice : null;
     let latest = parseStoredDocument(redirect ?? read(key));
@@ -100,6 +112,20 @@ export function startSpecAutosave() {
       if (cache !== announcedCache) latest = parseStoredDocument(cache) ?? latest;
     }
     if (!latest) return false;
+    return adoptLatest(latest);
+  }
+  async function loadLatestDisk(): Promise<boolean> {
+    const fileName = document.fileName;
+    const expectedGeneration = generation;
+    if (fileName === null) return false;
+    const snapshot = await readWorkspaceSpecSnapshot(`specs/${fileName}`);
+    if (!snapshot || stopped || generation !== expectedGeneration) return false;
+    const parsed = parseSpecJson(snapshot.text);
+    if (!parsed.ok) return false;
+    const spec = "screen" in parsed.spec ? migrateV01(parsed.spec) : parsed.spec;
+    return adoptLatest({ fileName, spec, diskRevision: snapshot.revision });
+  }
+  function adoptLatest(latest: StoredDocument): boolean {
     restoring = true;
     generation++;
     clearTimeout(timer);
@@ -109,9 +135,10 @@ export function startSpecAutosave() {
     baseline = read(key);
     renameBaseline = read(`${key}:rename`);
     conflicted = false;
+    diskConflict = false;
     useEditorStore.getState().loadSpec(latest.spec);
     if (latest.fileName === null) useDocumentStore.getState().clearFileName();
-    else useDocumentStore.getState().setFileName(latest.fileName);
+    else useDocumentStore.getState().setFileName(latest.fileName, latest.diskRevision ?? null);
     restoring = false;
     preserve();
     useSaveConflictStore.setState({ paused: false });
@@ -120,7 +147,8 @@ export function startSpecAutosave() {
   async function save(fileName: string, json: string, write: () => Promise<boolean>): Promise<boolean> {
     const expectedGeneration = generation;
     const target = projectStorageKey(fileName, untitledId);
-    const raw = serializeStoredDocument({ fileName, spec: JSON.parse(json) });
+    const raw = serializeStoredDocument({ fileName, spec: JSON.parse(json),
+      diskRevision: fileName === document.fileName ? document.diskRevision : null });
     if (typeof navigator === "undefined" || !navigator.locks) {
       window.alert("안전한 탭 간 파일 저장을 사용할 수 없습니다. File → Export로 별도 다운로드하세요.");
       return false;
@@ -138,8 +166,23 @@ export function startSpecAutosave() {
         localStorage.setItem(target, raw);
         if (target !== key) ownedTarget = { key: target, raw };
         if (target === key) { baseline = raw; preserve(); }
-        const written = await write();
-        if (!written || generation !== expectedGeneration) { ownedTarget = undefined; return false; }
+        let written = false;
+        try { written = await write(); }
+        finally {
+          // A failed Save as must not reserve a target that was never written.
+          // Compare before rollback so a later revision is never removed.
+          if (!written && target !== key && read(target) === raw) {
+            if (previous === null) localStorage.removeItem(target);
+            else localStorage.setItem(target, previous);
+          }
+          if (!written) ownedTarget = undefined;
+        }
+        // Source tabs can change while this target's HTTP write is pending.
+        // Keep the source draft paused; never adopt the target on that conflict.
+        if (!written || generation !== expectedGeneration || check()) {
+          ownedTarget = undefined;
+          return false;
+        }
         return true;
       });
     } catch {
@@ -163,7 +206,7 @@ export function startSpecAutosave() {
     clearTimeout(timer);
     if (!conflicted) timer = setTimeout(() => { void flush(); }, 500);
   };
-  useSaveConflictStore.setState({ paused: conflicted, loadLatest, check, save, captureDocument, adoptRename });
+  useSaveConflictStore.setState({ paused: conflicted, loadLatest, check, pause, save, captureDocument, adoptRename });
   if (!recovery && baseline !== null && baseline !== serializeStoredDocument(document)) pause();
   check();
   preserve();
@@ -183,7 +226,7 @@ export function startSpecAutosave() {
     }
   });
   const unsubscribeFile = useDocumentStore.subscribe((s, prev) => {
-    if (s.fileName !== prev.fileName) changed();
+    if (s.fileName !== prev.fileName || s.diskRevision !== prev.diskRevision) changed();
   });
   window.addEventListener("storage", storage);
   window.addEventListener("beforeunload", beforeUnload);

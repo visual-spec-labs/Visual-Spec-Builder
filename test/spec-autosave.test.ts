@@ -10,7 +10,8 @@ import { saveSpec, saveSpecAs, downloadConflictCopy } from "@/features/editor/ui
 function storage() {
   const map = new Map<string, string>();
   return { getItem: (key: string) => map.get(key) ?? null,
-    setItem: (key: string, value: string) => { map.set(key, value); } };
+    setItem: (key: string, value: string) => { map.set(key, value); },
+    removeItem: (key: string) => { map.delete(key); } };
 }
 let listeners: Map<string, (event: unknown) => void>;
 let stop: (() => void) | undefined;
@@ -33,7 +34,7 @@ beforeEach(() => {
   vi.stubGlobal("window", { addEventListener: (name: string, fn: (event: unknown) => void) => listeners.set(name, fn),
     removeEventListener: (name: string) => listeners.delete(name), alert: vi.fn(), prompt: vi.fn() });
   useEditorStore.getState().loadSpec(initial);
-  useDocumentStore.getState().setFileName("same.json");
+  useDocumentStore.getState().setFileName("same.json", "loaded-revision");
   useSaveConflictStore.setState({ paused: false, unavailable: false });
 });
 afterEach(() => { stop?.(); stop = undefined; vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -250,6 +251,84 @@ describe("same-project autosave conflict preservation", () => {
     expect(readRecovery()!.key).not.toBe(firstKey);
     expect(parseStoredDocument(localStorage.getItem(firstKey))?.spec.pages[editor.activePageId].name).toBe("first draft");
     expect(useSaveConflictStore.getState().check()).toBe(false);
+  });
+  it("failed or throwing Save as releases its cache reservation for an edited retry", async () => {
+    stop = startSpecAutosave();
+    const target = projectStorageKey("retry.json", "");
+    for (const write of [async () => false, async () => { throw new Error("network"); }]) {
+      expect(await useSaveConflictStore.getState().save("retry.json", JSON.stringify(useEditorStore.getState().spec), write)).toBe(false);
+      expect(localStorage.getItem(target)).toBeNull();
+      edit("retry changed");
+    }
+    expect(await useSaveConflictStore.getState().save("retry.json", JSON.stringify(useEditorStore.getState().spec), async () => true)).toBe(true);
+  });
+  it("Save as completion checks a delayed source conflict before adopting its target", async () => {
+    stop = startSpecAutosave();
+    let finish!: (ok: boolean) => void;
+    const saving = useSaveConflictStore.getState().save("copy.json", JSON.stringify(initial), () => new Promise<boolean>(resolve => { finish = resolve; }));
+    remote("new source revision"); // deliberately no storage event
+    finish(true);
+    expect(await saving).toBe(false);
+    expect(useSaveConflictStore.getState().paused).toBe(true);
+    expect(useDocumentStore.getState().fileName).toBe("same.json");
+    expect(useEditorStore.getState().spec).toEqual(initial);
+  });
+  it("copied untitled recovery gets an independent key without losing its contents", async () => {
+    stop = startSpecAutosave(); newSpec();
+    edit("recovered draft");
+    await vi.advanceTimersByTimeAsync(500);
+    const original = readRecovery()!;
+    stop(); stop = startSpecAutosave();
+    expect(readRecovery()!.key).not.toBe(original.key);
+    expect(useEditorStore.getState().spec.name).toBe("recovered draft");
+    localStorage.setItem(original.key, JSON.stringify({ ...original.document, spec: { ...original.document.spec, name: "opener edit" } }));
+    notify(original.key);
+    expect(useSaveConflictStore.getState().paused).toBe(false);
+  });
+  it("closing before debounce requests confirmation even when session recovery succeeded", () => {
+    stop = startSpecAutosave(); edit("pending close");
+    const event = { preventDefault: vi.fn(), returnValue: undefined };
+    listeners.get("beforeunload")?.(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(readRecovery()?.document.spec.name).toBe("pending close");
+  });
+  it("pending first Save still warns until the durable startup document is updated", async () => {
+    stop = startSpecAutosave();
+    let finish!: (ok: boolean) => void;
+    const saving = useSaveConflictStore.getState().save("same.json", JSON.stringify(initial), () => new Promise<boolean>(resolve => { finish = resolve; }));
+    const event = { preventDefault: vi.fn(), returnValue: undefined };
+    listeners.get("beforeunload")?.(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    finish(true); await saving;
+  });
+  it("genuine reload keeps the untitled recovery key", async () => {
+    stop = startSpecAutosave(); newSpec(); await vi.advanceTimersByTimeAsync(500);
+    const originalKey = readRecovery()!.key;
+    stop();
+    vi.stubGlobal("performance", { getEntriesByType: () => [{ type: "reload" }] });
+    stop = startSpecAutosave();
+    expect(readRecovery()!.key).toBe(originalKey);
+  });
+  it("disk CAS recovery fetches the disk revision instead of the stale same-origin cache", async () => {
+    stop = startSpecAutosave(); edit("my preserved draft");
+    useSaveConflictStore.getState().pause(true);
+    const latest = { ...initial, name: "other origin disk" };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(latest), {
+      headers: { "x-visual-spec-workspace": "1", "x-visual-spec-revision": "latest-revision" },
+    })));
+    expect(await useSaveConflictStore.getState().loadLatest()).toBe(true);
+    expect(useEditorStore.getState().spec.name).toBe("other origin disk");
+    expect(useDocumentStore.getState().diskRevision).toBe("latest-revision");
+    expect(useSaveConflictStore.getState().paused).toBe(false);
+  });
+  it("failed disk recovery preserves paused draft and reload recovery flag", async () => {
+    stop = startSpecAutosave(); edit("preserve disk conflict");
+    useSaveConflictStore.getState().pause(true);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("missing", { status: 404 })));
+    expect(await useSaveConflictStore.getState().loadLatest()).toBe(false);
+    expect(useEditorStore.getState().spec.name).toBe("preserve disk conflict");
+    expect(readRecovery()?.diskConflict).toBe(true);
+    expect(useSaveConflictStore.getState().paused).toBe(true);
   });
   it("unreadable/deleted latest never discards the draft or resumes", () => {
     stop = startSpecAutosave(); edit("mine"); localStorage.setItem(key, "broken"); notify();

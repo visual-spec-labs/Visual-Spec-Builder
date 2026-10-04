@@ -1,3 +1,4 @@
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import {
   ChevronDown,
   ChevronRight,
@@ -410,6 +411,7 @@ export function LayerTree() {
     }
 
     function handleKeyDown(event: KeyboardEvent) {
+      if (useSaveConflictStore.getState().paused) return;
       // 패널의 입력칸 등에서는 브라우저 기본 되돌리기(텍스트 편집 undo)를 그대로 둔다 —
       // 여기서 가로채면 "방금 타이핑한 글자"가 아니라 "직전 노드 편집"이 되돌아간다.
       if (isEditableTarget(event.target)) return;
