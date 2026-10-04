@@ -29,7 +29,7 @@
 - `event`
 - `token`
 - `responsive` — 표현 결정은 [12-responsive-ir-design.md](12-responsive-ir-design.md)에 기록했다. 현재 정본에는 여전히 없으며, 스키마 추가는 이 문서의 동결 변경 규칙을 따르는 별도 PR이다.
-- 배경 그라디언트의 **캔버스 렌더와 겹 목록 편집** — 표현 결정은 [13-background-fill-design.md](13-background-fill-design.md)에 기록했고, 그 1단계(스키마 전환)는 정본에 반영됐다(아래 "v0.3" 절 — `Background`가 `Fill[]`, `linear` 겹 포함). 캔버스는 아직 `linear` 겹을 그리지 않고 패널은 단색 한 겹만 편집한다. `radial`·`image` 채우기는 정본에 없다.
+- 배경 그라디언트의 **겹 목록 편집** — 표현 결정은 [13-background-fill-design.md](13-background-fill-design.md)에 기록했고, 그 1단계(스키마 전환)는 정본에 반영됐다(아래 "v0.3" 절 — `Background`가 `Fill[]`, `linear` 겹 포함). 2단계부터 캔버스와 홈 미리보기는 `linear` 겹과 여러 겹을 그리지만, 패널은 아직 단색 한 겹만 편집한다. `radial`·`image` 채우기는 정본에 없다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
 `instance`, `props`, `bindings`, `variants`, `states`, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
@@ -345,7 +345,7 @@ import {
 - **`IssueCode` 8종 → 9종.** stop의 `at` 오름차순(같은 값 허용)은 배열 원소끼리 비교하는 문법이 없어 두 검증기가 `gradient-stop-order`로 잡는다.
 - **`migrateV01`·`toVisualSpec`은 이름을 유지한다.** 공개 API라서다. 입출력은 0.3이다.
 - **구버전은 0.3 문서를 못 읽는다.** 갱신 전 빌드와, `npx visual-spec skills`로 복사해 둔 옛 스킬 사본이 해당한다 — 스킬은 다시 복사해야 한다.
-- **아직 안 되는 것.** 캔버스는 `linear` 겹을 그리지 않고, 패널은 "겹이 없거나 solid 한 겹"만 색 칸으로 편집한다(그 밖은 편집 불가 안내). 13의 후속 2·3단계다.
+- **아직 안 되는 것.** 패널은 "겹이 없거나 solid 한 겹"만 색 칸으로 편집한다(그 밖은 편집 불가 안내). 13의 후속 3단계다. 캔버스와 홈 미리보기는 2단계부터 `linear` 겹과 여러 겹을 그린다.
 
 ---
 
