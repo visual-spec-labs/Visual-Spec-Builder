@@ -2,7 +2,7 @@ import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import {
-  parseStoredDocument, projectStorageKey, readRecovery, saveSpecToStorage,
+  serializeStoredDocument, parseStoredDocument, projectStorageKey, readRecovery, saveSpecToStorage,
   writeRecovery, type StoredDocument,
 } from "@/features/editor/store/specStorage";
 
@@ -21,6 +21,7 @@ export function startSpecAutosave() {
   let stopped = false;
   let generation = 0;
   let restoring = false;
+  let ownedTarget: { key: string; raw: string } | undefined;
 
   function read(storageKey: string): string | null {
     try { return localStorage.getItem(storageKey); } catch { return null; }
@@ -43,7 +44,7 @@ export function startSpecAutosave() {
     const expectedGeneration = generation;
     const save = () => {
       if (stopped || expectedGeneration !== generation || check()) return;
-      const raw = JSON.stringify(document);
+      const raw = serializeStoredDocument(document);
       try {
         localStorage.setItem(key, raw);
         baseline = raw;
@@ -68,7 +69,9 @@ export function startSpecAutosave() {
       key = projectStorageKey(next.fileName, untitledId);
       baseline = read(key);
       renameBaseline = read(`${key}:rename`);
-      if (baseline !== null && baseline !== JSON.stringify(next)) pause();
+      if (baseline !== null && baseline !== serializeStoredDocument(next) &&
+        !(ownedTarget?.key === key && ownedTarget.raw === baseline)) pause();
+      ownedTarget = undefined;
     }
     document = next;
     preserve();
@@ -113,15 +116,16 @@ export function startSpecAutosave() {
     return true;
   }
   async function save(fileName: string, json: string, write: () => Promise<boolean>): Promise<boolean> {
+    const expectedGeneration = generation;
     const target = projectStorageKey(fileName, untitledId);
-    const raw = JSON.stringify({ fileName, spec: JSON.parse(json) });
+    const raw = serializeStoredDocument({ fileName, spec: JSON.parse(json) });
     if (typeof navigator === "undefined" || !navigator.locks) {
       window.alert("안전한 탭 간 파일 저장을 사용할 수 없습니다. File → Export로 별도 다운로드하세요.");
       return false;
     }
     try {
       return await navigator.locks.request(target, async () => {
-        if (stopped || check()) return false;
+        if (stopped || generation !== expectedGeneration || check()) return false;
         const previous = read(target);
         if (target !== key && previous !== null && previous !== raw) {
           window.alert("다른 탭의 자동저장이 있는 파일입니다. 다른 파일명을 선택하거나 해당 프로젝트를 열어 충돌을 먼저 해결하세요.");
@@ -130,20 +134,43 @@ export function startSpecAutosave() {
         // Publish before the network write, under the same lock as autosave. A
         // second tab pressing Save inside the debounce cannot pass a stale check.
         localStorage.setItem(target, raw);
+        if (target !== key) ownedTarget = { key: target, raw };
         if (target === key) { baseline = raw; preserve(); }
-        return await write();
+        const written = await write();
+        if (!written || generation !== expectedGeneration) { ownedTarget = undefined; return false; }
+        return true;
       });
     } catch {
       window.alert("안전하게 저장할 수 없습니다. 초안은 유지됩니다. File → Export로 별도 다운로드하세요.");
       return false;
     }
   }
-  useSaveConflictStore.setState({ paused: conflicted, loadLatest, check, save });
-  if (!recovery && baseline !== null && baseline !== JSON.stringify(document)) pause();
+  const captureDocument = () => {
+    const expectedGeneration = generation;
+    return () => !stopped && generation === expectedGeneration;
+  };
+  const adoptRename = (update: () => void) => {
+    restoring = true;
+    try { update(); } finally { restoring = false; }
+    generation++;
+    document = current();
+    key = projectStorageKey(document.fileName, untitledId);
+    baseline = read(key);
+    renameBaseline = read(`${key}:rename`);
+    preserve();
+    clearTimeout(timer);
+    if (!conflicted) timer = setTimeout(() => { void flush(); }, 500);
+  };
+  useSaveConflictStore.setState({ paused: conflicted, loadLatest, check, save, captureDocument, adoptRename });
+  if (!recovery && baseline !== null && baseline !== serializeStoredDocument(document)) pause();
   check();
   preserve();
   const unsubscribeSpec = useEditorStore.subscribe((s, prev) => {
-    if (s.spec !== prev.spec) changed();
+    if (s.spec !== prev.spec) {
+      // loadSpec/New/Open reset history; edits and undo/redo retain a history side.
+      if (!restoring && s.history.past.length === 0 && s.history.future.length === 0) generation++;
+      changed();
+    }
   });
   const unsubscribeFile = useDocumentStore.subscribe((s, prev) => {
     if (s.fileName !== prev.fileName) changed();

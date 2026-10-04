@@ -152,6 +152,76 @@ describe("same-project autosave conflict preservation", () => {
     expect(useDocumentStore.getState().fileName).toBe("same.json");
     expect(useEditorStore.getState().spec.name).toBe("recreated A");
   });
+  it("successful Save as adopts its own canonical cache without a false conflict", async () => {
+    stop = startSpecAutosave(); edit("mine");
+    vi.mocked(window.prompt).mockReturnValue("new-copy.json");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true, path: "specs/new-copy.json" }), {
+      headers: { "x-visual-spec-workspace": "1" },
+    })));
+    await saveSpecAs(useEditorStore.getState().spec);
+    expect(useDocumentStore.getState().fileName).toBe("new-copy.json");
+    expect(useSaveConflictStore.getState().paused).toBe(false);
+    expect(useSaveConflictStore.getState().check()).toBe(false);
+  });
+  it.each(["Save", "Save as"])("delayed %s completion never redirects a newly opened document", async (kind) => {
+    stop = startSpecAutosave(); edit("snapshot A");
+    vi.mocked(window.prompt).mockReturnValue("copy-C.json");
+    let complete: ((response: Response) => void) | undefined;
+    const fetch = vi.fn(async (_url: string, options: RequestInit) => {
+      if (options.method === "PUT") return await new Promise<Response>((resolve) => { complete = resolve; });
+      return new Response("{}", { headers: { "x-visual-spec-workspace": "1" } });
+    });
+    vi.stubGlobal("fetch", fetch);
+    const operation = kind === "Save" ? saveSpec(useEditorStore.getState().spec) : saveSpecAs(useEditorStore.getState().spec);
+    await vi.waitFor(() => expect(complete).toBeDefined());
+    edit("opened B"); useDocumentStore.getState().setFileName("B.json");
+    complete?.(new Response(JSON.stringify({ ok: true, path: "specs/copy-C.json" }), { headers: { "x-visual-spec-workspace": "1" } }));
+    await operation;
+    expect(useDocumentStore.getState().fileName).toBe("B.json");
+    expect(useEditorStore.getState().spec.name).toBe("opened B");
+  });
+  it("successful local rename back adopts stale target cache without replacing memory or pausing", async () => {
+    stop = startSpecAutosave(); edit("original draft"); await vi.advanceTimersByTimeAsync(500);
+    for (const [oldName, newName] of [["same.json", "B.json"], ["B.json", "same.json"]]) {
+      publishProjectRename(oldName, initial, newName);
+      useSaveConflictStore.getState().adoptRename(() => useDocumentStore.getState().setFileName(newName));
+      expect(useSaveConflictStore.getState().check()).toBe(false);
+      expect(useEditorStore.getState().spec.name).toBe("original draft");
+    }
+  });
+  it("edits in the same document while Save as is pending keep the new path and newer draft", async () => {
+    stop = startSpecAutosave();
+    vi.mocked(window.prompt).mockReturnValue("copy.json");
+    let complete: ((response: Response) => void) | undefined;
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, options: RequestInit) => {
+      if (options.method === "PUT") return await new Promise<Response>((resolve) => { complete = resolve; });
+      return new Response("{}", { headers: { "x-visual-spec-workspace": "1" } });
+    }));
+    const operation = saveSpecAs(useEditorStore.getState().spec);
+    await vi.waitFor(() => expect(complete).toBeDefined());
+    const editor = useEditorStore.getState();
+    editor.setPageField(editor.activePageId, "name", "edit while saving");
+    complete?.(new Response(JSON.stringify({ ok: true }), { headers: { "x-visual-spec-workspace": "1" } }));
+    await operation;
+    expect(useDocumentStore.getState().fileName).toBe("copy.json");
+    expect(useEditorStore.getState().spec.pages[editor.activePageId].name).toBe("edit while saving");
+    expect(useSaveConflictStore.getState().check()).toBe(false);
+  });
+  it("a queued Save is cancelled if another document opens before its lock is acquired", async () => {
+    stop = startSpecAutosave();
+    let run: (() => Promise<boolean>) | undefined;
+    vi.stubGlobal("navigator", { locks: { request: (_key: string, fn: () => Promise<boolean>) => new Promise<boolean>((resolve) => {
+      run = async () => { const result = await fn(); resolve(result); return result; };
+    }) } });
+    const fetch = vi.fn(async () => new Response("{}", { headers: { "x-visual-spec-workspace": "1" } }));
+    vi.stubGlobal("fetch", fetch);
+    const operation = saveSpec(useEditorStore.getState().spec);
+    await vi.waitFor(() => expect(run).toBeDefined());
+    edit("B"); useDocumentStore.getState().setFileName("B.json");
+    await run?.(); await operation;
+    expect(fetch.mock.calls.some((call: unknown[]) => (call[1] as RequestInit | undefined)?.method === "PUT")).toBe(false);
+    expect(useDocumentStore.getState().fileName).toBe("B.json");
+  });
   it("unreadable/deleted latest never discards the draft or resumes", () => {
     stop = startSpecAutosave(); edit("mine"); localStorage.setItem(key, "broken"); notify();
     expect(useSaveConflictStore.getState().loadLatest()).toBe(false);
