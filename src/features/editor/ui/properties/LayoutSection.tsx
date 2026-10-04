@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import type { FrameNode } from "@/features/editor/schema";
+import { getByPath } from "@/features/editor/store/path";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 
 import {
@@ -118,6 +119,7 @@ export function LayoutSection() {
       ? undefined
       : state.spec.pages[state.activePageId].nodes[selectedId],
   );
+  const nodes = useEditorStore((state) => state.spec.pages[state.activePageId].nodes);
   const setNodeFields = useEditorStore((state) => state.setNodeFields);
   const frameNode = node !== undefined && node.type === "frame" ? node : undefined;
   const children = frameNode?.children ?? [];
@@ -152,7 +154,7 @@ export function LayoutSection() {
         parentMainAxisSize,
         selectedId,
         children.map((child) => child.node),
-      ),
+      ).filter((patch) => !Object.is(getByPath(nodes[patch.id], patch.path), patch.value)),
     );
   }
 

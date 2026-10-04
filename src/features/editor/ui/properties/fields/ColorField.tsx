@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 import { composeColor, HEX6, parseColor } from "./colorValue";
 import { blurOnWheel, Field, inputClass, invalidClass } from "./Field";
 import { isUnchangedColor } from "./unchangedCommit";
@@ -12,12 +14,13 @@ interface ColorFieldProps {
 
 /** 색상 입력. 스와치 + hex(6자리) + 불투명도(%). rgba는 #RRGGBBAA로 저장. */
 export function ColorField({ label, value, onChange }: ColorFieldProps) {
+  const helpId = useId();
   const opacity = useDraftInput(value, {
     toDraft: (v) => String(parseColor(v).opacity),
     parse: (raw) => {
       const n = Number(raw);
       const ok = raw.trim() !== "" && Number.isFinite(n) && n >= 0 && n <= 100;
-      return ok ? n : undefined;
+      return ok && HEX6.test(hex.draft) ? n : undefined;
     },
     // 보이는 %가 아니라 조립한 색 문자열로 견준다(#209) — 반올림 때문에 같은 %라도
     // 스펙 값이 바뀔 수 있다(unchangedCommit.ts 참고).
@@ -47,7 +50,8 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
     return Number.isFinite(n) ? n : 100;
   }
 
-  const swatch = HEX6.test(hex.draft) ? hex.draft : "#000000";
+  const validHex = HEX6.test(hex.draft);
+  const swatch = validHex ? hex.draft : "#000000";
 
   return (
     <Field label={label}>
@@ -64,6 +68,8 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
           type="text"
           className={`${inputClass} ${hex.invalid ? invalidClass : ""} uppercase`}
           value={hex.draft}
+          aria-label={`${label} hex`}
+          aria-invalid={hex.invalid}
           spellCheck={false}
           onChange={(event) => hex.handleChange(event.target.value)}
           onBlur={hex.handleBlur}
@@ -75,7 +81,9 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
             min={0}
             max={100}
             aria-label={`${label} 불투명도`}
-            className={`${inputClass} pr-6`}
+            disabled={!validHex}
+            aria-describedby={!validHex ? helpId : undefined}
+            className={`${inputClass} pr-6 disabled:opacity-50`}
             value={opacity.draft}
             onChange={(event) => opacity.handleChange(event.target.value)}
             onBlur={opacity.handleBlur}
@@ -85,6 +93,11 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
           </span>
         </div>
       </div>
+      {!validHex && (
+        <p id={helpId} className="mt-1 text-xs text-content-muted">
+          불투명도를 변경하려면 먼저 6자리 hex 색상을 입력하거나 색상을 선택하세요.
+        </p>
+      )}
     </Field>
   );
 }
