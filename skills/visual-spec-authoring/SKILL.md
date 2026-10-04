@@ -55,7 +55,7 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ## 기존 예제가 지키는 관용구
 
-`examples/` 7개에서 반복되는 것들이다. 따르면 리뷰가 빨라진다.
+`examples/` 의 화면 문서 8개에서 반복되는 것들이다. 따르면 리뷰가 빨라진다.
 
 - 트리는 평평한 `nodes` 맵 + `children: [{ "node": "id" }]` 참조로만 만든다. 노드 중첩은 없다.
 - 루트 프레임은 `box: { "width": "fill", "height": "fill" }` 에 단색 한 겹 배경
@@ -118,7 +118,8 @@ v0.1 의 노드 타입은 **`frame`, `text`, `image`, `button`, `input` 다섯�
 
 그라디언트·여러 겹 배경을 요구받았을 때만 쓴다. 필드 정의는 정본 스키마의 `Fill`·`SolidFill`·
 `LinearFill`·`GradientStop` 이다. 캔버스와 코드 생성([../visual-spec-to-react/SKILL.md](../visual-spec-to-react/SKILL.md))이
-아래 의미 그대로 그린다.
+아래 의미 그대로 그린다. 실물은 `examples/gradient-hero.json` 이다 — 아래 관용구 셋(히어로
+배경 + 오버레이, 버튼, 단색 위 오버레이)과 딱 끊기는 stop(진행 막대)을 한 화면에 담았다.
 
 ```json
 { "type": "linear", "angle": 180, "stops": [

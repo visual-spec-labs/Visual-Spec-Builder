@@ -29,7 +29,7 @@
 - `event`
 - `token`
 - `responsive` — 표현 결정은 [12-responsive-ir-design.md](12-responsive-ir-design.md)에 기록했다. 현재 정본에는 여전히 없으며, 스키마 추가는 이 문서의 동결 변경 규칙을 따르는 별도 PR이다.
-- 배경 그라디언트의 **겹 목록 편집** — 표현 결정은 [13-background-fill-design.md](13-background-fill-design.md)에 기록했고, 그 1단계(스키마 전환)는 정본에 반영됐다(아래 "v0.3" 절 — `Background`가 `Fill[]`, `linear` 겹 포함). 2단계부터 캔버스와 홈 미리보기는 `linear` 겹과 여러 겹을 그리지만, 패널은 아직 단색 한 겹만 편집한다. `radial`·`image` 채우기는 정본에 없다.
+- 배경의 `radial`·`image` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
 `instance`, `props`, `bindings`, `variants`, `states`, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
@@ -122,7 +122,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 | 테두리 정렬 | `border.align`(선택, `inside`\|`center`\|`outside`. 생략 시 `inside`) |
 | 모서리 반경 | `border.radius` — `number` 또는 `{topLeft,topRight,bottomRight,bottomLeft}` |
 
-검증된 예제는 일곱이다(프로젝트 예제 `two-page-project.json`은 아래 v0.2 절). #127에서 여덟 모두 `migrateToV03`로 0.3이 됐다 — 손으로 고치지 않았다.
+검증된 예제는 여덟이다(프로젝트 예제 `two-page-project.json`은 아래 v0.2 절). #127 1단계에서 그때 있던 여덟(화면 일곱 + 프로젝트 하나) 모두 `migrateToV03`로 0.3이 됐다 — 손으로 고치지 않았다. `gradient-hero.json`은 #127 5단계에서 처음부터 0.3으로 썼다.
 
 | 파일 | 확인하는 것 |
 |---|---|
@@ -133,6 +133,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 | `examples/image-hero.json` | `image` 노드 — `fill` 너비 + 고정 높이(px), `fit: "cover"` |
 | `examples/form-grid.json` | `button`/`input` 노드 + `layout.direction: "grid"`(`columns: 2`) 레이블-입력 쌍 배치 |
 | `examples/card-effects.json` | `shadow` · `border.align: "outside"` · 모서리별 `radius` · `opacity`/`blur` 카드 3장 |
+| `examples/gradient-hero.json` | `linear` 배경 — 여러 겹(반투명 오버레이 + linear, 반투명 오버레이 + 맨 아래 solid), 버튼 linear, 딱 끊기는 stop(같은 `at` 두 개), 각도 180·90·112.5 |
 
 `dashboard-cards.json`은 스키마가 한 화면에만 맞춰진 구조가 아님을 확인하기 위해 만들었다.
 
@@ -345,7 +346,7 @@ import {
 - **`IssueCode` 8종 → 9종.** stop의 `at` 오름차순(같은 값 허용)은 배열 원소끼리 비교하는 문법이 없어 두 검증기가 `gradient-stop-order`로 잡는다.
 - **`migrateV01`·`toVisualSpec`은 이름을 유지한다.** 공개 API라서다. 입출력은 0.3이다.
 - **구버전은 0.3 문서를 못 읽는다.** 갱신 전 빌드와, `npx visual-spec skills`로 복사해 둔 옛 스킬 사본이 해당한다 — 스킬은 다시 복사해야 한다.
-- **아직 안 되는 것.** 패널은 "겹이 없거나 solid 한 겹"만 색 칸으로 편집한다(그 밖은 편집 불가 안내). 13의 후속 3단계다. 캔버스와 홈 미리보기는 2단계부터 `linear` 겹과 여러 겹을 그린다.
+- **그리기·편집·코드 생성.** 캔버스와 홈 미리보기는 13의 후속 2단계부터 `linear` 겹과 여러 겹을 그린다. 패널은 3단계부터 겹을 추가·삭제·위/아래 이동·종류 전환하고 linear의 각도·stop을 편집한다. 스킬은 4단계부터 그라디언트 작성·NL 편집·코드 생성을 가르친다. 실물은 `examples/gradient-hero.json`(5단계)이다.
 
 ---
 

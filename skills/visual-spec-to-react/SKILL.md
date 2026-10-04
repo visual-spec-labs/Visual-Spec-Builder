@@ -489,6 +489,24 @@ grid 컨테이너 바로 아래라 자식들은 `flex-1`/`self-stretch`가 아�
 전체가 아니라 개별 leaf 노드라 "컴포넌트 단위로 분리 생성한다" 절의 대상이 아니다 — 파일
 하나로 끝난다.
 
+### 그라디언트 배경 예제
+
+`examples/gradient-hero.json`을 위 "배경 채우기" 규칙대로 옮기면 배경 클래스는 이렇게 나와야
+한다. 나머지 클래스(레이아웃·글자·테두리)는 위 예제들과 같은 규칙이라 줄였다.
+
+| 노드 | `background` | 배경 클래스 |
+|---|---|---|
+| `hero` | 반투명 오버레이 linear(180) + 대각 linear(112.5) | `bg-[image:linear-gradient(180deg,_#0F172A00_40%,_#0F172A99_100%),_linear-gradient(112.5deg,_#4F46E5_0%,_#9333EA_100%)] bg-origin-border` |
+| `heroCta` | linear(90) 한 겹 | `bg-[image:linear-gradient(90deg,_#F97316_0%,_#EC4899_100%)] bg-origin-border` |
+| `launchCard` | 반투명 오버레이 linear(180) + 맨 아래 solid | `bg-[#6366F1] bg-[image:linear-gradient(180deg,_#0F172A00_0%,_#0F172ACC_100%)] bg-origin-border` |
+| `launchProgress` | 딱 끊기는 stop(`at` 0.62 두 번) | `bg-[image:linear-gradient(90deg,_#FACC15_0%,_#FACC15_62%,_#FFFFFF33_62%,_#FFFFFF33_100%)] bg-origin-border` |
+| `root`·`content`·`noteCard` | solid 한 겹 | `bg-[#FFFFFF]`·`bg-[#F8FAFC]`·`bg-[#FFFFFF]` |
+
+`hero`는 맨 아래 겹이 linear라 `bg-[c]` 없이 두 겹이 `bg-[image:…]` 하나에 쉼표로 이어진다.
+`launchCard`는 맨 아래 solid만 `bg-[c]`로 빠진다. 소수 각도 `112.5`는 그대로 `112.5deg`이고,
+`at` 0.62는 `62%`다. 클래스 글자는 캔버스가 이 노드들에 그리는 `background-image` 문자열의
+공백을 `_`로 바꾼 것과 같다.
+
 ---
 
 코드 생성이 끝나면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)로 돌아가 다음 요청을 받는다.

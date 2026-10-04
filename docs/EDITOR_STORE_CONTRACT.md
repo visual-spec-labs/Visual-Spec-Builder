@@ -208,7 +208,7 @@ import type {
 |---|---|---|
 | Layout | 방향 / 간격 / 패딩 / 주축 정렬 / 교차축 정렬 | `layout.direction`, `layout.gap`, `layout.padding.*`, `layout.mainAxis`, `layout.crossAxis` |
 | Size | width / height | `box.width`, `box.height` |
-| Background | 배경색(겹이 없거나 solid 한 겹일 때만. 그 밖은 편집 불가 안내) | `background` — 배열 통째(`[{ type: "solid", color }]`) |
+| Background | 채우기 겹 목록 — 추가·삭제·위/아래 이동·종류(solid / linear) 전환, solid 색, linear 각도·stop(색·위치 %) | `background` — 배열 통째(`ui/properties/backgroundPatch.ts`가 완전한 배열을 만든다) |
 | Border | 두께 / 색 / 라운드 | `border.width`, `border.color`, `border.radius` |
 | 기타 | 표시 여부 | `visible` |
 
