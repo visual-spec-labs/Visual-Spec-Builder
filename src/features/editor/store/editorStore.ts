@@ -518,6 +518,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
   loadSpec: (spec) => {
+    useResponsiveViewStore.getState().reset();
     const project = "screen" in spec ? migrateV01(spec) : spec;
     set({
       spec: project,

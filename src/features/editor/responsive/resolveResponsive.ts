@@ -48,9 +48,9 @@ export function patchResponsiveNode(screen: ScreenSpec, breakpoint: string, node
   const current = Object.prototype.hasOwnProperty.call(responsive.overrides, breakpoint) ? responsive.overrides[breakpoint] : {};
   return { ...responsive, overrides: { ...responsive.overrides, [breakpoint]: { ...current, [nodeId]: mergeResponsiveValue(Object.prototype.hasOwnProperty.call(current, nodeId) ? current[nodeId] : {}, delta) as NodeOverride } } };
 }
-export function overridePaths(value: unknown, prefix = ""): string[] {
-  if (!record(value)) return [prefix];
-  return Object.entries(value).flatMap(([key, child]) => overridePaths(child, prefix ? `${prefix}.${key}` : key));
+export function overridePaths(value: unknown, prefix = "", inherited?: unknown): string[] {
+  if (!record(value) || (prefix !== "" && !record(inherited))) return [prefix];
+  return Object.entries(value).flatMap(([key, child]) => overridePaths(child, prefix ? `${prefix}.${key}` : key, record(inherited) ? inherited[key] : undefined));
 }
 export function removeResponsiveOverride(responsive: Responsive, breakpoint: string, nodeId: string, path?: string): Responsive {
   const overrides = structuredClone(responsive.overrides);
@@ -71,4 +71,19 @@ export function removeResponsiveOverride(responsive: Responsive, breakpoint: str
   }
   if (Object.keys(nodes).length === 0) delete overrides[breakpoint];
   return { ...responsive, overrides };
+}
+
+/** Freeze supported appearance fields, including values supplied implicitly by the renderer. */
+export function pinnedAppearance(node: Node): NodeOverride {
+  const allowed = new Set(["box", "layout", "background", "border", "typography", "color", "opacity", "blur", "visible", "fit"]);
+  const patch = Object.fromEntries(Object.entries(node).filter(([key]) => allowed.has(key))) as NodeOverride;
+  patch.visible = node.visible ?? true;
+  if (node.type === "frame" || node.type === "text" || node.type === "image") {
+    Object.assign(patch, { opacity: node.opacity ?? 1, blur: node.blur ?? 0 });
+  }
+  if (node.type === "frame" || node.type === "button" || node.type === "input") {
+    Object.assign(patch, { background: node.background ?? [], border: { width: 0, color: "#000000", radius: 0, ...node.border, align: node.border?.align ?? "inside" } });
+  }
+  if (node.type === "frame") Object.assign(patch, { layout: { ...node.layout, columns: node.layout.columns ?? 1 } });
+  return structuredClone(patch);
 }

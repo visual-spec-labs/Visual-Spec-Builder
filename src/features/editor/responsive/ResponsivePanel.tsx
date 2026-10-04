@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import type { NodeOverride, Responsive } from "@/features/editor/schema";
-import { emptyResponsive, overridePaths, removeResponsiveOverride, sortedBreakpoints } from "./resolveResponsive";
+import type { Responsive } from "@/features/editor/schema";
+import { emptyResponsive, pinnedAppearance, resolveResponsiveScreen, overridePaths, removeResponsiveOverride, sortedBreakpoints } from "./resolveResponsive";
 import { useResponsiveScreen } from "./useResponsiveScreen";
 import { useResponsiveViewStore } from "./responsiveViewStore";
 
@@ -18,7 +18,8 @@ export function ResponsivePanel() {
   const points = sortedBreakpoints(screen);
   const pointOverrides = breakpoint && Object.prototype.hasOwnProperty.call(responsive.overrides, breakpoint) ? responsive.overrides[breakpoint] : {};
   const own = selectedId && Object.prototype.hasOwnProperty.call(pointOverrides, selectedId) ? pointOverrides[selectedId] : undefined;
-  const paths = overridePaths(own ?? {}).filter(Boolean);
+  const inherited = breakpoint ? resolveResponsiveScreen({ ...screen, responsive: removeResponsiveOverride(responsive, breakpoint, selectedId ?? "") }, responsive.breakpoints[breakpoint].minWidthPx).nodes[selectedId ?? ""] : undefined;
+  const paths = overridePaths(own ?? {}, "", inherited).filter(Boolean);
   function save(next: Responsive) {
     const message = useEditorStore.getState().setResponsive(pageId, next);
     useResponsiveViewStore.getState().reportError(message);
@@ -42,8 +43,7 @@ export function ResponsivePanel() {
   function pin() {
     if (!selectedId || !breakpoint) return;
     const node = resolved.nodes[selectedId];
-    const allowed = new Set(["box", "layout", "background", "border", "typography", "color", "opacity", "blur", "visible", "fit"]);
-    const patch = Object.fromEntries(Object.entries(node).filter(([key]) => allowed.has(key))) as NodeOverride;
+    const patch = pinnedAppearance(node);
     save({ ...responsive, overrides: { ...responsive.overrides, [breakpoint]: { ...pointOverrides, [selectedId]: patch } } });
   }
   return <section className="flex flex-col gap-2 border-b border-line p-3" aria-label="반응형 편집">

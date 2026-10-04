@@ -141,3 +141,56 @@ describe("반응형 편집·미리보기 (#223)", () => {
     expect(Object.prototype).not.toHaveProperty("opacity");
   });
 });
+
+it("문서 교체는 재사용 page ID의 미리보기 폭과 오류를 비운다", () => {
+  const { pageId } = setup();
+  useResponsiveViewStore.getState().setWidth(pageId, 400);
+  useResponsiveViewStore.getState().reportError("old error");
+  useEditorStore.getState().loadSpec(structuredClone(example) as VisualSpec);
+  expect(useResponsiveViewStore.getState().widths).toEqual({});
+  expect(useResponsiveViewStore.getState().error).toBeNull();
+});
+
+it("scalar radius를 대체한 객체는 다른 override를 보존하며 한 번에 상속한다", async () => {
+  const { overridePaths } = await import("@/features/editor/responsive/resolveResponsive");
+  const { pageId, screen } = setup();
+  const root = screen.nodes.root as FrameNode;
+  root.border = { width: 1, color: "#000000", radius: 4 };
+  const radius = { topLeft: 1, topRight: 2, bottomLeft: 3, bottomRight: 4 };
+  const next = patchResponsiveNode(screen, "tablet", "root", "border.radius", radius);
+  const paths = overridePaths(next.overrides.tablet.root, "", root);
+  expect(paths).toContain("border.radius");
+  expect(paths).not.toContain("border.radius.topLeft");
+  const inherited = removeResponsiveOverride(next, "tablet", "root", "border.radius");
+  expect(useEditorStore.getState().setResponsive(pageId, inherited)).toBeNull();
+  expect((resolveResponsiveScreen({ ...screen, responsive: inherited }, 768).nodes.root as FrameNode).border?.radius).toBe(4);
+  expect(inherited.overrides.tablet.root).toMatchObject({ layout: { padding: { left: 32 } } });
+});
+
+it("표현 고정은 생략된 기본값도 고정하여 후속 기반 편집을 상속하지 않는다", async () => {
+  const { pinnedAppearance } = await import("@/features/editor/responsive/resolveResponsive");
+  const { screen } = setup();
+  const root = screen.nodes.root as FrameNode;
+  delete root.background; delete root.border; delete root.opacity; delete root.blur; delete root.visible;
+  const patch = pinnedAppearance(root);
+  expect(patch).toMatchObject({ visible: true, opacity: 1, blur: 0, background: [], border: { width: 0, align: "inside" } });
+  root.visible = false; root.opacity = 0.2; root.blur = 4; root.background = [{ type: "solid", color: "#FF0000" }];
+  const edited = { ...screen, responsive: { breakpoints: { tablet: { minWidthPx: 768 } }, overrides: { tablet: { root: patch } } } };
+  expect(validateVisualSpec({ version: "0.3", screen: edited }).valid).toBe(true);
+  expect(resolveResponsiveScreen(edited, 768).nodes.root).toMatchObject({ visible: true, opacity: 1, blur: 0, background: [] });
+});
+
+it.each(["row", "grid"] as const)("%s breakpoint의 드롭 판정은 기반 column과 다른 보이는 형제 위치를 따른다", async (direction) => {
+  const { resolveCanvasDrop } = await import("@/features/editor/ui/canvasDrop");
+  const { screen } = setup();
+  const root = screen.nodes.root as FrameNode;
+  root.layout.direction = "column";
+  const [a, b, c] = root.children.map((child) => child.node);
+  root.children = [a, b, c].map((node) => ({ node }));
+  for (const id of [a, b, c]) (screen.nodes[id] as FrameNode).children = [];
+  screen.responsive = { breakpoints: { tablet: { minWidthPx: 768 } }, overrides: { tablet: { root: { layout: { direction, columns: 3 } } } } };
+  const rects = { root: { left: 0, top: 0, width: 500, height: 200 }, [a]: { left: 10, top: 10, width: 100, height: 100 }, [b]: { left: 120, top: 10, width: 100, height: 100 }, [c]: { left: 230, top: 10, width: 100, height: 100 } };
+  const input = { rootId: "root", dragId: a, rects, point: { x: 340, y: 20 } };
+  expect(resolveCanvasDrop({ ...input, nodes: screen.nodes })?.index).toBe(0);
+  expect(resolveCanvasDrop({ ...input, nodes: resolveResponsiveScreen(screen, 768).nodes })?.index).toBe(2);
+});
