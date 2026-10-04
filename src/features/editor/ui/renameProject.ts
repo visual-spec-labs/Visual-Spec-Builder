@@ -6,7 +6,7 @@ import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { projectFileName } from "@/features/workspace/projectName";
 import { WORKSPACE_MARKER_HEADER, WORKSPACE_RENAME_ROUTE, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
-import { readWorkspaceTextFile, type WriteResult } from "./workspaceClient";
+import { readWorkspaceSpecSnapshot, type WriteResult } from "./workspaceClient";
 
 /** Rename disk metadata first. A rejected/uncertain request never changes the in-memory draft. */
 export async function renameProject(fileName: string, name: string): Promise<WriteResult> {
@@ -30,8 +30,13 @@ async function renameLocked(fileName: string, name: string, nextFileName: string
     (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check())) {
     return { ok: false, error: "다른 탭과의 저장 충돌을 먼저 해결하세요. 원본과 내 작업은 보존했습니다." };
   }
-  const expectedText = await readWorkspaceTextFile(`specs/${fileName}`);
-  if (expectedText === null) return { ok: false, error: "원본 파일을 읽을 수 없습니다. 목록을 새로 불러오세요." };
+  const snapshot = await readWorkspaceSpecSnapshot(`specs/${fileName}`);
+  if (snapshot === null) return { ok: false, error: "원본 파일을 읽을 수 없습니다. 목록을 새로 불러오세요." };
+  const currentDocument = useDocumentStore.getState();
+  if (currentDocument.fileName === fileName && currentDocument.diskRevision !== snapshot.revision) {
+    return { ok: false, error: "현재 초안의 원본 파일이 변경되었거나 저장 버전을 확인할 수 없습니다. 초안을 별도로 보존하고 파일을 다시 여세요." };
+  }
+  const expectedText = snapshot.text;
   const parsed = parseSpecJson(expectedText);
   if (!parsed.ok) return { ok: false, error: "유효한 프로젝트 파일이 아닙니다." };
   const renamedDiskSpec = "screen" in parsed.spec

@@ -5,13 +5,13 @@ import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { renameProject } from "@/features/editor/ui/renameProject";
-import { readWorkspaceTextFile } from "@/features/editor/ui/workspaceClient";
+import { readWorkspaceSpecSnapshot } from "@/features/editor/ui/workspaceClient";
 import { WORKSPACE_MARKER_HEADER, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
 
 vi.mock("@/features/editor/store/specStorage", async (original) => ({
   ...await original<typeof import("@/features/editor/store/specStorage")>(), publishProjectRename: vi.fn(), prepareProjectRename: vi.fn(),
 }));
-vi.mock("@/features/editor/ui/workspaceClient", () => ({ readWorkspaceTextFile: vi.fn() }));
+vi.mock("@/features/editor/ui/workspaceClient", () => ({ readWorkspaceSpecSnapshot: vi.fn() }));
 const fetchMock = vi.fn();
 const lockMock = vi.fn(async (_key: string, action: () => Promise<unknown>) => action());
 beforeEach(() => {
@@ -21,8 +21,8 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("navigator", { locks: { request: lockMock } });
   useEditorStore.getState().loadSpec(blankSpec);
-  useDocumentStore.getState().setFileName("old.json");
-  vi.mocked(readWorkspaceTextFile).mockResolvedValue(JSON.stringify(blankSpec));
+  useDocumentStore.getState().setFileName("old.json", "b".repeat(64));
+  vi.mocked(readWorkspaceSpecSnapshot).mockResolvedValue({ text: JSON.stringify(blankSpec), revision: "b".repeat(64) });
   fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, path: "specs/New.json" }), {
     headers: { [WORKSPACE_MARKER_HEADER]: "1", [WORKSPACE_REVISION_HEADER]: "a".repeat(64) },
   }));
@@ -90,7 +90,7 @@ describe("home rename", () => {
     expect(lockMock.mock.calls.map(([key]) => key)).toEqual([
       "visual-spec:autosave:file:new.json", "visual-spec:autosave:file:old.json",
     ]);
-    expect(lockMock.mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(readWorkspaceTextFile).mock.invocationCallOrder[0]);
+    expect(lockMock.mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(readWorkspaceSpecSnapshot).mock.invocationCallOrder[0]);
   });
   it("deduplicates same-file locks and checks conflicts only after acquiring them", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, path: "specs/old.json" }), {
@@ -102,9 +102,17 @@ describe("home rename", () => {
       useSaveConflictStore.setState({ paused: true });
       return action();
     });
-    vi.mocked(readWorkspaceTextFile).mockClear();
+    vi.mocked(readWorkspaceSpecSnapshot).mockClear();
     expect((await renameProject("old.json", "old")).ok).toBe(false);
-    expect(readWorkspaceTextFile).not.toHaveBeenCalled();
+    expect(readWorkspaceSpecSnapshot).not.toHaveBeenCalled();
+  });
+  it("refuses to adopt a new disk revision into a stale open draft", async () => {
+    vi.mocked(readWorkspaceSpecSnapshot).mockResolvedValue({ text: JSON.stringify(blankSpec), revision: "c".repeat(64) });
+    const before = useEditorStore.getState();
+    expect((await renameProject("old.json", "New")).ok).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(useEditorStore.getState()).toBe(before);
+    expect(useDocumentStore.getState().diskRevision).toBe("b".repeat(64));
   });
   it("refuses before the disk request when the durable rename barrier cannot be stored", async () => {
     vi.mocked(prepareProjectRename).mockImplementation(() => { throw new Error("quota"); });
@@ -128,13 +136,13 @@ describe("home rename", () => {
     vi.stubGlobal("navigator", {});
     const before = useEditorStore.getState();
     expect((await renameProject("old.json", "New")).ok).toBe(false);
-    expect(readWorkspaceTextFile).not.toHaveBeenCalled();
+    expect(readWorkspaceSpecSnapshot).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(useEditorStore.getState()).toBe(before);
   });
   it("does not send invalid names or missing source", async () => {
     expect((await renameProject("old.json", "../New")).ok).toBe(false);
-    vi.mocked(readWorkspaceTextFile).mockResolvedValue(null);
+    vi.mocked(readWorkspaceSpecSnapshot).mockResolvedValue(null);
     expect((await renameProject("old.json", "New")).ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
