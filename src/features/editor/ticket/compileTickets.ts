@@ -157,11 +157,13 @@ export function compileTickets(screen: ScreenSpec): Ticket[] {
   const tickets: Ticket[] = [];
   const usedIds = new Set<string>();
 
+  // id는 componentName과 파일명에도 쓰인다. 하이픈 접미사는 named export를 깨므로
+  // JS 식별자에 안전한 숫자를 붙이고, 원래 이름(Section2 등)과의 충돌도 건너뛴다.
   function reserveId(base: string): string {
     let candidate = base;
     let suffix = 2;
     while (usedIds.has(candidate)) {
-      candidate = `${base}-${suffix}`;
+      candidate = `${base}${suffix}`;
       suffix += 1;
     }
     usedIds.add(candidate);
