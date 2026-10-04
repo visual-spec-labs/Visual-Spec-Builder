@@ -11,7 +11,7 @@ export function startSpecAutosave() {
   const current = (): StoredDocument => ({ spec: useEditorStore.getState().spec,
     fileName: useDocumentStore.getState().fileName });
   const recovery = readRecovery();
-  const untitledId = crypto.randomUUID();
+  let untitledId = crypto.randomUUID();
   let document = current();
   let key = recovery?.key ?? projectStorageKey(document.fileName, untitledId);
   let baseline = recovery ? recovery.baseline : read(key);
@@ -66,6 +66,7 @@ export function startSpecAutosave() {
     const next = current();
     if (next.fileName !== document.fileName) {
       generation++;
+      if (next.fileName === null) untitledId = crypto.randomUUID();
       key = projectStorageKey(next.fileName, untitledId);
       baseline = read(key);
       renameBaseline = read(`${key}:rename`);
@@ -102,8 +103,9 @@ export function startSpecAutosave() {
     restoring = true;
     generation++;
     clearTimeout(timer);
+    const sameUntitled = latest.fileName === null && document.fileName === null;
     document = latest;
-    key = projectStorageKey(latest.fileName, untitledId);
+    if (!sameUntitled) key = projectStorageKey(latest.fileName, untitledId);
     baseline = read(key);
     renameBaseline = read(`${key}:rename`);
     conflicted = false;
@@ -168,7 +170,15 @@ export function startSpecAutosave() {
   const unsubscribeSpec = useEditorStore.subscribe((s, prev) => {
     if (s.spec !== prev.spec) {
       // loadSpec/New/Open reset history; edits and undo/redo retain a history side.
-      if (!restoring && s.history.past.length === 0 && s.history.future.length === 0) generation++;
+      if (!restoring && s.history.past.length === 0 && s.history.future.length === 0) {
+        generation++;
+        if (useDocumentStore.getState().fileName === null) {
+          untitledId = crypto.randomUUID();
+          key = projectStorageKey(null, untitledId);
+          baseline = null;
+          renameBaseline = null;
+        }
+      }
       changed();
     }
   });
