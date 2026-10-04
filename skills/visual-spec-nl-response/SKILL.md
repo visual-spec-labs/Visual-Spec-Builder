@@ -300,8 +300,10 @@ GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
 ## 예제 — 빈 화면 생성
 
 요청: *"로그인 화면 만들어줘"*, `scope: { kind: "screen", nodeId: null, ... }`,
-`page.nodes`에 `root`(빈 frame) 하나뿐. `docs/08-natural-language.md` 3.3이 이 예제를 손으로
-짚어 본 것과 같다 — Command 6개, 3종(`updateScreen`·`setLayout`·`createNode`)만으로 충분하다.
+`page.nodes`에 `root`(빈 frame) 하나뿐. 현재 `examples/login-screen.json`의 7노드를
+Command 9개, 3종(`updateScreen`·`setLayout`·`createNode`)으로 만든다.
+이메일·비밀번호는 placeholder 표시만 하며 입력 타입·인증 동작을 추가하지 않는다.
+`docs/08-natural-language.md` 3.3의 4노드 분석은 확장 전 기록이다.
 
 ```json
 { "protocol": 1, "requestId": "req-xyz",
@@ -319,7 +321,7 @@ GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
                 "typography": { "fontFamily": "Pretendard", "fontSize": 24, "fontWeight": 700,
                                 "lineHeight": 32, "letterSpacing": -0.5, "textAlign": "left" } } },
     { "type": "createNode", "parentId": "root", "id": "card",
-      "node": { "type": "frame", "name": "Card",
+      "node": { "type": "frame", "name": "Card", "visible": true,
                 "box": { "width": "fill", "height": "auto" },
                 "layout": { "direction": "column", "gap": 12,
                             "padding": { "top": 16, "right": 16, "bottom": 16, "left": 16 },
@@ -332,7 +334,40 @@ GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
                 "box": { "width": "auto", "height": "auto" },
                 "content": "계정 정보를 입력하세요", "color": "#666666",
                 "typography": { "fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 400,
-                                "lineHeight": 20, "letterSpacing": 0, "textAlign": "center" } } }
+                                "lineHeight": 20, "letterSpacing": 0, "textAlign": "center" } } },
+    { "type": "createNode", "parentId": "card", "id": "emailInput",
+      "node": {
+        "type": "input",
+        "name": "EmailInput",
+        "box": {"width": "fill", "height": 44},
+        "placeholder": "이메일을 입력하세요",
+        "color": "#111827",
+        "typography": {"fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 400, "lineHeight": 20, "letterSpacing": 0, "textAlign": "left"},
+        "background": [{"type": "solid", "color": "#F9FAFB"}],
+        "border": {"width": 1, "color": "#D1D5DB", "radius": 8}
+      } },
+    { "type": "createNode", "parentId": "card", "id": "passwordInput",
+      "node": {
+        "type": "input",
+        "name": "PasswordInput",
+        "box": {"width": "fill", "height": 44},
+        "placeholder": "비밀번호를 입력하세요",
+        "color": "#111827",
+        "typography": {"fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 400, "lineHeight": 20, "letterSpacing": 0, "textAlign": "left"},
+        "background": [{"type": "solid", "color": "#F9FAFB"}],
+        "border": {"width": 1, "color": "#D1D5DB", "radius": 8}
+      } },
+    { "type": "createNode", "parentId": "card", "id": "loginButton",
+      "node": {
+        "type": "button",
+        "name": "LoginButton",
+        "box": {"width": "fill", "height": 44},
+        "content": "로그인",
+        "color": "#FFFFFF",
+        "typography": {"fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 600, "lineHeight": 20, "letterSpacing": 0, "textAlign": "center"},
+        "background": [{"type": "solid", "color": "#4F46E5"}],
+        "border": {"width": 0, "color": "#4F46E5", "radius": 8}
+      } }
   ] }
 ```
 

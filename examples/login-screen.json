@@ -48,7 +48,12 @@
         },
         "background": [{ "type": "solid", "color": "#F5F5F5FF" }],
         "border": { "width": 1, "color": "#00000020", "radius": 8 },
-        "children": [{ "node": "hint" }]
+        "children": [
+          { "node": "hint" },
+          { "node": "emailInput" },
+          { "node": "passwordInput" },
+          { "node": "loginButton" }
+        ]
       },
       "hint": {
         "type": "text",
@@ -64,6 +69,57 @@
           "letterSpacing": 0,
           "textAlign": "center"
         }
+      },
+      "emailInput": {
+        "type": "input",
+        "name": "EmailInput",
+        "box": { "width": "fill", "height": 44 },
+        "placeholder": "이메일을 입력하세요",
+        "color": "#111827",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        },
+        "background": [{ "type": "solid", "color": "#F9FAFB" }],
+        "border": { "width": 1, "color": "#D1D5DB", "radius": 8 }
+      },
+      "passwordInput": {
+        "type": "input",
+        "name": "PasswordInput",
+        "box": { "width": "fill", "height": 44 },
+        "placeholder": "비밀번호를 입력하세요",
+        "color": "#111827",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        },
+        "background": [{ "type": "solid", "color": "#F9FAFB" }],
+        "border": { "width": 1, "color": "#D1D5DB", "radius": 8 }
+      },
+      "loginButton": {
+        "type": "button",
+        "name": "LoginButton",
+        "box": { "width": "fill", "height": 44 },
+        "content": "로그인",
+        "color": "#FFFFFF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 600,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "center"
+        },
+        "background": [{ "type": "solid", "color": "#4F46E5" }],
+        "border": { "width": 0, "color": "#4F46E5", "radius": 8 }
       }
     }
   }

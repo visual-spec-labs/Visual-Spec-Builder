@@ -84,14 +84,16 @@ describe("compileTickets", () => {
     expect(tickets.every((t) => t.status === "pending")).toBe(true);
   });
 
-  it("반복이 전혀 없는 화면은 root 자식마다 티켓 하나씩만 만든다(중첩 티켓 없음)", () => {
+  it("로그인 입력창 둘은 공유 티켓이 되고 Card와 Login이 의존한다", () => {
     const tickets = compileTickets(screenOf(loginScreen as VisualSpec));
 
-    // root(Screen)의 직계 자식: title, card. 각각 컴포넌트 티켓 + page 티켓 1개.
-    expect(tickets).toHaveLength(3);
-    expect(tickets.map((t) => t.id).sort()).toEqual(["Card", "Login", "Title"]);
+    // root 직계 자식 title/card + 반복 input + page. 라벨만 다른 입력창은 공유한다.
+    expect(tickets).toHaveLength(4);
+    expect(tickets.map((t) => t.id).sort()).toEqual(["Card", "EmailInput", "Login", "Title"]);
     const card = tickets.find((t) => t.id === "Card");
-    expect(card?.dependsOn).toEqual([]); // card 안의 hint는 하나뿐이라 반복 아님
+    expect(card?.dependsOn).toEqual(["EmailInput"]);
+    expect(tickets.find((t) => t.id === "EmailInput")?.instances).toEqual(["emailInput", "passwordInput"]);
+    expect(tickets.find((t) => t.id === "Login")?.dependsOn).toEqual(["Title", "Card"]);
   });
 
   it("자식이 텍스트 하나뿐인 최소 화면도 page 티켓 하나는 만든다", () => {

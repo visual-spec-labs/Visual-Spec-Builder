@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import loginScreen from "../examples/login-screen.json";
+
 import { canUndo, initHistory } from "@/features/editor/command/history";
 import type { Command } from "@/features/editor/command/types";
 import { migrateV01, validateProjectSpec } from "@/features/editor/schema";
@@ -11,8 +13,8 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 /**
  * "빈 화면에서 자연어로 화면을 만든다"(#183) 가 **지금 있는 조각만으로 이미
  * 되는지** 확인하는 통합 테스트다. docs/08-natural-language.md 3.3이 손으로 짚어 본
- * `examples/login-screen.json`(노드 4개) 재현을 그대로 코드로 옮겼다 — 다만 문서는
- * 그때 Command마다 리프 값을 전부 적어야 했지만(53칸), 여기서는 #182의
+ * `examples/login-screen.json`(현재 노드 7개) 재현을 코드로 옮겼다. 문서는 최초 4노드 사례에서
+ * Command마다 리프 값을 전부 적어야 했지만(53칸), 여기서는 #182의
  * `createNode(kind, overrides)`로 부분 값만 준다.
  *
  * 새 메커니즘은 없다. `runTransactionGates`(G2·G3, #154)와
@@ -38,7 +40,7 @@ describe("자연어 화면 생성 — 빈 화면 → login-screen 재현 (#183)"
     return useEditorStore.getState().activePageId;
   }
 
-  /** 08 3.3의 login-screen 예제를 그대로 옮긴 Command 6개. */
+  /** 현재 login-screen 예제를 그대로 재현하는 Command 9개. */
   function loginScreenTransaction(): Command[] {
     return [
       { type: "updateScreen", path: "name", value: "Login" },
@@ -71,9 +73,10 @@ describe("자연어 화면 생성 — 빈 화면 → login-screen 재현 (#183)"
         id: "card",
         node: createNode("frame", {
           name: "Card",
+          visible: true,
           box: { width: "fill", height: "auto" },
-          // gap·mainAxis만 바꾼다 — padding(사방 16)은 newFrame 기본값과 이미 같다.
-          layout: { gap: 12, mainAxis: "center" },
+          // gap·mainAxis·crossAxis를 바꾼다 — padding(사방 16)은 newFrame 기본값과 이미 같다.
+          layout: { gap: 12, mainAxis: "center", crossAxis: "stretch" },
           background: [{ type: "solid", color: "#F5F5F5FF" }],
           border: { color: "#00000020" },
         }),
@@ -86,7 +89,37 @@ describe("자연어 화면 생성 — 빈 화면 → login-screen 재현 (#183)"
           name: "Hint",
           content: "계정 정보를 입력하세요",
           color: "#666666",
-          typography: { fontSize: 14, textAlign: "center" },
+          typography: { fontSize: 14, lineHeight: 20, textAlign: "center" },
+        }),
+      },
+      {
+        type: "createNode",
+        parentId: "card",
+        id: "emailInput",
+        node: createNode("input", {
+          name: "EmailInput",
+          box: { width: "fill", height: 44 },
+          placeholder: "이메일을 입력하세요",
+        }),
+      },
+      {
+        type: "createNode",
+        parentId: "card",
+        id: "passwordInput",
+        node: createNode("input", {
+          name: "PasswordInput",
+          box: { width: "fill", height: 44 },
+          placeholder: "비밀번호를 입력하세요",
+        }),
+      },
+      {
+        type: "createNode",
+        parentId: "card",
+        id: "loginButton",
+        node: createNode("button", {
+          name: "LoginButton",
+          box: { width: "fill", height: 44 },
+          content: "로그인",
         }),
       },
     ];
@@ -108,7 +141,13 @@ describe("자연어 화면 생성 — 빈 화면 → login-screen 재현 (#183)"
 
     const card = page.nodes.card;
     if (card.type !== "frame") throw new Error("card는 frame이어야 한다");
-    expect(card.children).toEqual([{ node: "hint" }]);
+    expect(card.children).toEqual([
+      { node: "hint" },
+      { node: "emailInput" },
+      { node: "passwordInput" },
+      { node: "loginButton" },
+    ]);
+    expect(page).toEqual(loginScreen.screen);
 
     const title = page.nodes.title;
     if (title.type !== "text") throw new Error("title은 text여야 한다");
@@ -126,7 +165,7 @@ describe("자연어 화면 생성 — 빈 화면 → login-screen 재현 (#183)"
     expect(result.issues).toEqual([]);
   });
 
-  it("요청 하나 = Undo 한 단계 — Command가 6개여도 history는 1단계만 쌓인다", () => {
+  it("요청 하나 = Undo 한 단계 — Command가 9개여도 history는 1단계만 쌓인다", () => {
     expect(canUndo(useEditorStore.getState().history)).toBe(false);
 
     useEditorStore.getState().applyGuardedTransaction(pageId(), loginScreenTransaction());
@@ -134,8 +173,8 @@ describe("자연어 화면 생성 — 빈 화면 → login-screen 재현 (#183)"
 
     useEditorStore.getState().undo();
 
-    // 한 번의 Undo로 title·card·hint·레이아웃·이름·해상도가 전부 빈 화면으로
-    // 되돌아간다 — Command가 6개였다는 사실이 Undo 횟수에 새지 않는다.
+    // 한 번의 Undo로 모든 노드·레이아웃·이름·해상도가 전부 빈 화면으로
+    // 되돌아간다 — Command가 9개였다는 사실이 Undo 횟수에 새지 않는다.
     expect(canUndo(useEditorStore.getState().history)).toBe(false);
     const page = useEditorStore.getState().spec.pages[pageId()];
     expect(page.name).toBe("Untitled");
@@ -156,7 +195,7 @@ describe("자연어 화면 생성 — 빈 화면 → login-screen 재현 (#183)"
 
     expect(gate.ok).toBe(false);
     if (!gate.ok) expect(gate.failure.kind).toBe("noOp");
-    // 커밋되지 않았다 — 앞의 다섯 Command가 유효했어도 title 하나 생기지 않는다.
+    // 커밋되지 않았다 — 앞의 아홉 Command가 유효했어도 title 하나 생기지 않는다.
     expect(useEditorStore.getState().spec).toBe(before);
     expect(canUndo(useEditorStore.getState().history)).toBe(false);
   });
