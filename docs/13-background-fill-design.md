@@ -1,6 +1,6 @@
 # 배경 채우기(그라디언트·다중 채우기) 설계 결정 (#127)
 
-상태: **스키마 전환 완료(후속 1단계, 2026-10-04) · 그라디언트 렌더·겹 목록 패널·스킬의 그라디언트 가르침 미완**  
+상태: **스키마 전환 완료(후속 1단계, 2026-10-04) · 그라디언트 렌더 완료(후속 2단계, 2026-10-04) · 겹 목록 패널·스킬의 그라디언트 가르침 미완**  
 범위: `Background`의 표현, 기존 문서 마이그레이션, 영향 범위, 후속 구현 순서를 정한다. 이 문서 자체는 정본 스키마와 코드를 바꾸지 않았다 — 아래 "후속 작업 범위"의 별도 PR에서 바꾼다. 1단계에서 이 문서와 다르게 정한 것은 "캔버스 번역" 절에 반영했다.
 
 ## 결정 요약
@@ -113,7 +113,7 @@ JSON Schema로 안 되는 의미 검증은 **stop의 `at` 오름차순** 하나�
 ## 캔버스 번역
 
 ```
-// 1단계(스키마 전환)에서 canvasLayout.backgroundStyle로 확정. linear 갈래는 2단계.
+// 1단계(스키마 전환)에서 canvasLayout.backgroundStyle로 확정. linear 갈래는 2단계에서 더했다.
 맨 아래 겹(배열 끝)이 solid → backgroundColor: c
 나머지 겹(위 → 아래)       → backgroundImage 목록, ", "로 잇는다(앞 = 위)
   solid  → linear-gradient(#C, #C)
@@ -129,7 +129,8 @@ JSON Schema로 안 되는 의미 검증은 **stop의 `at` 오름차순** 하나�
   - 가장 흔한 단색 한 겹에서 아래 코드 생성 매핑(`bg-[#..]`, 곧 `background-color`)과 그리는 방식이 같아지는 것도 이 쪽의 이점이다. 비용은 분기 하나다. 맨 아래가 아닌 solid는 여전히 `linear-gradient(c, c)`로 그리고, 그 경우의 ±1 디더링은 받아들인다.
 - **`background-origin: border-box`를 이미지 겹이 있을 때 함께 낸다(1단계에서 이미 반영).** 배경 이미지는 기본적으로 padding 상자 기준으로 놓이고 테두리 밑으로는 반복돼 들어간다. `inside` 테두리(CSS `border`)가 반투명하거나 둥글면 이음매가 보인다. `background-color`는 기본 `background-clip: border-box`로 테두리 밑까지 한 장으로 칠해지므로, 이미지 겹도 `border-box` 기준이어야 겹끼리 같은 상자에 걸리고 그라디언트도 Figma 채우기처럼 상자 전체에 걸린다. 처음엔 2단계(렌더 PR)에 두었지만 solid 겹을 이미지로 그리는 경우가 1단계에 이미 있어 함께 넣었다.
 - **`background` 축약 속성을 쓰던 자리를 풀어 쓴 속성으로 바꿨다.** `nodeStyles.ts`·`homePreview.ts`는 0.2까지 `background: node.background?.color`를 썼다. 축약과 `backgroundImage` 같은 개별 속성을 한 스타일 객체에서 섞으면 React가 다시 그릴 때 충돌한다.
-- **번역 함수는 `canvasLayout.ts`의 `backgroundStyle`이다.** `strokeAndShadowStyle` 옆, 노드 타입을 모르는 순수 함수로 두고 `test/canvas-layout.test.ts`에서 직접 검사한다. `nodeStyles.ts`(frame·button·input)와 `homePreview.ts`(같은 셋)의 여섯 곳이 이 함수 하나를 부른다. 1단계에서는 `linear` 겹을 건너뛴다(그 겹만 빠지고 나머지 겹은 그려진다).
+- **번역 함수는 `canvasLayout.ts`의 `backgroundStyle`이다.** `strokeAndShadowStyle` 옆, 노드 타입을 모르는 순수 함수로 두고 `test/canvas-layout.test.ts`에서 직접 검사한다. `nodeStyles.ts`(frame·button·input)와 `homePreview.ts`(같은 셋)의 여섯 곳이 이 함수 하나를 부른다. 1단계에서는 `linear` 겹을 건너뛰었고, 2단계에서 갈래를 더해 두 호출부는 손대지 않고 함께 바뀌었다.
+- **수 표기는 소수 넷째 자리에서 반올림한다(2단계).** `at × 100`은 부동소수 오차가 붙는다(0.1 × 100 = 10.000000000000002, 0.29 × 100 = 28.999999999999996). 정수로 반올림한 뒤 10⁴로 나누면 JS의 최단 표기가 그 십진수를 그대로 내므로 `10%`·`12.5%`·`33.3333%`처럼 나온다. 각도에도 같은 규칙을 쓴다(패널이 계산해 쓰게 될 때를 대비). 넷째 자리면 1만 px 상자에서도 0.01px라 보이는 차이가 없다. 4단계의 코드 생성도 같은 표기를 쓰면 캔버스와 글자까지 같아진다.
 
 코드 생성(`skills/visual-spec-to-react`)의 매핑은 이렇게 정한다.
 
@@ -239,11 +240,11 @@ Command 스키마([09](09-command-schema-freeze.md))와 Ticket 스키마([11](11
 ```
 
 1. **스키마 전환 PR** (의존: 이 문서 합의) — **완료(브랜치 `Yumesa2025/127-background-fill-schema`).** 이 문서와 다르게 정한 것은 둘이다 — 맨 아래 solid를 `background-color`로 그린다, `background-origin`을 이미지 겹이 있을 때 이미 낸다(둘 다 위 "캔버스 번역"). 패널 순수 함수는 `ui/properties/backgroundPatch.ts`(`solidBackgroundView`·`solidBackgroundPatch`)이고 3단계의 `fillsPatch`가 이 자리를 넓힌다. 원래 범위: 스키마·생성 타입·stop 정렬 검사·버전 0.3, 변환 함수와 두 입구(`loadSpec`·`specStorage`) 연결, 생성 기본값 3파일, 예제 8개·테스트 변환. 읽고 쓰는 곳은 **단색 한 겹과 같은 동작**까지만 맞춘다 — 번역 함수는 solid 갈래만 그리고(linear 겹은 2 전까지 그려지지 않는다), `BackgroundSection`은 "겹이 없거나 solid 한 겹이면 그 색을 편집, 아니면 편집 불가 안내"로 둔다. 스킬 셋(authoring·nl-response·to-react)과 문서(04·05·06·08·EDITOR_STORE_CONTRACT)의 **모양 예시**도 이 PR에서 단색 배열로 바꾼다 — 안 바꾸면 LLM이 옛 모양을 내고 G3가 바로 거부한다. 2 전의 틈에는 linear를 만들 수 있는 도구(패널·NL 가르침)가 없으므로 손으로 쓴 문서만 영향을 받는다.
-2. **렌더 PR** (의존: 1). 번역 함수에 linear 갈래와 `test/canvas-layout.test.ts` 케이스(`background-origin`은 1에서 이미 들어갔다). 캔버스와 홈 미리보기가 함께 바뀐다.
+2. **렌더 PR** (의존: 1) — **완료(브랜치 `Yumesa2025/127-background-fill-render`).** 번역 함수에 linear 갈래와 `test/canvas-layout.test.ts` 케이스(`background-origin`은 1에서 이미 들어갔다). 캔버스와 홈 미리보기가 함께 바뀌었다 — `nodeStyles.ts`·`homePreview.ts`는 손대지 않았다. 이 문서와 더한 것은 수 표기 규칙 하나다(위 "캔버스 번역"). 스킬(authoring)과 [05](05-schema.md)·[06](06-schema-freeze.md)에 남아 있던 "캔버스가 아직 linear 겹을 그리지 않는다"는 서술도 같은 브랜치의 뒤 커밋에서 사실대로 고쳤다(그라디언트 작성을 가르치는 것은 4단계 몫이라 사실 서술만 바꿨다).
 3. **패널 PR** (의존: 1, 머지는 2 뒤 — 편집 결과가 보여야 검증된다). `fillsPatch`(가칭) 순수 함수와 테스트, `BackgroundSection` 목록 UI.
 4. **스킬·NL PR** (의존: 2 — 캔버스 번역과 코드 생성 매핑이 같아야 한다). to-react 매핑 행과 Tailwind 표기 확인, authoring의 그라디언트 규칙, nl-response의 "배열 통째 쓰기·앞 = 위" 규칙, validate의 `Fill` 잡음 해석, [08](08-natural-language.md) 갱신.
 5. **예제 PR** (의존: 2, 4가 있으면 스킬이 바로 가리킨다). 다중 겹 + 딱 끊기는 stop을 담은 새 예제, [06](06-schema-freeze.md)의 검증된 예제 표에 한 줄.
 
 반응형(#181) 스키마 PR과는 순서 의존이 없다. 나중에 머지되는 쪽이 위 "반응형 IR과의 관계"를 반영한다. `radial`·`image` 채우기, 겹 표시 토글은 일정에 넣지 않는다 — 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
-이 문서는 설계 결정을 기록한다. 위 1부터 정본 `Background`는 `Fill[]`이고 문서 버전은 0.3이다. 2 전까지 캔버스는 `linear` 겹을 그리지 않고, 3 전까지 패널은 단색 한 겹만 편집한다.
+이 문서는 설계 결정을 기록한다. 위 1부터 정본 `Background`는 `Fill[]`이고 문서 버전은 0.3이다. 2부터 캔버스와 홈 미리보기가 `linear` 겹과 여러 겹을 그린다. 3 전까지 패널은 단색 한 겹만 편집한다.
