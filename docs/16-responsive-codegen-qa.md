@@ -92,7 +92,8 @@ IR ID나 보통 쓰는 Tailwind 기본값만 보고 `md:`로 바꾸면 안 된�
 ## #223 실제 GUI와 수동 React fixture의 대조
 
 같은 날 원본 `responsive-cards.json`을 #223 GUI 작업 브랜치
-`codex/223-responsive-editor`(기반 `aed1c2a`, 검증 당시 미커밋 구현 포함)에서 열었다.
+`codex/223-responsive-editor`의 `5621f1a040e6f301f744a3d507231ee3f4c94bf1`에서 열었다.
+검증 당시 작업 트리를 제품 소스 변경 없이 이 커밋으로 확정했다(기반 `aed1c2a`).
 React 쪽은 이 매핑 PR의 `2d1546e`에 있는 수동 fixture다. GUI는 독립 Vite 캐시로
 `127.0.0.1:5195`, production React fixture는 `127.0.0.1:5194`에서 실행했다.
 
