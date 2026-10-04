@@ -154,6 +154,27 @@ export function compileTickets(screen: ScreenSpec): Ticket[] {
   const rootNode = nodes[root];
   if (rootNode === undefined || rootNode.type !== "frame") return [];
 
+  // 실제로 생성할 티켓 후보만 먼저 정한다. 뒤에 나오는 명시 이름(Section2)을
+  // 앞선 중복 Section의 접미사가 선점하면 그 파일명이 Section22로 밀리기 때문이다.
+  // 반복 그룹의 대표·직계 자식·페이지는 예약하고, 인라인 노드 이름은 예약하지 않는다.
+  const plans = rootNode.children.flatMap((child) => {
+    const node = nodes[child.node];
+    if (node === undefined) return [];
+    const groups = node.type === "frame" ? groupRepeatedSiblings(node.children, nodes) : [];
+    return [{
+      nodeId: child.node,
+      baseName: toPascalCase(node.name),
+      groups: groups.map((instances) => ({
+        instances,
+        baseName: toPascalCase(nodes[instances[0]].name),
+      })),
+    }];
+  });
+  const pageBaseName = toPascalCase(screen.name);
+  const explicitNames = new Set([
+    pageBaseName,
+    ...plans.flatMap((plan) => [plan.baseName, ...plan.groups.map((group) => group.baseName)]),
+  ]);
   const tickets: Ticket[] = [];
   const usedIds = new Set<string>();
 
@@ -162,7 +183,7 @@ export function compileTickets(screen: ScreenSpec): Ticket[] {
   function reserveId(base: string): string {
     let candidate = base;
     let suffix = 2;
-    while (usedIds.has(candidate)) {
+    while (usedIds.has(candidate) || (candidate !== base && explicitNames.has(candidate))) {
       candidate = `${base}${suffix}`;
       suffix += 1;
     }
@@ -172,43 +193,35 @@ export function compileTickets(screen: ScreenSpec): Ticket[] {
 
   const rootChildTicketIds: string[] = [];
 
-  for (const child of rootNode.children) {
-    const childNode = nodes[child.node];
-    if (childNode === undefined) continue;
-
+  for (const plan of plans) {
     const nestedTicketIds: string[] = [];
 
-    if (childNode.type === "frame") {
-      for (const group of groupRepeatedSiblings(childNode.children, nodes)) {
-        const firstInstance = nodes[group[0]];
-        const baseName = firstInstance === undefined ? "Component" : toPascalCase(firstInstance.name);
-        const id = reserveId(baseName);
-
-        tickets.push({
-          id,
-          componentName: id,
-          kind: "component",
-          instances: group,
-          dependsOn: [],
-          status: "pending",
-        });
-        nestedTicketIds.push(id);
-      }
+    for (const group of plan.groups) {
+      const id = reserveId(group.baseName);
+      tickets.push({
+        id,
+        componentName: id,
+        kind: "component",
+        instances: group.instances,
+        dependsOn: [],
+        status: "pending",
+      });
+      nestedTicketIds.push(id);
     }
 
-    const id = reserveId(toPascalCase(childNode.name));
+    const id = reserveId(plan.baseName);
     tickets.push({
       id,
       componentName: id,
       kind: "component",
-      instances: [child.node],
+      instances: [plan.nodeId],
       dependsOn: nestedTicketIds,
       status: "pending",
     });
     rootChildTicketIds.push(id);
   }
 
-  const pageId = reserveId(toPascalCase(screen.name));
+  const pageId = reserveId(pageBaseName);
   tickets.push({
     id: pageId,
     componentName: pageId,
