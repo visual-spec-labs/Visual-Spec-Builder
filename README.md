@@ -1,8 +1,11 @@
 # Visual Spec Builder
 
-React 프로젝트에 설치해 localhost에서 실행하는 GUI 도구다.
+체크아웃에서 localhost로 실행하는 화면 설계 GUI 도구다.
 사용자는 자연어 또는 직접 조작으로 화면을 구성하고, 도구는 이를 JSON Visual Spec으로 저장한다.
 Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현한다.
+
+처음 실행한다면 [로그인 예제로 시작하기](docs/14-getting-started.md)를 따른다.
+현재 패키지는 `private: true`이며, npm 배포 대신 저장소 체크아웃의 CLI를 사용한다.
 
 ## 문서
 
@@ -19,6 +22,8 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [07-implementation-status.md](docs/07-implementation-status.md) | 지금 무엇이 구현됐고 무엇이 남았는가 — **다음 할 일 판단의 근거** |
 | [12-responsive-ir-design.md](docs/12-responsive-ir-design.md) | 이슈 #181 반응형 IR 설계 결정과 후속 범위 |
 | [13-background-fill-design.md](docs/13-background-fill-design.md) | 이슈 #127 배경 그라디언트·다중 채우기 설계 결정과 후속 범위 |
+| [14-getting-started.md](docs/14-getting-started.md) | 설치 → GUI 편집·저장 → 외부 에이전트 → 코드 Export·앱 통합 |
+| [15-workflow-qa.md](docs/15-workflow-qa.md) | 전체 흐름의 실제 검증 기록과 한계 |
 | [11-ticket-schema-freeze.md](docs/11-ticket-schema-freeze.md) | Ticket 스키마 v0.1 동결 계약과 변경 절차 |
 | [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
 | [open-questions.md](docs/open-questions.md) | 미확정 항목 |
@@ -27,9 +32,10 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 
 ## 현재 구현 상태
 
-스키마와 검증기는 구현이 끝났고 v0.1로 동결됐다.
-GUI는 Vite + React 에디터 앱의 **레이아웃 골격까지만** 있다. 각 영역은 자리만 잡은 상태이고 편집 기능은 아직 없다.
-Command Engine, 자연어 변환, CLI, Export는 아직 없다.
+문서 스키마 0.3과 검증기, 노드 5종의 GUI 편집·Undo/Redo, CLI 작업공간 저장·복원,
+solid·linear 다중 배경 편집, 자연어 Command 적용, 구현 티켓 요청·응답, 생성 코드 ZIP Export가 구현돼 있다.
+자연어 응답과 React 코드 생성은 별도로 실행한 Claude Code·Codex 등 외부 에이전트가 담당한다.
+GUI가 에이전트 프로세스를 자동 실행하지 않는다. 반응형 편집 등 남은 기능은 구현 현황을 참고한다.
 
 MVP 구현 단위별 상세 현황, 확인된 결함, 다음에 할 만한 것은
 **[`docs/07-implementation-status.md`](docs/07-implementation-status.md)** 에 있다.
@@ -38,12 +44,21 @@ MVP 구현 단위별 상세 현황, 확인된 결함, 다음에 할 만한 것�
 디렉터리 구조는 아래와 같다.
 
 ```
-src/features/editor/schema/      스키마 정본·생성 타입·검증기·공개 index
-src/features/editor/ui/          에디터 5개 영역 컴포넌트와 EditorLayout
-src/app/App.tsx                  앱 진입점이 EditorLayout을 렌더한다
+bin/visual-spec.mjs              init·skills·GUI 실행 CLI
+src/app/App.tsx                  홈/에디터 전환과 자동저장 연결
+src/features/editor/schema/     스키마 정본·생성 타입·검증기·공개 index
+src/features/editor/store/      프로젝트·페이지·선택·history·지속성
+src/features/editor/command/    편집 명령 적용·외부 입력 검증
+src/features/editor/ui/         홈·캔버스·트리·속성·자연어·티켓·Export UI
+src/features/editor/nl/         자연어 요청·응답 파일 프로토콜
+src/features/editor/ticket/     티켓 컴파일·상태·요청·응답
+src/features/editor/export/     생성 코드·참조 검사와 ZIP 구성
+src/features/workspace/         개발 서버 작업공간 파일 API
+skills/                         외부 에이전트용 배포 스킬
+docs/                           사용법·설계·계약·검증 기록
 scripts/generate-types.mjs       스키마 → types.ts 생성
-examples/                        유효/무효 예시
-test/                            스키마·검증기·공개 API 테스트
+examples/                       유효/무효 예시
+test/                           스키마·스토어·명령·CLI·렌더 판단기 등 테스트
 ```
 
 스키마가 지원하는 범위와 변경 규칙의 전문은 **[`docs/06-schema-freeze.md`](docs/06-schema-freeze.md)** 에 있다.
@@ -72,14 +87,15 @@ import { validateVisualSpec } from "@/features/editor/schema";
 
 ## 개발
 
-패키지 매니저는 pnpm이다 (`packageManager: pnpm@10.33.0`). npm으로 설치하지 않는다.
+Node 20 이상(CI는 20), pnpm 10.33.0을 사용한다 (`packageManager: pnpm@10.33.0`). npm으로 설치하지 않는다.
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev                 # vite 개발 서버
 pnpm run generate:types  # 스키마 → src/features/editor/schema/types.ts
 pnpm run typecheck       # tsc -b
 pnpm test                # vitest run
+pnpm run lint            # eslint
 pnpm run build           # vite build
 pnpm run preview         # 빌드 결과 미리보기
 ```
@@ -92,7 +108,7 @@ pnpm run preview         # 빌드 결과 미리보기
 | 파일 | 내용 |
 |---|---|
 | `examples/empty-title-screen.json` | 노드 2개짜리 최소 화면 |
-| `examples/login-screen.json` | 중첩 프레임, border, 부분 투명 색상 |
+| `examples/login-screen.json` | 로그인 버튼·이메일/비밀번호 입력, 중첩 프레임·border·부분 투명 색상 |
 | `examples/dashboard-cards.json` | `Header > Title` + `Content > Card, Card` 2단 트리 |
 | `examples/header-content.json` | 고정 높이 헤더 + `space-between` + `fill` 본문 |
 | `examples/invalid/` | 검증기가 잡아야 하는 잘못된 문서들 |

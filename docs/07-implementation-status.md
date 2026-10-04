@@ -1,6 +1,13 @@
 # 07. 구현 현황
 
-> **현재 상태 확인: 2026-10-04 · `develop` `5b0af2cc0b8ec8af2438a1cfda92a402438c5e5f` (#216 포함, #233).**
+> **통합 PR 현재 상태: 2026-10-04 · 코드 `bad0240` + 가이드 `1d89835`.**
+> #217 티켓 응답 스킬, #218 로그인 예제, #228·#230·#231 수정과 #233 문서 보정을 포함한다. 아직 develop에 병합됐다는 뜻은 아니다.
+> 통합 테스트는 **68파일 1,239케이스 통과**다. 아래 `5b0af2c` 검증과 날짜별 이력은 이전 기준의 기록으로 보존한다.
+> 실제 GUI에서 File → Open → LoginButton의 Content를 `시작하기`로 변경 → Save를 확인했다.
+> 외부 `codex exec`는 모델 호출 전에 `failed to initialize in-process app-server client: Read-only file system (os error 30)`로 종료(exit 1)했다.
+> 따라서 **실제 AI 왕복 성공은 미검증**이다. fixture 기반 후반 검증 결과와 나머지 통합 검사는 [15. 전체 흐름 검증](15-workflow-qa.md)에 별도로 기록한다.
+
+> **기준선 검증 기록: 2026-10-04 · `develop` `5b0af2cc0b8ec8af2438a1cfda92a402438c5e5f` (#216 포함, #233).**
 > 아래 날짜별 갱신 표와 회고는 당시의 기록으로 보존한다. 현재 상태를 읽을 때는 본문의 기능별 설명과 4절 테스트 집계를 기준으로 한다.
 > 이번에는 자연어 입력·스킬, CLI·작업공간, 파일 저장·Export 알림, 티켓 파일 교환, 배경 패널을 소스와 대조했다.
 > `pnpm test` **67파일 1,234케이스**, `pnpm run lint` 통과. 브라우저 조작과 실제 외부 에이전트 왕복은 이번 문서 갱신에서 재실행하지 않았다.
@@ -281,7 +288,7 @@
 | IR · 스키마 | **완료** | `src/features/editor/schema/`의 정본 JSON Schema·생성 타입·검증기·공개 index가 문서 계약이다. 현재 단일 화면 `VisualSpec`과 다중 페이지 `ProjectSpec`의 버전은 모두 **0.3**이며, 루트 `screen`과 `pages`로 구분한다. `background`는 `Fill[]`이다. `parseSpecJson`·`specStorage`가 0.1·0.2 문서를 `migrateToV03`로 변환하고, `editorStore`는 `ProjectSpec`과 `activePageId`를 보관한다. Save/Export는 검증된 0.3 `ProjectSpec`을 쓴다. 변경 계약은 [06](06-schema-freeze.md), 현재 테스트 집계는 4절 참고 |
 | Command Engine | **부분** | `src/features/editor/command/`에 Command 타입 6종(`types.ts` — createNode/updateNode/deleteNode/moveNode/setLayout/updateScreen — 2026-09-18 실측. `updateScreen` 이 #40 리뷰(PR #102)에 늘었는데 이 집계가 못 따라오고 있었다), 순수 적용기(`applyCommand.ts` — 규칙 위반 시 예외 없이 원본 spec 참조를 그대로 돌려준다), 범용 undo/redo 스택(`history.ts`)이 있다(`test/apply-command.test.ts` 20케이스 · `test/history.test.ts` 8케이스). **이제 실제로 쓰인다** — `editorStore.setNodeField`가 내부적으로 `updateNode` Command를 만들어 `applyCommand`로 적용한다(2026-09-09, 이슈 #40). 시그니처는 그대로라 호출부(패널의 `useNodeField.ts`, 트리의 이름 변경·"표시" 토글, 캔버스의 리사이즈 핸들 — 아래 §의 실측 참고)는 안 바뀌었다. **`insertNode`도 2026-09-18(이슈 #131, PR #142)에 이 경로로 들어왔다** — `createNode` Command를 거치므로 "부모가 frame 인지 · 그 id 가 이미 있는지" 판정을 Command Engine 이 이미 갖고 있던 것으로 재사용한다. 스토어가 직접 노드를 만들던 마지막 자리가 없어졌다. `applyCommand.ts`는 v0.2 `ProjectSpec.pages[id]`에도 쓸 수 있도록 `VisualSpec` 대신 `ScreenSpec`을 받게 바뀌었다 |
 | 자연어 변환 | **부분(2026-09-28, 이슈 #155·#183)** | **자연어 부분 수정은 됐다**(이슈 #155, PR #177, 머지됨) — `.visual-spec/runtime/` 파일 교환(`editor/nl/nlProtocol.ts`·`nlAgentClient.ts`), G1(#153 `validateTransaction`)·G2·G3(#154 `transactionGate.ts`)·`applyGuardedTransaction`, 입력 UI `ui/NaturalLanguageBar.tsx`, "요청 하나 = Undo 한 단계"까지 전부 연결돼 있다. **자연어 화면 생성**(이슈 #183, PR #192, 머지됨)은 같은 파이프라인을 그대로 탄다 — `runTransactionGates`·`applyGuardedTransaction`이 Command 종류·개수에 무관한 범용 경로라 새 메커니즘이 필요 없었다. `store/createNode.ts`가 노드 5종 + 부분 덮어쓰기를 지원하도록 먼저 넓혔고(이슈 #182, PR #191, 머지됨 — 08 3.3이 지적한 "노드 4개짜리 최소 화면도 53칸" 문제 대응), `test/nl-screen-generation.test.ts`로 빈 화면에서 `examples/login-screen.json`(노드 4개) 재현이 전부-또는-전무·Undo 1단계로 되는 것을 직접 실행해 증명했다. **지원되는 것** — `CreateNodeCommand.index`는 선택 사항이며 생략하면 끝에, 지정하면 해당 위치에 삽입한다(`command/types.ts`·`applyCommand.ts`, #193). `skills/visual-spec-nl-response/SKILL.md`가 `nl-request.json`을 읽어 Command 응답을 작성하는 법을 제공한다(#194). `visual-spec-authoring`은 문서 전체 파일을 직접 쓰는 별도 경로다. **남은 범위** — "전체 프로젝트" 범위·새 페이지 생성·계획 미리보기·멀티턴 대화는 08 7.2가 MVP에서 명시적으로 뺐다 |
-| Ticket Compiler · Agent | **부분(2026-09-29, 이슈 #184 — A안 + B안 실행 연결)** | `skills/visual-spec-to-react/SKILL.md`의 컴포넌트 경계·반복 형제 그룹화·의존성 순서를 코드로 옮긴 `compileTickets`를 GUI가 실제로 호출한다. 메뉴바 `구현 티켓`이 현재 페이지를 컴파일하고 우측 `TicketPanel`에 목록·의존성·pending/in-progress/done/failed 상태를 표시하며, `ticketStore`가 계획을 보관한다(A안, #156). **파일 교환으로 요청·응답과 다음 웨이브 진행이 연결됐다**(B안, #184) — #155가 만든 `.visual-spec/runtime/` 파일 교환 패턴을 그대로 재사용한 `ticket/ticketProtocol.ts`(`ticket-request.json`/`ticket-response.json` 형식)·`ticket/ticketAgentClient.ts`(폴링)로, 패널의 "전체 실행"이 `ticketStatus.readyTickets`가 계산한 웨이브(의존이 모두 done인 티켓들)를 보내고 응답이 오면 자동으로 다음 웨이브로 이어간다(막히거나 끝날 때까지 사람 손 없이) — 항목별 "실행"은 티켓 하나만 보내고 이어가지 않는다. 실패한 티켓은 사유를 보여주고 그 후행은 영원히 요청되지 않는다. 오케스트레이션은 `store/ticketStore.ts`가 아니라 `ui/ticketRunner.ts`에 있다 — DOM 타입(`fetch`)을 만지는 코드는 `ui/`에만 두는 저장소 규칙(`tsconfig.uitest.json`) 때문이다. **GUI가 외부 에이전트 프로세스를 시작하는 것은 아니다.** 별도로 실행 중인 에이전트가 요청을 읽고 코드를 생성해 응답해야 한다. 기준 커밋에는 티켓 응답 전용 스킬이 없으며 #217의 후속 범위다. **작업공간이 없으면(정적 빌드) 실행 컨트롤 없이 조용히 A안으로 되돌아간다.** Command를 만들지 않으므로(에이전트가 `generated/`에 직접 쓴다) G1·G2·G3는 타지 않고, 결과 검증은 여전히 `export/verifyGenerated.ts`(#157)의 몫이다 |
+| Ticket Compiler · Agent | **부분(2026-09-29, 이슈 #184 — A안 + B안 실행 연결)** | `skills/visual-spec-to-react/SKILL.md`의 컴포넌트 경계·반복 형제 그룹화·의존성 순서를 코드로 옮긴 `compileTickets`를 GUI가 실제로 호출한다. 메뉴바 `구현 티켓`이 현재 페이지를 컴파일하고 우측 `TicketPanel`에 목록·의존성·pending/in-progress/done/failed 상태를 표시하며, `ticketStore`가 계획을 보관한다(A안, #156). **파일 교환으로 요청·응답과 다음 웨이브 진행이 연결됐다**(B안, #184) — #155가 만든 `.visual-spec/runtime/` 파일 교환 패턴을 그대로 재사용한 `ticket/ticketProtocol.ts`(`ticket-request.json`/`ticket-response.json` 형식)·`ticket/ticketAgentClient.ts`(폴링)로, 패널의 "전체 실행"이 `ticketStatus.readyTickets`가 계산한 웨이브(의존이 모두 done인 티켓들)를 보내고 응답이 오면 자동으로 다음 웨이브로 이어간다(막히거나 끝날 때까지 사람 손 없이) — 항목별 "실행"은 티켓 하나만 보내고 이어가지 않는다. 실패한 티켓은 사유를 보여주고 그 후행은 영원히 요청되지 않는다. 오케스트레이션은 `store/ticketStore.ts`가 아니라 `ui/ticketRunner.ts`에 있다 — DOM 타입(`fetch`)을 만지는 코드는 `ui/`에만 두는 저장소 규칙(`tsconfig.uitest.json`) 때문이다. **GUI가 외부 에이전트 프로세스를 시작하는 것은 아니다.** 별도로 실행 중인 에이전트가 요청을 읽고 코드를 생성해 응답해야 한다. 통합 PR에는 #217의 `skills/visual-spec-ticket-response/SKILL.md`가 추가됐다. 요청된 한 웨이브의 코드 생성·파일 확인 후 `requestId`와 `results`로 응답하는 절차를 제공한다. 전용 스킬의 존재와 실제 외부 AI 왕복 검증은 구분한다. **작업공간이 없으면(정적 빌드) 실행 컨트롤 없이 조용히 A안으로 되돌아간다.** Command를 만들지 않으므로(에이전트가 `generated/`에 직접 쓴다) G1·G2·G3는 타지 않고, 결과 검증은 여전히 `export/verifyGenerated.ts`(#157)의 몫이다 |
 | localhost GUI · Canvas | **부분** | 캔버스가 스토어의 스펙을 실제로 그리고 클릭으로 노드를 선택할 수 있으며, 세부설정 패널 편집이 즉시 반영되고, Ctrl+휠 줌·휠 팬이 동작한다(`src/features/editor/ui/Canvas.tsx`, `ui/canvasLayout.ts`, `ui/PropertiesPanel.tsx`, `store/editorStore.ts`). File 메뉴로 **새 문서·열기·저장도 된다(개발 서버에서는 `.visual-spec/specs/`, 작업공간이 없으면 브라우저 파일 입출력)**(`ui/MenuBar.tsx`, `ui/openSpecFromFile.ts`, `ui/exportSpecAsJson.ts` — 이슈 #41이 지적한 것 중 New·Open·Save·Save as가 해소됐다). **Import 도 된다** — 이미지를 골라 선택된 프레임(없으면 root)의 자식으로 `image` 노드를 삽입한다(`ui/importImageFromFile.ts`, 2026-09-01 PR #69). 이로써 **File 메뉴에 미구현 항목이 없다.** **레이어 트리와 도구 모음도 스토어에 연결됐다** — 트리가 활성 페이지의 실제 노드 트리를 그리고(이슈 #43 해소), frame·text 도구로 캔버스를 클릭하면 노드가 실제로 만들어진다(이슈 #44 해소). 아래 표의 `ui/LayerTree.tsx`·`ui/Toolbar.tsx` 행 참고. **리사이즈는 된다**(핸들 드래그, 2026-09-09 PR #99) — **캔버스에서 노드를 끌어 순서·부모를 바꾸는 것도 된다**(2026-10-04, 이슈 #187). 스키마가 Auto Layout 전용이라 x/y 좌표는 여전히 없으므로 좌표가 아니라 "어느 프레임의 몇 번째 자리인가"를 바꾼다 — 판정은 `ui/canvasDrop.ts`, 배선은 `ui/useNodeDrag.ts` 이고, 놓으면 `moveNode` 한 번이라 Undo 도 한 단계다. 레이어 트리 드래그(이슈 #123)와 같은 Command를 쓴다. 조작법은 [10-shortcuts.md](10-shortcuts.md) "옮기기(끌기)" 절. **지속성은 이제 있다**(2026-09-15, 이슈 #128) — spec이 바뀔 때마다 디바운스해서 `localStorage`에 자동저장하고, 앱을 열 때 저장된 값이 있으면(검증 통과 시) 그걸로 시작한다(`store/specStorage.ts`). **지금 연 파일 이름도 같이 살아남는다**(2026-09-29, 이슈 #185) — `store/specStorage.ts`가 spec 내용과 `documentStore.fileName`을 `{ fileName, spec }` 한 값으로 묶어 저장하므로, `customer-copy.json`을 열고 새로고침한 뒤 Save해도 `Dashboard.json` 같은 엉뚱한 파일이 새로 생기지 않는다(PR #145가 고쳤던 문제가 새로고침 경로로 재발했던 것을 다시 고쳤다). 파일시스템 Open/Save는 #133으로 연결됐고, localStorage는 별도의 자동 복원 수단으로 남아 있다. 다중 탭 충돌 대응은 #232의 미결정 후속 범위다. 아래 표 참고 |
 | Export · 검증 | **부분(2026-09-27, 이슈 #157)** | [02-mvp-scope.md](02-mvp-scope.md)가 정의한 Export("생성된 React 코드를 결과 폴더로 내보내기")가 **File ▸ Export Code** 로 생겼다(`ui/ExportPanel.tsx` · `ui/exportGeneratedCode.ts` · `store/exportStore.ts` · 순수 판단은 `export/` 네 파일). `.visual-spec/generated/` 를 재귀로 훑어(`GET /__vs/list/generated?recursive=1`) 검증하고 `pages/`·`components/`·`assets/`·`package.json`·`README.md` 를 **ZIP 하나로 브라우저 다운로드**한다. **결과 폴더는 작업공간 밖에 직접 쓰지 않는다** — PR #145 가 세운 "작업공간 밖으로 한 발짝도 못 나간다"를 되돌리지 않으려고 다운로드를 골랐다(02 의 MVP 제외 범위가 이미 "Export 폴더를 사용자가 직접 통합한다"고 못박아 둔 것과 맞는다). **검증이 보는 것** — 티켓별 파일 유무 · `@/` 등 별칭·절대 경로 import 금지 · 상대 경로 import 가 실제 파일을 가리키는지 · 결과 폴더 밖으로 나가는 상대 경로 · `../assets/…` 이미지 존재. **안 보는 것** — 타입 검사·lint·렌더 비교(대상 프로젝트 설정이 필요하거나 MVP 제외 범위다). import 는 파서가 아니라 정규식으로 훑는다(`export/importScan.ts` 상단에 한계를 적어 뒀다). **"안 본다"가 "실제로는 안 된다"는 뜻이 아님을 1회 수동으로 증명했다**(2026-10-02, 이슈 #188) — `dashboard-cards.json`을 내보내 빈 Vite+React+TS+Tailwind v4 프로젝트에 넣고 `tsc -b --noEmit`·실제 렌더까지 직접 확인했다. 자세한 절차·발견 사항은 아래 "확인 방법" 2026-10-02 행 참고. **코드 생성 자체는 여전히 외부 에이전트의 몫이다**(#156 의 A안) — 이 단위는 거기 놓인 것을 읽고 내보낸다. 기존의 File ▸ Export·Save·Save as 와 패널 하단 `ui/properties/ExportJsonButton.tsx` 는 그대로 **스펙 JSON** 경로다(`store/exportSpec.ts` 의 `buildExportPayload`) — 이름만 같고 다른 기능이다 |
 
@@ -428,9 +435,9 @@ IR, Command, Ticket 세 스키마 모두 v0.1 런타임 정본과 동결 절차�
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
 | 유효 예제 9개 | `examples/*.json` | 검증 통과(2026-09-08 실측 — `ls examples/*.json` 8개. **7개는 `version: "0.1"` 이라 `validateVisualSpec` 이, `two-page-project.json` 만 `version: "0.2"` 라 `validateProjectSpec` 이 받는다**). **2026-10-04(#127)부터 8개 모두 `version: "0.3"` 이다** — `migrateToV03` 로 변환했고, 화면/프로젝트는 키로 갈라 각각 `validateVisualSpec`/`validateProjectSpec` 이 받는다. `examples/image-hero.json` 이 2026-09-01(PR #67)에, `examples/form-grid.json`(button·input·grid)이 2026-09-02(이슈 #75)에, `examples/card-effects.json`(그림자·불투명도·블러)이 2026-09-04(이슈 #78)에, **`examples/two-page-project.json`(v0.2 `ProjectSpec` — 페이지 2장)**이 그사이 추가됐다. **`examples/gradient-hero.json`(solid·linear 여러 겹 배경, 딱 끊기는 stop)이 2026-10-04(#127 5단계)에 처음부터 0.3으로 추가돼 9개가 됐다**(화면 8 + 프로젝트 1) |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
-| 테스트 | `test/*.test.ts` 전체 — `pnpm test` | **67파일 1,234케이스 통과** (2026-10-04, `develop` `5b0af2cc0b8ec8af2438a1cfda92a402438c5e5f`, #216 포함). 아래 확인 방법으로 재실측했다. 이전 날짜별 검증 수치는 상단 이력에 보존하며 현재 집계와 합산하지 않는다 |
+| 테스트 | `test/*.test.ts` 전체 — `pnpm test` | **68파일 1,239케이스 통과** (2026-10-04, 통합 코드 `bad0240` + 가이드 `1d89835`). 기준선 `develop` `5b0af2c`의 67파일·1,234케이스 기록과 구분한다. 이전 날짜별 검증 수치는 상단 이력에 보존하며 현재 집계와 합산하지 않는다 |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
-| 스킬 6종(2026-09-28, 이슈 #194) | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` · `visual-spec-nl-response` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 6개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33). `visual-spec-nl-response`는 GUI의 `.visual-spec/runtime/` 자연어 요청/응답 교환에 응답하는 법을 담는다 — `visual-spec-authoring`(파일 전체를 직접 쓰거나 고침)과 산출물·도착지가 다르다. **2026-10-04(#127 4단계)부터 solid·linear 여러 겹 배경을 가르친다** — authoring 은 그라디언트 작성 규칙과 관용구, nl-response 는 `updateNode { path: "background", value: 배열 전체 }` 한 경로, to-react 는 캔버스와 같은 규칙의 클래스(맨 아래 solid `bg-[c]` + 나머지 겹 `bg-[image:…]` 한 클래스 + `bg-origin-border`), validate 는 linear 범위 오류 해석([13](13-background-fill-design.md#캔버스-번역)) |
+| 스킬 7종(통합 PR, #217 포함) | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` · `visual-spec-nl-response` · `visual-spec-ticket-response` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 7개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33). `visual-spec-nl-response`는 GUI의 `.visual-spec/runtime/` 자연어 요청/응답 교환에 응답하는 법을 담는다 — `visual-spec-authoring`(파일 전체를 직접 쓰거나 고침)과 산출물·도착지가 다르다. **2026-10-04(#127 4단계)부터 solid·linear 여러 겹 배경을 가르친다** — authoring 은 그라디언트 작성 규칙과 관용구, nl-response 는 `updateNode { path: "background", value: 배열 전체 }` 한 경로, to-react 는 캔버스와 같은 규칙의 클래스(맨 아래 solid `bg-[c]` + 나머지 겹 `bg-[image:…]` 한 클래스 + `bg-origin-border`), validate 는 linear 범위 오류 해석([13](13-background-fill-design.md#캔버스-번역)) |
 
 검증기가 잡아내는 구조 오류는 코드 **9종**이다(2026-09-08 실측 8종 + #127 스키마 전환에서 1종 — `schema/validate.ts:7` 의 `IssueCode` 유니온) — `schema`, `root-missing`, `root-not-frame`, `child-missing`, `cycle`, `multiple-parents`, `orphan-node`, **`page-order-mismatch`**, **`gradient-stop-order`**. `page-order-mismatch` 가 v0.2 와 함께 늘었다 — `pages` 의 키와 `pageOrder` 가 정확히 일치해야 한다는 규칙은 JSON Schema 로 표현할 수 없어 `validateProjectSpec` 이 코드로 검사한다(정본 스키마의 `$defs.ProjectSpec.pageOrder` 설명이 그렇게 밝히고 있다). `gradient-stop-order` 는 0.3 에서 늘었다 — 그라디언트 stop 의 `at` 오름차순은 배열 원소끼리 비교하는 문법이 없어 `validateVisualSpec`·`validateProjectSpec` 이 코드로 검사한다([13](13-background-fill-design.md#표현-규칙)).
 
@@ -478,20 +485,19 @@ IR, Command, Ticket 세 스키마 모두 v0.1 런타임 정본과 동결 절차�
 `validateVisualSpec` 이 절대 예외를 던지지 않는다는 계약([06-schema-freeze.md](06-schema-freeze.md))은
 계속 지켜진다.
 
-### 5.3 검증 실패 알림 — Save는 알리고 File > Export는 알리지 않는다
+### 5.3 검증 실패 알림 — File > Export도 실패를 알린다
 
-2026-10-04 기준 커밋 `5b0af2c`의 경로별 동작이다. JSON Export와 코드 Export는 서로 다른 기능이다.
+2026-10-04 통합 코드 `bad0240`의 경로별 동작이다. JSON Export와 코드 Export는 서로 다른 기능이다.
 
 | 경로 | 검증 실패 시 사용자가 보는 것 | 근거 |
 |---|---|---|
-| File > Export (스펙 JSON) | 알림 없이 다운로드 취소. `buildExportPayload`는 `console.warn`을 남기며 메뉴 호출부가 실패 결과를 표시하지 않는다 | `store/exportSpec.ts` · `ui/exportSpecAsJson.ts` · `ui/MenuBar.tsx` |
+| File > Export (스펙 JSON) | 다운로드를 취소하고 `window.alert`로 총 건수·처음 3개 원인과 위치·나머지 건수를 알림(#230) | `store/exportSpec.ts` · `ui/exportSpecAsJson.ts` · `ui/MenuBar.tsx` |
 | File > Save / Save as | `window.alert`로 검증 실패 건수 안내. 작업공간 쓰기 실패도 알림 | `ui/exportSpecAsJson.ts`의 `saveSpec`·`saveSpecAs`·`saveToWorkspace` |
 | File > Open | `window.alert` | `ui/openSpecFromFile.ts` · `store/loadSpec.ts` |
-| 패널 하단 Export JSON | 버튼 위 인라인 오류 | `ui/properties/ExportJsonButton.tsx` |
+| 패널 하단 Export JSON | 같은 Export 함수의 alert와 버튼 위 인라인 오류 | `ui/properties/ExportJsonButton.tsx` |
 
-File > Export의 무알림은 #230의 수정 대상이다. 무효 스펙을 전달했을 때의 조건부 실패이며,
-일반 GUI 조작만으로 그 무효 상태에 도달하는 경로를 확인했다는 뜻은 아니다.
-이 기준 커밋에는 #230 수정이 포함되지 않았다.
+기준선 `5b0af2c`에서는 File > Export가 무효 스펙을 받으면 조용히 취소됐고, #230이 알림을 추가했다.
+이 회귀 조건은 무효 스펙 입력이며, 일반 GUI 조작만으로 그 상태에 도달하는 경로를 확인했다는 뜻은 아니다.
 
 ---
 
@@ -547,7 +553,7 @@ File > Export의 무알림은 #230의 수정 대상이다. 무효 스펙을 전�
 
 ## 확인 방법
 
-현재 집계는 2026-10-04, `develop` `5b0af2cc0b8ec8af2438a1cfda92a402438c5e5f`의 소스·테스트를 기준으로 문서만 수정한 브랜치에서 재실행했다.
+**기준선 실행 기록(#233)** — 2026-10-04, `develop` `5b0af2cc0b8ec8af2438a1cfda92a402438c5e5f`의 소스·테스트를 기준으로 문서만 수정한 브랜치에서 재실행했다.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -557,3 +563,7 @@ pnpm run lint        # 통과
 
 Node 24.19.0·pnpm 10.33.0 환경이다. 이번 문서 갱신에서 typecheck·build·브라우저 QA·외부 에이전트 실제 왕복은 재실행하지 않았다.
 과거 날짜의 실행 결과는 상단 이력에 남겨 현재 검증과 구분한다.
+
+**통합 실행 기록(#220·#221)** — 코드 `bad0240` + 가이드 `1d89835`에서 `pnpm test`는 **68파일 1,239케이스 통과**다.
+GUI Open·버튼 문구 편집·Save는 확인했고, 외부 Codex는 위 환경 오류로 모델 호출 전에 종료됐다.
+실제 AI 왕복과 fixture 응답 검증을 구분한 상세 기록·최종 검사 결과는 [15](15-workflow-qa.md)를 따른다.
