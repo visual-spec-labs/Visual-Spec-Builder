@@ -17,7 +17,7 @@
 
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 
 /** 이 파일 자신의 위치 기준 — 대상 프로젝트(cwd)가 아니라 이 패키지 자신의 skills/를 읽는다. */
@@ -187,6 +187,74 @@ export function installSkills(cwd) {
   return { targetRoot, installed, updated, unchanged };
 }
 
+/** 경고용 읽기만 수행한다. 링크·잘못된 경로를 따라 읽거나 수정하지 않는다. */
+function inspectSkillPath(root, relativePath, directory = false) {
+  const parts = relativePath.split(/[\\/]/);
+  let path = root;
+  for (let index = 0; index < parts.length; index += 1) {
+    path = join(path, parts[index]);
+    let stats;
+    try {
+      stats = lstatSync(path);
+    } catch (error) {
+      return error?.code === "ENOENT" ? "missing" : "unreadable";
+    }
+    if (stats.isSymbolicLink()) return "symlink";
+    const wantsDirectory = index < parts.length - 1 || directory;
+    if (wantsDirectory ? !stats.isDirectory() : !stats.isFile()) return "unreadable";
+  }
+  return "ok";
+}
+
+/**
+ * 현재 패키지와 설치 사본의 실제 바이트를 비교한다(#229).
+ * 차이를 구버전이라고 단정하지 않는다 — 사용자 편집도 차이를 만든다.
+ * 미설치 프로젝트에는 경고하지 않으며, GUI 시작은 어떤 사본도 갱신하지 않는다.
+ */
+function warnAboutInstalledSkills(cwd) {
+  const target = ".claude/skills";
+  const rootStatus = inspectSkillPath(cwd, target, true);
+  if (rootStatus === "missing") return;
+  if (rootStatus !== "ok") {
+    console.warn(`스킬 사본을 확인할 수 없습니다: ${target} (${rootStatus}). 링크·경로·읽기 권한을 확인해주세요. GUI는 계속 실행합니다.`);
+    return;
+  }
+  try {
+    const names = readdirSync(SKILLS_SRC_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    // 다른 도구의 스킬만 있는 새 프로젝트는 이 패키지 설치가 누락됐다고 오판하지 않는다.
+    if (!names.some((name) => inspectSkillPath(cwd, `${target}/${name}`, true) !== "missing")) return;
+    const changed = [];
+    const missing = [];
+    const unchecked = [];
+    for (const name of names) {
+      for (const source of listFilesRecursive(join(SKILLS_SRC_DIR, name))) {
+        const path = `${target}/${relative(SKILLS_SRC_DIR, source)}`;
+        const status = inspectSkillPath(cwd, path);
+        if (status === "missing") { missing.push(path); continue; }
+        if (status !== "ok") { unchecked.push(`${path} (${status})`); continue; }
+        try {
+          if (!readFileSync(join(cwd, path)).equals(readFileSync(source))) changed.push(path);
+        } catch {
+          unchecked.push(`${path} (unreadable)`);
+        }
+      }
+    }
+    if (changed.length || missing.length) {
+      console.warn("스킬 사본이 현재 패키지와 다르거나 일부 파일이 없습니다. 버전은 추정하지 않습니다.");
+      for (const path of changed) console.warn(`  내용 다름: ${path}`);
+      for (const path of missing) console.warn(`  없음: ${path}`);
+      console.warn("갱신하려면 `visual-spec skills`를 명시적으로 실행하세요. 해당 명령은 로컬 수정도 덮어씁니다. GUI 시작은 사본을 변경하지 않습니다.");
+    }
+    if (unchecked.length) {
+      console.warn("스킬 사본 일부를 확인할 수 없습니다. 링크·경로·읽기 권한을 확인한 뒤 갱신 여부를 판단해주세요:");
+      for (const path of unchecked) console.warn(`  ${path}`);
+    }
+  } catch {
+    console.warn("스킬 사본 확인에 실패했습니다. 패키지 skills 폴더와 읽기 권한을 확인해주세요. GUI는 계속 실행합니다.");
+  }
+}
+
 /**
  * 이 패키지 자신의 Vite 개발 서버 **JS 진입점** 경로. 없으면(=이 저장소에서 아직
  * `pnpm install`을 안 한 상태) 에러를 던진다 — spawn이 raw ENOENT를 던지기 전에
@@ -278,6 +346,7 @@ function runSkills() {
  */
 function runGui() {
   const viteEntry = resolveViteEntry();
+  warnAboutInstalledSkills(process.cwd());
   // **`node_modules/.bin/`의 런처가 아니라 vite의 JS 진입점을 지금 도는 node로 직접 돌린다.**
   // Windows에서 `.bin/`에 깔리는 건 확장자가 `.cmd`인 배치 런처인데, Node는
   // CVE-2024-27980 완화(18.20.2 / 20.12.2 이후) 이래 `.cmd`·`.bat`를 `shell: true` 없이
