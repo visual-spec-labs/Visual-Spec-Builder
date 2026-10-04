@@ -114,11 +114,11 @@ describe("compileTickets", () => {
     expect(compileTickets(broken)).toEqual([]);
   });
 
-  it("root 직계 자식은 서로 반복 판정을 하지 않는다 — 완전히 같아도 각자 티켓, id만 -2로 구분", () => {
+  it("root 직계 자식은 서로 반복 판정을 하지 않는다 — 완전히 같아도 각자 티켓, 숫자 접미사로 구분", () => {
     // a, b는 완전히 동일한 모양(내용만 다름)이지만 root의 "직계 자식"이라 규칙 1이
     // 적용된다 — 규칙 2(형제 반복 그룹화)는 어떤 노드의 "자식들" 사이에서만 보므로
     // root 자신의 자식끼리는 절대 하나로 묶이지 않는다. 그래서 티켓이 1개(Card처럼
-    // 묶임)가 아니라 2개(Section, Section-2) 나와야 한다.
+    // 묶임)가 아니라 2개(Section, Section2) 나와야 한다.
     const screen: ScreenSpec = {
       name: "Dup",
       size: { width: 100, height: 100 },
@@ -172,7 +172,7 @@ describe("compileTickets", () => {
 
     const tickets = compileTickets(screen);
     const componentIds = tickets.filter((t) => t.kind === "component").map((t) => t.id);
-    expect(componentIds).toEqual(["Section", "Section-2"]);
+    expect(componentIds).toEqual(["Section", "Section2"]);
   });
 
   it("구조가 같은 button 형제(라벨만 다름)를 하나의 컴포넌트 티켓으로 묶는다", () => {

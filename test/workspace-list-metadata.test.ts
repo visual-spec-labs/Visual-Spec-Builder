@@ -1,0 +1,33 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WORKSPACE_MARKER_HEADER } from "@/features/workspace/protocol";
+
+beforeEach(() => vi.resetModules());
+afterEach(() => vi.unstubAllGlobals());
+function response(body: unknown, marker = true) {
+  return new Response(JSON.stringify(body), { headers: marker ? { [WORKSPACE_MARKER_HEADER]: "1" } : {} });
+}
+
+describe("목록 메타데이터 클라이언트", () => {
+  it("opt-in 질의만 보내고 0과 음수 시각을 보존하며 무효 항목을 제외한다", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(response({ok: true})).mockResolvedValueOnce(response({entries: [
+      {name: "epoch.json", mtimeMs: 0}, {name: "before.json", mtimeMs: -1},
+      {name: "bad.json", mtimeMs: "10"}, null, {name: 12, mtimeMs: 1},
+    ]}));
+    vi.stubGlobal("fetch", fetcher);
+    const {listWorkspaceFileEntries} = await import("@/features/editor/ui/workspaceClient");
+    expect(await listWorkspaceFileEntries("specs")).toEqual([
+      {name: "epoch.json", mtimeMs: 0}, {name: "before.json", mtimeMs: -1},
+    ]);
+    expect(fetcher).toHaveBeenLastCalledWith("/__vs/list/specs?metadata=1");
+  });
+  it.each([{}, null, {entries: "wrong"}])("무효 응답 %j는 연결 불가로 처리한다", async body => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(response({})).mockResolvedValueOnce(response(body)));
+    const {listWorkspaceFileEntries} = await import("@/features/editor/ui/workspaceClient");
+    expect(await listWorkspaceFileEntries("specs")).toBeNull();
+  });
+  it("정적 서버의 HTML 폴백은 빈 작업공간으로 오인하지 않는다", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<!doctype html>")));
+    const {listWorkspaceFileEntries} = await import("@/features/editor/ui/workspaceClient");
+    expect(await listWorkspaceFileEntries("specs")).toBeNull();
+  });
+});

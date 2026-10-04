@@ -26,6 +26,11 @@ description: Visual Spec Builder GUI의 구현 티켓 실행 요청(.visual-spec
 4. **경로를 검증한 뒤에만 쓴다.** `filePath`는 `.visual-spec/generated/` 기준 상대 경로이며
    `kind`에 따라 정확히 `pages/<componentName>.tsx` 또는 `components/<componentName>.tsx`다.
    절대 경로, `..`, `/`·`\`가 든 이름, drive 경로, NUL, 잘못된 JS 식별자는 거부한다.
+   현재 GUI는 중복 이름에 `Section2`, `Section3`처럼 식별자에 안전한 숫자를 붙인다.
+   구버전 GUI가 남긴 `Section-2` 같은 요청은 이름·경로를 임의로 바꿔 구현하지 않는다.
+   해당 티켓을 `failed`로 보고하고 GUI를 갱신한 뒤 **티켓 다시 생성 → 실행**을 안내한다.
+   티켓은 스펙에서 다시 만드는 파생 계획이므로 스펙 파일을 마이그레이션하지 않는다.
+   이미 생성된 구버전 파일을 삭제하거나 이름을 바꾸지도 않는다.
    부모 디렉터리와 기존 파일의 심볼릭 링크도 확인하여 실제 경로가 해당 작업공간 밖으로
    나가지 않아야 한다. 응답 경로도 고정 값만 허용하며 같은 링크 검사를 한다. 임의의
    `responsePath`를 따라 쓰지 않는다. 요청 전체 형식·응답 경로가 잘못되면 파일을 쓰지 말고

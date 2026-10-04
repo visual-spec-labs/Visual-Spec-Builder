@@ -33,6 +33,14 @@ export const WORKSPACE_LIST_ROUTE = `${WORKSPACE_API_PREFIX}/list/`;
  */
 export const WORKSPACE_LIST_RECURSIVE_PARAM = "recursive";
 
+/** opt-in 목록 메타데이터. 기존 files 문자열 배열은 그대로 유지한다. */
+export const WORKSPACE_LIST_METADATA_PARAM = "metadata";
+export interface WorkspaceFileEntry {
+  name: string;
+  /** 파일 시스템 수정 시각(ms since epoch). 0도 유효하다. */
+  mtimeMs: number;
+}
+
 /**
  * 작업공간 루트 기준 상대 경로(`specs/home.json`)를 파일 라우트 URL로 바꾼다.
  *
