@@ -13,12 +13,12 @@ import dashboardCards from "../examples/dashboard-cards.json";
 import loginScreen from "../examples/login-screen.json";
 import twoPageExample from "../examples/two-page-project.json";
 
-const v01 = dashboardCards as VisualSpec;
+const screenDoc = dashboardCards as VisualSpec;
 
 /** 페이지 2개짜리 프로젝트. 두 예제를 그대로 페이지로 얹는다. */
 function twoPageProject(): ProjectSpec {
   return {
-    version: "0.2",
+    version: "0.3",
     name: "two-page",
     pages: {
       home: (dashboardCards as VisualSpec).screen,
@@ -29,23 +29,23 @@ function twoPageProject(): ProjectSpec {
 }
 
 describe("migrateV01 / toVisualSpec", () => {
-  it("v0.1 문서를 페이지 1개짜리 프로젝트로 넓힌다", () => {
-    const project = migrateV01(v01);
+  it("화면 문서를 페이지 1개짜리 프로젝트로 넓힌다", () => {
+    const project = migrateV01(screenDoc);
 
-    expect(project.version).toBe("0.2");
+    expect(project.version).toBe("0.3");
     expect(project.pageOrder).toHaveLength(1);
-    expect(project.pages[project.pageOrder[0]]).toEqual(v01.screen);
+    expect(project.pages[project.pageOrder[0]]).toEqual(screenDoc.screen);
   });
 
-  it("왕복하면 원본 v0.1 문서로 돌아온다", () => {
-    const project = migrateV01(v01);
+  it("왕복하면 원본 화면 문서로 돌아온다", () => {
+    const project = migrateV01(screenDoc);
     const back = toVisualSpec(project.pages[project.pageOrder[0]]);
 
-    expect(back).toEqual(v01);
+    expect(back).toEqual(screenDoc);
   });
 
   it("넓힌 결과는 프로젝트 검증을 통과한다", () => {
-    expect(validateProjectSpec(migrateV01(v01)).valid).toBe(true);
+    expect(validateProjectSpec(migrateV01(screenDoc)).valid).toBe(true);
   });
 });
 
@@ -111,32 +111,33 @@ describe("validateProjectSpec", () => {
     expect(issue?.path).toBe("/pages/login/root");
   });
 
-  it("v0.1 문서를 그대로 넣으면 거부한다", () => {
-    expect(validateProjectSpec(v01).valid).toBe(false);
+  it("화면 문서를 그대로 넣으면 거부한다", () => {
+    expect(validateProjectSpec(screenDoc).valid).toBe(false);
   });
 });
 
 describe("validateVisualSpec은 그대로다", () => {
-  it("v0.1 예제를 여전히 통과시킨다", () => {
-    expect(validateVisualSpec(v01).valid).toBe(true);
+  it("화면 문서 예제를 여전히 통과시킨다", () => {
+    expect(validateVisualSpec(screenDoc).valid).toBe(true);
   });
 
-  it("프로젝트 문서는 v0.1로서는 거부한다", () => {
+  it("프로젝트 문서는 화면 문서로서는 거부한다", () => {
     expect(validateVisualSpec(twoPageProject()).valid).toBe(false);
   });
 });
 
 describe("스타일 효과 필드", () => {
-  // v0.1과 v0.2는 $defs/Node를 공유하지만(root.screen과 ProjectSpec.pages[*]가 같은
-  // ScreenSpec을 가리킨다) 실제로 v0.2 경로로 도는 검증이 없으면 회귀를 못 잡는다.
-  it("v0.1로 통과한 문서는 v0.2로 넓혀도 통과한다", () => {
-    const v01Spec = cardEffects as VisualSpec;
+  // 화면 문서와 프로젝트 문서는 $defs/Node를 공유하지만(root.screen과
+  // ProjectSpec.pages[*]가 같은 ScreenSpec을 가리킨다) 실제로 프로젝트 경로로 도는
+  // 검증이 없으면 회귀를 못 잡는다.
+  it("화면 문서로 통과한 문서는 프로젝트로 넓혀도 통과한다", () => {
+    const screenSpec = cardEffects as VisualSpec;
 
-    expect(validateVisualSpec(v01Spec)).toEqual({ valid: true, issues: [] });
-    expect(validateProjectSpec(migrateV01(v01Spec))).toEqual({ valid: true, issues: [] });
+    expect(validateVisualSpec(screenSpec)).toEqual({ valid: true, issues: [] });
+    expect(validateProjectSpec(migrateV01(screenSpec))).toEqual({ valid: true, issues: [] });
   });
 
-  it("v0.2 페이지 안의 잘못된 효과도 잡는다", () => {
+  it("프로젝트 페이지 안의 잘못된 효과도 잡는다", () => {
     const project = migrateV01(cardEffects as VisualSpec);
     const page = project.pages[project.pageOrder[0]];
     (page.nodes.elevatedCard as { shadow?: unknown }).shadow = { y: 4 };

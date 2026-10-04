@@ -1,5 +1,5 @@
 {
-  "version": "0.3",
+  "version": "0.1",
   "screen": {
     "name": "DashboardPage",
     "size": { "width": 1440, "height": 900 },
@@ -16,7 +16,7 @@
           "mainAxis": "start",
           "crossAxis": "stretch"
         },
-        "background": [{ "type": "solid", "color": "#F7F8FA" }],
+        "background": { "color": "#F7F8FA" },
         "children": [{ "node": "header" }, { "node": "content" }]
       },
       "header": {
@@ -71,7 +71,7 @@
           "mainAxis": "start",
           "crossAxis": "start"
         },
-        "background": [{ "type": "solid", "color": "#FFFFFF" }],
+        "background": { "color": "#FFFFFF" },
         "border": { "width": 1, "color": "#E5E7EB", "radius": 12 },
         "children": [{ "node": "cardALabel" }, { "node": "cardAValue" }]
       },
@@ -116,7 +116,7 @@
           "mainAxis": "start",
           "crossAxis": "start"
         },
-        "background": [{ "type": "solid", "color": "#FFFFFF" }],
+        "background": { "color": "#FFFFFF" },
         "border": { "width": 1, "color": "#E5E7EB", "radius": 12 },
         "children": [{ "node": "cardBLabel" }, { "node": "cardBValue" }]
       },

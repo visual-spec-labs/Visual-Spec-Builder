@@ -1,5 +1,5 @@
 {
-  "version": "0.3",
+  "version": "0.2",
   "name": "admin-console",
   "pages": {
     "dashboard": {
@@ -29,12 +29,9 @@
             "mainAxis": "start",
             "crossAxis": "stretch"
           },
-          "background": [
-            {
-              "type": "solid",
-              "color": "#F7F8FA"
-            }
-          ],
+          "background": {
+            "color": "#F7F8FA"
+          },
           "children": [
             {
               "node": "header"
@@ -134,12 +131,9 @@
             "mainAxis": "start",
             "crossAxis": "start"
           },
-          "background": [
-            {
-              "type": "solid",
-              "color": "#FFFFFF"
-            }
-          ],
+          "background": {
+            "color": "#FFFFFF"
+          },
           "border": {
             "width": 1,
             "color": "#E5E7EB",
@@ -209,12 +203,9 @@
             "mainAxis": "start",
             "crossAxis": "start"
           },
-          "background": [
-            {
-              "type": "solid",
-              "color": "#FFFFFF"
-            }
-          ],
+          "background": {
+            "color": "#FFFFFF"
+          },
           "border": {
             "width": 1,
             "color": "#E5E7EB",
@@ -294,12 +285,9 @@
             "mainAxis": "start",
             "crossAxis": "stretch"
           },
-          "background": [
-            {
-              "type": "solid",
-              "color": "#FFFFFF"
-            }
-          ],
+          "background": {
+            "color": "#FFFFFF"
+          },
           "children": [
             {
               "node": "title"
@@ -347,12 +335,9 @@
             "mainAxis": "center",
             "crossAxis": "stretch"
           },
-          "background": [
-            {
-              "type": "solid",
-              "color": "#F5F5F5FF"
-            }
-          ],
+          "background": {
+            "color": "#F5F5F5FF"
+          },
           "border": {
             "width": 1,
             "color": "#00000020",

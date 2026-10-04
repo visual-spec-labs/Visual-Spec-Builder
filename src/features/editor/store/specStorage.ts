@@ -1,4 +1,4 @@
-import { validateProjectSpec } from "@/features/editor/schema";
+import { migrateToV03, validateProjectSpec } from "@/features/editor/schema";
 import type { ProjectSpec } from "@/features/editor/schema";
 
 /**
@@ -30,9 +30,9 @@ interface StoredDocument {
  *
  * 다음 중 하나라도 해당하면 undefined다 — 저장된 값이 없다, JSON으로 파싱이 안
  * 된다, 봉투 모양이 아니다, `fileName`이 문자열도 null도 아니다, `spec`이
- * `validateProjectSpec`을 통과하지 못한다. **#128 시절 저장된 옛 형태**(봉투 없이
- * `ProjectSpec`이 최상위)도 여기 걸린다 — `spec` 필드가 없어 검증에 실패하고
- * 조용히 폐기된다. 로컬 캐시일 뿐이라 한 번 seedSpec/`null`로 되돌아가는 것을
+ * (`migrateToV03`로 0.3으로 바꾼 뒤에도) `validateProjectSpec`을 통과하지 못한다.
+ * **#128 시절 저장된 옛 형태**(봉투 없이 `ProjectSpec`이 최상위)도 여기
+ * 걸린다 — `spec` 필드가 없어 검증에 실패하고 조용히 폐기된다. 로컬 캐시일 뿐이라 한 번 seedSpec/`null`로 되돌아가는 것을
  * 감수한다 — `loadStoredSpec`이 이전부터 "스키마가 다른 값"을 같은 방식으로
  * 다뤄 온 것과 같은 취급이다.
  */
@@ -56,7 +56,9 @@ function readStoredDocument(): StoredDocument | undefined {
   const fileName = (parsed as Record<string, unknown>).fileName;
   if (fileName !== null && typeof fileName !== "string") return undefined;
 
-  const spec = (parsed as Record<string, unknown>).spec;
+  // 검증 전에 0.3으로 바꾼다(#127). 빠뜨리면 0.2 시절 자동 저장본이 아래 검증에서
+  // 조용히 버려져, 갱신 직후 첫 실행에서 작업이 사라진다.
+  const spec = migrateToV03((parsed as Record<string, unknown>).spec);
   const result = validateProjectSpec(spec);
   if (!result.valid) return undefined;
 

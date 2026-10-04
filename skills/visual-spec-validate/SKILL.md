@@ -1,6 +1,6 @@
 ---
 name: visual-spec-validate
-description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해석하고 고쳐야 할 때 실행한다. "검증 실패했는데 뭐가 문제야", "valid 가 false 로 나와", "필수 필드 "content"가 없습니다", "필수 필드 "src"가 없습니다", "허용되지 않는 필드 "typography"가 있습니다", "정의된 대안 스키마 중 어느 것과도 일치하지 않습니다", "값이 "image"이어야 합니다", "루트에서 도달할 수 없습니다", "가 nodes에 없습니다", "두 곳 이상에서 참조되었습니다", "이 스펙 왜 안 되지", "VisualSpecValidationError 떴어"처럼 validateVisualSpec 의 실패 결과나 code/path/message 를 들고 오는 요청에서 쓴다. 아직 실패하지 않았어도 "스펙 검증해줘", "이 JSON 맞게 쓴 건지 확인해줘", "스펙 다 썼는데 이제 어떻게 해", "이슈가 12개 나왔는데 다 고쳐야 해"처럼 검증을 돌려달라거나 결과를 판단해달라는 요청, 스펙을 저장·변환하려다 검증에서 막혔을 때도 대상이다. 특히 한 노드에서 schema 이슈가 여러 개 쏟아져 어느 message 를 믿어야 할지 안 보일 때 쓴다.
+description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해석하고 고쳐야 할 때 실행한다. "검증 실패했는데 뭐가 문제야", "valid 가 false 로 나와", "필수 필드 "content"가 없습니다", "필수 필드 "src"가 없습니다", "허용되지 않는 필드 "typography"가 있습니다", "정의된 대안 스키마 중 어느 것과도 일치하지 않습니다", "값이 "image"이어야 합니다", "루트에서 도달할 수 없습니다", "가 nodes에 없습니다", "두 곳 이상에서 참조되었습니다", "값의 타입이 "array"이어야 합니다", "그라디언트 stop의 위치(at)는 오름차순이어야 합니다", "이 스펙 왜 안 되지", "VisualSpecValidationError 떴어"처럼 validateVisualSpec 의 실패 결과나 code/path/message 를 들고 오는 요청에서 쓴다. 아직 실패하지 않았어도 "스펙 검증해줘", "이 JSON 맞게 쓴 건지 확인해줘", "스펙 다 썼는데 이제 어떻게 해", "이슈가 12개 나왔는데 다 고쳐야 해"처럼 검증을 돌려달라거나 결과를 판단해달라는 요청, 스펙을 저장·변환하려다 검증에서 막혔을 때도 대상이다. 특히 한 노드에서 schema 이슈가 여러 개 쏟아져 어느 message 를 믿어야 할지 안 보일 때 쓴다.
 ---
 
 # 검증 실패 해석과 수정
@@ -38,6 +38,19 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
   나오면 갈래가 전멸한 것이다.** 그때는 개별 필드가 아니라 `type` 자체가 틀렸고, 그 다섯
   메시지에 적힌 값이 v0.1 의 허용값 전부다. `unsupported-node-type.json`(`type: "shape"`)이
   이 모양으로 19개를 낸다.
+- **배경(`background`) 오류는 같은 묶음이 세 번 반복된다.** `background` 는 채우기 겹의
+  배열(`Fill[]`)이고 겹 하나가 다시 `solid`·`linear` 두 갈래의 `oneOf` 다. 그런데 `background` 를
+  갖는 노드 갈래가 `frame`·`button`·`input` 셋이라, 겹 하나가 틀리면 그 겹의 이슈 묶음이
+  노드 갈래마다 한 벌씩 나온다(`login-screen` 의 root 배경 겹 하나만 틀려도 41~44개).
+  `path` 가 `.../background/<i>` 인 이슈만 골라 중복을 지우면 한 벌이 남는다. 그 안에서는 노드
+  `oneOf` 와 같은 방법으로 읽는다 — `.../background/<i>/type` 의 `값이 "solid"이어야 합니다.`·
+  `값이 "linear"이어야 합니다.` 중 **나오지 않은 쪽이 살아남은 갈래**이고, 그 갈래의 이슈가
+  진짜다. 예: `{ "type": "solid" }` 은 `"linear"` 탈락만 나오므로 진짜는 `필수 필드 "color"가
+  없습니다.` 다. 두 값이 다 나오면 `type` 자체가 틀렸다(`"radial"` 같은 없는 종류 — 허용값은
+  `solid`·`linear` 둘뿐이다).
+- **`.../background` 에 `값의 타입이 "array"이어야 합니다.` 가 나오면 0.2까지의 옛 모양이다.**
+  `{ "color": c }` → `[{ "type": "solid", "color": c }]` 로 고친다. 문서 버전도 `"0.3"` 이어야
+  한다(옛 0.1·0.2 파일은 앱이 열 때 변환하지만 `validateVisualSpec` 은 변환하지 않는다).
 - **맨 끝의 `정의된 대안 스키마 중 어느 것과도 일치하지 않습니다.` 는 원인이 아니라 요약이다.**
   `oneOf` 가 실패했다는 사실만 말한다. 같은 `path` 의 다른 이슈로 되돌아가서 읽는다.
 - **`schema` 이슈 개수는 심각도가 아니다.** 노드 하나가 틀리면 `oneOf` 분기마다 이슈가
@@ -50,7 +63,7 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
 - **`multiple-parents` 의 `path` 는 두 번째 참조 위치다.** 첫 번째 참조는 이슈에 안 나온다.
   해당 ID 를 전체 검색해 어느 쪽을 남길지 정한다.
 
-## 실패 분류와 수정 (`examples/invalid/` 와 1:1)
+## 실패 분류와 수정 (`examples/invalid/` 8개 + 배경 두 줄)
 
 | code | 어떤 실수인가 | 어떻게 고치나 |
 |---|---|---|
@@ -61,6 +74,8 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
 | `root-missing` | `screen.root` 값이 `nodes` 의 키와 다르다 | 둘 중 하나를 상대에 맞춘다 |
 | `root-not-frame` | 루트를 `text` 로 만들었다. 텍스트 한 줄짜리 화면에서 자주 나온다 | 루트 프레임을 만들고 그 텍스트를 자식으로 넣는다 |
 | `schema` at `.../<node>` (`text-without-content`) | TextNode 에 `content` 가 없다. **필수 필드 누락은 전부 이 모양으로 나온다.** 이슈 16개 중 6번째 `필수 필드 "content"가 없습니다.` 만 진짜고 나머지는 `frame`·`image`·`button`·`input` 갈래의 잡음이다 | 정본 스키마의 `required` 와 그 노드를 대조해, `message` 가 지목한 빠진 필드를 채운다 |
+| `gradient-stop-order` | `linear` 겹의 `stops` 에서 `at` 이 앞 stop보다 작다. JSON Schema로는 원소끼리 비교할 수 없어 스키마 검사를 통과한 뒤 따로 잡는다. `path` 는 순서가 어긋난 stop의 `.../stops/<j>/at` 이다 | stop을 `at` 오름차순으로 정렬한다. 같은 값이 이어지는 것은 허용된다(딱 끊기는 경계) |
+| `schema` at `.../background` (`값의 타입이 "array"`) | 0.2까지의 `{ "color": c }` 배경을 그대로 썼다 | `[{ "type": "solid", "color": c }]` 로 바꾼다 |
 | `schema` at `.../<node>/type` (`unsupported-node-type`) | `shape` 처럼 v0.1 에 없는 `type` 을 썼다. `값이 "frame"`·`"text"`·`"image"`·`"button"`·`"input"` 다섯 이슈가 **함께** 나오는 것이 신호다 | 그 다섯 메시지의 값이 허용값 전부다 — v0.1 은 `frame`, `text`, `image`, `button`, `input` 다섯뿐이다. 다섯 중 가장 가까운 것으로 근사한다 |
 
 ## 절차

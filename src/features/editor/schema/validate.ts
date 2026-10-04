@@ -12,7 +12,8 @@ export type IssueCode =
   | "cycle"
   | "multiple-parents"
   | "orphan-node"
-  | "page-order-mismatch";
+  | "page-order-mismatch"
+  | "gradient-stop-order";
 
 export interface ValidationIssue {
   code: IssueCode;
@@ -43,7 +44,7 @@ function getSchemaValidator(): CompiledValidator {
 }
 
 /**
- * ProjectSpec은 정본 스키마의 루트가 아니라 `$defs` 항목이다. 루트는 v0.1
+ * ProjectSpec은 정본 스키마의 루트가 아니라 `$defs` 항목이다. 루트는 단일 화면
  * VisualSpec으로 그대로 두기 위해서다. 그래서 스키마를 통째로 등록한 뒤
  * 해당 `$def`를 가리키는 얇은 스키마를 컴파일한다.
  */
@@ -247,6 +248,46 @@ function validateScreenReferences(
   return issues;
 }
 
+/**
+ * 그라디언트 stop의 `at`이 오름차순인지 본다(같은 값은 허용 — 딱 끊기는 경계).
+ *
+ * JSON Schema 2020-12에는 배열 원소끼리 비교하는 문법이 없어 여기서 따로 본다.
+ * 렌더에서 정렬해 주지 않고 무효로 두는 이유는 CSS가 앞보다 작은 stop을 정렬하지
+ * 않고 앞 값으로 끌어올리기 때문이다 — 순서가 틀린 JSON의 뜻이 번역기마다
+ * 달라진다(docs/13-background-fill-design.md "표현 규칙").
+ *
+ * 스키마를 통과한 뒤에만 부르므로 `background`의 모양은 이미 맞다.
+ */
+function validateGradientStops(
+  screen: ScreenSpec,
+  basePath: string,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const [nodeId, node] of Object.entries(screen.nodes)) {
+    const background = "background" in node ? node.background : undefined;
+    if (background === undefined) continue;
+
+    background.forEach((fill, fillIndex) => {
+      if (fill.type !== "linear") return;
+
+      for (let index = 1; index < fill.stops.length; index += 1) {
+        const previous = fill.stops[index - 1].at;
+        const current = fill.stops[index].at;
+        if (current < previous) {
+          issues.push({
+            code: "gradient-stop-order",
+            path: `${nodePath(basePath, nodeId)}/background/${fillIndex}/stops/${index}/at`,
+            message: `그라디언트 stop의 위치(at)는 오름차순이어야 합니다 — ${current}가 앞 stop의 ${previous}보다 작습니다.`,
+          });
+        }
+      }
+    });
+  }
+
+  return issues;
+}
+
 export function validateVisualSpec(input: unknown): ValidationResult {
   try {
     const validateSchema = getSchemaValidator();
@@ -271,10 +312,11 @@ export function validateVisualSpec(input: unknown): ValidationResult {
       return { valid: false, issues };
     }
 
-    const issues = validateScreenReferences(
-      (input as VisualSpec).screen,
-      "/screen",
-    );
+    const { screen } = input as VisualSpec;
+    const issues = [
+      ...validateScreenReferences(screen, "/screen"),
+      ...validateGradientStops(screen, "/screen"),
+    ];
     return { valid: issues.length === 0, issues };
   } catch {
     return {
@@ -327,8 +369,12 @@ function validatePageOrder(project: ProjectSpec): ValidationIssue[] {
 }
 
 /**
- * v0.2 프로젝트 문서를 검증한다. 절대 던지지 않는다.
- * 페이지마다 v0.1과 같은 그래프 검사를 돌리고, 에러 경로는 `/pages/<id>/...`가 된다.
+ * 프로젝트 문서를 검증한다. 절대 던지지 않는다.
+ * 페이지마다 화면 문서와 같은 그래프·stop 정렬 검사를 돌리고, 에러 경로는
+ * `/pages/<id>/...`가 된다.
+ *
+ * 0.1·0.2 문서는 여기서 무효다 — 옛 문서를 받는 입구는 `migrateToV03`로 먼저
+ * 바꾼 뒤 검증한다(store/loadSpec.ts·store/specStorage.ts).
  */
 export function validateProjectSpec(input: unknown): ValidationResult {
   try {
@@ -358,11 +404,10 @@ export function validateProjectSpec(input: unknown): ValidationResult {
     const issues = validatePageOrder(project);
 
     for (const [pageId, page] of Object.entries(project.pages)) {
+      const pagePath = `/pages/${escapeJsonPointer(pageId)}`;
       issues.push(
-        ...validateScreenReferences(
-          page,
-          `/pages/${escapeJsonPointer(pageId)}`,
-        ),
+        ...validateScreenReferences(page, pagePath),
+        ...validateGradientStops(page, pagePath),
       );
     }
 

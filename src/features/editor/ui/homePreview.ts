@@ -8,7 +8,7 @@ import type {
   TextNode,
 } from "@/features/editor/schema";
 
-import { boxStyle, radiusCss, type Direction } from "./canvasLayout";
+import { backgroundStyle, boxStyle, radiusCss, type Direction } from "./canvasLayout";
 import { imageUrlCss } from "./properties/imageSrc";
 
 /**
@@ -73,7 +73,7 @@ export function previewFrameStyle(
     justifyContent: MAIN_AXIS[layout.mainAxis],
     alignItems: CROSS_AXIS[layout.crossAxis],
     ...boxStyle(node.box, parentDirection),
-    background: node.background?.color,
+    ...backgroundStyle(node.background),
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
       : undefined,
@@ -130,7 +130,7 @@ export function previewButtonStyle(
     lineHeight: `${typography.lineHeight}px`,
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
-    background: node.background?.color,
+    ...backgroundStyle(node.background),
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
       : undefined,
@@ -156,7 +156,7 @@ export function previewInputStyle(
     lineHeight: `${typography.lineHeight}px`,
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
-    background: node.background?.color,
+    ...backgroundStyle(node.background),
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
       : undefined,

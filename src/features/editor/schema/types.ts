@@ -8,9 +8,17 @@ export type Node = FrameNode | TextNode | ImageNode | ButtonNode | InputNode;
  */
 export type Size = number | ("auto" | "fill");
 /**
+ * 채우기 겹 하나. 종류는 type으로 가른다. radial·image는 아직 없다 — 나중에 갈래를 더해도 기존 문서는 깨지지 않는다.
+ */
+export type Fill = SolidFill | LinearFill;
+/**
  * #RRGGBB 또는 #RRGGBBAA
  */
 export type Color = string;
+/**
+ * 채우기 겹 목록. 배열 앞이 위다(CSS background-image와 같은 순서). 생략과 빈 배열은 둘 다 '채우기 없음'이다. 배열이라 부분 병합하지 않고 통째로 교체한다(updateNode 경로는 "background" 하나).
+ */
+export type Background = Fill[];
 /**
  * 모서리 반경. 숫자 하나면 네 모서리가 같고, 객체면 모서리별로 다르다. 객체 쪽은 네 칸이 모두 필수다 — 한 칸만 쓴 반쪽 객체는 CSS border-radius를 통째로 깨뜨린다.
  */
@@ -36,10 +44,10 @@ export type Opacity = number;
 export type Blur = number;
 
 /**
- * Visual Spec Schema v0.1 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음.
+ * Visual Spec Schema v0.3 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 0.1 문서는 앱이 열 때 0.3으로 변환한다(schema/migrate.ts).
  */
 export interface VisualSpec {
-  version: "0.1";
+  version: "0.3";
   screen: ScreenSpec;
 }
 export interface ScreenSpec {
@@ -91,10 +99,34 @@ export interface Padding {
   left: number;
 }
 /**
- * MVP는 단색만
+ * 단색 채우기. 투명도는 color의 알파(#RRGGBBAA)로 쓴다.
  */
-export interface Background {
+export interface SolidFill {
+  type: "solid";
   color: Color;
+}
+/**
+ * 선형 그라디언트 채우기. 의미는 CSS linear-gradient와 같다.
+ */
+export interface LinearFill {
+  type: "linear";
+  /**
+   * CSS linear-gradient의 각도(deg). 0 = 아래에서 위(to top), 90 = 왼쪽에서 오른쪽, 180 = 위에서 아래. 한 방향에 한 표기만 두려고 [0, 360)으로 막는다.
+   */
+  angle: number;
+  /**
+   * 색 정지점. at은 오름차순이어야 하고 같은 값은 허용한다(딱 끊기는 경계). JSON Schema로는 원소끼리 비교할 수 없어 validateVisualSpec·validateProjectSpec이 gradient-stop-order로 검사한다.
+   *
+   * @minItems 2
+   */
+  stops: [GradientStop, GradientStop, ...GradientStop[]];
+}
+export interface GradientStop {
+  color: Color;
+  /**
+   * 그라디언트 선 위의 위치. 0 = 시작, 1 = 끝. CSS로 옮길 때 at × 100%다.
+   */
+  at: number;
 }
 /**
  * MVP는 solid 고정, 네 모서리 균일
@@ -197,10 +229,10 @@ export interface InputNode {
 export type PageId = string;
 
 /**
- * Visual Spec v0.2 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 v0.1의 ScreenSpec 그대로다.
+ * Visual Spec v0.3 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 화면 문서와 같은 ScreenSpec이다. 버전은 IR 세대를 뜻하고, 화면 문서와는 버전이 아니라 키(screen / pages)로 구별한다. 0.2 문서는 앱이 열 때 0.3으로 변환한다.
  */
 export interface ProjectSpec {
-  version: "0.2";
+  version: "0.3";
   name: string;
   pages: {
     [k: string]: ScreenSpec;

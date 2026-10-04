@@ -10,6 +10,8 @@ import {
 } from "@/features/editor/store/specStorage";
 
 import dashboardCards from "../examples/dashboard-cards.json";
+import twoPageExample from "../examples/two-page-project.json";
+import legacyTwoPage from "./fixtures/legacy/two-page-project.v0.2.json";
 
 const validSpec: ProjectSpec = migrateV01(dashboardCards as VisualSpec);
 
@@ -67,10 +69,23 @@ describe("specStorage (#128 → #185: 파일명도 함께 저장)", () => {
     // required 필드(pages·pageOrder 등)가 빠진, 구조가 깨진 값.
     localStorage.setItem(
       SPEC_STORAGE_KEY,
-      JSON.stringify({ fileName: "a.json", spec: { version: "0.2" } }),
+      JSON.stringify({ fileName: "a.json", spec: { version: "0.3" } }),
     );
     expect(loadStoredSpec()).toBeUndefined();
     expect(loadStoredFileName()).toBeUndefined();
+  });
+
+  // #127: 갱신 전에 자동 저장된 0.2 문서. 변환을 빠뜨리면 위 "검증 실패" 경로로
+  // 조용히 버려져 갱신 직후 첫 실행에서 작업이 사라진다.
+  it("0.2 시절 자동 저장본은 0.3으로 변환돼 살아남는다", () => {
+    localStorage.setItem(
+      SPEC_STORAGE_KEY,
+      JSON.stringify({ fileName: "admin.json", spec: legacyTwoPage }),
+    );
+
+    expect(loadStoredSpec()).toEqual(twoPageExample);
+    expect(loadStoredSpec()?.version).toBe("0.3");
+    expect(loadStoredFileName()).toBe("admin.json");
   });
 
   it("localStorage 접근이 막혀 있으면(프라이빗 모드 등) 조용히 undefined/no-op이다", () => {

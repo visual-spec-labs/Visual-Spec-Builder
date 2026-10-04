@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { LinearFill } from "@/features/editor/schema";
 import {
   artboardBoxSize,
+  backgroundStyle,
   boxStyle,
   effectStyle,
   radiusCss,
@@ -233,6 +235,99 @@ describe("strokeAndShadowStyle", () => {
 
     expect(style.border).toBe(`1px solid ${RED}`);
     expect(style.boxShadow).toBe("0px 8px 24px -4px #0F172A26");
+  });
+});
+
+describe("backgroundStyle", () => {
+  // 맨 아래 solid는 background-color로 낸다 — 단색 그라디언트는 Chromium이 디더링해
+  // 0.2까지의 `background: color`와 픽셀이 어긋난다(canvasLayout.ts 주석).
+  it("solid 한 겹뿐이면 background-color 하나만 낸다 — 0.2까지의 렌더와 같다", () => {
+    expect(backgroundStyle([{ type: "solid", color: "#4F46E5" }])).toEqual({
+      backgroundColor: "#4F46E5",
+      backgroundImage: undefined,
+      backgroundOrigin: undefined,
+    });
+  });
+
+  it("알파가 있는 색도 그대로 옮긴다", () => {
+    expect(backgroundStyle([{ type: "solid", color: "#F5F5F5FF" }]).backgroundColor).toBe(
+      "#F5F5F5FF",
+    );
+  });
+
+  it("맨 아래 solid는 background-color, 그 위 겹은 background-image로 그린다", () => {
+    const style = backgroundStyle([
+      { type: "solid", color: "#11111180" },
+      { type: "solid", color: "#FFFFFF" },
+    ]);
+
+    expect(style).toEqual({
+      backgroundColor: "#FFFFFF",
+      backgroundImage: "linear-gradient(#11111180, #11111180)",
+      backgroundOrigin: "border-box",
+    });
+  });
+
+  it("이미지 겹이 여럿이면 배열 순서 그대로 쉼표로 잇는다 — 앞이 위다", () => {
+    const style = backgroundStyle([
+      { type: "solid", color: "#11111180" },
+      { type: "solid", color: "#22222280" },
+      { type: "solid", color: "#FFFFFF" },
+    ]);
+
+    expect(style.backgroundImage).toBe(
+      "linear-gradient(#11111180, #11111180), linear-gradient(#22222280, #22222280)",
+    );
+    expect(style.backgroundColor).toBe("#FFFFFF");
+  });
+
+  it.each([
+    ["생략", undefined],
+    ["빈 배열", []],
+  ] as const)("%s이면 아무 배경 속성도 내지 않는다", (_name, background) => {
+    const style = backgroundStyle(background as Parameters<typeof backgroundStyle>[0]);
+
+    expect(style.backgroundColor).toBeUndefined();
+    expect(style.backgroundImage).toBeUndefined();
+    expect(style.backgroundOrigin).toBeUndefined();
+  });
+
+  it("background 축약 속성을 쓰지 않는다", () => {
+    const style = backgroundStyle([
+      { type: "solid", color: "#11111180" },
+      { type: "solid", color: "#FFFFFF" },
+    ]);
+
+    expect(style).not.toHaveProperty("background");
+  });
+
+  // 스키마 전환 단계(#127 후속 1)에서는 linear를 아직 그리지 않는다 — 렌더 단계 몫이다.
+  it("linear 겹은 아직 그리지 않고 나머지 겹만 그린다", () => {
+    const linear: LinearFill = {
+      type: "linear",
+      angle: 180,
+      stops: [
+        { color: "#00000000", at: 0 },
+        { color: "#000000CC", at: 1 },
+      ],
+    };
+
+    expect(backgroundStyle([linear])).toEqual({
+      backgroundColor: undefined,
+      backgroundImage: undefined,
+      backgroundOrigin: undefined,
+    });
+    expect(backgroundStyle([linear, { type: "solid", color: "#6366F1" }])).toEqual({
+      backgroundColor: "#6366F1",
+      backgroundImage: undefined,
+      backgroundOrigin: undefined,
+    });
+    // 맨 아래가 linear면 위의 solid는 이미지 겹이다.
+    expect(backgroundStyle([{ type: "solid", color: "#6366F1" }, linear])).toEqual({
+      backgroundColor: undefined,
+      backgroundImage: "linear-gradient(#6366F1, #6366F1)",
+      backgroundOrigin: "border-box",
+    });
   });
 });
 

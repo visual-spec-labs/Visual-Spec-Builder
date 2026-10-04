@@ -79,6 +79,23 @@ Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
 겹치면 안 된다. `parentId`로 쓸 노드는 **frame이어야 한다**(text·image·button·input은 자식을
 못 받는다).
 
+### 배경은 배열을 통째로 쓴다
+
+`background`는 채우기 겹의 **배열**이다(문서 버전 `"0.3"`). 단색은
+`[{ "type": "solid", "color": "#RRGGBB" }]` 한 겹이고, 배열 앞이 위 겹이다. 배경을 바꿀 때는
+`updateNode`의 `path`를 **`"background"`** 로 두고 `value`에 **배열 전체**를 넣는다.
+
+```json
+{ "type": "updateNode", "id": "card", "path": "background",
+  "value": [{ "type": "solid", "color": "#EEF2FF" }] }
+```
+
+- `path: "background.color"`·`"background.0.color"` 처럼 배열 안으로 들어가는 경로는
+  **거부된다**(아무 일도 일어나지 않는다). 지금 겹을 `page`에서 읽고 바꾼 배열 전체를 쓴다.
+- 배경을 없애려면 `value: []` 를 쓴다.
+- 0.2까지의 객체 모양 `{ "color": "#…" }` 은 G3 검증에서 거부된다 — `createNode`의 `node`에도
+  배열로 쓴다.
+
 ### `createNode`는 자식 배열을 스스로 채우지 않는다
 
 `createNode`를 적용하면 GUI가 **부모의 `children` 끝에 `{ "node": 새id }`를 자동으로 덧붙인다.**
@@ -103,7 +120,7 @@ Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
   "layout": { "direction": "column", "gap": 8,
               "padding": { "top": 16, "right": 16, "bottom": 16, "left": 16 },
               "mainAxis": "start", "crossAxis": "start" },
-  "background": { "color": "#FFFFFF" },
+  "background": [{ "type": "solid", "color": "#FFFFFF" }],
   "border": { "width": 1, "color": "#E5E7EB", "radius": 8 },
   "children": [] }
 ```
@@ -124,7 +141,7 @@ Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
   "content": "버튼", "color": "#FFFFFF",
   "typography": { "fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 600,
                    "lineHeight": 20, "letterSpacing": 0, "textAlign": "center" },
-  "background": { "color": "#4F46E5" },
+  "background": [{ "type": "solid", "color": "#4F46E5" }],
   "border": { "width": 0, "color": "#4F46E5", "radius": 8 } }
 ```
 
@@ -135,7 +152,7 @@ Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
   "placeholder": "입력하세요", "color": "#111827",
   "typography": { "fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 400,
                    "lineHeight": 20, "letterSpacing": 0, "textAlign": "left" },
-  "background": { "color": "#F9FAFB" },
+  "background": [{ "type": "solid", "color": "#F9FAFB" }],
   "border": { "width": 1, "color": "#D1D5DB", "radius": 8 } }
 ```
 
@@ -182,6 +199,7 @@ GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
   뜻이다 — `scope.nodeId`가 가리키는 노드(또는 그 안쪽)만 건드린다
 - **`page`를 안 읽고 값을 추측한다.** 지금 `layout.gap`이 얼마인지, 어떤 자식이 있는지는
   전부 요청에 실려 온 `page`에서 읽는다 — 기억이나 예시로 채우지 않는다
+- **배경을 `background.color` 경로나 객체 모양으로 쓴다.** 위 "배경은 배열을 통째로 쓴다" 참고
 - **`updateScreen`으로 노드를 고치려 한다.** `updateScreen`은 페이지 자신의 필드(`name`·
   `size`)만 바꾼다. 노드는 `updateNode`다
 - **삽입 위치가 필요한데 `index`나 `moveNode`를 안 쓴다.** `createNode`는 `index`를
@@ -234,7 +252,7 @@ GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
                 "layout": { "direction": "column", "gap": 12,
                             "padding": { "top": 16, "right": 16, "bottom": 16, "left": 16 },
                             "mainAxis": "center", "crossAxis": "stretch" },
-                "background": { "color": "#F5F5F5FF" },
+                "background": [{ "type": "solid", "color": "#F5F5F5FF" }],
                 "border": { "width": 1, "color": "#00000020", "radius": 8 },
                 "children": [] } },
     { "type": "createNode", "parentId": "card", "id": "hint",

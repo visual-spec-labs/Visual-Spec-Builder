@@ -13,7 +13,7 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ```json
 {
-  "version": "0.1",
+  "version": "0.3",
   "screen": {
     "name": "EmptyTitle",
     "size": { "width": 1440, "height": 900 },
@@ -30,7 +30,7 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
           "mainAxis": "center",
           "crossAxis": "center"
         },
-        "background": { "color": "#FFFFFF" },
+        "background": [{ "type": "solid", "color": "#FFFFFF" }],
         "children": [{ "node": "title" }]
       },
       "title": {
@@ -58,7 +58,8 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 `examples/` 7개에서 반복되는 것들이다. 따르면 리뷰가 빨라진다.
 
 - 트리는 평평한 `nodes` 맵 + `children: [{ "node": "id" }]` 참조로만 만든다. 노드 중첩은 없다.
-- 루트 프레임은 `box: { "width": "fill", "height": "fill" }` 에 `background.color` 를 갖는다.
+- 루트 프레임은 `box: { "width": "fill", "height": "fill" }` 에 단색 한 겹 배경
+  `"background": [{ "type": "solid", "color": "#…" }]` 을 갖는다.
 - `layout` 은 항상 5개 필드를 다 적는다. `gap: 0`, `padding` 사방 0도 생략하지 않고 명시한다.
 - TextNode 의 `height` 는 예외 없이 `"auto"` 다. `width` 만 `"auto"`/`"fill"`/숫자로 고른다.
 - `typography` 6개 필드도 전부 채운다. `fontFamily` 는 `"Pretendard"` 로 통일돼 있다.
@@ -81,6 +82,14 @@ v0.1 의 노드 타입은 **`frame`, `text`, `image`, `button`, `input` 다섯�
 `InputNode`는 `placeholder`(빈 문자열 허용)가 각각 필수 텍스트 필드다. **둘 다 표시용
 텍스트만 있다** — `onClick`·`value`·`onChange` 같은 이벤트·바인딩은 스키마에 없다("버튼
 누르면 로그인" 같은 동작 요구는 표현할 수 없다고 알린다). 실물은 `examples/form-grid.json`이다.
+
+`background`(`frame`·`button`·`input`)는 **채우기 겹의 배열**이다 — 문서 버전 `"0.3"`부터.
+단색은 `[{ "type": "solid", "color": "#RRGGBB" }]` 처럼 한 겹짜리 배열로 쓴다. 0.2까지의
+객체 모양 `{ "color": "#…" }` 은 이제 검증에서 걸린다(앱은 옛 파일을 열 때 자동 변환하지만,
+새로 쓰는 문서는 처음부터 배열로 쓴다). 배열 앞이 위 겹이고, 생략과 `[]` 는 둘 다 "배경
+없음"이다. 투명도는 겹이 아니라 색의 알파(`#RRGGBBAA`)로 쓴다. 그라디언트 겹(`"linear"`)도
+스키마에는 있지만(필드는 정본 스키마의 `LinearFill`) 캔버스가 아직 그리지 않으므로, 요구가
+없으면 단색 한 겹으로 쓴다.
 
 `layout.direction`은 `"row"`/`"column"`/`"grid"` 셋이다. `"grid"`일 때만 `layout.columns`
 (선택 필드, 열 개수)를 쓸 수 있다 — row/column에는 넣지 않는다. Grid는 균등 N열 자동
@@ -131,6 +140,8 @@ source of truth라는 전제가 깨진다.
 - 루트를 `text` 로 만든다 → `root-not-frame`
 - TextNode 에 `content` 를 빠뜨린다 → `text-without-content`
 - 없는 `type` 을 쓴다 → `unsupported-node-type`
+- `background` 를 옛 객체 모양 `{ "color": "#…" }` 로 쓴다 → `schema`(`.../background` 에
+  `값의 타입이 "array"이어야 합니다.`). `[{ "type": "solid", "color": "#…" }]` 로 고친다
 
 ## 다 쓴 뒤
 

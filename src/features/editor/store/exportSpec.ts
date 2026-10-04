@@ -9,7 +9,7 @@ export type ExportResult =
  * 프로젝트를 검증하고 내보낼 JSON을 만든다(순수 함수, DOM 없음 — 테스트 대상).
  * 검증 실패 시 이슈 개수만 담아 돌려준다.
  *
- * 페이지 전부를 내보낸다. "이 페이지만 v0.1로" 모드는 schema의 toVisualSpec으로
+ * 페이지 전부를 내보낸다. "이 페이지만 화면 문서로" 모드는 schema의 toVisualSpec으로
  * 만들 수 있지만 그걸 고르는 UI가 아직 없어 여기서는 다루지 않는다.
  */
 export function buildExportPayload(spec: ProjectSpec): ExportResult {

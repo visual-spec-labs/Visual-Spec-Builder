@@ -26,7 +26,7 @@ const page: ScreenSpec = {
         mainAxis: "start",
         crossAxis: "stretch",
       },
-      background: { color: "#FFFFFF" },
+      background: [{ type: "solid", color: "#FFFFFF" }],
       children: [{ node: "card" }],
     },
     card: {
@@ -40,7 +40,7 @@ const page: ScreenSpec = {
         mainAxis: "start",
         crossAxis: "stretch",
       },
-      background: { color: "#FFFFFF" },
+      background: [{ type: "solid", color: "#FFFFFF" }],
       children: [],
     },
   },

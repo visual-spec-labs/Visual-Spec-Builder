@@ -1,8 +1,10 @@
 import type { CSSProperties } from "react";
 
 import type {
+  Background,
   Border,
   Box,
+  Fill,
   FrameNode,
   Radius,
   Shadow,
@@ -72,6 +74,64 @@ function strokeRing(border: Border | undefined): string | undefined {
 function dropShadow(shadow: Shadow | undefined): string | undefined {
   if (shadow === undefined) return undefined;
   return `${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${shadow.color}`;
+}
+
+/**
+ * 배경 채우기 겹을 CSS로 옮긴다(#127). 노드 타입을 모르는 순수 함수다 —
+ * frame·button·input의 캔버스(`nodeStyles.ts`)와 홈 미리보기(`homePreview.ts`)가
+ * 모두 이 함수를 부른다.
+ *
+ * 규칙은 docs/13-background-fill-design.md "캔버스 번역"을 따르되, 맨 아래 solid 한
+ * 겹만 다르게 그린다.
+ * - **맨 아래 겹(배열 끝)이 solid면 `background-color`로 낸다.** 나머지 겹은
+ *   `background-image` 쉼표 목록 하나로 그린다. 배열 앞이 위라 CSS가 먼저 적은
+ *   겹을 위에 그리는 순서와 같다 — 뒤집지 않는다. 맨 아래가 아닌 solid는
+ *   `linear-gradient(c, c)`로 바꾼다(`background-color`는 언제나 맨 아래 한 겹뿐이라
+ *   목록 중간의 solid는 이미지로 그릴 수밖에 없다).
+ * - 맨 아래 solid를 따로 빼는 이유는 **Chromium이 단색 그라디언트도 디더링하기
+ *   때문이다.** `linear-gradient(c, c)`는 픽셀의 약 3%가 채널당 1씩 어긋난다(같은
+ *   0.1 문서를 develop과 이 단계에서 열어 비교한 실측). 0.2까지의 `background:
+ *   color`와 픽셀까지 같아야 "기존 문서는 렌더 그대로"가 지켜지고, 가장 흔한 단색
+ *   한 겹은 코드 생성 매핑(`bg-[#..]`, 곧 `background-color`)과도 그리는 방식이
+ *   같아진다. `background-color`는 기본 `background-clip: border-box`로 테두리
+ *   밑까지 칠해져 옛 렌더와 같다.
+ * - **`background` 축약은 쓰지 않는다.** 같은 스타일 객체의 `backgroundImage` 같은
+ *   개별 속성과 섞이면 React가 다시 그릴 때 충돌한다.
+ * - 이미지 겹이 있으면 **`background-origin: border-box`를 함께 낸다.** 이미지 겹은
+ *   기본적으로 padding 상자 기준으로 놓이고 테두리 밑은 그 타일이 반복돼 채운다.
+ *   기준을 상자 전체로 옮겨야 `background-color`처럼 테두리 밑까지 한 장으로 깔리고,
+ *   다음 단계의 그라디언트도 이음매 없이 상자 전체에 걸린다.
+ * - 생략·빈 배열은 아무 속성도 내지 않는다 — 배경이 없던 노드와 같다.
+ *
+ * **linear 겹은 아직 그리지 않는다**(스키마 전환 단계 — 그라디언트 렌더는 다음
+ * 단계에서 이 함수에 갈래를 더한다). 그 겹만 빠지고 나머지 겹은 그려진다.
+ */
+export function backgroundStyle(background: Background | undefined): CSSProperties {
+  const fills = background ?? [];
+  const bottom = fills.at(-1);
+  const bottomSolid = bottom?.type === "solid" ? bottom : undefined;
+  const imageFills = bottomSolid === undefined ? fills : fills.slice(0, -1);
+
+  const layers = imageFills
+    .map(fillLayer)
+    .filter((layer): layer is string => layer !== undefined);
+  const hasImages = layers.length > 0;
+
+  return {
+    backgroundColor: bottomSolid?.color,
+    backgroundImage: hasImages ? layers.join(", ") : undefined,
+    backgroundOrigin: hasImages ? "border-box" : undefined,
+  };
+}
+
+/** 겹 하나를 `background-image` 목록의 한 항목으로. 아직 못 그리는 종류는 undefined. */
+function fillLayer(fill: Fill): string | undefined {
+  switch (fill.type) {
+    case "solid":
+      return `linear-gradient(${fill.color}, ${fill.color})`;
+    case "linear":
+      return undefined;
+  }
 }
 
 /**

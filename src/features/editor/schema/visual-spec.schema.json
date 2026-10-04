@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "VisualSpec",
-  "description": "Visual Spec Schema v0.1 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음.",
+  "description": "Visual Spec Schema v0.3 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 0.1 문서는 앱이 열 때 0.3으로 변환한다(schema/migrate.ts).",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "screen"],
   "properties": {
-    "version": { "const": "0.1" },
+    "version": { "const": "0.3" },
     "screen": { "$ref": "#/$defs/ScreenSpec" }
   },
   "$defs": {
@@ -36,12 +36,12 @@
       }
     },
     "ProjectSpec": {
-      "description": "Visual Spec v0.2 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 v0.1의 ScreenSpec 그대로다.",
+      "description": "Visual Spec v0.3 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 화면 문서와 같은 ScreenSpec이다. 버전은 IR 세대를 뜻하고, 화면 문서와는 버전이 아니라 키(screen / pages)로 구별한다. 0.2 문서는 앱이 열 때 0.3으로 변환한다.",
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "name", "pages", "pageOrder"],
       "properties": {
-        "version": { "const": "0.2" },
+        "version": { "const": "0.3" },
         "name": { "type": "string", "minLength": 1 },
         "pages": {
           "type": "object",
@@ -236,12 +236,60 @@
       }
     },
     "Background": {
+      "type": "array",
+      "description": "채우기 겹 목록. 배열 앞이 위다(CSS background-image와 같은 순서). 생략과 빈 배열은 둘 다 '채우기 없음'이다. 배열이라 부분 병합하지 않고 통째로 교체한다(updateNode 경로는 \"background\" 하나).",
+      "items": { "$ref": "#/$defs/Fill" }
+    },
+    "Fill": {
+      "description": "채우기 겹 하나. 종류는 type으로 가른다. radial·image는 아직 없다 — 나중에 갈래를 더해도 기존 문서는 깨지지 않는다.",
+      "oneOf": [
+        { "$ref": "#/$defs/SolidFill" },
+        { "$ref": "#/$defs/LinearFill" }
+      ]
+    },
+    "SolidFill": {
       "type": "object",
-      "description": "MVP는 단색만",
+      "description": "단색 채우기. 투명도는 color의 알파(#RRGGBBAA)로 쓴다.",
       "additionalProperties": false,
-      "required": ["color"],
+      "required": ["type", "color"],
       "properties": {
+        "type": { "const": "solid" },
         "color": { "$ref": "#/$defs/Color" }
+      }
+    },
+    "LinearFill": {
+      "type": "object",
+      "description": "선형 그라디언트 채우기. 의미는 CSS linear-gradient와 같다.",
+      "additionalProperties": false,
+      "required": ["type", "angle", "stops"],
+      "properties": {
+        "type": { "const": "linear" },
+        "angle": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360,
+          "description": "CSS linear-gradient의 각도(deg). 0 = 아래에서 위(to top), 90 = 왼쪽에서 오른쪽, 180 = 위에서 아래. 한 방향에 한 표기만 두려고 [0, 360)으로 막는다."
+        },
+        "stops": {
+          "type": "array",
+          "minItems": 2,
+          "description": "색 정지점. at은 오름차순이어야 하고 같은 값은 허용한다(딱 끊기는 경계). JSON Schema로는 원소끼리 비교할 수 없어 validateVisualSpec·validateProjectSpec이 gradient-stop-order로 검사한다.",
+          "items": { "$ref": "#/$defs/GradientStop" }
+        }
+      }
+    },
+    "GradientStop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["color", "at"],
+      "properties": {
+        "color": { "$ref": "#/$defs/Color" },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "그라디언트 선 위의 위치. 0 = 시작, 1 = 끝. CSS로 옮길 때 at × 100%다."
+        }
       }
     },
     "Border": {

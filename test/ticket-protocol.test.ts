@@ -33,7 +33,7 @@ const page: ScreenSpec = {
         mainAxis: "start",
         crossAxis: "stretch",
       },
-      background: { color: "#FFFFFF" },
+      background: [{ type: "solid", color: "#FFFFFF" }],
       children: [],
     },
   },
