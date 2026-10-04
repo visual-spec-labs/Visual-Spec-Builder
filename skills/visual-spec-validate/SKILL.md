@@ -1,6 +1,6 @@
 ---
 name: visual-spec-validate
-description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해석하고 고쳐야 할 때 실행한다. "검증 실패했는데 뭐가 문제야", "valid 가 false 로 나와", "필수 필드 "content"가 없습니다", "필수 필드 "src"가 없습니다", "허용되지 않는 필드 "typography"가 있습니다", "정의된 대안 스키마 중 어느 것과도 일치하지 않습니다", "값이 "image"이어야 합니다", "루트에서 도달할 수 없습니다", "가 nodes에 없습니다", "두 곳 이상에서 참조되었습니다", "값의 타입이 "array"이어야 합니다", "그라디언트 stop의 위치(at)는 오름차순이어야 합니다", "이 스펙 왜 안 되지", "VisualSpecValidationError 떴어"처럼 validateVisualSpec 의 실패 결과나 code/path/message 를 들고 오는 요청에서 쓴다. 아직 실패하지 않았어도 "스펙 검증해줘", "이 JSON 맞게 쓴 건지 확인해줘", "스펙 다 썼는데 이제 어떻게 해", "이슈가 12개 나왔는데 다 고쳐야 해"처럼 검증을 돌려달라거나 결과를 판단해달라는 요청, 스펙을 저장·변환하려다 검증에서 막혔을 때도 대상이다. 특히 한 노드에서 schema 이슈가 여러 개 쏟아져 어느 message 를 믿어야 할지 안 보일 때 쓴다.
+description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해석하고 고쳐야 할 때 실행한다. "검증 실패했는데 뭐가 문제야", "valid 가 false 로 나와", "필수 필드 "content"가 없습니다", "필수 필드 "src"가 없습니다", "허용되지 않는 필드 "typography"가 있습니다", "정의된 대안 스키마 중 어느 것과도 일치하지 않습니다", "값이 "image"이어야 합니다", "루트에서 도달할 수 없습니다", "가 nodes에 없습니다", "두 곳 이상에서 참조되었습니다", "값의 타입이 "array"이어야 합니다", "그라디언트 stop의 위치(at)는 오름차순이어야 합니다", "값이 허용 범위를 벗어났습니다 (maximum: 1)", "이 스펙 왜 안 되지", "VisualSpecValidationError 떴어"처럼 validateVisualSpec 의 실패 결과나 code/path/message 를 들고 오는 요청에서 쓴다. 아직 실패하지 않았어도 "스펙 검증해줘", "이 JSON 맞게 쓴 건지 확인해줘", "스펙 다 썼는데 이제 어떻게 해", "이슈가 12개 나왔는데 다 고쳐야 해"처럼 검증을 돌려달라거나 결과를 판단해달라는 요청, 스펙을 저장·변환하려다 검증에서 막혔을 때도 대상이다. 특히 한 노드에서 schema 이슈가 여러 개 쏟아져 어느 message 를 믿어야 할지 안 보일 때 쓴다.
 ---
 
 # 검증 실패 해석과 수정
@@ -63,7 +63,7 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
 - **`multiple-parents` 의 `path` 는 두 번째 참조 위치다.** 첫 번째 참조는 이슈에 안 나온다.
   해당 ID 를 전체 검색해 어느 쪽을 남길지 정한다.
 
-## 실패 분류와 수정 (`examples/invalid/` 8개 + 배경 두 줄)
+## 실패 분류와 수정 (`examples/invalid/` 8개 + 배경 세 줄)
 
 | code | 어떤 실수인가 | 어떻게 고치나 |
 |---|---|---|
@@ -76,6 +76,7 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
 | `schema` at `.../<node>` (`text-without-content`) | TextNode 에 `content` 가 없다. **필수 필드 누락은 전부 이 모양으로 나온다.** 이슈 16개 중 6번째 `필수 필드 "content"가 없습니다.` 만 진짜고 나머지는 `frame`·`image`·`button`·`input` 갈래의 잡음이다 | 정본 스키마의 `required` 와 그 노드를 대조해, `message` 가 지목한 빠진 필드를 채운다 |
 | `gradient-stop-order` | `linear` 겹의 `stops` 에서 `at` 이 앞 stop보다 작다. JSON Schema로는 원소끼리 비교할 수 없어 스키마 검사를 통과한 뒤 따로 잡는다. `path` 는 순서가 어긋난 stop의 `.../stops/<j>/at` 이다 | stop을 `at` 오름차순으로 정렬한다. 같은 값이 이어지는 것은 허용된다(딱 끊기는 경계) |
 | `schema` at `.../background` (`값의 타입이 "array"`) | 0.2까지의 `{ "color": c }` 배경을 그대로 썼다 | `[{ "type": "solid", "color": c }]` 로 바꾼다 |
+| `schema` at `.../background/<i>/...` (`linear` 갈래가 살아남음) | linear 겹의 값이 범위 밖이다. `.../stops/<j>/at` 의 `값이 허용 범위를 벗어났습니다 (maximum: 1)` 는 `at` 을 퍼센트(`50`)로 썼다는 뜻, `.../stops` 의 `JSON 스키마 규칙(minItems)을 위반했습니다.` 는 stop이 1개뿐이라는 뜻, `.../angle` 의 `(exclusiveMaximum: 360)` 은 각도에 `360` 이상을 썼다는 뜻이다 | `at` 은 `0`..`1` 비율로(50% → `0.5`), stop은 2개 이상으로(한 색이면 solid 겹으로 바꾼다), 각도는 `[0, 360)` 으로(`360` → `0`) 고친다 |
 | `schema` at `.../<node>/type` (`unsupported-node-type`) | `shape` 처럼 v0.1 에 없는 `type` 을 썼다. `값이 "frame"`·`"text"`·`"image"`·`"button"`·`"input"` 다섯 이슈가 **함께** 나오는 것이 신호다 | 그 다섯 메시지의 값이 허용값 전부다 — v0.1 은 `frame`, `text`, `image`, `button`, `input` 다섯뿐이다. 다섯 중 가장 가까운 것으로 근사한다 |
 
 ## 절차

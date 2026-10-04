@@ -140,7 +140,7 @@ import { Sidebar } from "../components/Sidebar";
 | `layout.mainAxis` | `justify-start`/`center`/`end`/`between` |
 | `layout.crossAxis` | `items-start`/`center`/`end`/`stretch` |
 | `background` = solid 한 겹 `[{ "type": "solid", "color": c }]` | `bg-[c]` (`bg-[#RRGGBB(AA)]`) |
-| `background` = 그 밖(여러 겹·`linear` 겹) | 아래 "배경 채우기 (`background`)" 참고 |
+| `background` = 그 밖(여러 겹·`linear` 겹) | 맨 아래 solid는 `bg-[c]`, 나머지 겹은 `bg-[image:…]` 한 클래스 + `bg-origin-border`. 아래 "배경 채우기 (`background`)" 참고 |
 | `background` 생략·`[]` | 배경 클래스를 붙이지 않는다 |
 | `border.width/color` | `border-[Npx] border-[#..]` — 단, `align`이 `inside`가 아니면 아래 "테두리 정렬" 참고 |
 | `border.radius` = `number` | `rounded-[Npx]` |
@@ -195,26 +195,104 @@ shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
 `background-image` 가 먼저 적은 것을 위에 그리는 순서와 같아 **뒤집지 않는다.** 0.2까지의
 `{ "color": c }` 모양은 더 이상 나오지 않는다(앱이 열 때 배열로 바꾼다).
 
-solid 한 겹뿐이면 위 표대로 `bg-[c]` 다. 그 밖의 경우는 Tailwind 임의값 표기가 대상 Tailwind
-버전에서 그대로 해석되는지 아직 확인하지 않았으므로(#127 후속 작업), 그때까지는 `style` 로
-캔버스와 **같은 규칙**으로 낸다(`canvasLayout.backgroundStyle`).
+캔버스와 **같은 규칙**으로 옮긴다(`canvasLayout.backgroundStyle`). 그래야 생성 코드가 에디터에서
+본 것과 같게 그려진다.
 
-- **맨 아래 겹(배열 끝)이 solid면 그 색은 `backgroundColor`** 로 낸다.
-- **나머지 겹은 `backgroundImage` 쉼표 목록 하나**로, 배열 순서 그대로 잇는다. 이 목록 안의
-  solid 겹은 `linear-gradient(c, c)` 로 쓴다.
-- `linear` 겹은 `linear-gradient(<angle>deg, <c1> <at1×100>%, <c2> <at2×100>%, …)` 다
-  (각도·위치 의미는 CSS 그대로).
-- `backgroundImage` 를 냈으면 `backgroundOrigin: 'border-box'` 를 함께 낸다.
+1. **맨 아래 겹(배열 끝)이 solid면 그 색은 `bg-[c]`**(`background-color`)로 낸다. solid 한
+   겹뿐이면 여기서 끝이다(위 표의 첫 행).
+2. **나머지 겹은 `bg-[image:…]` 클래스 하나**에 배열 순서 그대로 쉼표로 잇는다. 겹을 클래스
+   여러 개로 나누지 않는다 — `background-image` 는 속성 하나라 나중 클래스가 앞을 덮어쓴다.
+   - `linear` 겹 → `linear-gradient(<angle>deg, <c1> <at1×100>%, <c2> <at2×100>%, …)`
+   - 목록 안의 solid 겹(맨 아래가 아닌 solid) → `linear-gradient(c, c)`
+   - 맨 아래 겹이 `linear` 면 `bg-[c]` 없이 전부 이 목록이다.
+3. **`bg-[image:…]` 를 냈으면 `bg-origin-border` 를 함께 붙인다**(`background-origin:
+   border-box`). 이미지 겹이 테두리 밑까지 `background-color` 와 같은 상자에 걸린다.
+4. 생략·`[]` 면 배경 클래스를 하나도 붙이지 않는다.
 
-```tsx
-<div style={{
-  backgroundColor: '#6366F1',
-  backgroundImage: 'linear-gradient(180deg, #0F172A00 0%, #0F172ACC 100%)',
-  backgroundOrigin: 'border-box',
-}} />
+**클래스 글자는 캔버스 CSS 문자열의 공백을 `_` 로 바꾼 것이다.** 캔버스가
+`linear-gradient(180deg, #6366F1 0%, #8B5CF6 100%)` 를 그리면 클래스는
+`bg-[image:linear-gradient(180deg,_#6366F1_0%,_#8B5CF6_100%)]` 이고, Tailwind가 이 클래스에서
+캔버스와 **글자까지 같은** `background-image` 를 만든다.
+
+- **수는 소수 넷째 자리에서 반올림하고 뒤 0을 붙이지 않는다** — 캔버스의 `cssNumber` 와 같다.
+  `at` 0.1 → `10%`(부동소수 그대로 `10.000000000000002%` 로 쓰지 않는다), 0.125 → `12.5%`,
+  1/3 → `33.3333%`. 각도도 같다(`33.3333deg`).
+- 색은 `#RRGGBB(AA)` 를 JSON 그대로 쓴다(대소문자도 그대로).
+- 각도는 `0`·`180` 도 생략하지 않고 `0deg`·`180deg` 로 적는다. stop은 다시 정렬하지 않는다
+  (오름차순은 검증이 보장한다). 같은 `at` 이 이어지는 딱 끊기는 경계도 그대로 적는다.
+- **`image:` 타입 힌트를 빼지 않는다.** 이 저장소의 Tailwind v4.3.3에서 실측한 결과, 힌트 없는
+  `bg-[linear-gradient(…),_linear-gradient(…)]` 처럼 겹 사이에 `,_` 가 있으면 Tailwind가 값을
+  색으로 추론해 `background-color: linear-gradient(…)` 라는 무효 선언을 낸다 — 빌드 오류 없이
+  배경이 조용히 사라진다. 힌트가 있으면 한 겹이든 여러 겹이든 항상 `background-image` 다.
+- `style` 속성으로 내지 않는다. 위 표기로 다 표현된다.
+
+번들러가 최종 CSS를 줄이면서 `180deg`(기본값)를 지우거나 `#6366F1 0%, #6366F1 50%` 를
+`#6366f1 0% 50%` 로 합칠 수 있다. 그려지는 결과는 같다 — 맞춰야 하는 것은 클래스 글자다.
+
+예 1 — linear 한 겹(위→아래, 남색 → 보라).
+
+```json
+"background": [
+  { "type": "linear", "angle": 180, "stops": [
+      { "color": "#6366F1", "at": 0 },
+      { "color": "#8B5CF6", "at": 1 }
+  ] }
+]
 ```
 
-`background` 축약 속성은 쓰지 않는다 — 개별 속성과 섞이면 React가 다시 그릴 때 충돌한다.
+```tsx
+<div className="... bg-[image:linear-gradient(180deg,_#6366F1_0%,_#8B5CF6_100%)] bg-origin-border" />
+```
+
+예 2 — 보라 단색 위에 반투명 남색 linear를 얹었다. 맨 아래 solid가 `bg-[c]` 로 빠진다.
+
+```json
+"background": [
+  { "type": "linear", "angle": 180, "stops": [
+      { "color": "#0F172A00", "at": 0 },
+      { "color": "#0F172ACC", "at": 1 }
+  ] },
+  { "type": "solid", "color": "#6366F1" }
+]
+```
+
+```tsx
+<div className="... bg-[#6366F1] bg-[image:linear-gradient(180deg,_#0F172A00_0%,_#0F172ACC_100%)] bg-origin-border" />
+```
+
+예 3 — 왼쪽 반은 남색, 오른쪽 반은 보라로 딱 끊기는 stop(같은 `at` 0.5가 두 번).
+
+```json
+"background": [
+  { "type": "linear", "angle": 90, "stops": [
+      { "color": "#6366F1", "at": 0 },
+      { "color": "#6366F1", "at": 0.5 },
+      { "color": "#8B5CF6", "at": 0.5 },
+      { "color": "#8B5CF6", "at": 1 }
+  ] }
+]
+```
+
+```tsx
+<div className="... bg-[image:linear-gradient(90deg,_#6366F1_0%,_#6366F1_50%,_#8B5CF6_50%,_#8B5CF6_100%)] bg-origin-border" />
+```
+
+예 4 — 맨 위가 반투명 흰 solid, 맨 아래가 linear. 맨 아래가 solid가 아니므로 `bg-[c]` 가 없고,
+위의 solid는 목록 안에서 `linear-gradient(c, c)` 가 된다.
+
+```json
+"background": [
+  { "type": "solid", "color": "#FFFFFF33" },
+  { "type": "linear", "angle": 135, "stops": [
+      { "color": "#6366F1", "at": 0.1 },
+      { "color": "#8B5CF6", "at": 0.9 }
+  ] }
+]
+```
+
+```tsx
+<div className="... bg-[image:linear-gradient(#FFFFFF33,_#FFFFFF33),_linear-gradient(135deg,_#6366F1_10%,_#8B5CF6_90%)] bg-origin-border" />
+```
 
 ### image 노드
 
