@@ -6,7 +6,7 @@ import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { renameProject } from "@/features/editor/ui/renameProject";
 import { readWorkspaceTextFile } from "@/features/editor/ui/workspaceClient";
-import { WORKSPACE_MARKER_HEADER } from "@/features/workspace/protocol";
+import { WORKSPACE_MARKER_HEADER, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
 
 vi.mock("@/features/editor/store/specStorage", async (original) => ({
   ...await original<typeof import("@/features/editor/store/specStorage")>(), publishProjectRename: vi.fn(), prepareProjectRename: vi.fn(),
@@ -24,7 +24,7 @@ beforeEach(() => {
   useDocumentStore.getState().setFileName("old.json");
   vi.mocked(readWorkspaceTextFile).mockResolvedValue(JSON.stringify(blankSpec));
   fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, path: "specs/New.json" }), {
-    headers: { [WORKSPACE_MARKER_HEADER]: "1" },
+    headers: { [WORKSPACE_MARKER_HEADER]: "1", [WORKSPACE_REVISION_HEADER]: "a".repeat(64) },
   }));
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -42,8 +42,9 @@ describe("home rename", () => {
     expect(after.selectedId).toBe(before.selectedId);
     expect(after.history.past).toHaveLength(before.history.past.length);
     expect(after.spec.name).toBe("New");
-    expect(publishProjectRename).toHaveBeenCalledWith("old.json", expect.objectContaining({ name: "New" }), "New.json");
+    expect(publishProjectRename).toHaveBeenCalledWith("old.json", expect.objectContaining({ name: "New" }), "New.json", "a".repeat(64));
     expect(useDocumentStore.getState().fileName).toBe("New.json");
+    expect(useDocumentStore.getState().diskRevision).toBe("a".repeat(64));
     after.undo();
     expect(useEditorStore.getState().spec.name).toBe("New");
     expect(useEditorStore.getState().spec.pages[pageId].name).not.toBe("unsaved edit");
@@ -69,7 +70,7 @@ describe("home rename", () => {
     expect(useDocumentStore.getState().fileName).toBe("other.json");
   });
   it.each([409, 500])("preserves draft/path on HTTP %s", async (status) => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "failed" }), { status, headers: { [WORKSPACE_MARKER_HEADER]: "1" } }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "failed" }), { status, headers: { [WORKSPACE_MARKER_HEADER]: "1", [WORKSPACE_REVISION_HEADER]: "a".repeat(64) } }));
     const before = useEditorStore.getState();
     expect((await renameProject("old.json", "New")).ok).toBe(false);
     expect(useEditorStore.getState()).toBe(before);
@@ -93,7 +94,7 @@ describe("home rename", () => {
   });
   it("deduplicates same-file locks and checks conflicts only after acquiring them", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, path: "specs/old.json" }), {
-      headers: { [WORKSPACE_MARKER_HEADER]: "1" },
+      headers: { [WORKSPACE_MARKER_HEADER]: "1", [WORKSPACE_REVISION_HEADER]: "a".repeat(64) },
     }));
     await renameProject("old.json", "old");
     expect(lockMock).toHaveBeenCalledTimes(1);

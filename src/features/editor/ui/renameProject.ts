@@ -5,7 +5,7 @@ import { projectStorageKey, prepareProjectRename, publishProjectRename } from "@
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { projectFileName } from "@/features/workspace/projectName";
-import { WORKSPACE_MARKER_HEADER, WORKSPACE_RENAME_ROUTE } from "@/features/workspace/protocol";
+import { WORKSPACE_MARKER_HEADER, WORKSPACE_RENAME_ROUTE, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
 import { readWorkspaceTextFile, type WriteResult } from "./workspaceClient";
 
 /** Rename disk metadata first. A rejected/uncertain request never changes the in-memory draft. */
@@ -55,11 +55,15 @@ async function renameLocked(fileName: string, name: string, nextFileName: string
       const error = typeof payload === "object" && payload !== null && "error" in payload ? payload.error : null;
       return { ok: false, error: typeof error === "string" ? error : "이름 변경을 확인할 수 없습니다. 목록을 새로 불러오세요." };
     }
-    publishProjectRename(fileName, renamedDiskSpec, nextFileName);
+    const revision = response.headers.get(WORKSPACE_REVISION_HEADER);
+    if (!revision || !/^[a-f0-9]{64}$/.test(revision)) {
+      return { ok: false, error: "이름 변경 파일의 저장 버전을 확인할 수 없습니다. 메모리 작업을 보존했습니다. 파일을 다시 열어 확인하세요." };
+    }
+    publishProjectRename(fileName, renamedDiskSpec, nextFileName, revision);
     if (useDocumentStore.getState().fileName === fileName) {
       useSaveConflictStore.getState().adoptRename(() => {
         useEditorStore.getState().renameProject(name);
-        useDocumentStore.getState().setFileName(nextFileName);
+        useDocumentStore.getState().setFileName(nextFileName, revision);
       });
     }
     return { ok: true, path: `specs/${nextFileName}` };

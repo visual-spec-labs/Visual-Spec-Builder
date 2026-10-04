@@ -287,48 +287,51 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
       !realPathStaysInside(root, to.absolutePath)) {
       sendError(res, 403, "안전하지 않은 저장 경로입니다."); return;
     }
-    try {
-      if (!lstatSync(from.absolutePath).isFile()) { sendError(res, 400, "일반 파일만 변경할 수 있습니다."); return; }
-      const original = readFileSync(from.absolutePath, "utf8");
-      if (original !== input.expectedText) { sendError(res, 409, "다른 곳에서 파일이 변경되었습니다. 목록을 새로 불러온 뒤 다시 시도하세요."); return; }
-      const spec: unknown = JSON.parse(original);
-      const migrated = migrateToV03(spec);
-      const isProject = typeof spec === "object" && spec !== null && "pages" in spec;
-      const validation = isProject ? validateProjectSpec(migrated) : validateVisualSpec(migrated);
-      if (!validation.valid || typeof spec !== "object" || spec === null) {
-        sendError(res, 400, "유효한 프로젝트 파일이 아닙니다."); return;
-      }
-      // Preserve the source document version and all fields. A legacy single-screen
-      // document derives its project display name from screen.name.
-      const renamed = JSON.stringify(isProject ? { ...spec, name: input.name } :
-        { ...spec, screen: { ...(spec as { screen: object }).screen, name: input.name } }, null, 2);
-      if (from.absolutePath === to.absolutePath) {
-        writeFileAtomic(from.absolutePath, Buffer.from(renamed));
-      } else {
-        // Case-insensitive collision policy also protects projects moved between OSes.
-        if (readdirSync(dirname(to.absolutePath)).some((entry) => entry.toLowerCase() === fileName.toLowerCase())) {
-          sendError(res, 409, "같은 이름의 파일이 있습니다. 다른 이름을 입력하세요."); return;
+    void withWorkspaceMutation([from.absolutePath, to.absolutePath], () => {
+      try {
+        if (!lstatSync(from.absolutePath).isFile()) { sendError(res, 400, "일반 파일만 변경할 수 있습니다."); return; }
+        const original = readFileSync(from.absolutePath, "utf8");
+        if (original !== input.expectedText) { sendError(res, 409, "다른 곳에서 파일이 변경되었습니다. 목록을 새로 불러온 뒤 다시 시도하세요."); return; }
+        const spec: unknown = JSON.parse(original);
+        const migrated = migrateToV03(spec);
+        const isProject = typeof spec === "object" && spec !== null && "pages" in spec;
+        const validation = isProject ? validateProjectSpec(migrated) : validateVisualSpec(migrated);
+        if (!validation.valid || typeof spec !== "object" || spec === null) {
+          sendError(res, 400, "유효한 프로젝트 파일이 아닙니다."); return;
         }
-        // wx is the final collision guard: a file arriving after the listing is never overwritten.
-        let created = false;
-        try {
-          const fd = openSync(to.absolutePath, "wx");
-          created = true;
-          try { writeFileSync(fd, renamed); } finally { closeSync(fd); }
-          unlinkSync(from.absolutePath);
-        } catch (error) {
-          if (created) {
-            try { unlinkSync(to.absolutePath); } catch { /* Keep original plus recovery copy. */ }
+        // Preserve the source document version and all fields. A legacy single-screen
+        // document derives its project display name from screen.name.
+        const renamed = JSON.stringify(isProject ? { ...spec, name: input.name } :
+          { ...spec, screen: { ...(spec as { screen: object }).screen, name: input.name } }, null, 2);
+        if (from.absolutePath === to.absolutePath) {
+          writeFileAtomic(from.absolutePath, Buffer.from(renamed));
+        } else {
+          // Case-insensitive collision policy also protects projects moved between OSes.
+          if (readdirSync(dirname(to.absolutePath)).some((entry) => entry.toLowerCase() === fileName.toLowerCase())) {
+            sendError(res, 409, "같은 이름의 파일이 있습니다. 다른 이름을 입력하세요."); return;
           }
-          throw error;
+          // wx is the final collision guard: a file arriving after the listing is never overwritten.
+          let created = false;
+          try {
+            const fd = openSync(to.absolutePath, "wx");
+            created = true;
+            try { writeFileSync(fd, renamed); } finally { closeSync(fd); }
+            unlinkSync(from.absolutePath);
+          } catch (error) {
+            if (created) {
+              try { unlinkSync(to.absolutePath); } catch { /* Keep original plus recovery copy. */ }
+            }
+            throw error;
+          }
         }
+        res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(Buffer.from(renamed)));
+        sendJson(res, 200, { ok: true, path: to.relativePath });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        sendError(res, code === "EEXIST" ? 409 : 500,
+          code === "EEXIST" ? "같은 이름의 파일이 있습니다." : `이름 변경에 실패했습니다. 원본 파일을 확인하세요: ${error instanceof Error ? error.message : String(error)}`);
       }
-      sendJson(res, 200, { ok: true, path: to.relativePath });
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      sendError(res, code === "EEXIST" ? 409 : 500,
-        code === "EEXIST" ? "같은 이름의 파일이 있습니다." : `이름 변경에 실패했습니다. 원본 파일을 확인하세요: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    }).catch(() => sendError(res, 500, "이름 변경 잠금을 확인할 수 없습니다."));
   });
 }
 

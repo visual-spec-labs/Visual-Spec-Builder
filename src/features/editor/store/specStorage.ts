@@ -151,7 +151,7 @@ export function projectStorageKey(fileName: string | null, untitledId: string): 
 export function prepareProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string): () => void {
   const keys = [...new Set([oldFileName, newFileName].map((file) => `${projectStorageKey(file, "")}:rename`))];
   const previous = keys.map((key) => localStorage.getItem(key));
-  const pending = JSON.stringify({ fileName: newFileName, spec, renamePending: true,
+  const pending = JSON.stringify({ fileName: newFileName, spec, renamePending: true, diskRevision: "0".repeat(64),
     cachedRevision: localStorage.getItem(projectStorageKey(newFileName, "")), revision: crypto.randomUUID() });
   const rollback = () => {
     keys.forEach((key, index) => {
@@ -165,9 +165,9 @@ export function prepareProjectRename(oldFileName: string, spec: ProjectSpec, new
 }
 
 /** Source notice is mandatory: never hide a failure after the workspace rename. */
-export function publishProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string): void {
+export function publishProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string, diskRevision?: string): void {
   const target = projectStorageKey(newFileName, "");
-  const raw = JSON.stringify({ fileName: newFileName, spec,
+  const raw = JSON.stringify({ fileName: newFileName, spec, ...(diskRevision ? { diskRevision } : {}),
     cachedRevision: localStorage.getItem(target), revision: crypto.randomUUID() });
   localStorage.setItem(`${projectStorageKey(oldFileName, "")}:rename`, raw);
   if (projectStorageKey(oldFileName, "") !== target) localStorage.setItem(`${target}:rename`, raw);
