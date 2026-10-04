@@ -88,4 +88,26 @@ IR ID나 보통 쓰는 Tailwind 기본값만 보고 `md:`로 바꾸면 안 된�
 - 브라우저 실측은 root layout/background와 배경 배열 reset 중심이다. Pretendard 미설치이며
   타이포그래피·픽셀 전체 일치, 모든 override 조합·브라우저/화면 크기의 전수 검증은 하지 않았다.
 - 실제 AI 생성·반응형 스킬 실행은 하지 않았다. 지시문과 수동 fixture의 일관성을 확인한 것이다.
-- #223 실제 GUI와의 비교는 해당 브랜치 준비 후 아래에 별도로 기록한다.
+
+## #223 실제 GUI와 수동 React fixture의 대조
+
+같은 날 원본 `responsive-cards.json`을 #223 GUI 작업 브랜치
+`codex/223-responsive-editor`(기반 `aed1c2a`, 검증 당시 미커밋 구현 포함)에서 열었다.
+React 쪽은 이 매핑 PR의 `2d1546e`에 있는 수동 fixture다. GUI는 독립 Vite 캐시로
+`127.0.0.1:5195`, production React fixture는 `127.0.0.1:5194`에서 실행했다.
+
+GUI의 실제 `[data-node-id="root"]`와 React의 `[data-testid="responsive-cards"]`에서
+`getComputedStyle`을 읽고 다음 **5개 속성을 assertion으로 비교하여 전부 일치**했다:
+`gap`, `paddingLeft`, `backgroundColor`, `backgroundImage`, `flexDirection`.
+767·768·1023·1024px의 값은 위 root 표와 같다. 두 요소의 computed width도 각각
+767·768·1023·1024px로 기록됐으나 width는 이 비교의 assertion 항목에는 포함하지 않았다.
+
+GUI 미리보기 폭 변경은 원본 문서와 history를 바꾸지 않았고, 각 폭에서 history 길이는 0이었다.
+별도 GUI 동작 검증에서 desktop gap override 한 칸 삭제 → 상속값24 → Undo 후32 복원,
+현재 표현값을 override로 고정 → Undo 후 원복을 확인했다. 브라우저 page error는 0건이었다.
+이는 root의 지정 속성과 GUI 편집 동작에 대한 확인이며, 모든 노드의 픽셀 완전 일치나
+실제 AI 생성 성공을 뜻하지 않는다.
+
+증거는 QA 실행 환경의 `/tmp/vsb-responsive-qa/gui-react-comparison.json`(폭별 양쪽 값과
+assertion 항목), `/tmp/vsb-responsive-qa/results.json`(편집·Undo 및 오류 결과)에 남겼다.
+초기 공유 Vite 캐시/HMR의 임시 오류는 독립 캐시로 해소한 뒤 검사했으며 제품 회귀로 세지 않았다.
