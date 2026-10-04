@@ -82,6 +82,15 @@ export function buildNodeContextMenuEntries(nodeId: NodeId): MenuEntry[] {
       onSelect: pasteClipboard,
     },
     { kind: "separator" },
+    {
+      kind: "action", label: "그룹 만들기", disabled: isRoot || index < 0,
+      onSelect: () => useEditorStore.getState().groupNode(nodeId),
+    },
+    {
+      kind: "action", label: "그룹 해제", disabled: isRoot || index < 0 || nodes[nodeId]?.type !== "frame",
+      onSelect: () => useEditorStore.getState().ungroupNode(nodeId),
+    },
+    { kind: "separator" },
     reorderEntry("맨 앞으로 가져오기", "front", atFront),
     reorderEntry("앞으로 가져오기", "forward", atFront),
     reorderEntry("뒤로 보내기", "backward", atBack),

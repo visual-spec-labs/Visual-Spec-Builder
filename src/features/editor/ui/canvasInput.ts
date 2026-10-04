@@ -449,3 +449,13 @@ export function isScrolledToBottom(
 
   return scrollTop + clientHeight >= scrollHeight - epsilon;
 }
+
+/** Group은 선택 non-root 노드, Ungroup은 non-root frame에서만 가로챈다. */
+export function nodeGroupCommandForKey(input: {
+  code: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean;
+  tagName?: string; contentEditable: boolean; canGroup: boolean; canUngroup: boolean;
+}): "group" | "ungroup" | null {
+  if (isTypingTarget(input.tagName, input.contentEditable) || input.altKey ||
+      !(input.ctrlKey || input.metaKey) || input.code !== "KeyG") return null;
+  return input.shiftKey ? (input.canUngroup ? "ungroup" : null) : (input.canGroup ? "group" : null);
+}
