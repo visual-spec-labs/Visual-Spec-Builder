@@ -139,7 +139,9 @@ import { Sidebar } from "../components/Sidebar";
 | `layout.padding.*` | `pt-/pr-/pb-/pl-[Npx]` |
 | `layout.mainAxis` | `justify-start`/`center`/`end`/`between` |
 | `layout.crossAxis` | `items-start`/`center`/`end`/`stretch` |
-| `background.color` | `bg-[#RRGGBB(AA)]` |
+| `background` = solid 한 겹 `[{ "type": "solid", "color": c }]` | `bg-[c]` (`bg-[#RRGGBB(AA)]`) |
+| `background` = 그 밖(여러 겹·`linear` 겹) | 아래 "배경 채우기 (`background`)" 참고 |
+| `background` 생략·`[]` | 배경 클래스를 붙이지 않는다 |
 | `border.width/color` | `border-[Npx] border-[#..]` — 단, `align`이 `inside`가 아니면 아래 "테두리 정렬" 참고 |
 | `border.radius` = `number` | `rounded-[Npx]` |
 | `border.radius` = 객체 | `rounded-[Apx_Bpx_Cpx_Dpx]` (좌상 · 우상 · 우하 · 좌하 순서) |
@@ -186,6 +188,33 @@ import { Sidebar } from "../components/Sidebar";
 ```
 shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
 ```
+
+### 배경 채우기 (`background`)
+
+`background` 는 채우기 겹의 **배열**이다(문서 버전 `"0.3"`). 배열 앞이 위 겹이다 — CSS
+`background-image` 가 먼저 적은 것을 위에 그리는 순서와 같아 **뒤집지 않는다.** 0.2까지의
+`{ "color": c }` 모양은 더 이상 나오지 않는다(앱이 열 때 배열로 바꾼다).
+
+solid 한 겹뿐이면 위 표대로 `bg-[c]` 다. 그 밖의 경우는 Tailwind 임의값 표기가 대상 Tailwind
+버전에서 그대로 해석되는지 아직 확인하지 않았으므로(#127 후속 작업), 그때까지는 `style` 로
+캔버스와 **같은 규칙**으로 낸다(`canvasLayout.backgroundStyle`).
+
+- **맨 아래 겹(배열 끝)이 solid면 그 색은 `backgroundColor`** 로 낸다.
+- **나머지 겹은 `backgroundImage` 쉼표 목록 하나**로, 배열 순서 그대로 잇는다. 이 목록 안의
+  solid 겹은 `linear-gradient(c, c)` 로 쓴다.
+- `linear` 겹은 `linear-gradient(<angle>deg, <c1> <at1×100>%, <c2> <at2×100>%, …)` 다
+  (각도·위치 의미는 CSS 그대로).
+- `backgroundImage` 를 냈으면 `backgroundOrigin: 'border-box'` 를 함께 낸다.
+
+```tsx
+<div style={{
+  backgroundColor: '#6366F1',
+  backgroundImage: 'linear-gradient(180deg, #0F172A00 0%, #0F172ACC 100%)',
+  backgroundOrigin: 'border-box',
+}} />
+```
+
+`background` 축약 속성은 쓰지 않는다 — 개별 속성과 섞이면 React가 다시 그릴 때 충돌한다.
 
 ### image 노드
 
