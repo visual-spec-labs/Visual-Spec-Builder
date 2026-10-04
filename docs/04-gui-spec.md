@@ -176,7 +176,7 @@ AI 입력창은 단순 채팅창이 아니라 **현재 선택 상태와 결합�
 
 구현 티켓의 첫 연결(#156)은 별도 하단 행을 아직 만들지 않고 **우측 패널을 전환**한다.
 메뉴바의 `구현 티켓`을 누르면 현재 페이지를 `compileTickets`로 나눈 목록과 의존/상태가
-Properties 대신 표시된다. 실제 에이전트 실행은 붙이지 않은 A안이며, 닫으면 Properties로 돌아간다.
+Properties 대신 표시된다. 이후 #184로 개별/전체 실행·중지와 `runtime/ticket-request.json` / `ticket-response.json` 파일 교환이 연결됐다. GUI가 에이전트 프로세스를 직접 시작하지는 않으며, 외부 에이전트가 코드를 생성하고 응답해야 한다. 작업공간이 없으면 실행 컨트롤 없이 상태 표시로 돌아가며, 패널을 닫으면 Properties로 돌아간다.
 
 ---
 
@@ -278,7 +278,7 @@ DashboardPage
 |---|---|
 | Layout | position, width, height, 회전 |
 | Color | 채우기 색상 |
-| Background | 배경 채우기(`Fill[]`) — 지금은 단색 한 겹의 색만 편집. 겹 목록·그라디언트 편집은 [13](13-background-fill-design.md) 후속 |
+| Background | 배경 채우기(`Fill[]`) — solid·linear 겹 추가·삭제·순서·종류 전환, 색·불투명도·그라디언트 각도·정지점 편집 구현됨(#214). 배열 앞이 위쪽 겹이며 이미지 fill은 미지원. 규칙은 [13](13-background-fill-design.md) |
 | Font | weight, size, 종류, 정렬 |
 | Border | color, weight, radius |
 | Shadow | x, y, blur, spread, color |
