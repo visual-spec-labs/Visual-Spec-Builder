@@ -28,5 +28,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["test/document-path.test.ts", "test/ticket-runner.test.ts", "test/home-projects.test.ts", "test/workspace-list-metadata.test.ts"]
+  "include": ["test/spec-autosave.test.ts", "test/document-path.test.ts", "test/ticket-runner.test.ts", "test/home-projects.test.ts", "test/workspace-list-metadata.test.ts"]
 }
