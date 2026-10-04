@@ -34,6 +34,7 @@
 import {
   createReadStream,
   mkdirSync,
+  lstatSync,
   readdirSync,
   realpathSync,
   renameSync,
@@ -50,6 +51,8 @@ import {
   WORKSPACE_DIR_NAME,
   WORKSPACE_DIR_RULES,
   WORKSPACE_LIST_RECURSIVE_PARAM,
+  WORKSPACE_LIST_METADATA_PARAM,
+  type WorkspaceFileEntry,
   WORKSPACE_MARKER_HEADER,
   WORKSPACE_STATUS_ROUTE,
 } from "./protocol";
@@ -376,8 +379,31 @@ function handleList(
   absolutePath: string,
   dir: string,
   recursive: boolean,
+  metadata: boolean,
 ): void {
   const allowed: readonly string[] = WORKSPACE_DIR_RULES[dir as keyof typeof WORKSPACE_DIR_RULES];
+
+  function reply(files: string[]): void {
+    if (!metadata) {
+      sendJson(res, 200, { ok: true, dir, files });
+      return;
+    }
+    const entries: WorkspaceFileEntry[] = [];
+    for (const name of files) {
+      const path = join(absolutePath, name);
+      try {
+        // 목록 수집 뒤 삭제/교체될 수 있다. 링크를 따라가지 않고 경계를 다시 검사한다.
+        if (!realPathStaysInside(workspaceRoot, path)) continue;
+        const stats = lstatSync(path);
+        if (stats.isFile() && Number.isFinite(stats.mtimeMs)) {
+          entries.push({ name, mtimeMs: stats.mtimeMs });
+        }
+      } catch {
+        // 목록을 읽은 뒤 사라지거나 읽을 수 없어진 파일은 메타데이터에서 뺀다.
+      }
+    }
+    sendJson(res, 200, { ok: true, dir, files, entries });
+  }
 
   if (recursive) {
     const files: string[] = [];
@@ -385,7 +411,7 @@ function handleList(
     // 비재귀 경로가 readdir 실패를 "빈 폴더"로 답하는 것과 같은 규칙이다.
     collectFilesRecursively(workspaceRoot, absolutePath, allowed, "", 0, files);
     files.sort((a, b) => a.localeCompare(b));
-    sendJson(res, 200, { ok: true, dir, files });
+    reply(files);
     return;
   }
 
@@ -395,7 +421,7 @@ function handleList(
   } catch {
     // 폴더가 아직 없으면 "빈 폴더"로 답한다 — 호출 측이 없음/빈 상태를 나눠
     // 처리할 이유가 없다(둘 다 "고를 게 없다"로 끝난다).
-    sendJson(res, 200, { ok: true, dir, files: [] });
+    reply([]);
     return;
   }
 
@@ -404,7 +430,7 @@ function handleList(
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
 
-  sendJson(res, 200, { ok: true, dir, files });
+  reply(files);
 }
 
 /**
@@ -481,6 +507,7 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
         resolved.absolutePath,
         resolved.dir,
         query.get(WORKSPACE_LIST_RECURSIVE_PARAM) === "1",
+        query.get(WORKSPACE_LIST_METADATA_PARAM) === "1",
       );
       return;
     }
