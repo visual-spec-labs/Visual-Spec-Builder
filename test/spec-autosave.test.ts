@@ -3,6 +3,7 @@ import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { loadStoredSpec, parseStoredDocument, projectStorageKey, readRecovery, publishProjectRename } from "@/features/editor/store/specStorage";
+import { newSpec } from "@/features/editor/ui/newSpec";
 import { startSpecAutosave } from "@/features/editor/ui/specAutosave";
 import { saveSpec, saveSpecAs, downloadConflictCopy } from "@/features/editor/ui/exportSpecAsJson";
 
@@ -221,6 +222,17 @@ describe("same-project autosave conflict preservation", () => {
     await run?.(); await operation;
     expect(fetch.mock.calls.some((call: unknown[]) => (call[1] as RequestInit | undefined)?.method === "PUT")).toBe(false);
     expect(useDocumentStore.getState().fileName).toBe("B.json");
+  });
+  it("New creates a distinct untitled draft instead of conflicting with a previous New", async () => {
+    stop = startSpecAutosave(); newSpec();
+    let editor = useEditorStore.getState(); editor.setPageField(editor.activePageId, "name", "first draft");
+    await vi.advanceTimersByTimeAsync(500);
+    const firstKey = readRecovery()!.key;
+    newSpec(); editor = useEditorStore.getState(); editor.setPageField(editor.activePageId, "name", "second draft");
+    await vi.advanceTimersByTimeAsync(500);
+    expect(readRecovery()!.key).not.toBe(firstKey);
+    expect(parseStoredDocument(localStorage.getItem(firstKey))?.spec.pages[editor.activePageId].name).toBe("first draft");
+    expect(useSaveConflictStore.getState().check()).toBe(false);
   });
   it("unreadable/deleted latest never discards the draft or resumes", () => {
     stop = startSpecAutosave(); edit("mine"); localStorage.setItem(key, "broken"); notify();
