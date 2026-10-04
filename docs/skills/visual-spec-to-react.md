@@ -82,3 +82,22 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 
 어느 스킬로 가야 할지 모르겠으면 [visual-spec](./visual-spec.md) 허브로 돌아간다.
 앞으로 만들 스킬 체크리스트는 [visual-spec 허브 문서](./visual-spec.md)에 있다.
+
+
+## 반응형 매핑 (#224)
+
+`ScreenSpec.responsive`가 있으면 숫자 `minWidthPx` 순서로 기반 값에 override를 누적한다.
+객체는 부분 병합, 배열은 전체 교체다. 생략과 `background: []`의 의미를 구분한다.
+기본 출력은 `min-[768px]:...` 같은 정적인 숫자 variant이며, 대상 프로젝트를 자동으로
+분석하지 않는다. 사용자가 제공한 Tailwind 설정의 경계·단위·정렬을 확인한 경우에만
+named variant를 쓸 수 있다. 지원하지 않는 버전에는 TSX 안에 포함한 정적 CSS 미디어
+쿼리로 대체할 수 있다. 출력 경로는 기존 generated/pages·components 그대로다.
+
+배경 override에서는 **색·이미지·origin 세 CSS 속성을 모두 교체**한다. 단색으로 바뀌면
+기존 이미지를 `none`으로, gradient-only이면 기존 색을 `transparent`로 지우며,
+빈 배열이면 둘 다 지운다. 단순히 해당 폭의 배경 클래스를 생략하면 이전 겹이 남는다.
+부모 방향 변경에 따른 자식 fill 재계산과 visibility·효과 reset도 지시문에 포함한다.
+
+[실측 기록](../16-responsive-codegen-qa.md)은 Tailwind v4에서 수동 매핑 fixture를 빌드하고
+경계 전후 CSS를 검사한 결과다. 결정론적 변환기나 실제 AI의 품질 검증을 추가한 것은 아니다.
+이 기능은 #222 스키마 PR에 의존하며, #223 GUI와의 최종 비교 여부도 기록에서 확인한다.
