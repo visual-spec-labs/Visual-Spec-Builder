@@ -37,6 +37,10 @@ export function exportSpecAsJson(spec: ProjectSpec): ExportResult {
   const result = buildExportPayload(spec);
   if (result.ok) {
     downloadJson(result.filename, result.json);
+  } else {
+    const details = result.issues.slice(0, 3).map((issue) => `${issue.path}: ${issue.message}`);
+    const remaining = result.issueCount > 3 ? `\n외 ${result.issueCount - 3}건` : "";
+    window.alert(`내보낼 수 없습니다 (검증 실패 ${result.issueCount}건).\n${details.join("\n")}${remaining}`);
   }
   return result;
 }
