@@ -18,9 +18,9 @@ export async function renameProject(fileName: string, name: string): Promise<Wri
   // Share the exact lock identities used by Save/autosave. Deterministic ordering
   // avoids opposing A->B/B->A requests deadlocking; same-path rename takes one lock.
   const keys = [...new Set([fileName, nextFileName].map((file) => projectStorageKey(file, "")))].sort();
-  const withLocks = (index: number): Promise<WriteResult> => index === keys.length
+  const withLocks = async (index: number): Promise<WriteResult> => index === keys.length
     ? renameLocked(fileName, name, nextFileName)
-    : navigator.locks.request(keys[index], () => withLocks(index + 1));
+    : await navigator.locks.request(keys[index], () => withLocks(index + 1));
   try { return await withLocks(0); }
   catch { return { ok: false, error: "이름 변경을 위한 저장 잠금을 얻지 못했습니다. 원본과 메모리 작업은 보존했습니다." }; }
 }
