@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { publishProjectRename } from "@/features/editor/store/specStorage";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -6,6 +7,9 @@ import { renameProject } from "@/features/editor/ui/renameProject";
 import { readWorkspaceTextFile } from "@/features/editor/ui/workspaceClient";
 import { WORKSPACE_MARKER_HEADER } from "@/features/workspace/protocol";
 
+vi.mock("@/features/editor/store/specStorage", async (original) => ({
+  ...await original<typeof import("@/features/editor/store/specStorage")>(), publishProjectRename: vi.fn(),
+}));
 vi.mock("@/features/editor/ui/workspaceClient", () => ({ readWorkspaceTextFile: vi.fn() }));
 const fetchMock = vi.fn();
 beforeEach(() => {
@@ -32,6 +36,7 @@ describe("home rename", () => {
     expect(after.selectedId).toBe(before.selectedId);
     expect(after.history.past).toHaveLength(before.history.past.length);
     expect(after.spec.name).toBe("New");
+    expect(publishProjectRename).toHaveBeenCalledWith("old.json", expect.objectContaining({ name: "New" }), "New.json");
     expect(useDocumentStore.getState().fileName).toBe("New.json");
     after.undo();
     expect(useEditorStore.getState().spec.name).toBe("New");
@@ -51,6 +56,7 @@ describe("home rename", () => {
     const before = useEditorStore.getState();
     expect((await renameProject("old.json", "New")).ok).toBe(false);
     expect(useEditorStore.getState()).toBe(before);
+    expect(publishProjectRename).not.toHaveBeenCalled();
     expect(useDocumentStore.getState().fileName).toBe("old.json");
   });
   it("preserves memory on uncertain network outcome", async () => {
@@ -58,6 +64,7 @@ describe("home rename", () => {
     const before = useEditorStore.getState();
     expect((await renameProject("old.json", "New")).ok).toBe(false);
     expect(useEditorStore.getState()).toBe(before);
+    expect(publishProjectRename).not.toHaveBeenCalled();
     expect(useDocumentStore.getState().fileName).toBe("old.json");
   });
   it("does not send invalid names or missing source", async () => {
