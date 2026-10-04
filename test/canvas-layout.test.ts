@@ -300,34 +300,130 @@ describe("backgroundStyle", () => {
 
     expect(style).not.toHaveProperty("background");
   });
+});
 
-  // 스키마 전환 단계(#127 후속 1)에서는 linear를 아직 그리지 않는다 — 렌더 단계 몫이다.
-  it("linear 겹은 아직 그리지 않고 나머지 겹만 그린다", () => {
-    const linear: LinearFill = {
+describe("backgroundStyle — linear 겹", () => {
+  /** stop 목록만 바꿔 가며 쓰는 linear 겹. */
+  function linear(angle: number, ...stops: [string, number][]): LinearFill {
+    return {
       type: "linear",
-      angle: 180,
-      stops: [
-        { color: "#00000000", at: 0 },
-        { color: "#000000CC", at: 1 },
-      ],
+      angle,
+      stops: stops.map(([color, at]) => ({ color, at })) as LinearFill["stops"],
     };
+  }
 
-    expect(backgroundStyle([linear])).toEqual({
+  const FADE = linear(180, ["#00000000", 0], ["#000000CC", 1]);
+  const FADE_CSS = "linear-gradient(180deg, #00000000 0%, #000000CC 100%)";
+
+  it("linear 단독이면 background-color 없이 이미지 한 겹이다", () => {
+    expect(backgroundStyle([FADE])).toEqual({
       backgroundColor: undefined,
-      backgroundImage: undefined,
-      backgroundOrigin: undefined,
-    });
-    expect(backgroundStyle([linear, { type: "solid", color: "#6366F1" }])).toEqual({
-      backgroundColor: "#6366F1",
-      backgroundImage: undefined,
-      backgroundOrigin: undefined,
-    });
-    // 맨 아래가 linear면 위의 solid는 이미지 겹이다.
-    expect(backgroundStyle([{ type: "solid", color: "#6366F1" }, linear])).toEqual({
-      backgroundColor: undefined,
-      backgroundImage: "linear-gradient(#6366F1, #6366F1)",
+      backgroundImage: FADE_CSS,
       backgroundOrigin: "border-box",
     });
+  });
+
+  it.each([
+    [0, "0deg"],
+    [90, "90deg"],
+    [180, "180deg"],
+    [22.5, "22.5deg"],
+  ])("각도 %s는 CSS 각도 그대로 %s로 낸다", (angle, css) => {
+    const style = backgroundStyle([linear(angle, ["#6366F1", 0], ["#8B5CF6", 1])]);
+
+    expect(style.backgroundImage).toBe(`linear-gradient(${css}, #6366F1 0%, #8B5CF6 100%)`);
+  });
+
+  it("stop 3개 이상도 순서대로 잇는다", () => {
+    const style = backgroundStyle([
+      linear(90, ["#FF0000", 0], ["#00FF00", 0.5], ["#0000FF", 1]),
+    ]);
+
+    expect(style.backgroundImage).toBe(
+      "linear-gradient(90deg, #FF0000 0%, #00FF00 50%, #0000FF 100%)",
+    );
+  });
+
+  it("같은 at 두 개(딱 끊기는 경계)도 그대로 낸다 — CSS가 경계로 그린다", () => {
+    const style = backgroundStyle([
+      linear(180, ["#111111", 0], ["#111111", 0.5], ["#EEEEEE", 0.5], ["#EEEEEE", 1]),
+    ]);
+
+    expect(style.backgroundImage).toBe(
+      "linear-gradient(180deg, #111111 0%, #111111 50%, #EEEEEE 50%, #EEEEEE 100%)",
+    );
+  });
+
+  it("알파가 있는 8자리 색을 그대로 낸다", () => {
+    const style = backgroundStyle([linear(180, ["#4F46E580", 0], ["#4F46E500", 1])]);
+
+    expect(style.backgroundImage).toBe(
+      "linear-gradient(180deg, #4F46E580 0%, #4F46E500 100%)",
+    );
+  });
+
+  it("at × 100의 부동소수 오차를 정리한다 — 0.1은 10.000000000000002%가 아니라 10%", () => {
+    // 0.1 × 100, 0.29 × 100, 0.57 × 100은 JS에서 정확히 떨어지지 않는다.
+    const style = backgroundStyle([
+      linear(180, ["#000000", 0.1], ["#111111", 0.29], ["#222222", 0.57], ["#333333", 1]),
+    ]);
+
+    expect(style.backgroundImage).toBe(
+      "linear-gradient(180deg, #000000 10%, #111111 29%, #222222 57%, #333333 100%)",
+    );
+  });
+
+  it("필요한 소수는 남기되 소수 넷째 자리에서 반올림한다", () => {
+    const style = backgroundStyle([
+      linear(33.333333333, ["#000000", 0.125], ["#111111", 0.3333333], ["#222222", 1]),
+    ]);
+
+    expect(style.backgroundImage).toBe(
+      "linear-gradient(33.3333deg, #000000 12.5%, #111111 33.3333%, #222222 100%)",
+    );
+  });
+
+  it("linear 위의 solid는 이미지 겹, 맨 아래 linear는 background-color 없이 그린다", () => {
+    expect(backgroundStyle([{ type: "solid", color: "#6366F180" }, FADE])).toEqual({
+      backgroundColor: undefined,
+      backgroundImage: `linear-gradient(#6366F180, #6366F180), ${FADE_CSS}`,
+      backgroundOrigin: "border-box",
+    });
+  });
+
+  it("solid 위의 linear는 이미지 겹이고 맨 아래 solid는 background-color다", () => {
+    expect(backgroundStyle([FADE, { type: "solid", color: "#6366F1" }])).toEqual({
+      backgroundColor: "#6366F1",
+      backgroundImage: FADE_CSS,
+      backgroundOrigin: "border-box",
+    });
+  });
+
+  it("여러 겹은 배열 순서 그대로 잇는다 — 앞이 위다", () => {
+    const sheen = linear(90, ["#FFFFFF33", 0], ["#FFFFFF00", 0.4]);
+    const style = backgroundStyle([
+      sheen,
+      { type: "solid", color: "#11111140" },
+      FADE,
+      { type: "solid", color: "#F7F8FA" },
+    ]);
+
+    expect(style.backgroundImage).toBe(
+      [
+        "linear-gradient(90deg, #FFFFFF33 0%, #FFFFFF00 40%)",
+        "linear-gradient(#11111140, #11111140)",
+        FADE_CSS,
+      ].join(", "),
+    );
+    expect(style.backgroundColor).toBe("#F7F8FA");
+    expect(style.backgroundOrigin).toBe("border-box");
+  });
+
+  it("stop을 다시 정렬하지 않는다 — 순서는 validator가 보장한다", () => {
+    // 무효 문서지만 렌더가 몰래 고쳐 주면 번역기마다 뜻이 달라진다(docs/13 표현 규칙).
+    const style = backgroundStyle([linear(180, ["#000000", 0.8], ["#FFFFFF", 0.2])]);
+
+    expect(style.backgroundImage).toBe("linear-gradient(180deg, #000000 80%, #FFFFFF 20%)");
   });
 });
 

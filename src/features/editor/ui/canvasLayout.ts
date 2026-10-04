@@ -100,11 +100,10 @@ function dropShadow(shadow: Shadow | undefined): string | undefined {
  * - 이미지 겹이 있으면 **`background-origin: border-box`를 함께 낸다.** 이미지 겹은
  *   기본적으로 padding 상자 기준으로 놓이고 테두리 밑은 그 타일이 반복돼 채운다.
  *   기준을 상자 전체로 옮겨야 `background-color`처럼 테두리 밑까지 한 장으로 깔리고,
- *   다음 단계의 그라디언트도 이음매 없이 상자 전체에 걸린다.
+ *   그라디언트도 이음매 없이 상자 전체에 걸린다.
  * - 생략·빈 배열은 아무 속성도 내지 않는다 — 배경이 없던 노드와 같다.
  *
- * **linear 겹은 아직 그리지 않는다**(스키마 전환 단계 — 그라디언트 렌더는 다음
- * 단계에서 이 함수에 갈래를 더한다). 그 겹만 빠지고 나머지 겹은 그려진다.
+ * 맨 아래 겹이 linear면 `background-color` 없이 전부 이미지 목록이다.
  */
 export function backgroundStyle(background: Background | undefined): CSSProperties {
   const fills = background ?? [];
@@ -112,9 +111,7 @@ export function backgroundStyle(background: Background | undefined): CSSProperti
   const bottomSolid = bottom?.type === "solid" ? bottom : undefined;
   const imageFills = bottomSolid === undefined ? fills : fills.slice(0, -1);
 
-  const layers = imageFills
-    .map(fillLayer)
-    .filter((layer): layer is string => layer !== undefined);
+  const layers = imageFills.map(fillLayer);
   const hasImages = layers.length > 0;
 
   return {
@@ -124,14 +121,39 @@ export function backgroundStyle(background: Background | undefined): CSSProperti
   };
 }
 
-/** 겹 하나를 `background-image` 목록의 한 항목으로. 아직 못 그리는 종류는 undefined. */
-function fillLayer(fill: Fill): string | undefined {
+/**
+ * 겹 하나를 `background-image` 목록의 한 항목으로.
+ *
+ * linear는 `linear-gradient(<angle>deg, <색> <at×100>%, …)`다. 각도는 CSS 각도 그대로
+ * (0 = 아래에서 위, 180 = 위에서 아래)이고 색은 `#RRGGBB(AA)` 그대로 낸다 — CSS가
+ * 8자리 hex를 받는다. stop은 다시 정렬하지 않는다. 오름차순은 validator가 보장하고,
+ * 같은 `at` 두 개(딱 끊기는 경계)는 CSS가 그대로 경계로 그린다.
+ */
+function fillLayer(fill: Fill): string {
   switch (fill.type) {
     case "solid":
       return `linear-gradient(${fill.color}, ${fill.color})`;
-    case "linear":
-      return undefined;
+    case "linear": {
+      const stops = fill.stops.map((stop) => `${stop.color} ${cssNumber(stop.at * 100)}%`);
+      return `linear-gradient(${cssNumber(fill.angle)}deg, ${stops.join(", ")})`;
+    }
   }
+}
+
+/**
+ * CSS에 적을 수를 소수 넷째 자리에서 반올림한다.
+ *
+ * `at`은 0..1 소수라 100을 곱하면 부동소수 오차가 붙는다(0.1 × 100 =
+ * 10.000000000000002, 0.29 × 100 = 28.999999999999996). 그대로 내도 CSS는 그리지만
+ * 스타일 문자열이 지저분해지고, 같은 뜻의 문서가 테스트·코드 생성과 다른 글자를 낸다.
+ * 각도도 패널이 계산해 쓰게 되면 같은 일이 생기므로 같은 규칙을 쓴다.
+ *
+ * 정수로 반올림한 뒤 10⁴로 나누는 이유: 그 결과는 해당 십진수에 가장 가까운 double이라
+ * JS의 최단 표기가 그 십진수를 그대로 낸다(`toFixed`처럼 뒤에 0이 붙지 않는다).
+ * 넷째 자리면 퍼센트로 1만 px 상자에서도 0.01px, 각도로 0.0001°라 보이는 차이가 없다.
+ */
+function cssNumber(value: number): number {
+  return Math.round(value * 10_000) / 10_000;
 }
 
 /**
