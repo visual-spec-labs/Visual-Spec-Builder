@@ -69,9 +69,8 @@ function handleExportCode() {
  * `.visual-spec/generated/`의 React 코드를 검증해 결과 폴더 ZIP으로 내보낸다(#157).
  * Import는 importImageFromFile(이미지 선택 → .visual-spec/assets/에 저장 → 선택된
  * 프레임/root에 삽입)로 연결돼 있다 — 코드·디자인 파일 가져오기는 이번 범위 밖(별도 이슈).
- * 검증 실패 시 Export는 다운로드 대신 콘솔 경고만 남기고(메뉴 컨텍스트에
- * 인라인 에러 UI가 없어서 낸 절충), Open/Save as는 사용자 조작이
- * 원인이라 조용히 실패하면 원인을 알 수 없어 최소한의 alert로 알린다.
+ * 검증 실패 시 Export는 다운로드하지 않고 처음 3개 원인과 위치를 alert로
+ * 알린다(#230). Open/Save/Save as도 실패를 alert로 알려 조용히 끝나지 않는다.
  * View 항목은 viewStore(줌·그리드·패널 표시)에 연결돼 있다.
  * Help은 gui-spec.md 기준 MVP 제외.
  * 로고·브랜드명 클릭은 navigationStore.openHome()으로 홈 화면으로 돌아간다(#72) —
