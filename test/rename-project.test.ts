@@ -29,6 +29,7 @@ describe("home rename", () => {
     const editor = useEditorStore.getState();
     const pageId = editor.activePageId;
     editor.setPageField(pageId, "name", "unsaved edit");
+    editor.select(editor.spec.pages[pageId].root);
     const before = useEditorStore.getState();
     expect(await renameProject("old.json", "New")).toEqual({ ok: true, path: "specs/New.json" });
     const after = useEditorStore.getState();
@@ -43,6 +44,17 @@ describe("home rename", () => {
     expect(useEditorStore.getState().spec.pages[pageId].name).not.toBe("unsaved edit");
     after.redo();
     expect(useEditorStore.getState().spec.pages[pageId].name).toBe("unsaved edit");
+  });
+  it("preserves redo entries while synchronizing their project names", async () => {
+    const editor = useEditorStore.getState();
+    const pageId = editor.activePageId;
+    editor.setPageField(pageId, "name", "redo draft");
+    editor.undo();
+    await renameProject("old.json", "New");
+    expect(useEditorStore.getState().history.future).toHaveLength(1);
+    editor.redo();
+    expect(useEditorStore.getState().spec.name).toBe("New");
+    expect(useEditorStore.getState().spec.pages[pageId].name).toBe("redo draft");
   });
   it("does not change another active document", async () => {
     useDocumentStore.getState().setFileName("other.json");
