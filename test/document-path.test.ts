@@ -342,7 +342,7 @@ describe("새로고침해도 Save는 연 파일에 쓴다 (이슈 #185)", () => 
     // "새로고침 전에 자동저장이 이미 한 번 돌았다"를 흉내 낸다 — App.tsx의
     // useSpecAutosave가 실제로 하는 일과 같다(effect 타이밍 자체는 이 저장소에
     // 훅 테스트 도구가 없어 다루지 않는다, 다른 파일들과 같은 한계).
-    saveSpecToStorage(useEditorStore.getState().spec, useDocumentStore.getState().fileName);
+    saveSpecToStorage(useEditorStore.getState().spec, useDocumentStore.getState().fileName, useDocumentStore.getState().diskRevision);
 
     vi.resetModules();
     const { useDocumentStore: freshDocumentStore } = await import(
@@ -359,7 +359,7 @@ describe("새로고침해도 Save는 연 파일에 쓴다 (이슈 #185)", () => 
     );
     promptAnswer = "customer-copy.json";
     await openSpec();
-    saveSpecToStorage(useEditorStore.getState().spec, useDocumentStore.getState().fileName);
+    saveSpecToStorage(useEditorStore.getState().spec, useDocumentStore.getState().fileName, useDocumentStore.getState().diskRevision);
 
     vi.resetModules();
     const { saveSpec: freshSaveSpec } = await import("@/features/editor/ui/exportSpecAsJson");

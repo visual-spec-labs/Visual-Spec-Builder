@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { loadStoredFileName } from "@/features/editor/store/specStorage";
+import { loadStoredFileName, loadStoredDiskRevision } from "@/features/editor/store/specStorage";
 
 /**
  * **지금 편집 중인 문서가 어느 파일인가**만 다루는 스토어 (PR #145 리뷰, wook3964).
@@ -56,7 +56,7 @@ export interface DocumentState {
 
 export const useDocumentStore = create<DocumentState>((set) => ({
   fileName: loadStoredFileName() ?? null,
-  diskRevision: null,
+  diskRevision: loadStoredDiskRevision(),
   setFileName: (fileName, diskRevision = null) => set({ fileName, diskRevision }),
   clearFileName: () => set({ fileName: null, diskRevision: null }),
 }));
