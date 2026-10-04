@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
-import { publishProjectRename } from "@/features/editor/store/specStorage";
+import { prepareProjectRename, publishProjectRename } from "@/features/editor/store/specStorage";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -9,13 +9,14 @@ import { readWorkspaceTextFile } from "@/features/editor/ui/workspaceClient";
 import { WORKSPACE_MARKER_HEADER } from "@/features/workspace/protocol";
 
 vi.mock("@/features/editor/store/specStorage", async (original) => ({
-  ...await original<typeof import("@/features/editor/store/specStorage")>(), publishProjectRename: vi.fn(),
+  ...await original<typeof import("@/features/editor/store/specStorage")>(), publishProjectRename: vi.fn(), prepareProjectRename: vi.fn(),
 }));
 vi.mock("@/features/editor/ui/workspaceClient", () => ({ readWorkspaceTextFile: vi.fn() }));
 const fetchMock = vi.fn();
 const lockMock = vi.fn(async (_key: string, action: () => Promise<unknown>) => action());
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(prepareProjectRename).mockReturnValue(vi.fn());
   useSaveConflictStore.setState({ paused: false, check: () => false });
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("navigator", { locks: { request: lockMock } });
@@ -86,7 +87,7 @@ describe("home rename", () => {
   it("acquires sorted source and destination locks before reading disk", async () => {
     await renameProject("old.json", "New");
     expect(lockMock.mock.calls.map(([key]) => key)).toEqual([
-      "visual-spec:autosave:file:New.json", "visual-spec:autosave:file:old.json",
+      "visual-spec:autosave:file:new.json", "visual-spec:autosave:file:old.json",
     ]);
     expect(lockMock.mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(readWorkspaceTextFile).mock.invocationCallOrder[0]);
   });
@@ -103,6 +104,24 @@ describe("home rename", () => {
     vi.mocked(readWorkspaceTextFile).mockClear();
     expect((await renameProject("old.json", "old")).ok).toBe(false);
     expect(readWorkspaceTextFile).not.toHaveBeenCalled();
+  });
+  it("refuses before the disk request when the durable rename barrier cannot be stored", async () => {
+    vi.mocked(prepareProjectRename).mockImplementation(() => { throw new Error("quota"); });
+    const before = useEditorStore.getState();
+    expect((await renameProject("old.json", "New")).ok).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(useEditorStore.getState()).toBe(before);
+  });
+  it("reports failure instead of claiming success when source notice publication fails", async () => {
+    vi.mocked(publishProjectRename).mockImplementation(() => { throw new Error("quota"); });
+    const before = useEditorStore.getState();
+    expect((await renameProject("old.json", "New")).ok).toBe(false);
+    expect(useEditorStore.getState()).toBe(before);
+    expect(useDocumentStore.getState().fileName).toBe("old.json");
+  });
+  it("shares one lock for case-only file aliases", async () => {
+    await renameProject("NEW.json", "New");
+    expect(lockMock.mock.calls.map(([key]) => key)).toEqual(["visual-spec:autosave:file:new.json"]);
   });
   it("refuses safely when Web Locks are unavailable", async () => {
     vi.stubGlobal("navigator", {});

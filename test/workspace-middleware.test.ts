@@ -800,7 +800,7 @@ describe("project rename (#227)", () => {
     expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe("newer");
     expect(existsSync(join(workspaceRoot, "specs/New.json"))).toBe(false);
   });
-  it.each(["../escape", "a/b", "a\\b", "CON", "trailing.", "", " padded ", "a?b", "\ud800"])("rejects unsafe name %s", async (name) => {
+  it.each(["../escape", "a/b", "a\\b", "CON", "trailing.", "", " padded ", "a?b", "\ud800", "한".repeat(84)])("rejects unsafe name %s", async (name) => {
     expect((await rename(name)).status).toBe(400);
     expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
   });

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
-import { loadStoredSpec, parseStoredDocument, projectStorageKey, readRecovery, publishProjectRename } from "@/features/editor/store/specStorage";
+import { loadStoredSpec, parseStoredDocument, projectStorageKey, readRecovery, prepareProjectRename, publishProjectRename } from "@/features/editor/store/specStorage";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { startSpecAutosave } from "@/features/editor/ui/specAutosave";
 import { saveSpec, saveSpecAs, downloadConflictCopy } from "@/features/editor/ui/exportSpecAsJson";
@@ -101,6 +101,23 @@ describe("same-project autosave conflict preservation", () => {
     expect(useSaveConflictStore.getState().paused).toBe(true);
     expect(parseStoredDocument(localStorage.getItem(key))).toEqual(latest);
     expect(useEditorStore.getState().spec.name).toBe("stale disk");
+  });
+  it("keeps a source draft paused and cannot adopt a pending rename or recreate its file", async () => {
+    stop = startSpecAutosave(); edit("unsaved source draft");
+    prepareProjectRename("same.json", initial, "new.json");
+    notify(`${key}:rename`);
+    expect(useSaveConflictStore.getState().paused).toBe(true);
+    expect(useSaveConflictStore.getState().loadLatest()).toBe(false);
+    expect(useDocumentStore.getState().fileName).toBe("same.json");
+    expect(useEditorStore.getState().spec.name).toBe("unsaved source draft");
+    const write = vi.fn(async () => true);
+    expect(await useSaveConflictStore.getState().save("same.json", JSON.stringify(initial), write)).toBe(false);
+    expect(write).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(localStorage.getItem(key)).toBeNull();
+    publishProjectRename("same.json", { ...initial, name: "confirmed rename" }, "new.json");
+    expect(useSaveConflictStore.getState().loadLatest()).toBe(true);
+    expect(useDocumentStore.getState().fileName).toBe("new.json");
   });
   it("rename signaling never overwrites either project's existing autosave", () => {
     const oldDraft = remote("old unsaved");

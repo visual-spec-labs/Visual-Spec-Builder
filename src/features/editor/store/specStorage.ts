@@ -57,7 +57,8 @@ export function parseStoredDocument(raw: string | null): StoredDocument | undefi
     return undefined;
   }
 
-  if (typeof parsed !== "object" || parsed === null) return undefined;
+  if (typeof parsed !== "object" || parsed === null ||
+    ("renamePending" in parsed && parsed.renamePending === true)) return undefined;
   const fileName = (parsed as Record<string, unknown>).fileName;
   if (fileName !== null && typeof fileName !== "string") return undefined;
 
@@ -138,18 +139,33 @@ export function writeRecovery(recovery: Recovery): boolean {
   } catch { return false; }
 }
 export function projectStorageKey(fileName: string | null, untitledId: string): string {
-  return `visual-spec:autosave:${fileName === null ? `draft:${untitledId}` : `file:${fileName}`}`;
+  return `visual-spec:autosave:${fileName === null ? `draft:${untitledId}` : `file:${fileName.toLowerCase()}`}`;
 }
 
-/** Rename publishes a redirect for old tabs; they must explicitly resolve their drafts. */
+/** Reserve durable barriers before changing disk. A pending notice cannot be loaded as a document. */
+export function prepareProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string): () => void {
+  const keys = [...new Set([oldFileName, newFileName].map((file) => `${projectStorageKey(file, "")}:rename`))];
+  const previous = keys.map((key) => localStorage.getItem(key));
+  const pending = JSON.stringify({ fileName: newFileName, spec, renamePending: true,
+    cachedRevision: localStorage.getItem(projectStorageKey(newFileName, "")), revision: crypto.randomUUID() });
+  const rollback = () => {
+    keys.forEach((key, index) => {
+      if (previous[index] === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, previous[index]);
+    });
+  };
+  try { keys.forEach((key) => localStorage.setItem(key, pending)); }
+  catch (error) { rollback(); throw error; }
+  return rollback;
+}
+
+/** Source notice is mandatory: never hide a failure after the workspace rename. */
 export function publishProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string): void {
-  try {
-    const target = projectStorageKey(newFileName, "");
-    const raw = JSON.stringify({ fileName: newFileName, spec,
-      cachedRevision: localStorage.getItem(target), revision: crypto.randomUUID() });
-    localStorage.setItem(`${target}:rename`, raw);
-    localStorage.setItem(`${projectStorageKey(oldFileName, "")}:rename`, raw);
-  } catch { /* Workspace rename already succeeded; in-memory document remains usable. */ }
+  const target = projectStorageKey(newFileName, "");
+  const raw = JSON.stringify({ fileName: newFileName, spec,
+    cachedRevision: localStorage.getItem(target), revision: crypto.randomUUID() });
+  localStorage.setItem(`${projectStorageKey(oldFileName, "")}:rename`, raw);
+  if (projectStorageKey(oldFileName, "") !== target) localStorage.setItem(`${target}:rename`, raw);
 }
 
 /** One envelope order for autosave, Save and post-Save-as identity comparisons. */
