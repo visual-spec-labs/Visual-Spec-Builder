@@ -17,7 +17,7 @@ Visual Spec Builder 작업의 진입점이다. 절차도 스키마 지식도 담
 Visual Spec이라는 것만 알려줄 뿐, 작성인지 검증인지 코드 생성인지 문서 조회인지를
 말해주지 않는다. 이때 아무 스킬이나 열면 틀린 절차를 밟는다.
 
-**오진입이 회복된다.** 나머지 5개 스킬은 본문 첫 줄에 "이 스킬이 지금 상황에 맞지 않으면
+**오진입이 회복된다.** 나머지 6개 스킬은 본문 첫 줄에 "이 스킬이 지금 상황에 맞지 않으면
 허브를 대신 연다"는 역참조를 갖고 있다. 그래서 처음에 잘못 걸려도 막다른 길이 되지 않고
 허브로 돌아와 다시 라우팅된다. 트리거가 완벽할 수 없다는 전제 위에 세운 구조다.
 
@@ -57,6 +57,8 @@ Visual Spec Builder가 라이브러리로 설치돼 프로젝트마다 다른 �
 - [visual-spec-docs](./visual-spec-docs.md) — 스키마·문서 원문을 찾는다
 - [visual-spec-nl-response](./visual-spec-nl-response.md) — GUI 자연어 입력창의 요청에
   Command 배열로 응답한다
+
+- [visual-spec-ticket-response](./visual-spec-ticket-response.md) — GUI 구현 티켓의 요청 파일을 읽고 코드와 결과를 쓴다
 
 분기표와 세부 조건은 `skills/visual-spec/SKILL.md` 본문을 본다.
 
