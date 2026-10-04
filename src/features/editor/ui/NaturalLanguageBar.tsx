@@ -13,6 +13,9 @@ import {
   type NlCancelToken,
 } from "@/features/editor/nl/nlAgentClient";
 import { NL_REQUEST_PATH, NL_RESPONSE_PATH, type NlScopeKind } from "@/features/editor/nl/nlProtocol";
+import type { Command } from "@/features/editor/command/types";
+import { runTransactionGates } from "@/features/editor/command/transactionGate";
+import { changedBackgroundNodes } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
 
 /**
@@ -29,9 +32,9 @@ import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
  * 건네고 Command 배열을 받아오기(`nl/nlAgentClient.ts`), 받은 배열을
  * `applyGuardedTransaction`에 넣기, 그 결과를 **한 자리에** 내기.
  *
- * 검증은 하지 않는다 — G1은 `nlProtocol.parseNlResponse`가, G2·G3는
- * `editorStore.applyGuardedTransaction`이 이미 한다(docs/08 4.2). 여기서 다시
- * 재면 같은 규칙이 두 벌이 된다.
+ * 검증 규칙은 재정의하지 않는다 — G1은 `nlProtocol.parseNlResponse`가 맡는다.
+ * 배경 확인 전 G2·G3 순수 관문으로 미리 계산하고, 동의 후에는
+ * `editorStore.applyGuardedTransaction`이 같은 관문으로 재검증한다(docs/08 4.2).
  *
  * ## 알림은 한 자리로만
  *
@@ -44,6 +47,14 @@ type Feedback =
   | { kind: "none" }
   | { kind: "pending" }
   | { kind: "error"; message: string }
+  | {
+      kind: "confirmation";
+      spec: ProjectSpec;
+      pageId: string;
+      commands: Command[];
+      names: string[];
+      revision: number;
+    }
   /**
    * `spec`은 이 트랜잭션이 커밋한 바로 그 프로젝트 참조다.
    *
@@ -64,6 +75,14 @@ export function NaturalLanguageBar() {
   const [scopeOverride, setScopeOverride] = useState<NlScopeKind | null>(null);
   const [feedback, setFeedback] = useState<Feedback>({ kind: "none" });
 
+  // 페이지를 바꿨다 돌아오거나 Undo로 같은 참조를 복원해도 낡은 동의는 재사용하지 않는다.
+  const revisionRef = useRef(0);
+  useEffect(() => useEditorStore.subscribe((next, previous) => {
+    if (next.spec !== previous.spec || next.activePageId !== previous.activePageId) {
+      revisionRef.current += 1;
+    }
+  }), []);
+
   // 진행 중인 요청의 취소 토큰. 값이 있으면 "기다리는 중"이다.
   const cancelRef = useRef<NlCancelToken | null>(null);
 
@@ -83,7 +102,7 @@ export function NaturalLanguageBar() {
 
   const scope = resolveScope(page, selectedId, scopeOverride);
   const options = scopeOptions(page, selectedId);
-  const pending = feedback.kind === "pending";
+  const pending = feedback.kind === "pending" || feedback.kind === "confirmation";
   // 성공 줄은 그 편집이 아직 현재 상태일 때만 유효하다(위 Feedback 주석).
   const shown: Feedback =
     feedback.kind === "success" && feedback.spec !== spec ? { kind: "none" } : feedback;
@@ -93,6 +112,7 @@ export function NaturalLanguageBar() {
     const text = instruction.trim();
     if (text === "" || pending) return;
 
+    const requestRevision = revisionRef.current;
     const token: NlCancelToken = { cancelled: false };
     cancelRef.current = token;
     setFeedback({ kind: "pending" });
@@ -130,8 +150,33 @@ export function NaturalLanguageBar() {
       return;
     }
 
+    const current = useEditorStore.getState();
+    if (
+      revisionRef.current !== requestRevision || current.spec !== spec ||
+      current.activePageId !== pageId
+    ) {
+      setFeedback({ kind: "error", message: "문서나 화면이 바뀌었습니다. 변경된 상태에서 다시 요청하세요." });
+      return;
+    }
+    const preview = runTransactionGates(current.spec, pageId, result.commands);
+    if (!preview.ok) {
+      setFeedback({ kind: "error", message: describeTransactionFailure(preview.failure) });
+      return;
+    }
+    const names = changedBackgroundNodes(page, preview.screen);
+    if (names.length > 0) {
+      setFeedback({
+        kind: "confirmation", spec: current.spec, pageId,
+        commands: result.commands, names, revision: requestRevision,
+      });
+      return;
+    }
+    commit(result.commands, pageId);
+  }
+
+  function commit(commands: Command[], targetPageId: string) {
     // G2·G3 + 커밋. 실패하면 spec은 전혀 바뀌지 않는다(전부-또는-전무).
-    const gate = useEditorStore.getState().applyGuardedTransaction(pageId, result.commands);
+    const gate = useEditorStore.getState().applyGuardedTransaction(targetPageId, commands);
     if (!gate.ok) {
       setFeedback({ kind: "error", message: describeTransactionFailure(gate.failure) });
       return;
@@ -140,9 +185,22 @@ export function NaturalLanguageBar() {
     setInstruction("");
     setFeedback({
       kind: "success",
-      message: describeCommands(result.commands),
+      message: describeCommands(commands),
       spec: useEditorStore.getState().spec,
     });
+  }
+
+  function confirmBackground() {
+    if (feedback.kind !== "confirmation") return;
+    const current = useEditorStore.getState();
+    if (
+      revisionRef.current !== feedback.revision || current.spec !== feedback.spec ||
+      current.activePageId !== feedback.pageId
+    ) {
+      setFeedback({ kind: "error", message: "확인 중 문서나 화면이 바뀌었습니다. 다시 요청하세요." });
+      return;
+    }
+    commit(feedback.commands, feedback.pageId);
   }
 
   function cancelPending() {
@@ -217,6 +275,17 @@ export function NaturalLanguageBar() {
           <span className="text-content-muted">
             에이전트 응답을 기다리는 중… 에이전트에게 <code>{NL_REQUEST_PATH}</code>를 읽고{" "}
             <code>{NL_RESPONSE_PATH}</code>에 Command 배열을 쓰게 하세요.
+          </span>
+        )}
+        {shown.kind === "confirmation" && (
+          <span className="text-content">
+            기존 배경 겹이 없어지거나 순서·내용이 바뀝니다: {shown.names.join(", ")}. 적용할까요?{" "}
+            <button type="button" onClick={confirmBackground} className="underline hover:text-content">
+              변경 적용
+            </button>{" "}
+            <button type="button" onClick={cancelPending} className="underline hover:text-content">
+              적용 취소
+            </button>
           </span>
         )}
         {shown.kind === "error" && <span className="text-error">{shown.message}</span>}
