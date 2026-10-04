@@ -10,6 +10,7 @@ import {
   isContextMenuKey,
   isSpacePanKey,
   nodeClipboardCommandForKey,
+  nodeGroupCommandForKey,
   shouldDeleteSelection,
   siblingNavDirectionForKey,
   toolForKey,
@@ -86,6 +87,25 @@ export function useCanvasKeys(
       if (tool !== null) {
         event.preventDefault();
         useToolStore.getState().setActiveTool(tool);
+        return;
+      }
+
+      const groupState = useEditorStore.getState();
+      const groupPage = groupState.spec.pages[groupState.activePageId];
+      const groupTarget = groupState.selectedId;
+      const canGroup = groupTarget !== null && groupTarget !== groupPage.root &&
+        Object.prototype.hasOwnProperty.call(groupPage.nodes, groupTarget);
+      const group = nodeGroupCommandForKey({
+        ...keyInput, canGroup,
+        canUngroup: canGroup && groupTarget !== null && groupPage.nodes[groupTarget].type === "frame",
+      });
+      if (group !== null && groupTarget !== null) {
+        event.preventDefault();
+        // 키를 누른 채 반복 이벤트가 오면 wrapper를 계속 중첩하지 않는다.
+        if (!event.repeat) {
+          if (group === "group") groupState.groupNode(groupTarget);
+          else groupState.ungroupNode(groupTarget);
+        }
         return;
       }
 
