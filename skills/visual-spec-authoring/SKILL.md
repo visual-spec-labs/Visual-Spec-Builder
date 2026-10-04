@@ -88,7 +88,9 @@ v0.1 의 노드 타입은 **`frame`, `text`, `image`, `button`, `input` 다섯�
 객체 모양 `{ "color": "#…" }` 은 이제 검증에서 걸린다(앱은 옛 파일을 열 때 자동 변환하지만,
 새로 쓰는 문서는 처음부터 배열로 쓴다). 배열 앞이 위 겹이고, 생략과 `[]` 는 둘 다 "배경
 없음"이다. 투명도는 겹이 아니라 색의 알파(`#RRGGBBAA`)로 쓴다. 그라디언트는 `"linear"` 겹으로
-쓴다 — 아래 "그라디언트 배경". 요구가 없으면 단색 한 겹으로 쓴다(`examples/` 의 관용구).
+쓴다 — 아래 "그라디언트 배경". 이미지 배경은 `{ "type": "image", "src": "assets/hero.png", "fit": "cover" }`다.
+`fit`은 `cover`·`contain`·`fill` 셋만 허용하며 반복은 없다. ImageNode와 같은 src 계약을
+쓰고 사진 위 gradient는 배열 앞에 gradient를 둔다. 기존 겹을 임의로 삭제하지 않는다. 요구가 없으면 단색 한 겹으로 쓴다(`examples/` 의 관용구).
 
 `layout.direction`은 `"row"`/`"column"`/`"grid"` 셋이다. `"grid"`일 때만 `layout.columns`
 (선택 필드, 열 개수)를 쓸 수 있다 — row/column에는 넣지 않는다. Grid는 균등 N열 자동

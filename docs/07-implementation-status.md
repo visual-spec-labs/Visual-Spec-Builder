@@ -571,3 +571,18 @@ Node 24.19.0·pnpm 10.33.0 환경이다. 이번 문서 갱신에서 typecheck·b
 **통합 실행 기록(#220·#221)** — 코드 `bad0240` + 가이드 `1d89835`에서 `pnpm test`는 **68파일 1,239케이스 통과**다.
 GUI Open·버튼 문구 편집·Save는 확인했고, 외부 Codex는 위 환경 오류로 모델 호출 전에 종료됐다.
 실제 AI 왕복과 fixture 응답 검증을 구분한 상세 기록·최종 검사 결과는 [15](15-workflow-qa.md)를 따른다.
+
+
+### #235 이미지 배경 지원 (스키마 PR #254 선행)
+
+frame/button/input의 background 배열에 image 겹을 지원한다: `{ type: "image", src, fit }`.
+fit은 cover/contain/fill, 중앙 정렬, 반복 없음이다. ImageNode의 경로 해석과 파일 Import를
+재사용한다. 파일명에는 UUID를 붙여 병렬 가져오기가 기존 assets를 덮지 않게 한다.
+GUI는 파일 가져오기·경로·fit 및 기존 겹 추가/삭제/정렬·Undo를 제공한다. 사진 위 linear는
+배열 앞에 linear, 뒤에 image로 표현한다. JSON Export는 배열을 보존하고 코드 Export는
+생성 코드의 quoted URL assets 참조를 검증·포함한다. 상세 매핑은 배포 원본
+`skills/visual-spec-to-react/SKILL.md`의 이미지 배경 절을 따른다.
+
+스키마 #254는 팀 리뷰가 필요하며 기능 PR은 이에 의존한다. #252의 반응형 codegen 리뷰
+수정은 별도 Draft이므로 병합하지 않았다. 같은 스킬 문서가 겹쳐 합칠 때 다시 검토해야 한다.
+fixture/브라우저 검증은 실제 AI 성공 검증이 아니다.
