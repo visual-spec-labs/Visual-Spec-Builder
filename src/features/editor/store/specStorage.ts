@@ -19,7 +19,7 @@ export const SPEC_STORAGE_KEY = "visual-spec:project";
  * **하나의 값**으로 묶는다 — 따로 저장하면 한쪽만 쓰기에 성공하거나 서로 다른
  * 시점의 값이 섞여("이름은 A인데 내용은 B였을 때 것") 더 헷갈리는 불일치가 생긴다.
  */
-interface StoredDocument {
+export interface StoredDocument {
   /** `documentStore.fileName`과 같은 뜻 — null이면 그 세션엔 어느 파일도 아니었다. */
   fileName: string | null;
   spec: ProjectSpec;
@@ -45,6 +45,11 @@ function readStoredDocument(): StoredDocument | undefined {
   }
   if (raw === null) return undefined;
 
+  return parseStoredDocument(raw);
+}
+
+export function parseStoredDocument(raw: string | null): StoredDocument | undefined {
+  if (raw === null) return undefined;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -71,7 +76,7 @@ function readStoredDocument(): StoredDocument | undefined {
  * `loadStoredSpec() ?? migrateV01(seedSpec)` 줄을 이 변경 때문에 고칠 필요가 없다.
  */
 export function loadStoredSpec(): ProjectSpec | undefined {
-  return readStoredDocument()?.spec;
+  return readRecovery()?.document.spec ?? readStoredDocument()?.spec;
 }
 
 /**
@@ -82,7 +87,8 @@ export function loadStoredSpec(): ProjectSpec | undefined {
  * 는 유효한 값이다 — `documentStore.fileName`의 `null`과 같은 뜻이다.
  */
 export function loadStoredFileName(): string | null | undefined {
-  return readStoredDocument()?.fileName;
+  const recovery = readRecovery();
+  return recovery ? recovery.document.fileName : readStoredDocument()?.fileName;
 }
 
 /**
@@ -104,4 +110,40 @@ export function saveSpecToStorage(spec: ProjectSpec, fileName: string | null): v
   } catch {
     /* 위 설명대로 조용히 무시한다. */
   }
+}
+
+/** Per-tab recovery survives reload without replacing another tab's autosave. */
+export const RECOVERY_KEY = "visual-spec:tab-recovery";
+export interface Recovery {
+  document: StoredDocument;
+  key: string;
+  baseline: string | null;
+  conflicted: boolean;
+}
+export function readRecovery(): Recovery | undefined {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(RECOVERY_KEY) ?? "null");
+    if (!value || typeof value.key !== "string" ||
+      (value.baseline !== null && typeof value.baseline !== "string") ||
+      typeof value.conflicted !== "boolean") return undefined;
+    const document = parseStoredDocument(JSON.stringify(value.document));
+    return document ? { ...value, document } : undefined;
+  } catch { return undefined; }
+}
+export function writeRecovery(recovery: Recovery): boolean {
+  try {
+    sessionStorage.setItem(RECOVERY_KEY, JSON.stringify(recovery));
+    return true;
+  } catch { return false; }
+}
+export function projectStorageKey(fileName: string | null, untitledId: string): string {
+  return `visual-spec:autosave:${fileName === null ? `draft:${untitledId}` : `file:${fileName}`}`;
+}
+
+/** Rename publishes a redirect for old tabs; they must explicitly resolve their drafts. */
+export function publishProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string): void {
+  try {
+    const raw = JSON.stringify({ fileName: newFileName, spec });
+    localStorage.setItem(`${projectStorageKey(oldFileName, "")}:rename`, raw);
+  } catch { /* Workspace rename already succeeded; in-memory document remains usable. */ }
 }
