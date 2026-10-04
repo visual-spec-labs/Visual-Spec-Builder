@@ -93,7 +93,7 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 named variant를 쓸 수 있다. 지원하지 않는 버전에는 TSX 안에 포함한 정적 CSS 미디어
 쿼리로 대체할 수 있다. 출력 경로는 기존 generated/pages·components 그대로다.
 
-배경 override에서는 **색·이미지·origin 세 CSS 속성을 모두 교체**한다. 단색으로 바뀌면
+배경 override에서는 **색·이미지·origin을 모두 교체**하며 #235 이미지 배경은 size·position·repeat도 함께 교체한다. 단색으로 바뀌면
 기존 이미지를 `none`으로, gradient-only이면 기존 색을 `transparent`로 지우며,
 빈 배열이면 둘 다 지운다. 단순히 해당 폭의 배경 클래스를 생략하면 이전 겹이 남는다.
 부모 방향 변경에 따른 자식 fill 재계산과 visibility·효과 reset도 지시문에 포함한다.

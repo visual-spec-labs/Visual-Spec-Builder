@@ -63,9 +63,10 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 - Box (`width` / `height` — 0 이상 숫자(px) | `"auto"` | `"fill"`)
 - Background — 채우기 겹 배열(`Fill[]`, 0.3부터). 배열 앞이 위 겹이고, 생략과 `[]`는 둘 다 배경 없음
   - 겹 종류는 `solid`(`color`)와 `linear`(`angle` — CSS `linear-gradient` 각도, `[0, 360)` / `stops` — `{ color, at }` 2개 이상, `at`은 0..1 오름차순)
+  - #235 이미지 겹은 `image`(`src`, `fit`: cover/contain/fill)다. 중앙 정렬·반복 없음
   - 단색은 `[{ "type": "solid", "color": "#FFFFFF" }]` 한 겹이다. 0.2까지의 `{ "color": … }`는 무효다
   - 겹마다 불투명도는 없다 — 색의 알파(`#RRGGBBAA`)로 쓴다
-  - 캔버스와 홈 미리보기는 `linear` 겹과 여러 겹을 그리고, 패널은 겹 목록(추가·삭제·위/아래 이동·종류 전환, solid 색, linear 각도·stop)을 편집한다(설계는 [13](13-background-fill-design.md))
+  - 캔버스와 홈 미리보기는 `linear`·`image` 겹과 여러 겹을 그리고, 패널은 겹 목록(추가·삭제·위/아래 이동·종류 전환, solid 색, linear 각도·stop, image 파일·src·fit)을 편집한다(설계는 [13](13-background-fill-design.md))
 - Border (`width` / `color` / `radius` / `align`)
   - `radius`는 숫자 하나 또는 모서리별 객체(`topLeft` `topRight` `bottomRight` `bottomLeft`)
   - `align`은 `inside` | `center` | `outside`, 생략 시 `inside`
