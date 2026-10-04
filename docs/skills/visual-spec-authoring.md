@@ -8,7 +8,7 @@
 Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을 고친다. 산출물은 JSON 그 자체다 —
 React 코드가 아니다.
 
-최소 유효 문서의 뼈대, `examples/` 7개가 공통으로 지키는 관용구(평평한 `nodes` 맵과
+최소 유효 문서의 뼈대, `examples/`의 화면 문서 8개가 공통으로 지키는 관용구(평평한 `nodes` 맵과
 `children` 참조로만 트리를 만든다, `layout` 5개 필드를 생략 없이 다 적는다, TextNode의
 `height`는 예외 없이 `"auto"`다 등), `examples/invalid/` 8개에서 실제로 반복되는 실수 목록을
 담고 있다.
@@ -26,6 +26,10 @@ React 코드가 아니다.
 필수고 `background`·`border`는 선택이다. `button`은 `content`(라벨), `input`은
 `placeholder`가 필수 텍스트 필드다 — **표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은
 동작은 없다.** 실물 예제는 `layout.direction: "grid"`와 함께 쓴 `examples/form-grid.json`.
+
+`background`(frame·button·input)는 채우기 겹의 배열이다(문서 버전 `"0.3"`). 요구가 없으면
+단색 한 겹으로 쓰고, 그라디언트·여러 겹을 요구받았을 때만 `linear` 겹을 쓴다(배열 앞이 위 겹).
+실물 예제는 히어로·버튼·카드 배경과 딱 끊기는 stop을 담은 `examples/gradient-hero.json`.
 
 ### 스타일 효과는 전부 선택 필드다
 

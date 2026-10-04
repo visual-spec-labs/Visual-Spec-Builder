@@ -4,6 +4,7 @@ import dashboardCards from "../examples/dashboard-cards.json";
 import emptyTitleScreen from "../examples/empty-title-screen.json";
 import cardEffects from "../examples/card-effects.json";
 import formGrid from "../examples/form-grid.json";
+import gradientHero from "../examples/gradient-hero.json";
 import headerContent from "../examples/header-content.json";
 import imageHero from "../examples/image-hero.json";
 import childMissing from "../examples/invalid/child-missing.json";
@@ -27,6 +28,7 @@ describe("validateVisualSpec", () => {
     ["image-hero", imageHero],
     ["form-grid", formGrid],
     ["card-effects", cardEffects],
+    ["gradient-hero", gradientHero],
   ] as const)("%s 예제를 통과시킨다", (_name, input) => {
     expect(validateVisualSpec(input)).toEqual({ valid: true, issues: [] });
   });
