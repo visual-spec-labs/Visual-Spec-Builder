@@ -130,3 +130,6 @@ export const WORKSPACE_ACCESSIBLE_DIRS = Object.keys(WORKSPACE_DIR_RULES) as Wor
 export function isWorkspaceDir(value: string): value is WorkspaceDir {
   return Object.prototype.hasOwnProperty.call(WORKSPACE_DIR_RULES, value);
 }
+
+/** Rename one project and its filename together; destination must not exist. */
+export const WORKSPACE_RENAME_ROUTE = `${WORKSPACE_API_PREFIX}/rename`;
