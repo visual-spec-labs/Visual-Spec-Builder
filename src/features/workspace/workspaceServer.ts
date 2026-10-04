@@ -273,6 +273,7 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
       typeof input.name !== "string" || typeof input.expectedText !== "string") {
       sendError(res, 400, "잘못된 이름 변경 요청입니다."); return;
     }
+    try { encodeURIComponent(input.fileName); } catch { sendError(res, 400, "잘못된 파일명 인코딩입니다."); return; }
     const fileName = projectFileName(input.name);
     if (fileName === null) { sendError(res, 400, "파일명으로 사용할 수 없는 이름입니다."); return; }
     const from = resolveWorkspaceFile(root, `specs/${encodeURIComponent(input.fileName)}`);
