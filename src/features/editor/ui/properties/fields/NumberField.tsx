@@ -15,6 +15,11 @@ interface NumberFieldProps {
   onChange: (value: number, continueEdit?: boolean) => void;
   min?: number;
   max?: number;
+  /**
+   * `max` 자체는 받지 않는다(미만). 스키마가 `exclusiveMaximum`인 필드용이다 —
+   * 그라디언트 각도 `[0, 360)`처럼 끝값이 시작값과 같은 뜻이라 막아 둔 칸.
+   */
+  maxExclusive?: boolean;
   step?: number;
   /**
    * 정수만 받는다. 스키마가 `"type": "integer"`인 필드에 필수다.
@@ -35,6 +40,7 @@ export function NumberField({
   onChange,
   min,
   max,
+  maxExclusive = false,
   step,
   integer = false,
   unit,
@@ -50,7 +56,7 @@ export function NumberField({
         // 저장된 값이 달라지는데, 빨간 테두리로 막으면 무엇이 문제인지 보인다.
         (!integer || Number.isInteger(parsed)) &&
         (min === undefined || parsed >= min) &&
-        (max === undefined || parsed <= max);
+        (max === undefined || (maxExclusive ? parsed < max : parsed <= max));
       return ok ? parsed : undefined;
     },
     // "016"·"16.0"처럼 표기만 다른 같은 값은 커밋하지 않는다(#209).
