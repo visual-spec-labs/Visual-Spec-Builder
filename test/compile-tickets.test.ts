@@ -431,3 +431,59 @@ describe("compileTickets", () => {
     expect(() => compileTickets(screen)).not.toThrow();
   });
 });
+
+/** 명시된 이름은 생성 순서와 관계없이 자동 접미사보다 우선한다(PR #243 후속). */
+describe("명시적 컴포넌트 이름 예약", () => {
+  function namedScreen(names: string[], pageName = "Page"): ScreenSpec {
+    const screen = structuredClone(emptyTitleScreen.screen) as ScreenSpec;
+    const root = screen.nodes[screen.root];
+    if (root.type !== "frame") throw new Error("fixture root");
+    const template = Object.values(screen.nodes).find((node) => node.type === "text")!;
+    screen.nodes = { [screen.root]: root };
+    root.children = names.map((name, index) => {
+      const node = `child${index}`;
+      screen.nodes[node] = { ...template, name };
+      return { node };
+    });
+    screen.name = pageName;
+    return screen;
+  }
+
+  it.each([
+    { names: ["Section", "Section", "Section2"], expected: ["Section", "Section3", "Section2"] },
+    { names: ["Section", "Section", "section 2", "Section3"], expected: ["Section", "Section4", "Section2", "Section3"] },
+    { names: ["2", "2", "22"], expected: ["Screen2", "Screen23", "Screen22"] },
+  ])("나중에 등장하는 실제 이름을 중복 접미사가 차지하지 않는다: $names", ({ names, expected }) => {
+    const tickets = compileTickets(namedScreen(names));
+    expect(tickets.slice(0, -1).map((ticket) => ticket.id)).toEqual(expected);
+    expect(tickets.at(-1)?.dependsOn).toEqual(expected);
+  });
+
+  it("마지막에 생성하는 페이지 이름도 미리 예약한다", () => {
+    const tickets = compileTickets(namedScreen(["Section", "Section"], "Section2"));
+    expect(tickets.map((ticket) => ticket.id)).toEqual(["Section", "Section3", "Section2"]);
+    expect(tickets.at(-1)?.kind).toBe("page");
+  });
+
+  it("반복 그룹의 이름과 부모 이름을 먼저 예약하고 의존성을 보존한다", () => {
+    const screen = namedScreen(["Section", "Section2"]);
+    const root = screen.nodes[screen.root];
+    if (root.type !== "frame") throw new Error("fixture root");
+    screen.nodes.child1 = { ...root, name: "Section2", children: [{ node: "a" }, { node: "b" }] };
+    screen.nodes.a = { ...screen.nodes.child0, name: "Section" };
+    screen.nodes.b = { ...screen.nodes.child0, name: "Other" };
+    const tickets = compileTickets(screen);
+    expect(tickets.map((ticket) => ticket.id)).toEqual(["Section", "Section3", "Section2", "Page"]);
+    expect(tickets.find((ticket) => ticket.id === "Section2")?.dependsOn).toEqual(["Section3"]);
+    expect(tickets.find((ticket) => ticket.id === "Section3")?.instances).toEqual(["a", "b"]);
+  });
+
+  it("티켓이 되지 않는 인라인 노드 이름까지 예약하지 않는다", () => {
+    const screen = namedScreen(["Section", "Section"]);
+    const root = screen.nodes[screen.root];
+    if (root.type !== "frame") throw new Error("fixture root");
+    screen.nodes.child1 = { ...root, name: "Section", children: [{ node: "inline" }] };
+    screen.nodes.inline = { ...screen.nodes.child0, name: "Section2" };
+    expect(compileTickets(screen).map((ticket) => ticket.id)).toEqual(["Section", "Section2", "Page"]);
+  });
+});
