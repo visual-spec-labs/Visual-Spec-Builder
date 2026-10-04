@@ -149,7 +149,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 - **`fontWeight`의 100 단위 제약.** JSON Schema는 강제하지만 생성된 TS 타입은 `number`다. 타입만으로는 못 막으니 `validateVisualSpec`을 거쳐야 한다.
 - **편집 연산.** 노드 추가·삭제·이동·재부모화 함수는 없다. 지금은 각 화면이 직접 `nodes`를 다루므로 불변조건을 깨뜨릴 수 있다. `validateVisualSpec`은 예방 수단이 아니라 최후 방어선이다.
 - **`ImageNode.src`가 가리키는 워크스페이스 assets 저장소.** 스키마는 문자열 참조만 정의한다. 실제로 파일을 어디에 저장하고 `src` 값을 어떻게 채우는지는 Import 기능 쪽 책임이다. **이 항목은 2026-09-18 이슈 #133으로 해소됐다** — 아래 "assets 저장소 연결" 참고.
-- **Grid의 셀 배치.** `layout.columns`만큼 균등한 열로 자동 배치할 뿐, 특정 자식을 특정 셀·여러 칸에 놓는 기능은 없다. `mainAxis`/`crossAxis`는 grid에서 무시된다. Canvas.tsx가 "임시 스탠드인"이라 정식 grid 배치는 그 교체 작업과 함께 다시 다룬다.
+- **Grid의 셀 배치.** `layout.columns`만큼 균등한 열로 자동 배치할 뿐, 특정 자식을 특정 셀·여러 칸에 놓는 기능은 없다. `mainAxis`/`crossAxis`는 grid에서 무시된다. 현재 DOM 렌더러를 유지한다(#236). 명시적 grid 셀 배치는 별도 스키마 설계·팀 리뷰가 필요하다.
 - **Button/Input의 상호작용.** `content`/`placeholder`는 표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은 이벤트·바인딩은 정의하지 않는다. props/bindings는 MVP 제외 범위(`docs/05-schema.md`)에 그대로 속한다.
 
 ---
