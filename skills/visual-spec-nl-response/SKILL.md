@@ -81,20 +81,82 @@ Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
 
 ### 배경은 배열을 통째로 쓴다
 
-`background`는 채우기 겹의 **배열**이다(문서 버전 `"0.3"`). 단색은
-`[{ "type": "solid", "color": "#RRGGBB" }]` 한 겹이고, 배열 앞이 위 겹이다. 배경을 바꿀 때는
-`updateNode`의 `path`를 **`"background"`** 로 두고 `value`에 **배열 전체**를 넣는다.
+`background`(`frame`·`button`·`input`)는 채우기 겹의 **배열**이다(문서 버전 `"0.3"`). 겹은 두
+종류다.
+
+| 겹 | 모양 | 뜻 |
+|---|---|---|
+| solid | `{ "type": "solid", "color": "#RRGGBB(AA)" }` | 단색 |
+| linear | `{ "type": "linear", "angle": 180, "stops": [{ "color": "#…", "at": 0 }, { "color": "#…", "at": 1 }] }` | 선형 그라디언트 |
+
+배경을 바꾸는 Command는 **하나뿐이다** — `updateNode`의 `path`를 **`"background"`** 로 두고
+`value`에 **배열 전체**를 넣는다. 겹 하나만 고치는 경로도, 겹을 붙이는 전용 Command도 없다.
+
+1. **`page.nodes.<id>.background`에서 지금 배열을 읽는다.** 없으면 `[]`로 본다.
+2. 요청대로 바꾼 **배열 전체**를 만든다. 건드리지 않은 겹도 그대로 다시 적는다 — 빠뜨리면
+   지워진다.
+3. `updateNode { "path": "background", "value": <배열 전체> }` 한 개로 쓴다.
+
+규칙:
+
+- **배열 앞이 위 겹이다**(CSS `background-image`와 같다). 겹을 **"위에 얹기"는 배열 맨 앞에
+  넣는 것**이다. 맨 뒤에 넣으면 기존 겹 밑에 깔려, 불투명한 기존 배경에 가려 안 보인다.
+- **각도 `angle`은 CSS `linear-gradient`의 각도 그대로다.** `180` = 위→아래(색이 위에서
+  아래로 진행), `0` = 아래→위, `90` = 왼쪽→오른쪽, `270` = 오른쪽→왼쪽, `135` = 왼쪽 위→오른쪽
+  아래. 범위는 `0` 이상 `360` 미만이다 — `360`은 `0`으로, 음수는 360을 더해 쓴다.
+- **stop의 `at`은 `0`..`1` 비율이다**(퍼센트 아님 — 50%는 `0.5`). stop은 **2개 이상**이고
+  `at` **오름차순**이다. 같은 `at`을 두 번 쓰면 딱 끊기는 경계가 된다.
+- 투명도는 색의 알파(`#RRGGBBAA`)로 쓴다. 겹 단위 불투명도·표시 여부 칸은 없다.
+- **배경을 없애려면 `value: []`** 를 쓴다(`updateNode`는 필드를 지울 수 없다).
+- `createNode`의 `node`에도 같은 배열 모양으로 쓴다.
+- `radial`·이미지 채우기는 없다. "원형 그라디언트", "사진을 배경으로" 같은 요청은 `error`로
+  답한다(아래 "표현할 수 없는 것").
+
+**예 — "그라디언트로 바꿔줘"** (`scope.nodeId: "hero"`, 지금 배경 `[{ "type": "solid",
+"color": "#6366F1" }]`). 방향을 말하지 않았으면 위→아래(`180`)로, 지금 색에서 시작한다.
 
 ```json
-{ "type": "updateNode", "id": "card", "path": "background",
-  "value": [{ "type": "solid", "color": "#EEF2FF" }] }
+{ "type": "updateNode", "id": "hero", "path": "background",
+  "value": [
+    { "type": "linear", "angle": 180, "stops": [
+        { "color": "#6366F1", "at": 0 },
+        { "color": "#8B5CF6", "at": 1 }
+    ] }
+  ] }
 ```
 
-- `path: "background.color"`·`"background.0.color"` 처럼 배열 안으로 들어가는 경로는
-  **거부된다**(아무 일도 일어나지 않는다). 지금 겹을 `page`에서 읽고 바꾼 배열 전체를 쓴다.
-- 배경을 없애려면 `value: []` 를 쓴다.
-- 0.2까지의 객체 모양 `{ "color": "#…" }` 은 G3 검증에서 거부된다 — `createNode`의 `node`에도
-  배열로 쓴다.
+**예 — "반투명한 검정 오버레이를 얹어줘"** (같은 `hero`, 지금 배경 `[{ "type": "solid",
+"color": "#6366F1" }]`). 기존 겹을 그대로 두고 **맨 앞**에 새 겹을 넣는다.
+
+```json
+{ "type": "updateNode", "id": "hero", "path": "background",
+  "value": [
+    { "type": "linear", "angle": 180, "stops": [
+        { "color": "#0F172A00", "at": 0 },
+        { "color": "#0F172ACC", "at": 1 }
+    ] },
+    { "type": "solid", "color": "#6366F1" }
+  ] }
+```
+
+**예 — "버튼 그라디언트를 왼쪽에서 오른쪽으로"** (`scope.nodeId: "cta"`, 지금 배경이 `angle:
+180` linear 한 겹). 각도만 바꿔도 배열 전체를 다시 쓴다.
+
+```json
+{ "type": "updateNode", "id": "cta", "path": "background",
+  "value": [
+    { "type": "linear", "angle": 90, "stops": [
+        { "color": "#4F46E5", "at": 0 },
+        { "color": "#7C3AED", "at": 1 }
+    ] }
+  ] }
+```
+
+**예 — "배경 없애줘"**
+
+```json
+{ "type": "updateNode", "id": "hero", "path": "background", "value": [] }
+```
 
 ### `createNode`는 자식 배열을 스스로 채우지 않는다
 
@@ -199,7 +261,17 @@ GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
   뜻이다 — `scope.nodeId`가 가리키는 노드(또는 그 안쪽)만 건드린다
 - **`page`를 안 읽고 값을 추측한다.** 지금 `layout.gap`이 얼마인지, 어떤 자식이 있는지는
   전부 요청에 실려 온 `page`에서 읽는다 — 기억이나 예시로 채우지 않는다
-- **배경을 `background.color` 경로나 객체 모양으로 쓴다.** 위 "배경은 배열을 통째로 쓴다" 참고
+- **배경을 `background.color`·`background.0.color` 경로나 객체 모양 `{ "color": … }`으로 쓴다.**
+  배열 안으로 들어가는 경로는 G2에서 no-op으로 거부되고, 객체 모양은 G3에서 걸린다. `path:
+  "background"`에 배열 전체를 쓴다 — 위 "배경은 배열을 통째로 쓴다" 참고
+- **겹 순서를 거꾸로 쓴다.** "얹어줘"를 배열 끝에 넣으면 기존 겹 밑에 깔린다. 배열 앞이 위다
+- **배경을 바꾸면서 기존 겹을 빠뜨린다.** `value`가 배열 전체를 갈아 끼우므로 안 적은 겹은
+  지워진다. "오버레이를 얹어줘"면 기존 겹도 다시 적는다
+- **`at`을 퍼센트로 쓴다.** `"at": 50`은 범위(0..1) 밖이라 G3에서 걸린다. `0.5`로 쓴다
+- **stop을 1개만 쓰거나 내림차순으로 쓴다.** stop은 2개 이상, `at` 오름차순이다(내림차순은
+  `gradient-stop-order`). 한 색이면 linear가 아니라 solid 겹이다
+- **각도를 Figma·수학 각도로 쓴다.** `angle`은 CSS 의미다 — `0`이 위쪽(아래→위), 시계 방향,
+  `180`이 위→아래. `360`은 범위 밖이니 `0`으로 쓴다
 - **`updateScreen`으로 노드를 고치려 한다.** `updateScreen`은 페이지 자신의 필드(`name`·
   `size`)만 바꾼다. 노드는 `updateNode`다
 - **삽입 위치가 필요한데 `index`나 `moveNode`를 안 쓴다.** `createNode`는 `index`를
@@ -274,6 +346,9 @@ GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
 - 비활성 페이지 대상 요청·"전체 프로젝트" 범위 — 대상은 항상 `pageId`가 가리키는 활성
   페이지 하나뿐이다
 - 계획 미리보기·승인 — 받은 Command는 바로 적용된다(Undo로 대응)
+- `radial`(원형) 그라디언트·이미지 채우기 배경, 사진 위에 겹쳐 놓는 오버레이 — 채우기 겹은
+  `solid`·`linear` 둘뿐이고 이미지 노드 위에 다른 노드를 겹쳐 놓는 배치도 없다. 이미지 노드가
+  아닌 frame·button·input의 배경에 linear 겹을 얹는 것은 된다
 - 멀티턴 대화 맥락 — 요청마다 `page`가 그 시점의 전체 스펙을 새로 실어 오므로, 이전 요청을
   "기억"할 필요도 방법도 없다
 

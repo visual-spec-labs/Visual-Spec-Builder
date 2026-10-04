@@ -323,6 +323,59 @@ frame 일 때만 동작한다(`:87`). 부모를 먼저 만들지 않으면 그 C
 그래서 *"로그인 화면의 버튼을 크게 해줘"* 처럼 **비활성 페이지**를 가리키는 요청은 Command 열만으로 구분되지 않는다.
 1차 구현을 활성 페이지 한 장으로 한정하는 근거가 이것이다(7절).
 
+### 3.5 배경(`background`)은 배열 하나를 통째로 쓴다 (#127)
+
+> **추가 — 2026-10-04(#127 4단계).** 배경이 채우기 겹 배열 `Fill[]`이 되며(스키마 0.3) 정한 NL 경로의 규칙이다.
+> 설계 근거는 [13-background-fill-design.md](13-background-fill-design.md)의 "Command와 패널"이고, LLM이 실제로
+> 따르는 지시문은 `skills/visual-spec-nl-response/SKILL.md`의 "배경은 배열을 통째로 쓴다"다.
+
+**Command 6종으로 그대로 표현된다. 새 Command 도, 인덱스 경로도 없다.** 배경을 바꾸는 Command 는
+`updateNode { path: "background", value: <배열 전체> }` 하나뿐이다.
+
+- **LLM 은 요청의 `page` 에서 지금 배열을 읽고, 바꾼 배열 전체를 쓴다.** `value` 가 배열을 통째로 갈아 끼우므로
+  손대지 않은 겹도 다시 적어야 한다.
+- **배열 앞이 위 겹이다**(CSS `background-image` 와 같다). "위에 얹어줘"는 배열 **맨 앞**에 넣는 것이다.
+- `linear` 겹의 `angle` 은 CSS `linear-gradient` 각도(`180` = 위→아래, `0` = 아래→위, `90` = 왼쪽→오른쪽),
+  범위 `[0, 360)`. stop 의 `at` 은 `0..1` 비율이고 2개 이상, 오름차순(같은 값 허용 — 딱 끊기는 경계)이다.
+- 배경을 없애려면 `value: []` 다. `updateNode` 는 필드를 지울 수 없다.
+- `background.color`·`background.0.color` 같은 배열 안쪽 경로는 `editablePath` 가 거부한다 — G2(dry-run)에서
+  *"path 'background.color'는 이 노드에 쓸 수 없습니다"* 로 트랜잭션 전체가 버려진다. 겹 모양·범위·stop 정렬은
+  G3(`validateProjectSpec`)가 본다.
+- `radial`·이미지 채우기와 "사진 위 오버레이"는 표현할 수 없다 — 에이전트는 근사하지 않고 `error` 로 답한다.
+
+예 — 노드 `hero`(지금 배경 `[{ "type": "solid", "color": "#6366F1" }]`)를 고른 채 들어온 요청 셋.
+
+```jsonc
+// "그라디언트로 바꿔줘" — 방향을 말하지 않았으면 위→아래(180), 지금 색에서 시작한다
+{ "type": "updateNode", "id": "hero", "path": "background",
+  "value": [ { "type": "linear", "angle": 180, "stops": [
+               { "color": "#6366F1", "at": 0 }, { "color": "#8B5CF6", "at": 1 } ] } ] }
+
+// "반투명한 검정 오버레이를 얹어줘" — 기존 겹을 그대로 두고 맨 앞에 넣는다
+{ "type": "updateNode", "id": "hero", "path": "background",
+  "value": [ { "type": "linear", "angle": 180, "stops": [
+               { "color": "#0F172A00", "at": 0 }, { "color": "#0F172ACC", "at": 1 } ] },
+             { "type": "solid", "color": "#6366F1" } ] }
+
+// "배경 없애줘"
+{ "type": "updateNode", "id": "hero", "path": "background", "value": [] }
+```
+
+흔한 실수와 걸리는 관문.
+
+| 실수 | 예 | 결과 |
+|---|---|---|
+| 배열 안쪽 경로 | `path: "background.color"` | G2 — 쓸 수 없는 경로(no-op) |
+| 옛 객체 모양 | `value: { "color": "#6366F1" }` | G3 — `.../background` 가 배열이어야 한다 |
+| 겹 순서 역순 | 오버레이를 배열 **끝**에 넣음 | 관문 통과. 불투명한 기존 겹 밑에 깔려 안 보인다 — 검증으로 못 잡는다 |
+| 기존 겹 누락 | 오버레이 한 겹만 씀 | 관문 통과. 기존 배경이 지워진다 — 검증으로 못 잡는다 |
+| `at` 을 퍼센트로 | `"at": 50` | G3 — `.../at` 이 `maximum: 1` 을 넘는다 |
+| stop 1개 | `stops` 원소 하나 | G3 — `.../stops` 가 `minItems` 위반 |
+| stop 역순 | `at` 1 다음 0 | G3 — `gradient-stop-order` |
+
+역순과 누락은 유효한 문서라 관문이 못 잡는다. 스킬이 "배열 앞 = 위"와 "배열 전체를 다시 적는다"를 따로 강조하는
+이유다.
+
 ---
 
 ## 4. 질문 3 — 검증과 실패 처리

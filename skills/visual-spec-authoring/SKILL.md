@@ -87,9 +87,8 @@ v0.1 의 노드 타입은 **`frame`, `text`, `image`, `button`, `input` 다섯�
 단색은 `[{ "type": "solid", "color": "#RRGGBB" }]` 처럼 한 겹짜리 배열로 쓴다. 0.2까지의
 객체 모양 `{ "color": "#…" }` 은 이제 검증에서 걸린다(앱은 옛 파일을 열 때 자동 변환하지만,
 새로 쓰는 문서는 처음부터 배열로 쓴다). 배열 앞이 위 겹이고, 생략과 `[]` 는 둘 다 "배경
-없음"이다. 투명도는 겹이 아니라 색의 알파(`#RRGGBBAA`)로 쓴다. 그라디언트 겹(`"linear"`)도
-스키마에 있고(필드는 정본 스키마의 `LinearFill`) 캔버스는 linear 겹과 여러 겹을 그린다. 다만
-GUI 패널은 아직 단색 한 겹만 편집하므로, 요구가 없으면 단색 한 겹으로 쓴다.
+없음"이다. 투명도는 겹이 아니라 색의 알파(`#RRGGBBAA`)로 쓴다. 그라디언트는 `"linear"` 겹으로
+쓴다 — 아래 "그라디언트 배경". 요구가 없으면 단색 한 겹으로 쓴다(`examples/` 의 관용구).
 
 `layout.direction`은 `"row"`/`"column"`/`"grid"` 셋이다. `"grid"`일 때만 `layout.columns`
 (선택 필드, 열 개수)를 쓸 수 있다 — row/column에는 넣지 않는다. Grid는 균등 N열 자동
@@ -114,6 +113,76 @@ GUI 패널은 아직 단색 한 겹만 편집하므로, 요구가 없으면 단�
 실물은 `examples/card-effects.json`이다.
 필드 정의가 필요하면 정본 `src/features/editor/schema/visual-spec.schema.json` 을 읽는다.
 찾는 방법은 [../visual-spec-docs/SKILL.md](../visual-spec-docs/SKILL.md) 에 있다.
+
+## 그라디언트 배경
+
+그라디언트·여러 겹 배경을 요구받았을 때만 쓴다. 필드 정의는 정본 스키마의 `Fill`·`SolidFill`·
+`LinearFill`·`GradientStop` 이다. 캔버스와 코드 생성([../visual-spec-to-react/SKILL.md](../visual-spec-to-react/SKILL.md))이
+아래 의미 그대로 그린다.
+
+```json
+{ "type": "linear", "angle": 180, "stops": [
+    { "color": "#6366F1", "at": 0 },
+    { "color": "#8B5CF6", "at": 1 }
+] }
+```
+
+- **`angle` 은 CSS `linear-gradient` 의 각도다.** `180` = 위→아래, `0` = 아래→위, `90` =
+  왼쪽→오른쪽, `135` = 왼쪽 위→오른쪽 아래. `0` 이상 `360` 미만 — `360` 은 `0` 으로 쓴다.
+  소수도 된다.
+- **`stops` 는 2개 이상, `at` 은 `0`..`1` 비율이다**(퍼센트 아님 — 50%는 `0.5`). `at` 은
+  오름차순으로 쓴다. 이웃한 두 stop의 `at` 을 같게 쓰면(예: 둘 다 `0.5`) 그 자리에서 색이
+  딱 끊기는 경계가 된다. 역순은 `gradient-stop-order` 로 걸린다.
+- **배열 앞이 위 겹이다.** 반투명 겹을 "위에 얹으려면" 배열 앞에 둔다. 불투명한 겹 밑에 깔린
+  겹은 보이지 않는다 — 불투명 solid가 배열 앞에 있으면 그 뒤 겹은 전부 가려진다.
+- 겹마다 불투명도·표시 여부 칸은 없다. 반투명은 색 알파로, 숨기려면 겹을 지운다.
+
+관용구:
+
+**히어로 배경** — 큰 frame(루트 바로 아래 히어로 영역)에 두 색 대각선 그라디언트 한 겹.
+
+```json
+"background": [
+  { "type": "linear", "angle": 135, "stops": [
+      { "color": "#4F46E5", "at": 0 },
+      { "color": "#9333EA", "at": 1 }
+  ] }
+]
+```
+
+**버튼 그라디언트** — 왼쪽→오른쪽(`90`). 글자색은 두 끝 색 모두와 대비되게(보통 흰색) 둔다.
+`border` 를 쓰면 `width: 0` 이거나 첫 stop 색과 맞춘다.
+
+```json
+"background": [
+  { "type": "linear", "angle": 90, "stops": [
+      { "color": "#4F46E5", "at": 0 },
+      { "color": "#7C3AED", "at": 1 }
+  ] }
+]
+```
+
+**반투명 오버레이 겹** — 단색(또는 그라디언트) 위에 투명→반투명으로 짙어지는 겹을 **앞에**
+얹는다. 아래쪽 글자를 읽기 좋게 할 때 쓴다.
+
+```json
+"background": [
+  { "type": "linear", "angle": 180, "stops": [
+      { "color": "#0F172A00", "at": 0 },
+      { "color": "#0F172ACC", "at": 1 }
+  ] },
+  { "type": "solid", "color": "#6366F1" }
+]
+```
+
+**표현할 수 없는 것** — 근사했다면 사용자에게 알린다.
+
+- `radial`(원형)·`conic` 그라디언트 — 채우기 종류는 `solid`·`linear` 둘뿐이다. 필요하면 linear로
+  근사한다.
+- 이미지 채우기(배경 사진) — `background` 에 이미지를 넣을 수 없다. 사진은 `image` 노드다.
+- **사진 위 반투명 오버레이** — `image` 노드는 `background` 가 없고, 노드를 겹쳐 놓는 배치
+  (absolute)도 없다. 사진과 오버레이를 한 자리에 포갤 수 없다. frame 배경의 단색·그라디언트
+  위에 얹는 오버레이는 된다(위 관용구).
 
 ## 이미 코드로 만든 화면에 피드백이 왔을 때
 
@@ -142,6 +211,9 @@ source of truth라는 전제가 깨진다.
 - 없는 `type` 을 쓴다 → `unsupported-node-type`
 - `background` 를 옛 객체 모양 `{ "color": "#…" }` 로 쓴다 → `schema`(`.../background` 에
   `값의 타입이 "array"이어야 합니다.`). `[{ "type": "solid", "color": "#…" }]` 로 고친다
+- linear 겹의 stop을 `at` 역순으로 쓴다 → `gradient-stop-order`. 오름차순으로 정렬한다
+- stop의 `at` 을 퍼센트(`50`)로 쓰거나 stop을 1개만 쓰거나 `angle` 에 `360` 을 쓴다 → `schema`
+  (`.../background/<i>/...`). `at` 은 `0`..`1`, stop은 2개 이상, `angle` 은 `360` 미만이다
 
 ## 다 쓴 뒤
 
