@@ -1,6 +1,8 @@
+import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -15,7 +17,7 @@ import { generateNodeId } from "@/features/editor/store/nodeId";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
-import type { Box, NodeId, PageId } from "@/features/editor/schema";
+import type { Box, NodeId, PageId, ScreenSpec } from "@/features/editor/schema";
 
 import { isScrolledToBottom, toolCursorClass } from "./canvasInput";
 import { ContextMenu } from "./ContextMenu";
@@ -386,16 +388,16 @@ function ResizeHandles({ id, box }: { id: NodeId; box: Box }) {
 }
 
 function RenderNode({
+  screen,
   id,
   parentDirection,
 }: {
+  screen: ScreenSpec;
   id: NodeId;
   /** 부모 프레임의 레이아웃 방향. 최상위 노드는 부모가 없어 undefined. */
   parentDirection?: Direction;
 }) {
-  const node = useEditorStore(
-    (state) => state.spec.pages[state.activePageId].nodes[id],
-  );
+  const node = screen.nodes[id];
   const selectedId = useEditorStore((state) => state.selectedId);
   const ref = useRef<HTMLDivElement>(null);
   const selected = selectedId === id;
@@ -424,7 +426,7 @@ function RenderNode({
         onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         {node.content}
-        {selected && <ResizeHandles id={id} box={node.box} />}
+        {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
       </div>
     );
   }
@@ -439,7 +441,7 @@ function RenderNode({
         onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
         onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
-        {selected && <ResizeHandles id={id} box={node.box} />}
+        {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
       </div>
     );
   }
@@ -455,7 +457,7 @@ function RenderNode({
         onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         {node.content}
-        {selected && <ResizeHandles id={id} box={node.box} />}
+        {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
       </div>
     );
   }
@@ -471,7 +473,7 @@ function RenderNode({
         onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         <span style={{ opacity: 0.6 }}>{node.placeholder}</span>
-        {selected && <ResizeHandles id={id} box={node.box} />}
+        {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
       </div>
     );
   }
@@ -487,12 +489,13 @@ function RenderNode({
     >
       {node.children.map((child) => (
         <RenderNode
+          screen={screen}
           key={child.node}
           id={child.node}
           parentDirection={node.layout.direction}
         />
       ))}
-      {selected && <ResizeHandles id={id} box={node.box} />}
+      {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
     </div>
   );
 }
@@ -500,7 +503,8 @@ function RenderNode({
 export function Canvas() {
   const activePageId = useEditorStore((state) => state.activePageId);
   const root = useEditorStore((state) => state.spec.pages[state.activePageId].root);
-  const size = useEditorStore((state) => state.spec.pages[state.activePageId].size);
+  const { screen: responsiveScreen, resolved, width: previewWidth } = useResponsiveScreen();
+  const size = useMemo(() => ({ width: previewWidth, height: responsiveScreen.size.height }), [previewWidth, responsiveScreen.size.height]);
   const screenName = useEditorStore((state) => state.spec.pages[state.activePageId].name);
   const selectedId = useEditorStore((state) => state.selectedId);
   const activeTool = useToolStore((state) => state.activeTool);
@@ -815,6 +819,7 @@ export function Canvas() {
           docs/DESIGN-TOKEN-RULES.md의 인라인 스타일 금지 예외에 해당한다.
         */}
         <div
+          data-testid="responsive-artboard"
           ref={artboardRef}
           className="relative flex flex-col bg-transparent shadow-modal origin-top-left"
           style={{
@@ -823,7 +828,7 @@ export function Canvas() {
             transform: `scale(${scale})`,
           }}
         >
-          <RenderNode id={root} />
+          <RenderNode screen={resolved} id={root} />
         </div>
 
         {/*

@@ -1,3 +1,5 @@
+import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
+import { editResponsiveNode } from "@/features/editor/responsive/editResponsive";
 import { useCallback } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -14,13 +16,9 @@ export function useNodeField<T>(
   path: string,
 ): [T | undefined, (value: T, continueEdit?: boolean) => void] {
   const selectedId = useEditorStore((state) => state.selectedId);
-  const value = useEditorStore((state) => {
-    if (selectedId === null) {
-      return undefined;
-    }
-    const node = state.spec.pages[state.activePageId].nodes[selectedId];
-    return node === undefined ? undefined : getByPath(node, path);
-  }) as T | undefined;
+  const { pageId, resolved, breakpoint } = useResponsiveScreen();
+  const node = selectedId === null ? undefined : resolved.nodes[selectedId];
+  const value = (node === undefined ? undefined : getByPath(node, path)) as T | undefined;
 
   const setNodeField = useEditorStore((state) => state.setNodeField);
 
@@ -29,10 +27,11 @@ export function useNodeField<T>(
     // 타이핑 burst를 잇는 중임을 표시할 때 쓴다.
     (next: T, continueEdit?: boolean) => {
       if (selectedId !== null) {
-        setNodeField(selectedId, path, next, continueEdit);
+        if (breakpoint) editResponsiveNode(pageId, breakpoint, selectedId, path, next, continueEdit);
+        else setNodeField(selectedId, path, next, continueEdit);
       }
     },
-    [selectedId, path, setNodeField],
+    [selectedId, path, setNodeField, breakpoint, pageId],
   );
 
   return [value, setValue];
