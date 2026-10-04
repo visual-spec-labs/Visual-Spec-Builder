@@ -127,7 +127,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 | 파일 | 확인하는 것 |
 |---|---|
 | `examples/empty-title-screen.json` | 노드 2개짜리 최소 화면. 중앙 정렬 |
-| `examples/login-screen.json` | 중첩 프레임, border, 부분 투명 색상 |
+| `examples/login-screen.json` | 중첩 프레임, border, 부분 투명 색상, 이메일·비밀번호 placeholder input 2개와 로그인 button(인증 동작 없음) |
 | `examples/dashboard-cards.json` | `Header > Title` + `Content > Card, Card` 2단 트리. `direction: row` 카드 배치 |
 | `examples/header-content.json` | 고정 높이(px) 헤더 + `space-between` + `fill` 본문 + `visible: false` |
 | `examples/image-hero.json` | `image` 노드 — `fill` 너비 + 고정 높이(px), `fit: "cover"` |
