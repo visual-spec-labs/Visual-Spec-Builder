@@ -202,7 +202,12 @@ Command 스키마는 그대로 두고, LLM 출력을 Command 로 조립하기 **
 
 ### 3.3 Command 6종만으로 "자연어 화면 생성"이 표현되는가 — 손으로 적어 본 결과
 
-**예제: `examples/login-screen.json`**(노드 4개 — root frame · title text · card frame · hint text).
+> 아래는 #183 당시의 **4노드 최소 로그인 예제에 대한 역사적 분석**이다. #218에서 현재
+> `examples/login-screen.json`은 이메일·비밀번호 placeholder input과 로그인 button을 포함한
+> 7노드로 확장됐다. 현재 재현은 Command 9개이며 `test/nl-screen-generation.test.ts`가
+> 전체 화면의 일치와 Undo 한 단계를 검증한다. 아래 6개·53칸 집계는 당시 예제를 뜻한다.
+
+**당시 예제: `examples/login-screen.json`**(노드 4개 — root frame · title text · card frame · hint text).
 **출발 상태: File > New 직후**, 즉 `store/blankSpec.ts` 의 `blankSpec` 을 `migrateV01` 로 넓힌 페이지 한 장.
 
 `blankSpec` 의 root 는 `name: "Screen"` · `box: { width: "fill", height: "fill" }` ·

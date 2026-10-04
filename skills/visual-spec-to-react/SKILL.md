@@ -345,8 +345,14 @@ grid 아이템에는 뜻이 없다. `fill`이면 그냥 `w-full`/`h-full`을 쓴
 
 ## 예제
 
-`examples/login-screen.json`을 위 규칙대로 변환하면 이런 모양이 나와야 한다. 이 화면은
-반복되는 형제가 없어서 분리 없이 파일 하나로 끝난다.
+아래는 #218 확장 **이전의 4노드 최소 로그인 화면** 변환 예시다. 당시에는
+반복되는 형제가 없어 파일 하나로 끝났다. 현재 `examples/login-screen.json`은
+이메일·비밀번호 placeholder input 2개와 로그인 button을 포함한 7노드다.
+현재 파일을 변환할 때는 아래 코드를 그대로 복사하지 말고 실제 nodes를 모두 반영한다.
+입력창 두 개는 같은 구조이므로 공유 컴포넌트로 분리하고 placeholder를 prop으로 받는다.
+`compileTickets` 기준 티켓은 `Title`, `EmailInput`, `Card`, `Login` 4개이고
+`Card`는 `EmailInput`, `Login`은 `Title`과 `Card`에 의존한다.
+비밀번호라는 이름만으로 `type="password"`나 인증 로직을 추가하지 않는다.
 
 ```tsx
 export default function Login() {
