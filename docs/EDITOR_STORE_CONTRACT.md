@@ -19,7 +19,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 
 ---
 
-## 2. 스토어가 제공하는 것 — 계약의 전부 (20개)
+## 2. 스토어가 제공하는 것 — 공유 계약
 
 **파일 1개 = 프로젝트 1개**다. 프로젝트는 페이지 여러 장을 담고, 캔버스에는 그중 한 장만 뜬다. 그 한 장을 가리키는 것이 `activePageId`다.
 
@@ -247,3 +247,15 @@ Import로 삽입은 되지만 세부설정 패널에는 아직 편집 필드가 
 - 스토어는 `examples/dashboard-cards.json`을 초기값으로 시드해 둔다.
   → 트리·캔버스·패널이 아직 없어도 각자 실제 데이터로 개발/테스트 가능.
 - 트리/캔버스가 준비되면 같은 스토어에 `select`만 연결하면 즉시 맞물린다.
+
+### 단일 노드 Group / Ungroup (#225)
+
+`groupNode(id)`와 `ungroupNode(id)`는 캔버스 컨텍스트 메뉴와 Ctrl/Cmd+G·Shift+G가 호출한다.
+`command/groupCommands.ts`가 기존 createNode/moveNode/deleteNode 명령 배열을 만들고,
+스토어는 `appliedTransaction` 한 번으로 적용해 각각 Undo 한 단계만 쌓는다. root·없는 노드,
+frame이 아닌 Ungroup 요청은 선택·스펙·history를 바꾸지 않는다.
+
+Group은 같은 형제 위치의 새 frame에 선택 노드를 옮기고 새 frame을 선택한다. 선택 문맥은
+root로 돌아간다. Ungroup은 자식을 원래 순서대로 frame의 형제 위치에 꺼낸 뒤 빈 frame을
+지우고 첫 자식(없으면 부모)을 선택한다. 지워진 frame이 focusRootId면 문맥도 해제한다.
+기존 노드의 필드는 바꾸지 않으며 새 wrapper 기본값과 시각적 한계는 [단축키 문서](10-shortcuts.md#단일-노드-그룹)에 있다.

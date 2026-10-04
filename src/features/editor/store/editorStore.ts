@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { buildGroupCommands, buildUngroupCommands } from "@/features/editor/command/groupCommands";
 
 import {
   applyTransaction,
@@ -234,6 +235,9 @@ export interface EditorState {
    * 자식이 여러 개인 프레임을 복제했다고 Undo를 여러 번 누르게 하지 않는다.
    */
   duplicateNode: (id: NodeId) => void;
+  /** 단일 노드 감싸기/프레임 해제. root 제외, 각 호출은 Undo 한 단계다(#225). */
+  groupNode: (id: NodeId) => void;
+  ungroupNode: (id: NodeId) => void;
   /**
    * 클립보드에서 온 서브트리를 parentId(frame) 자식 목록 끝에 붙여넣고 그
    * 루트를 선택한다(#151, `Ctrl+V`). `insertNode`처럼 어디에 넣을지는 호출자가
@@ -573,6 +577,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (next === null) return state;
 
       return { ...next, selectedId: built.newRootId };
+    }),
+  groupNode: (id) =>
+    set((state) => {
+      const built = buildGroupCommands(state.spec.pages[state.activePageId], id);
+      if (built === null) return state;
+      const next = appliedTransaction(state, state.activePageId, built.commands);
+      return next === null ? state : { ...next, selectedId: built.selectedId, focusRootId: null };
+    }),
+  ungroupNode: (id) =>
+    set((state) => {
+      const built = buildUngroupCommands(state.spec.pages[state.activePageId], id);
+      if (built === null) return state;
+      const next = appliedTransaction(state, state.activePageId, built.commands);
+      return next === null ? state : {
+        ...next, selectedId: built.selectedId,
+        focusRootId: state.focusRootId === id ? null : state.focusRootId,
+      };
     }),
   pasteNode: (entry, parentId) =>
     set((state) => {
