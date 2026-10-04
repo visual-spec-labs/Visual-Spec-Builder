@@ -1,4 +1,4 @@
-# 05. Visual Spec Schema — 파일 v0.1 / 런타임 v0.2
+# 05. Visual Spec Schema — v0.3 (화면 문서 / 프로젝트 문서)
 
 > 출처: ClickUp 팀 문서 `json 초안`
 > 정본은 [`src/features/editor/schema/visual-spec.schema.json`](../src/features/editor/schema/visual-spec.schema.json)이다.
@@ -15,25 +15,28 @@ JSON 형식으로 저장하기 위한 최소 스키마를 정의한다.
 Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 첫 번째 MVP 계약이다.
 
-## 버전 상태 — v0.1과 v0.2가 나란히 있다
+## 버전 상태 — 두 최상위 타입이 같은 0.3을 쓴다
 
 정본 스키마 파일 하나에 최상위 타입이 둘 들어 있다. 한쪽이 다른 쪽을 대체한 것이 아니다.
 
 | | `VisualSpec` | `ProjectSpec` |
 |---|---|---|
 | 뜻 | 파일 1개 = 화면 1개 | 파일 1개 = 페이지 여러 개 |
-| `version` | `"0.1"` | `"0.2"` |
+| `version` | `"0.3"` | `"0.3"` |
+| 가르는 키 | `screen` | `pages` |
 | 정본에서의 위치 | **스키마 루트** | `$defs.ProjectSpec` |
 
-**정본 스키마의 루트는 아직 v0.1이다.** 최상위 `required`는 `["version", "screen"]`이고
-`version`은 `const: "0.1"`이다. v0.2인 `ProjectSpec`은 루트가 아니라 `$defs` 항목으로만 있다.
-루트를 v0.1로 유지하기 위해 일부러 그렇게 둔 것이다(이유는 06의 v0.2 절 참고).
+**버전 문자열은 IR 세대를 뜻한다(#127).** 0.2까지는 `VisualSpec`이 `"0.1"`, `ProjectSpec`이
+`"0.2"`였고 버전으로 둘을 갈랐다. 배경이 채우기 겹 배열로 바뀌면서(아래 Background) 둘 다
+`"0.3"`이 됐고, 화면 문서와 프로젝트 문서는 이제 키(`screen` / `pages`)로 가른다. 0.1·0.2 파일은
+앱이 열 때 `migrateToV03`로 자동 변환한다(검증 전에). 저장은 항상 0.3이다 — 자세한 것은
+[06의 v0.3 절](06-schema-freeze.md#v03--배경-채우기-겹-배열-2026-10-04-추가-127).
 
-**런타임은 이미 v0.2를 쓴다.** `editorStore`가 들고 있는 상태는 `ProjectSpec`이고,
-v0.1 문서를 열면 `migrateV01`이 페이지 1개짜리 `ProjectSpec`으로 올린다.
-반대 방향은 `toVisualSpec`이다.
+`ProjectSpec`이 루트가 아니라 `$defs` 항목인 이유는 06의 v0.2 절 참고.
 
-즉 **파일 포맷의 정본은 v0.1, 편집 중 메모리 모델은 v0.2**다.
+**런타임은 프로젝트 문서를 쓴다.** `editorStore`가 들고 있는 상태는 `ProjectSpec`이고,
+화면 문서를 열면 `migrateV01`이 페이지 1개짜리 `ProjectSpec`으로 넓힌다(이름은 v0.1 시절
+그대로다). 반대 방향은 `toVisualSpec`이다.
 아래 "MVP 지원 범위"는 두 갈래 모두를 합친 정본 `$defs` 기준으로 적는다.
 
 ## MVP 지원 범위
@@ -58,7 +61,11 @@ v0.1 문서를 열면 `migrateV01`이 페이지 1개짜리 `ProjectSpec`으로 �
 - 부모-자식 참조
 - Layout (`direction`: `row` | `column` | `grid`; `columns`는 선택 정수이며 1 이상, 생략 시 grid는 1열)
 - Box (`width` / `height` — 0 이상 숫자(px) | `"auto"` | `"fill"`)
-- Background (단색 한 겹)
+- Background — 채우기 겹 배열(`Fill[]`, 0.3부터). 배열 앞이 위 겹이고, 생략과 `[]`는 둘 다 배경 없음
+  - 겹 종류는 `solid`(`color`)와 `linear`(`angle` — CSS `linear-gradient` 각도, `[0, 360)` / `stops` — `{ color, at }` 2개 이상, `at`은 0..1 오름차순)
+  - 단색은 `[{ "type": "solid", "color": "#FFFFFF" }]` 한 겹이다. 0.2까지의 `{ "color": … }`는 무효다
+  - 겹마다 불투명도는 없다 — 색의 알파(`#RRGGBBAA`)로 쓴다
+  - 캔버스는 아직 `linear` 겹을 그리지 않는다(설계와 후속 순서는 [13](13-background-fill-design.md))
 - Border (`width` / `color` / `radius` / `align`)
   - `radius`는 숫자 하나 또는 모서리별 객체(`topLeft` `topRight` `bottomRight` `bottomLeft`)
   - `align`은 `inside` | `center` | `outside`, 생략 시 `inside`

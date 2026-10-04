@@ -1,7 +1,7 @@
 # 배경 채우기(그라디언트·다중 채우기) 설계 결정 (#127)
 
-상태: **설계 결정 완료 · 스키마/GUI 미구현**  
-범위: `Background`의 표현, 기존 문서 마이그레이션, 영향 범위, 후속 구현 순서를 정한다. 정본 스키마와 코드는 이 문서에서 바꾸지 않는다 — 아래 "후속 작업 범위"의 별도 PR에서 바꾼다.
+상태: **스키마 전환 완료(후속 1단계, 2026-10-04) · 그라디언트 렌더·겹 목록 패널·스킬의 그라디언트 가르침 미완**  
+범위: `Background`의 표현, 기존 문서 마이그레이션, 영향 범위, 후속 구현 순서를 정한다. 이 문서 자체는 정본 스키마와 코드를 바꾸지 않았다 — 아래 "후속 작업 범위"의 별도 PR에서 바꾼다. 1단계에서 이 문서와 다르게 정한 것은 "캔버스 번역" 절에 반영했다.
 
 ## 결정 요약
 
@@ -12,7 +12,7 @@
 | 겹 순서는? | **배열 앞이 위다.** CSS `background-image`·`box-shadow`와 같다. 패널도 배열 순서 그대로 위에서 아래로 보인다(Figma 패널과 같은 방향). |
 | 각도와 stop은? | 각도는 CSS `linear-gradient`의 각도 그대로(0 = 위쪽, 시계 방향, 180 = 아래쪽), `[0, 360)`. stop 위치 `at`은 0..1, 2개 이상, 오름차순(같은 값 허용). 정렬은 validator가 본다. |
 | 겹마다 불투명도·표시 여부를 둘까? | 두지 않는다. 투명도는 `Color`의 알파(`#RRGGBBAA`)로 쓴다. 표시 토글은 나중에 선택 필드로 더해도 안 깨진다. |
-| 캔버스에서 어떻게 그릴까? | 모든 겹을 `background-image` 쉼표 목록 하나로 그린다. solid 겹은 `linear-gradient(c, c)`로 바꾼다. `background-color`는 쓰지 않는다. |
+| 캔버스에서 어떻게 그릴까? | **맨 아래 겹이 solid면 그 색은 `background-color`**, 나머지 겹은 `background-image` 쉼표 목록 하나로 그린다. 목록 안의 solid 겹은 `linear-gradient(c, c)`로 바꾼다. (처음엔 `background-color`를 쓰지 않기로 했으나 1단계에서 실측 후 바꿨다 — "캔버스 번역" 참고.) |
 | 버전과 마이그레이션은? | 문서 버전을 `0.3`으로 올린다 — `VisualSpec`(단일 화면)과 `ProjectSpec` 둘 다. 0.1·0.2 문서는 열 때 자동 변환하고, 저장은 항상 0.3이다. 0.3을 모르는 구버전은 새 문서를 거부한다. |
 | Command는 바뀔까? | 바뀌지 않는다. 인덱스 경로(`background.0.color`)도 새 Command도 만들지 않는다. `updateNode { path: "background", value: Fill[] }`로 배열을 통째로 교체한다. Command 스키마([09](09-command-schema-freeze.md))는 그대로다. |
 | 패널은 어디까지? | 겹 목록(추가·삭제·위/아래 이동)과 겹 편집(solid 색 / linear 각도·stop). 드래그 정렬·캔버스 그라디언트 핸들·겹 숨김은 뺀다. |
@@ -113,29 +113,34 @@ JSON Schema로 안 되는 의미 검증은 **stop의 `at` 오름차순** 하나�
 ## 캔버스 번역
 
 ```
-// 스케치 — 함수 이름과 위치는 렌더 PR에서 정한다.
-solid  → linear-gradient(#C, #C)
-linear → linear-gradient(<angle>deg, #C1 <at1×100>%, #C2 <at2×100>%, …)
-겹     → 배열 순서 그대로 ", "로 잇는다(앞 = 위)
-결과   → { backgroundImage: "<목록>", backgroundOrigin: "border-box" }
-생략·[] → 아무 속성도 내지 않는다
+// 1단계(스키마 전환)에서 canvasLayout.backgroundStyle로 확정. linear 갈래는 2단계.
+맨 아래 겹(배열 끝)이 solid → backgroundColor: c
+나머지 겹(위 → 아래)       → backgroundImage 목록, ", "로 잇는다(앞 = 위)
+  solid  → linear-gradient(#C, #C)
+  linear → linear-gradient(<angle>deg, #C1 <at1×100>%, #C2 <at2×100>%, …)
+이미지 겹이 있으면          → backgroundOrigin: "border-box"
+생략·[]                    → 아무 속성도 내지 않는다
 ```
 
-- **`background-color`를 쓰지 않는다.** `background-color`는 언제나 모든 이미지 겹의 맨 아래 한 겹뿐이라, 목록 중간이나 위에 있는 solid는 어차피 이미지로 그려야 한다. 맨 아래 solid만 따로 빼는 분기를 두는 대신 규칙을 하나로 둔다. `linear-gradient(c, c)`는 단색과 똑같이 그려진다.
-- **`background-origin: border-box`를 함께 낸다.** 배경 이미지는 기본적으로 padding 상자 기준으로 놓이고 테두리 밑으로는 반복돼 들어간다. `inside` 테두리(CSS `border`)가 반투명하거나 둥글면 이음매가 보인다. 지금의 단색 배경은 테두리 밑까지 한 장으로 칠해지므로, `border-box` 기준이어야 기존 문서의 모습이 그대로이고 그라디언트도 Figma 채우기처럼 상자 전체에 걸린다.
-- **`background` 축약 속성을 쓰던 자리를 풀어 쓴 속성으로 바꾼다.** `nodeStyles.ts`·`homePreview.ts`는 지금 `background: node.background?.color`를 쓴다. 축약과 `backgroundImage` 같은 개별 속성을 한 스타일 객체에서 섞으면 React가 다시 그릴 때 충돌한다.
-- **번역 함수는 `canvasLayout.ts`에 둔다.** `strokeAndShadowStyle` 옆, 노드 타입을 모르는 순수 함수로 두고 `test/canvas-layout.test.ts`에서 직접 검사한다. `nodeStyles.ts`(frame·button·input)와 `homePreview.ts`(같은 셋)가 지금 각자 `.color`를 읽는 여섯 곳이 이 함수 하나를 부른다.
+- **맨 아래 solid는 `background-color`로 낸다(1단계에서 바꾼 결정).** 처음에는 "`background-color`는 언제나 맨 아래 한 겹뿐이라 목록 중간의 solid는 어차피 이미지로 그려야 하니, 맨 아래 solid만 따로 빼는 분기를 두지 않고 규칙을 하나로 둔다 — `linear-gradient(c, c)`는 단색과 똑같이 그려진다"고 적었다. **마지막 전제가 픽셀 단위로는 틀렸다.** Chromium(Skia)은 색이 하나뿐인 그라디언트도 디더링한다.
+  - 300×200 `div` 단독 비교: `background: #F7F8FA`는 전 픽셀이 (247,248,250)인데, `linear-gradient(#F7F8FA, #F7F8FA)`는 약 3% 픽셀이 (246,247,249)·(246,247,250)으로 채널당 1 낮다. `transform: scale` 유무와 `linear-gradient(c 0 0)` 표기와 무관했다.
+  - 앱 비교: develop(9a748fc)과 1단계 브랜치의 dev 서버를 따로 띄우고, 같은 0.1 `dashboard-cards.json`을 연 에디터 화면을 1600×1000으로 찍어 PNG를 픽셀 단위로 비교했다. 모든 겹을 그라디언트로 그리면 **16268픽셀이 최대 채널차 2**(대부분 1)로 달랐고 홈 카드 미리보기도 759픽셀(최대 3)이 달랐다. 육안으로는 구별되지 않는다.
+  - 1단계의 불변조건은 "기존 문서는 렌더 그대로"라 맨 아래 solid를 `background-color`로 바꿨다. 바꾼 뒤에는 0.1 예제 다섯(dashboard-cards·card-effects·form-grid·login-screen·header-content)과 0.2 `two-page-project`의 에디터 화면, 홈 목록, 노드 선택 상태까지 **다른 픽셀이 0**이었다.
+  - 가장 흔한 단색 한 겹에서 아래 코드 생성 매핑(`bg-[#..]`, 곧 `background-color`)과 그리는 방식이 같아지는 것도 이 쪽의 이점이다. 비용은 분기 하나다. 맨 아래가 아닌 solid는 여전히 `linear-gradient(c, c)`로 그리고, 그 경우의 ±1 디더링은 받아들인다.
+- **`background-origin: border-box`를 이미지 겹이 있을 때 함께 낸다(1단계에서 이미 반영).** 배경 이미지는 기본적으로 padding 상자 기준으로 놓이고 테두리 밑으로는 반복돼 들어간다. `inside` 테두리(CSS `border`)가 반투명하거나 둥글면 이음매가 보인다. `background-color`는 기본 `background-clip: border-box`로 테두리 밑까지 한 장으로 칠해지므로, 이미지 겹도 `border-box` 기준이어야 겹끼리 같은 상자에 걸리고 그라디언트도 Figma 채우기처럼 상자 전체에 걸린다. 처음엔 2단계(렌더 PR)에 두었지만 solid 겹을 이미지로 그리는 경우가 1단계에 이미 있어 함께 넣었다.
+- **`background` 축약 속성을 쓰던 자리를 풀어 쓴 속성으로 바꿨다.** `nodeStyles.ts`·`homePreview.ts`는 0.2까지 `background: node.background?.color`를 썼다. 축약과 `backgroundImage` 같은 개별 속성을 한 스타일 객체에서 섞으면 React가 다시 그릴 때 충돌한다.
+- **번역 함수는 `canvasLayout.ts`의 `backgroundStyle`이다.** `strokeAndShadowStyle` 옆, 노드 타입을 모르는 순수 함수로 두고 `test/canvas-layout.test.ts`에서 직접 검사한다. `nodeStyles.ts`(frame·button·input)와 `homePreview.ts`(같은 셋)의 여섯 곳이 이 함수 하나를 부른다. 1단계에서는 `linear` 겹을 건너뛴다(그 겹만 빠지고 나머지 겹은 그려진다).
 
 코드 생성(`skills/visual-spec-to-react`)의 매핑은 이렇게 정한다.
 
-- **solid 한 겹뿐이면 `bg-[#RRGGBB(AA)]`** — 지금과 같은 출력이다. 마이그레이션된 기존 스펙을 다시 생성해도 코드가 바뀌지 않는다.
-- **그 밖에는 위 목록을 Tailwind 임의값으로 낸다** — 예: `bg-[linear-gradient(180deg,#6366F1_0%,#8B5CF6_100%)] bg-origin-border`. 공백을 `_`로 쓰는 것은 `shadow` 행과 같은 관용구다. 여러 겹의 쉼표 목록이나 타입 힌트가 대상 Tailwind 버전에서 그대로 해석되는지는 **이 문서 작성 시점에 확인하지 않았다.** 스킬 PR에서 확인해 표기를 고정하고, 임의값으로 안 되면 `style={{ backgroundImage }}`로 내린다.
+- **solid 한 겹뿐이면 `bg-[#RRGGBB(AA)]`** — 0.2까지와 같은 출력이다. 마이그레이션된 기존 스펙을 다시 생성해도 코드가 바뀌지 않는다. 캔버스도 이 경우 `background-color` 하나라 그리는 방식까지 같다.
+- **그 밖에는 위 캔버스 번역과 같은 규칙을 따른다** — 맨 아래 solid는 배경색, 나머지는 이미지 목록, 이미지 겹이 있으면 `border-box` 기준. Tailwind 임의값 표기(예: `bg-[linear-gradient(180deg,#6366F1_0%,#8B5CF6_100%)] bg-origin-border`, 공백을 `_`로 쓰는 것은 `shadow` 행과 같은 관용구)로 여러 겹의 쉼표 목록이나 타입 힌트가 대상 Tailwind 버전에서 그대로 해석되는지는 **아직 확인하지 않았다.** 4단계(스킬 PR)에서 확인해 표기를 고정한다. 그때까지 스킬은 `style={{ backgroundColor, backgroundImage, backgroundOrigin }}`로 내라고 적어 두었다(1단계).
 
 ## 마이그레이션과 버전
 
 **버전.** `VisualSpec`은 `0.1` → `0.3`, `ProjectSpec`은 `0.2` → `0.3`으로 올린다. 두 최상위 타입이 같은 `ScreenSpec` `$def`를 쓰므로 둘 다 바뀐다. 이 시점부터 버전 문자열은 **IR 세대**를 뜻하고, 화면 문서와 프로젝트 문서는 버전이 아니라 키(`screen` / `pages`)로 가른다.
 
-- `VisualSpec`을 `0.1`로 두지 않는 이유 — 같은 `0.1`이 서로 호환되지 않는 두 모양을 가리키게 된다. `skills/visual-spec-authoring`은 지금도 `"version": "0.1"` 단일 화면 문서를 쓰므로, 옛 문서와 새 문서를 버전으로 구별할 수 없다.
+- `VisualSpec`을 `0.1`로 두지 않는 이유 — 같은 `0.1`이 서로 호환되지 않는 두 모양을 가리키게 된다. `skills/visual-spec-authoring`은 (이 문서를 쓸 당시) `"version": "0.1"` 단일 화면 문서를 썼으므로, 옛 문서와 새 문서를 버전으로 구별할 수 없다.
 - `VisualSpec`을 `0.2`로 올리지 않는 이유 — `ProjectSpec`의 `0.2`와 겹친다. `store/loadSpec.ts`가 `version === "0.2"`로 프로젝트 문서를 가른다.
 
 **변환.** `{ color: c }`인 `background`를 `[{ type: "solid", color: c }]`로 바꾸고 버전을 `0.3`으로 바꾼다. 버리는 정보가 없고 렌더 결과도 같다. 변환 함수는 `schema/migrate.ts`의 `migrateV01` 옆에 둔다(이름은 이슈의 `migrateV02` 대신 0.1·0.2를 다 받는다는 뜻으로 `migrateToV03` 등 — 스키마 PR에서 정한다. 공개 표면이 하나 늘어 [06의 공개 표면 목록](06-schema-freeze.md#정본과-공개-표면)도 갱신한다).
@@ -175,7 +180,7 @@ linear → linear-gradient(<angle>deg, #C1 <at1×100>%, #C2 <at2×100>%, …)
 
 ## 반응형 IR(#181)과의 관계
 
-[12](12-responsive-ir-design.md)의 override 대상에 `background`가 있다. 배열은 원소 단위로 병합하지 않으므로 **override의 `background`는 그 폭에서 배경 전체를 갈아 끼운다.** "이 폭에서 배경 없음"은 `[]`다. 12의 "속성 일부만 덮어쓴다"는 객체 칸(`box`, `layout`, `border` 등)에 대한 규칙이고 `background`와 충돌하지 않는다 — B안이었다면 바로 이 상속 규칙과 부딪혔다. 두 스키마 PR 중 나중에 머지되는 쪽이 이 통째 교체를 스키마 `description`과 12에 적는다.
+[12](12-responsive-ir-design.md)의 override 대상에 `background`가 있다. 배열은 원소 단위로 병합하지 않으므로 **override의 `background`는 그 폭에서 배경 전체를 갈아 끼운다.** "이 폭에서 배경 없음"은 `[]`다. 12의 "속성 일부만 덮어쓴다"는 객체 칸(`box`, `layout`, `border` 등)에 대한 규칙이고 `background`와 충돌하지 않는다 — B안이었다면 바로 이 상속 규칙과 부딪혔다. 두 스키마 PR 중 나중에 머지되는 쪽이 이 통째 교체를 스키마 `description`과 12에 적는다. — #127 1단계가 정본 `Background`의 `description`(“배열이라 부분 병합하지 않고 통째로 교체한다”)과 [12의 override 절](12-responsive-ir-design.md#표현-방식)에 적었다. 반응형 스키마 PR은 override 대상의 `background`가 `Fill[]`임을 그대로 따르면 된다.
 
 ## 영향 범위
 
@@ -233,12 +238,12 @@ Command 스키마([09](09-command-schema-freeze.md))와 Ticket 스키마([11](11
                         └─→ 5 예제
 ```
 
-1. **스키마 전환 PR** (의존: 이 문서 합의). 스키마·생성 타입·stop 정렬 검사·버전 0.3, 변환 함수와 두 입구(`loadSpec`·`specStorage`) 연결, 생성 기본값 3파일, 예제 8개·테스트 변환. 읽고 쓰는 곳은 **단색 한 겹과 같은 동작**까지만 맞춘다 — 번역 함수는 solid 갈래만 그리고(linear 겹은 2 전까지 그려지지 않는다), `BackgroundSection`은 "겹이 없거나 solid 한 겹이면 그 색을 편집, 아니면 편집 불가 안내"로 둔다. 스킬 셋(authoring·nl-response·to-react)과 문서(04·05·06·08·EDITOR_STORE_CONTRACT)의 **모양 예시**도 이 PR에서 단색 배열로 바꾼다 — 안 바꾸면 LLM이 옛 모양을 내고 G3가 바로 거부한다. 2 전의 틈에는 linear를 만들 수 있는 도구(패널·NL 가르침)가 없으므로 손으로 쓴 문서만 영향을 받는다.
-2. **렌더 PR** (의존: 1). 번역 함수에 linear 갈래와 `background-origin`, `test/canvas-layout.test.ts` 케이스. 캔버스와 홈 미리보기가 함께 바뀐다.
+1. **스키마 전환 PR** (의존: 이 문서 합의) — **완료(브랜치 `Yumesa2025/127-background-fill-schema`).** 이 문서와 다르게 정한 것은 둘이다 — 맨 아래 solid를 `background-color`로 그린다, `background-origin`을 이미지 겹이 있을 때 이미 낸다(둘 다 위 "캔버스 번역"). 패널 순수 함수는 `ui/properties/backgroundPatch.ts`(`solidBackgroundView`·`solidBackgroundPatch`)이고 3단계의 `fillsPatch`가 이 자리를 넓힌다. 원래 범위: 스키마·생성 타입·stop 정렬 검사·버전 0.3, 변환 함수와 두 입구(`loadSpec`·`specStorage`) 연결, 생성 기본값 3파일, 예제 8개·테스트 변환. 읽고 쓰는 곳은 **단색 한 겹과 같은 동작**까지만 맞춘다 — 번역 함수는 solid 갈래만 그리고(linear 겹은 2 전까지 그려지지 않는다), `BackgroundSection`은 "겹이 없거나 solid 한 겹이면 그 색을 편집, 아니면 편집 불가 안내"로 둔다. 스킬 셋(authoring·nl-response·to-react)과 문서(04·05·06·08·EDITOR_STORE_CONTRACT)의 **모양 예시**도 이 PR에서 단색 배열로 바꾼다 — 안 바꾸면 LLM이 옛 모양을 내고 G3가 바로 거부한다. 2 전의 틈에는 linear를 만들 수 있는 도구(패널·NL 가르침)가 없으므로 손으로 쓴 문서만 영향을 받는다.
+2. **렌더 PR** (의존: 1). 번역 함수에 linear 갈래와 `test/canvas-layout.test.ts` 케이스(`background-origin`은 1에서 이미 들어갔다). 캔버스와 홈 미리보기가 함께 바뀐다.
 3. **패널 PR** (의존: 1, 머지는 2 뒤 — 편집 결과가 보여야 검증된다). `fillsPatch`(가칭) 순수 함수와 테스트, `BackgroundSection` 목록 UI.
 4. **스킬·NL PR** (의존: 2 — 캔버스 번역과 코드 생성 매핑이 같아야 한다). to-react 매핑 행과 Tailwind 표기 확인, authoring의 그라디언트 규칙, nl-response의 "배열 통째 쓰기·앞 = 위" 규칙, validate의 `Fill` 잡음 해석, [08](08-natural-language.md) 갱신.
 5. **예제 PR** (의존: 2, 4가 있으면 스킬이 바로 가리킨다). 다중 겹 + 딱 끊기는 stop을 담은 새 예제, [06](06-schema-freeze.md)의 검증된 예제 표에 한 줄.
 
 반응형(#181) 스키마 PR과는 순서 의존이 없다. 나중에 머지되는 쪽이 위 "반응형 IR과의 관계"를 반영한다. `radial`·`image` 채우기, 겹 표시 토글은 일정에 넣지 않는다 — 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
-이 문서는 설계 결정을 기록한다. 위 1이 머지되기 전에는 정본 `Background`가 여전히 단색 한 겹(`{ color }`)이다.
+이 문서는 설계 결정을 기록한다. 위 1부터 정본 `Background`는 `Fill[]`이고 문서 버전은 0.3이다. 2 전까지 캔버스는 `linear` 겹을 그리지 않고, 3 전까지 패널은 단색 한 겹만 편집한다.

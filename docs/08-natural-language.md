@@ -206,7 +206,7 @@ Command 스키마는 그대로 두고, LLM 출력을 Command 로 조립하기 **
 **출발 상태: File > New 직후**, 즉 `store/blankSpec.ts` 의 `blankSpec` 을 `migrateV01` 로 넓힌 페이지 한 장.
 
 `blankSpec` 의 root 는 `name: "Screen"` · `box: { width: "fill", height: "fill" }` ·
-`background: { color: "#FFFFFF" }` 인데 **`login-screen.json` 의 root 와 이 세 가지가 그대로 같다.**
+`background: [{ type: "solid", color: "#FFFFFF" }]` 인데 **`login-screen.json` 의 root 와 이 세 가지가 그대로 같다.**
 그래서 root 에는 `layout` 하나만 바꾸면 된다. (이건 `blankSpec` 을 그렇게 고른 결과지 규칙이 아니다.)
 
 ```jsonc
@@ -237,7 +237,7 @@ Command 스키마는 그대로 두고, LLM 출력을 Command 로 조립하기 **
             "layout": { "direction": "column", "gap": 12,
                         "padding": { "top": 16, "right": 16, "bottom": 16, "left": 16 },
                         "mainAxis": "center", "crossAxis": "stretch" },
-            "background": { "color": "#F5F5F5FF" },
+            "background": [{ "type": "solid", "color": "#F5F5F5FF" }],
             "border": { "width": 1, "color": "#00000020", "radius": 8 },
             "children": [] } },
 
@@ -279,6 +279,9 @@ frame 일 때만 동작한다(`:87`). 부모를 먼저 만들지 않으면 그 C
 | 5 `createNode` card | 18 (빈 `children` 배열을 한 칸으로 셈) |
 | 6 `createNode` hint | 12 |
 | **합** | **53** |
+
+> 이 표는 0.2 시절(`background: { "color": … }`)에 센 값이다. 0.3(#127)에서 배경이 겹 배열이 되며
+> card 의 배경에 `"type": "solid"` 한 칸이 늘어 지금 세면 card 19칸 · 합 54칸이다. 아래 근거는 그대로다.
 
 노드 네 개짜리 최소 화면이 이렇다. 02가 대표 화면으로 삼은 **관리자 대시보드**는 이보다 훨씬 크다.
 **3.2의 기본값 계층을 두자는 근거가 이 숫자다** — `typography` 6칸, `layout` 5필드,

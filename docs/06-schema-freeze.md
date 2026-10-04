@@ -18,7 +18,7 @@
 - `input`
 - `layout` (`direction`: `row` | `column` | `grid`)
 - `box`
-- `background`
+- `background` (채우기 겹 배열 `Fill[]` — `solid`·`linear`. 0.3부터, 아래 "v0.3" 절)
 - `border` (`align`, 모서리별 `radius` 포함)
 - `typography`
 - `shadow` · `opacity` · `blur`
@@ -29,7 +29,7 @@
 - `event`
 - `token`
 - `responsive` — 표현 결정은 [12-responsive-ir-design.md](12-responsive-ir-design.md)에 기록했다. 현재 정본에는 여전히 없으며, 스키마 추가는 이 문서의 동결 변경 규칙을 따르는 별도 PR이다.
-- 배경 그라디언트·다중 채우기 — 표현 결정은 [13-background-fill-design.md](13-background-fill-design.md)에 기록했다. 현재 정본의 `Background`는 여전히 단색 한 겹이며, 스키마 변경은 이 문서의 동결 변경 규칙을 따르는 별도 PR이다.
+- 배경 그라디언트의 **캔버스 렌더와 겹 목록 편집** — 표현 결정은 [13-background-fill-design.md](13-background-fill-design.md)에 기록했고, 그 1단계(스키마 전환)는 정본에 반영됐다(아래 "v0.3" 절 — `Background`가 `Fill[]`, `linear` 겹 포함). 캔버스는 아직 `linear` 겹을 그리지 않고 패널은 단색 한 겹만 편집한다. `radial`·`image` 채우기는 정본에 없다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
 `instance`, `props`, `bindings`, `variants`, `states`, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
@@ -55,10 +55,15 @@ import type {
   ImageNode,
   ButtonNode,
   InputNode,
+  Background,    // Fill[] — 0.3
+  Fill,          // SolidFill | LinearFill
+  SolidFill,
+  LinearFill,
+  GradientStop,
 } from "@/features/editor/schema";
 ```
 
-값으로 내보내는 것은 여섯이다. 셋은 v0.1부터 있었고,
+값으로 내보내는 것은 일곱이다. 셋은 v0.1부터 있었고,
 
 ```ts
 import {
@@ -68,13 +73,21 @@ import {
 } from "@/features/editor/schema";
 ```
 
-나머지 셋은 v0.2에서 늘었다. 아래 v0.2 절 참고.
+셋은 v0.2에서 늘었다. 아래 v0.2 절 참고.
 
 ```ts
 import {
   validateProjectSpec,     // (input: unknown) => ValidationResult, 절대 던지지 않는다
   migrateV01,              // (spec: VisualSpec) => ProjectSpec
   toVisualSpec,            // (page: ScreenSpec) => VisualSpec
+} from "@/features/editor/schema";
+```
+
+하나는 0.3에서 늘었다. 아래 v0.3 절 참고.
+
+```ts
+import {
+  migrateToV03,            // (input: unknown) => unknown — 0.1·0.2 문서를 0.3으로. 검증 전에 부른다
 } from "@/features/editor/schema";
 ```
 
@@ -100,7 +113,8 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 | Grid 배치 | `layout.direction: "grid"` + `layout.columns`(선택, grid에서만 의미) — 균등 N열 자동 배치만 지원, 셀 지정 없음 |
 | text content | `TextNode.content` |
 | font size | `typography.fontSize` |
-| color | `TextNode.color`, `background.color`, `border.color` — hex 문자열 |
+| color | `TextNode.color`, `border.color`, 배경 겹의 색(`SolidFill.color`·`GradientStop.color`) — hex 문자열 |
+| 배경 | `background` — 채우기 겹 배열(`Fill[]`, 앞이 위). 단색은 `[{ type: "solid", color }]`, 생략·`[]`은 배경 없음 (0.3) |
 | 표시 / 숨김 | `visible` (생략 시 `true`) |
 | 그림자 | `FrameNode.shadow`(선택) — `x`·`y`·`blur`·`spread`·`color` 전부 필수 |
 | 불투명도 | `opacity`(선택, 0..1. 생략 시 `1`) — `frame`·`text`·`image` |
@@ -108,7 +122,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 | 테두리 정렬 | `border.align`(선택, `inside`\|`center`\|`outside`. 생략 시 `inside`) |
 | 모서리 반경 | `border.radius` — `number` 또는 `{topLeft,topRight,bottomRight,bottomLeft}` |
 
-검증된 예제는 일곱이다.
+검증된 예제는 일곱이다(프로젝트 예제 `two-page-project.json`은 아래 v0.2 절). #127에서 여덟 모두 `migrateToV03`로 0.3이 됐다 — 손으로 고치지 않았다.
 
 | 파일 | 확인하는 것 |
 |---|---|
@@ -126,7 +140,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 
 ## 이 계약이 보장하지 않는 것
 
-- **v0.1 문서의 멀티 스크린.** `VisualSpec`은 여전히 파일 1개 = Screen 1개다. 여러 페이지가 필요하면 v0.2의 `ProjectSpec`을 쓴다(아래 참고).
+- **화면 문서의 멀티 스크린.** `VisualSpec`은 여전히 파일 1개 = Screen 1개다. 여러 페이지가 필요하면 `ProjectSpec`을 쓴다(아래 참고).
 - **`fontWeight`의 100 단위 제약.** JSON Schema는 강제하지만 생성된 TS 타입은 `number`다. 타입만으로는 못 막으니 `validateVisualSpec`을 거쳐야 한다.
 - **편집 연산.** 노드 추가·삭제·이동·재부모화 함수는 없다. 지금은 각 화면이 직접 `nodes`를 다루므로 불변조건을 깨뜨릴 수 있다. `validateVisualSpec`은 예방 수단이 아니라 최후 방어선이다.
 - **`ImageNode.src`가 가리키는 워크스페이스 assets 저장소.** 스키마는 문자열 참조만 정의한다. 실제로 파일을 어디에 저장하고 `src` 값을 어떻게 채우는지는 Import 기능 쪽 책임이다. **이 항목은 2026-09-18 이슈 #133으로 해소됐다** — 아래 "assets 저장소 연결" 참고.
@@ -200,6 +214,8 @@ root 는 곧 페이지라 끄는 대상이 페이지 크기인 것이 맞고, �
 
 파일 1개에 페이지 여러 개를 담기 위해 최상위 타입을 **하나 더** 두었다. #60.
 
+> 버전 표기는 0.3에서 바뀌었다 — 지금은 두 타입 모두 `"0.3"`이고, 화면/프로젝트는 버전이 아니라 키(`screen`/`pages`)로 가른다. 아래 "v0.3" 절. 이 절은 v0.2 당시의 기록이다.
+
 **`VisualSpec`은 바뀌지 않았다.** 두 타입이 나란히 존재한다.
 
 | 타입 | 뜻 | version |
@@ -272,7 +288,7 @@ import {
 - **`blur`는 Layer blur만이다.** 자기 자신과 자식이 함께 흐려진다. 뒤 배경을 흐리는 Background blur(`backdrop-filter`)는 다른 기능이라 포함하지 않았다.
 - **`opacity`/`blur`가 걸린 프레임 안에서는 선택 표시도 함께 흐려진다.** CSS `opacity`·`filter`가 자식 전체에 걸리기 때문이다. 선택 표시를 캔버스 오버레이로 분리해야 풀리는 구조적 문제라 별도 이슈로 둔다.
 - **`button`·`input`에는 `shadow`·`opacity`·`blur`를 아직 두지 않았다.** 두 노드는 속성 패널이 없어 스키마에만 있고 편집할 수 없는 필드가 된다. `border.align`·모서리별 `radius`는 `Border` $def에 붙어서 두 노드도 함께 따라온다.
-- **다중 채우기·그라디언트는 여기 없다.** `Background.color`를 배열/유니온으로 바꿔야 해서 기존 문서가 깨진다. 마이그레이션 합의가 필요하므로 #78 2단계로 분리했다.
+- **다중 채우기·그라디언트는 여기 없다.** `Background.color`를 배열/유니온으로 바꿔야 해서 기존 문서가 깨진다. 마이그레이션 합의가 필요하므로 #78 2단계로 분리했다. → #127이 [13](13-background-fill-design.md)에서 정하고 0.3에서 스키마를 바꿨다(아래 "v0.3" 절).
 
 ---
 
@@ -302,6 +318,37 @@ import {
 
 ---
 
+## v0.3 — 배경 채우기 겹 배열 (2026-10-04 추가, #127)
+
+[13-background-fill-design.md](13-background-fill-design.md)의 결정 중 1단계(스키마 전환)를 반영했다. **기존 JSON 문서가 깨지는 변경이다** — 앱이 열 때 자동 변환한다.
+
+| 무엇 | 0.1·0.2 | 0.3 |
+|---|---|---|
+| `VisualSpec.version` | `"0.1"` | `"0.3"` |
+| `ProjectSpec.version` | `"0.2"` | `"0.3"` |
+| `background` | `{ "color": c }` | `[{ "type": "solid", "color": c }]` — `Fill[]`, 앞이 위, 빈 배열 허용 |
+
+```jsonc
+"background": [
+  { "type": "linear", "angle": 180, "stops": [
+      { "color": "#0F172A00", "at": 0 },
+      { "color": "#0F172ACC", "at": 1 }
+  ] },
+  { "type": "solid", "color": "#6366F1" }
+]
+```
+
+- **새 `$defs`.** `Fill`(`SolidFill` | `LinearFill`의 `oneOf`), `SolidFill`, `LinearFill`(`angle` `[0, 360)` · `stops` 2개 이상), `GradientStop`(`color` · `at` 0..1). 생성 타입도 같은 이름으로 공개된다(위 "정본과 공개 표면").
+- **버전은 IR 세대를 뜻한다.** 화면 문서와 프로젝트 문서가 같은 `"0.3"`을 쓰고, 둘은 키(`screen`/`pages`)로 가른다. `store/loadSpec.ts`의 판정도 키 기준이 됐다.
+- **변환은 입구 두 곳에서 한다.** `parseSpecJson`(Open·홈 목록)과 `specStorage`의 자동 저장 복원이 `migrateToV03` → 새 검증기 순서로 읽는다. 변환은 버전과 키가 짝이 맞는 문서(`0.1`+`screen`, `0.2`+`pages`)의 "문자열 `color` 하나만 가진" `background`만 바꾸고, 그 밖의 값은 그대로 둬 검증이 보고하게 한다. `validateVisualSpec`·`validateProjectSpec` 자체는 변환하지 않는다 — 0.1·0.2 문서를 직접 넣으면 무효다.
+- **저장은 항상 0.3이다.** 열기는 파일을 다시 쓰지 않는다. 처음 저장할 때 0.3이 된다.
+- **`IssueCode` 8종 → 9종.** stop의 `at` 오름차순(같은 값 허용)은 배열 원소끼리 비교하는 문법이 없어 두 검증기가 `gradient-stop-order`로 잡는다.
+- **`migrateV01`·`toVisualSpec`은 이름을 유지한다.** 공개 API라서다. 입출력은 0.3이다.
+- **구버전은 0.3 문서를 못 읽는다.** 갱신 전 빌드와, `npx visual-spec skills`로 복사해 둔 옛 스킬 사본이 해당한다 — 스킬은 다시 복사해야 한다.
+- **아직 안 되는 것.** 캔버스는 `linear` 겹을 그리지 않고, 패널은 "겹이 없거나 solid 한 겹"만 색 칸으로 편집한다(그 밖은 편집 불가 안내). 13의 후속 2·3단계다.
+
+---
+
 ## 변경 규칙
 
 **이번 스프린트 동안 스키마를 함부로 바꾸지 않는다.**
@@ -324,7 +371,7 @@ v0.1은 선택 필드가 `visible` 하나뿐이었고, "선택 필드는 `visibl
 - 기본값이 **기존 문서의 현재 렌더와 같아야 한다.** 그래야 필드를 추가해도 이미 있는 JSON의 모양이 바뀌지 않는다.
 - 기본값을 한 문장으로 못 적으면 필수 필드로 만들거나, 그 필드를 넣지 않는다.
 
-객체를 통째로 받는 선택 필드(`shadow`, `border`, `background`)는 **내부 칸을 모두 필수로** 둔다. 한 칸만 채운 반쪽 객체는 스펙을 무효로 만들고 CSS도 깨뜨린다. 패널에서는 `borderPatch`·`shadowPatch`·`radiusPatch`의 merge 함수가 항상 완전한 객체를 만든다.
+객체를 통째로 받는 선택 필드(`shadow`, `border`)는 **내부 칸을 모두 필수로** 둔다. 한 칸만 채운 반쪽 객체는 스펙을 무효로 만들고 CSS도 깨뜨린다. 패널에서는 `borderPatch`·`shadowPatch`·`radiusPatch`의 merge 함수가 항상 완전한 객체를 만든다. `background`는 0.3부터 배열이라 같은 생각을 겹 단위로 적용한다 — 겹(`SolidFill`·`LinearFill`·`GradientStop`)의 칸은 모두 필수이고, 배열은 경로로 한 칸만 쓰지 못해 항상 통째로 쓴다(`backgroundPatch`).
 
 동결 해제 시점은 팀이 정한다. 스프린트 종료일은 이 문서에 적지 않았다 — 확정되면 여기에 기입한다.
 

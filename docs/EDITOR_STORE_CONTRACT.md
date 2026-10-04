@@ -153,9 +153,11 @@ Import(이미지) · 도구 모음 · 트리의 프레임 추가가 모두 이 �
 ```ts
 setNodeField("cardA", "box.width", 320);
 setNodeField("cardA", "layout.gap", 16);
-setNodeField("cardA", "background.color", "#FFFFFF");
+setNodeField("cardA", "background", [{ type: "solid", color: "#FFFFFF" }]);
 setNodeField("headerTitle", "typography.fontSize", 24);
 ```
+
+- `background`는 0.3부터 채우기 겹 **배열**이라(#127) 배열을 통째로 쓴다. `background.color`·`background.0.color`처럼 배열 안으로 들어가는 경로는 `command/editablePath.ts`가 거부해 아무 일도 일어나지 않는다. 패널은 `ui/properties/backgroundPatch.ts`가 완전한 배열을 만들어 넘긴다.
 
 - 스토어는 이 경로로 **불변 업데이트**를 수행한다(원본을 직접 바꾸지 않음).
 - 값이 바뀌면 그 노드를 읽는 모든 파트가 자동으로 다시 그려진다. → "피그마처럼 즉시 반영".
@@ -206,7 +208,7 @@ import type {
 |---|---|---|
 | Layout | 방향 / 간격 / 패딩 / 주축 정렬 / 교차축 정렬 | `layout.direction`, `layout.gap`, `layout.padding.*`, `layout.mainAxis`, `layout.crossAxis` |
 | Size | width / height | `box.width`, `box.height` |
-| Background | 배경색 | `background.color` |
+| Background | 배경색(겹이 없거나 solid 한 겹일 때만. 그 밖은 편집 불가 안내) | `background` — 배열 통째(`[{ type: "solid", color }]`) |
 | Border | 두께 / 색 / 라운드 | `border.width`, `border.color`, `border.radius` |
 | 기타 | 표시 여부 | `visible` |
 

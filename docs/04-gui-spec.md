@@ -278,7 +278,7 @@ DashboardPage
 |---|---|
 | Layout | position, width, height, 회전 |
 | Color | 채우기 색상 |
-| Background | background-color |
+| Background | 배경 채우기(`Fill[]`) — 지금은 단색 한 겹의 색만 편집. 겹 목록·그라디언트 편집은 [13](13-background-fill-design.md) 후속 |
 | Font | weight, size, 종류, 정렬 |
 | Border | color, weight, radius |
 | Shadow | x, y, blur, spread, color |

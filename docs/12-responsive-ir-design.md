@@ -42,6 +42,8 @@
 
 기본 `nodes` 값은 모든 폭의 기반 값이다. breakpoint override는 그 `minWidthPx` 이상에서 적용되며, 더 큰 폭에서는 낮은 breakpoint 값 위에 누적 적용한다. 같은 노드와 속성이 여러 breakpoint에 있으면 가장 큰 적용 breakpoint의 값이 우선한다. 속성 일부만 덮어쓰며, 생략된 속성은 앞선 값에서 상속한다. 따라서 작은 화면 우선의 기본 레이아웃은 기존 필드에 두고 큰 화면용 변경을 breakpoint에 기록한다. `size.width`는 아트보드/초기 미리보기 크기이며 breakpoint 정의를 선택하거나 대체하지 않는다.
 
+"속성 일부만 덮어쓴다"는 객체 칸(`box`, `layout`, `border`, `typography` 등)에 대한 규칙이다. **배열은 원소 단위로 병합하지 않는다.** 0.3부터 `background`는 채우기 겹 배열(`Fill[]`, [13](13-background-fill-design.md#반응형-ir과의-관계))이라, override의 `background`는 그 폭에서 **배경 전체를 갈아 끼운다.** "이 폭에서 배경 없음"은 `[]`로 쓴다(생략은 상속이다). 예: `"cards": { "background": [{ "type": "solid", "color": "#F8FAFC" }] }`.
+
 `minWidthPx`는 양의 CSS px 값이다. breakpoint ID는 문서 안에서 고유하고, 폭도 서로 달라야 한다. ID의 사전식 순서가 아니라 숫자 폭이 적용 순서를 정한다. 유효한 노드 ID, 선언된 breakpoint 참조, 중복/정렬 조건은 일반 JSON Schema로 충분히 보장하기 어려워 validator의 의미 검증 대상이다.
 
 첫 버전의 override는 노드의 표현 속성만 대상으로 한다: `box`, `layout`, `background`, `border`, `typography`, `color`, `opacity`, `blur`, `visible`, `fit` 중 해당 노드 타입에 정의된 필드. `type`, `name`, `content`, `placeholder`, 이미지 `src`, 노드 생성/삭제, `children`/트리 순서는 override하지 않는다. 노드 정체성과 트리는 breakpoint 간 동일하게 유지한다. 이 제한은 화면 배치 변경을 지원하면서 노드 참조와 트리 구조가 폭마다 달라지는 복잡성을 피한다.
@@ -62,7 +64,7 @@ CSS 미디어 쿼리는 viewport 조건에 따라 스타일을 적용한다. Tai
 
 ## 호환성 및 동결 절차
 
-- 기존 `VisualSpec` v0.1 및 `ProjectSpec` v0.2에서 `responsive`가 없으면 기본 동작은 기존과 동일하고 데이터 변환은 필요 없다.
+- 기존 `VisualSpec` v0.1 및 `ProjectSpec` v0.2에서 `responsive`가 없으면 기본 동작은 기존과 동일하고 데이터 변환은 필요 없다. (이 문서 이후 #127이 두 타입의 버전을 `"0.3"`으로 올렸다 — 반응형 스키마 PR은 0.3 문서를 기준으로 한다.)
 - 새 필드가 들어간 문서를 모르는 구버전 validator는 현재 `additionalProperties: false` 계약에 따라 이를 거부할 수 있다. 작성 도구 버전/문서 버전 호환성은 스키마 PR 본문과 GUI 이슈에서 드러내고 처리한다.
 - 이번 결정은 정본 스키마나 생성 타입을 수정하지 않는다. 실제 스키마 추가는 [06의 동결 변경 규칙](06-schema-freeze.md#변경-규칙)에 따라 별도 PR로 올리고, 팀 승인, 기존 JSON 영향 설명, 타입 생성, 예제 및 검증을 포함한다.
 - 반응형은 선택 필드로 추가하며 미지정 기본은 기존 단일 레이아웃이어야 한다. 필드가 있는 새 문서에서 폭별 계산이 달라지는 것은 의도한 새 기능이다.
