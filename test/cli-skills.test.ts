@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,7 @@ const SKILL_NAMES = [
   "visual-spec-authoring",
   "visual-spec-docs",
   "visual-spec-nl-response",
+  "visual-spec-ticket-response",
   "visual-spec-to-react",
   "visual-spec-validate",
 ];
@@ -40,10 +41,11 @@ describe("visual-spec skills (#104)", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("스킬 6종을 .claude/skills/ 아래 설치한다 — 이 저장소의 skills/와 내용이 같다", () => {
+  it("스킬 7종을 .claude/skills/ 아래 설치한다 — 이 저장소의 skills/와 내용이 같다", () => {
     const result = runCli(["skills"], projectDir);
 
     expect(result.exitCode).toBe(0);
+    expect(readdirSync(join(projectDir, ".claude", "skills")).sort()).toEqual([...SKILL_NAMES].sort());
     for (const name of SKILL_NAMES) {
       const dest = join(projectDir, ".claude", "skills", name, "SKILL.md");
       const src = join(REPO_ROOT, "skills", name, "SKILL.md");
