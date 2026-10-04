@@ -1,10 +1,11 @@
+import * as fs from "node:fs";
 import { createServer, request, type Server } from "node:http";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveImageSrc } from "@/features/editor/ui/properties/imageSrc";
 import { WORKSPACE_MARKER_HEADER, workspaceFileUrl } from "@/features/workspace/protocol";
@@ -14,6 +15,11 @@ import {
   resolveWorkspaceRoot,
   WORKSPACE_ENV_VAR,
 } from "@/features/workspace/workspaceServer";
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return { ...actual, lstatSync: vi.fn(actual.lstatSync) };
+});
 
 /**
  * 작업공간 미들웨어 통합 테스트 (이슈 #133).
@@ -686,5 +692,67 @@ describe("심볼릭 링크로 나가는 경로도 막는다", () => {
     expect(await response.json()).toMatchObject({ files: [] });
     rmSync(join(workspaceRoot, "assets", "link"), { recursive: true, force: true });
     rmSync(outside, { recursive: true, force: true });
+  });
+});
+
+
+describe("목록 메타데이터 opt-in (#227 일부)", () => {
+  it("기본 목록을 유지하고 요청할 때만 mtime=0도 반환한다", async () => {
+    for (const [name, time] of [["a-old.json", 0], ["z-new.json", 1000]] as const) {
+      const path = join(workspaceRoot, "specs", name);
+      writeFileSync(path, "{}");
+      utimesSync(path, time, time);
+    }
+    expect(await (await fetch(`${baseUrl}/__vs/list/specs`)).json()).toEqual({
+      ok: true, dir: "specs", files: ["a-old.json", "z-new.json"],
+    });
+    expect(await (await fetch(`${baseUrl}/__vs/list/specs?metadata=1`)).json()).toEqual({
+      ok: true, dir: "specs", files: ["a-old.json", "z-new.json"],
+      entries: [{ name: "a-old.json", mtimeMs: 0 }, { name: "z-new.json", mtimeMs: 1000000 }],
+    });
+  });
+
+  it("메타데이터도 허용 확장자만 내보내며 외부 링크는 따라가지 않는다", async () => {
+    const external = mkdtempSync(join(tmpdir(), "vsb-meta-outside-"));
+    try {
+      writeFileSync(join(external, "secret.json"), "{}");
+      symlinkSync(join(external, "secret.json"), join(workspaceRoot, "specs", "link.json"));
+      writeFileSync(join(workspaceRoot, "specs", "notes.txt"), "x");
+      expect(await (await fetch(`${baseUrl}/__vs/list/specs?metadata=1`)).json()).toMatchObject({files: [], entries: []});
+      rmSync(join(workspaceRoot, "specs"), { recursive: true });
+      symlinkSync(external, join(workspaceRoot, "specs"));
+      expect((await fetch(`${baseUrl}/__vs/list/specs?metadata=1`)).status).toBe(403);
+    } finally {
+      rmSync(external, { recursive: true, force: true });
+    }
+  });
+
+  it("목록 수집 후 삭제된 파일은 메타데이터에서 빼고 요청은 성공한다", async () => {
+    const path = join(workspaceRoot, "specs", "gone.json");
+    writeFileSync(path, "{}");
+    const original = fs.lstatSync;
+    const spy = vi.spyOn(fs, "lstatSync").mockImplementation((...args: Parameters<typeof fs.lstatSync>) => {
+      if (args[0] === path) rmSync(path, { force: true });
+      return original(...args);
+    });
+    try {
+      const response = await fetch(`${baseUrl}/__vs/list/specs?metadata=1`);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ files: ["gone.json"], entries: [] });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("재귀 opt-in과 함께 동작하고 사라진 폴더는 빈 목록이다", async () => {
+    mkdirSync(join(workspaceRoot, "generated", "pages"));
+    const path = join(workspaceRoot, "generated", "pages", "Home.tsx");
+    writeFileSync(path, "export default null;");
+    utimesSync(path, 10, 10);
+    expect(await (await fetch(`${baseUrl}/__vs/list/generated?recursive=1&metadata=1`)).json()).toMatchObject({
+      files: ["pages/Home.tsx"], entries: [{name: "pages/Home.tsx", mtimeMs: 10000}],
+    });
+    rmSync(join(workspaceRoot, "specs"), { recursive: true });
+    expect(await (await fetch(`${baseUrl}/__vs/list/specs?metadata=1`)).json()).toMatchObject({ files: [], entries: [] });
   });
 });

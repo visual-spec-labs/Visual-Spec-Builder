@@ -15,6 +15,8 @@
 
 import {
   WORKSPACE_LIST_RECURSIVE_PARAM,
+  WORKSPACE_LIST_METADATA_PARAM,
+  type WorkspaceFileEntry,
   WORKSPACE_LIST_ROUTE,
   WORKSPACE_MARKER_HEADER,
   WORKSPACE_STATUS_ROUTE,
@@ -72,6 +74,26 @@ export async function listWorkspaceFiles(
     const body: unknown = await response.json();
     const files = (body as { files?: unknown }).files;
     return Array.isArray(files) ? files.filter((name): name is string => typeof name === "string") : [];
+  } catch {
+    return null;
+  }
+}
+
+/** 홈 전용 메타데이터 목록. 기존 Open/Export 목록 계약은 바꾸지 않는다. */
+export async function listWorkspaceFileEntries(dir: WorkspaceDir): Promise<WorkspaceFileEntry[] | null> {
+  if (!(await isWorkspaceAvailable())) return null;
+  try {
+    const response = await fetch(`${WORKSPACE_LIST_ROUTE}${dir}?${WORKSPACE_LIST_METADATA_PARAM}=1`);
+    if (!response.ok || !isWorkspaceResponse(response)) return null;
+    const body: unknown = await response.json();
+    if (typeof body !== "object" || body === null) return null;
+    const entries = (body as { entries?: unknown }).entries;
+    if (!Array.isArray(entries)) return null;
+    return entries.filter((entry): entry is WorkspaceFileEntry =>
+      typeof entry === "object" && entry !== null &&
+      typeof entry.name === "string" && typeof entry.mtimeMs === "number" &&
+      Number.isFinite(entry.mtimeMs),
+    );
   } catch {
     return null;
   }
