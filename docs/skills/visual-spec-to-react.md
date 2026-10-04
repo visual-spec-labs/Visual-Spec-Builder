@@ -88,10 +88,14 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 
 `ScreenSpec.responsive`가 있으면 숫자 `minWidthPx` 순서로 기반 값에 override를 누적한다.
 객체는 부분 병합, 배열은 전체 교체다. 생략과 `background: []`의 의미를 구분한다.
-기본 출력은 `min-[768px]:...` 같은 정적인 숫자 variant이며, 대상 프로젝트를 자동으로
-분석하지 않는다. 사용자가 제공한 Tailwind 설정의 경계·단위·정렬을 확인한 경우에만
-named variant를 쓸 수 있다. 지원하지 않는 버전에는 TSX 안에 포함한 정적 CSS 미디어
-쿼리로 대체할 수 있다. 출력 경로는 기존 generated/pages·components 그대로다.
+대상 버전·설정의 호환성이 미확인이면 기본 출력은 TSX에 포함한 정적 CSS media query다.
+프로젝트를 자동 분석하지 않는다. 사용자가 제공한 버전·설정과 실제 컴파일로 확인한
+대상만 숫자 px variant를 쓸 수 있다. v3.2에서 도입된 `min-*`는 v3에서는 단순 문자열
+`screens`가 필요하며 v3.0/3.1·복합 screens에 가정하지 않는다. 이 저장소의 v4.3.3 검증을
+v3 또는 모든 v4 설정의 보장으로 확대하지 않는다. named variant도 실제 px 경계·정렬을
+확인한 경우에만 쓴다. 출력 경로는 기존 generated/pages·components 그대로다.
+root의 `crossAxis: start`는 `items-start` 또는 `align-items: flex-start`로 보존한다.
+설치된 스킬의 QA 참고는 함께 설치되는 visual-spec-docs와 저장소 raw URL로 연결한다.
 
 배경 override에서는 **색·이미지·origin 세 CSS 속성을 모두 교체**한다. 단색으로 바뀌면
 기존 이미지를 `none`으로, gradient-only이면 기존 색을 `transparent`로 지우며,

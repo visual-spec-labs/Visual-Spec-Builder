@@ -138,20 +138,51 @@ import { Sidebar } from "../components/Sidebar";
    override 키에 접두어만 붙이면 안 된다. 부모 row/column/grid 변화는 override가 없는
    자식의 `fill` 해석도 바꾼다. 반복 컴포넌트의 인스턴스별 override가 다르면 정적인 전체
    클래스 문자열을 props로 전달하는 등 차이를 보존한다. 한 인스턴스의 배경/폭을 공유하지 않는다.
-4. 기본은 `min-[768px]:gap-[16px]`, `min-[1024px]:gap-[24px]` 같은 **숫자 px variant**다.
-   ID가 `tablet`이어도 `md:`로 추측하지 않는다. 사용자에게 제공받은 대상 설정에서 named
-   variant의 실제 경계가 같은 CSS px임을 확인하고, 정렬도 같은 경우에만 그 이름을 쓸 수 있다.
-   `48rem`을 근거 없이 768px로 단정하지 않는다. 프로젝트를 자동 검색하거나 설정을 바꾸지 않는다.
-   한 화면에서 px/rem variant를 섞어 정렬을 추측하지 말고, 불확실하면 전부 숫자 px로 통일한다.
-5. Tailwind가 스캔할 수 있도록 **완전한 클래스 문자열을 리터럴로 쓴다**. 런타임에
-   `min-[${width}px]:...`처럼 조립하지 않는다. 사용자 제공 Tailwind 버전이 임의 min variant를
-   지원하지 않거나 복합 속성 reset을 확신할 수 없으면 아래 일반 CSS 방식으로 내보낸다.
+4. **대상 Tailwind 버전·설정의 호환성이 미확인이면 정적 CSS media query를 기본으로 쓴다.**
+   아래 일반 CSS 방식으로 기반값과 override를 함께 내보낸다. 프로젝트를 자동 검색하거나
+   설정을 바꾸지 않는다. 사용자가 제공한 버전·설정과 실제 컴파일 결과로 지원을 확인한
+   경우에만 `min-[768px]:gap-[16px]` 같은 숫자 px variant를 쓴다.
+   [Tailwind v3.2 공식 발표](https://tailwindcss.com/blog/tailwindcss-v3-2#max-width-and-dynamic-breakpoints)에
+   따르면 임의 `min-*`는 v3.2에서 도입됐고, v3에서는 문자열 값만 있는 단순 `screens`가
+   필요하다. v3.0/3.1 또는 복합 screens에서는 이 variant를 가정하지 않는다.
+   이 저장소의 v4.3.3 fixture 검증은 v3 호환성이나 미확인 v4 대상 설정을 보장하지 않는다.
+   ID가 `tablet`이어도 `md:`로 추측하지 않는다. 제공된 설정에서 named variant의 실제
+   경계가 같은 CSS px이고 정렬도 같은 경우에만 그 이름을 쓴다. `48rem`을 근거 없이
+   768px로 단정하지 않는다. px/rem 정렬이 불확실하면 정적 px media CSS로 통일한다.
+5. Tailwind를 사용하는 경우 **완전한 클래스 문자열을 리터럴로 쓴다**. 런타임에
+   `min-[${width}px]:...`처럼 조립하지 않는다. 지원이나 복합 속성 reset을 확신할 수
+   없으면 아래 일반 CSS 방식으로 내보낸다.
 
-`examples/responsive-cards.json`의 root는 다음 클래스다. desktop가 JSON에서 먼저 선언돼도
+`examples/responsive-cards.json`의 root를 **검증된 Tailwind v4.3.3 대상**에 옮긴 예다.
+`crossAxis: "start"`는 `items-start`로 보존한다(auto 높이 자식이 stretch되지 않아야 한다).
 768px padding-left=32가 1024px에도 남고, 1024px에서 gap=32·배경 없음으로 바뀐다.
 
 ```tsx
-<div className="flex flex-row gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full h-full min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]">{/* 자식들 */}</div>
+<div className="flex flex-row items-start gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full h-full min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]">{/* 자식들 */}</div>
+```
+
+같은 root의 **호환성 미확인 대상 기본 출력**은 다음과 같다. 이 요소에는 기반/반응형
+Tailwind 클래스를 중복 적용하지 않는다. `<style>`을 TSX에 포함해 Export와 함께 전달한다.
+
+```tsx
+<>
+  <style>{`
+.vsb-card-effects-root {
+  display: flex; flex-direction: row; align-items: flex-start;
+  box-sizing: border-box; justify-content: flex-start;
+  gap: 24px; padding: 48px; width: 100%; height: 100%;
+  background-color: #F1F5F9; background-image: none; background-origin: padding-box;
+}
+@media (min-width: 768px) {
+  .vsb-card-effects-root { padding-left: 32px; }
+}
+@media (min-width: 1024px) {
+  .vsb-card-effects-root {
+    gap: 32px; background-color: transparent; background-image: none; background-origin: padding-box;
+  }
+}`}</style>
+  <div className="vsb-card-effects-root">{/* 자식들 */}</div>
+</>
 ```
 
 ### 배경 배열은 color와 image를 함께 교체한다
@@ -168,7 +199,7 @@ import { Sidebar } from "../components/Sidebar";
 | 맨 아래 solid + 위 겹들 | 아래 solid의 `bg-[#...]` | 위 겹을 `bg-[image:...]` 하나로 | `bg-origin-border` |
 | 맨 아래가 linear인 한/여러 겹 | `bg-transparent` | 모든 겹을 `bg-[image:...]` 하나로 | `bg-origin-border` |
 
-예: gradient+solid에서 768px에 파란 solid로 바꾸려면
+호환성을 확인한 Tailwind 대상의 예: gradient+solid에서 768px에 파란 solid로 바꾸려면
 `min-[768px]:bg-[#0000FF80] min-[768px]:bg-none min-[768px]:[background-origin:padding-box]`.
 1024px에 비우려면
 `min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]`.
@@ -198,7 +229,11 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 
 각 breakpoint의 직전/정확한 경계/다음 구간에서 컴파일된 CSS와 렌더를 검증한다. 클래스
 문자열만 보고 통과했다고 말하지 않는다. 실제 AI 생성 실행 여부, 수동 매핑 fixture 결과,
-캔버스 비교 여부를 구분해서 보고한다. 실측 조건과 사례는 `docs/16-responsive-codegen-qa.md`에 있다.
+캔버스 비교 여부를 구분해서 보고한다. 실측 조건과 사례는
+[visual-spec-docs](../visual-spec-docs/SKILL.md)의 원문 획득 절차로
+`docs/16-responsive-codegen-qa.md`를 읽는다. 설치된 프로젝트에는 docs가 없으므로
+[저장소 원문](https://raw.githubusercontent.com/visual-spec-labs/Visual-Spec-Builder/develop/docs/16-responsive-codegen-qa.md)을
+가져온다. 읽지 못했으면 그 한계를 보고한다.
 
 ## 매핑 참고표
 
