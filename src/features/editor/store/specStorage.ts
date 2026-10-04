@@ -119,6 +119,7 @@ export interface Recovery {
   key: string;
   baseline: string | null;
   conflicted: boolean;
+  renameBaseline?: string | null;
 }
 export function readRecovery(): Recovery | undefined {
   try {
@@ -143,7 +144,10 @@ export function projectStorageKey(fileName: string | null, untitledId: string): 
 /** Rename publishes a redirect for old tabs; they must explicitly resolve their drafts. */
 export function publishProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string): void {
   try {
-    const raw = JSON.stringify({ fileName: newFileName, spec });
+    const target = projectStorageKey(newFileName, "");
+    const raw = JSON.stringify({ fileName: newFileName, spec,
+      cachedRevision: localStorage.getItem(target), revision: crypto.randomUUID() });
+    localStorage.setItem(`${target}:rename`, raw);
     localStorage.setItem(`${projectStorageKey(oldFileName, "")}:rename`, raw);
   } catch { /* Workspace rename already succeeded; in-memory document remains usable. */ }
 }

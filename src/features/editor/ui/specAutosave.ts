@@ -16,6 +16,7 @@ export function startSpecAutosave() {
   let key = recovery?.key ?? projectStorageKey(document.fileName, untitledId);
   let baseline = recovery ? recovery.baseline : read(key);
   let conflicted = recovery?.conflicted ?? false;
+  let renameBaseline = recovery?.renameBaseline ?? null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let generation = 0;
@@ -25,7 +26,7 @@ export function startSpecAutosave() {
     try { return localStorage.getItem(storageKey); } catch { return null; }
   }
   function preserve() {
-    return writeRecovery({ document, key, baseline, conflicted });
+    return writeRecovery({ document, key, baseline, conflicted, renameBaseline });
   }
   function pause() {
     conflicted = true;
@@ -34,7 +35,7 @@ export function startSpecAutosave() {
     useSaveConflictStore.setState({ paused: true });
   }
   function check() {
-    if (read(key) !== baseline || read(`${key}:rename`) !== null) pause();
+    if (read(key) !== baseline || read(`${key}:rename`) !== renameBaseline) pause();
     return conflicted;
   }
   async function flush() {
@@ -66,6 +67,7 @@ export function startSpecAutosave() {
       generation++;
       key = projectStorageKey(next.fileName, untitledId);
       baseline = read(key);
+      renameBaseline = read(`${key}:rename`);
       if (baseline !== null && baseline !== JSON.stringify(next)) pause();
     }
     document = next;
@@ -85,20 +87,22 @@ export function startSpecAutosave() {
     }
   }
   function loadLatest(): boolean {
-    const redirect = read(`${key}:rename`);
-    const raw = redirect ?? read(key);
-    let latest = parseStoredDocument(raw);
+    const notice = read(`${key}:rename`);
+    const redirect = notice !== renameBaseline ? notice : null;
+    let latest = parseStoredDocument(redirect ?? read(key));
     if (redirect !== null && latest) {
-      latest = parseStoredDocument(read(projectStorageKey(latest.fileName, untitledId))) ?? latest;
+      const cache = read(projectStorageKey(latest.fileName, untitledId));
+      const announcedCache: unknown = JSON.parse(redirect).cachedRevision;
+      if (cache !== announcedCache) latest = parseStoredDocument(cache) ?? latest;
     }
     if (!latest) return false;
     restoring = true;
     generation++;
     clearTimeout(timer);
-    const renamed = latest.fileName !== document.fileName;
     document = latest;
-    if (renamed) key = projectStorageKey(latest.fileName, untitledId);
-    baseline = renamed ? read(key) : raw;
+    key = projectStorageKey(latest.fileName, untitledId);
+    baseline = read(key);
+    renameBaseline = read(`${key}:rename`);
     conflicted = false;
     useEditorStore.getState().loadSpec(latest.spec);
     if (latest.fileName === null) useDocumentStore.getState().clearFileName();
@@ -108,7 +112,33 @@ export function startSpecAutosave() {
     useSaveConflictStore.setState({ paused: false });
     return true;
   }
-  useSaveConflictStore.setState({ paused: conflicted, loadLatest, check });
+  async function save(fileName: string, json: string, write: () => Promise<boolean>): Promise<boolean> {
+    const target = projectStorageKey(fileName, untitledId);
+    const raw = JSON.stringify({ fileName, spec: JSON.parse(json) });
+    if (typeof navigator === "undefined" || !navigator.locks) {
+      window.alert("안전한 탭 간 파일 저장을 사용할 수 없습니다. File → Export로 별도 다운로드하세요.");
+      return false;
+    }
+    try {
+      return await navigator.locks.request(target, async () => {
+        if (stopped || check()) return false;
+        const previous = read(target);
+        if (target !== key && previous !== null && previous !== raw) {
+          window.alert("다른 탭의 자동저장이 있는 파일입니다. 다른 파일명을 선택하거나 해당 프로젝트를 열어 충돌을 먼저 해결하세요.");
+          return false;
+        }
+        // Publish before the network write, under the same lock as autosave. A
+        // second tab pressing Save inside the debounce cannot pass a stale check.
+        localStorage.setItem(target, raw);
+        if (target === key) { baseline = raw; preserve(); }
+        return await write();
+      });
+    } catch {
+      window.alert("안전하게 저장할 수 없습니다. 초안은 유지됩니다. File → Export로 별도 다운로드하세요.");
+      return false;
+    }
+  }
+  useSaveConflictStore.setState({ paused: conflicted, loadLatest, check, save });
   if (!recovery && baseline !== null && baseline !== JSON.stringify(document)) pause();
   check();
   preserve();

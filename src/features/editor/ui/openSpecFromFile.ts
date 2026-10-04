@@ -1,3 +1,4 @@
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
@@ -17,6 +18,7 @@ import { SPEC_DIR } from "@/features/workspace/protocol";
  * **화면에 떠 있지도 않은 문서의 파일을 덮어쓴다.**
  */
 function loadSpecText(text: string, fileName: string): void {
+  if (useSaveConflictStore.getState().paused) return;
   const result = parseSpecJson(text);
   if (!result.ok) {
     window.alert(

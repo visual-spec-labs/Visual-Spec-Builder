@@ -6,4 +6,6 @@ export const useSaveConflictStore = create<{
   unavailable: boolean;
   loadLatest: () => boolean;
   check: () => boolean;
-}>(() => ({ paused: false, unavailable: false, loadLatest: () => false, check: () => false }));
+  save: (fileName: string, json: string, write: () => Promise<boolean>) => Promise<boolean>;
+}>(() => ({ paused: false, unavailable: false, loadLatest: () => false, check: () => false,
+  save: (_fileName, _json, write) => write() }));
