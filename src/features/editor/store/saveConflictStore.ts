@@ -6,6 +6,8 @@ export const useSaveConflictStore = create<{
   unavailable: boolean;
   loadLatest: () => boolean;
   check: () => boolean;
+  captureDocument: () => () => boolean;
+  adoptRename: (update: () => void) => void;
   save: (fileName: string, json: string, write: () => Promise<boolean>) => Promise<boolean>;
-}>(() => ({ paused: false, unavailable: false, loadLatest: () => false, check: () => false,
+}>(() => ({ paused: false, unavailable: false, loadLatest: () => false, check: () => false, captureDocument: () => () => true, adoptRename: (update) => update(),
   save: (_fileName, _json, write) => write() }));

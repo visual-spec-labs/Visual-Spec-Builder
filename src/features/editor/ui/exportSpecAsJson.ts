@@ -61,15 +61,17 @@ export function exportSpecAsJson(spec: ProjectSpec): ExportResult {
  * 갱신한다. 실패한 저장으로 이름을 바꾸면 그 뒤의 Save가 한 번도 써 본 적 없는
  * 파일을 향한다. 다운로드로 되돌아간 경우도 성공으로 친다(파일은 남았다).
  */
-async function saveToWorkspace(filename: string, json: string): Promise<boolean> {
+async function saveToWorkspace(filename: string, json: string, isCurrent: () => boolean): Promise<boolean> {
   if (!(await isWorkspaceAvailable())) {
+    if (!isCurrent()) return false;
     downloadJson(filename, json);
     return true;
   }
 
-  if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return false;
+  if (!isCurrent() || useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return false;
   const relativePath = `${SPEC_DIR}/${filename}`;
   return useSaveConflictStore.getState().save(filename, json, async () => {
+    if (!isCurrent()) return false;
     const written = await writeWorkspaceFile(relativePath, json, "application/json");
     if (!written.ok) {
       window.alert(`저장할 수 없습니다: ${written.error}`);
@@ -97,6 +99,7 @@ async function saveToWorkspace(filename: string, json: string): Promise<boolean>
  */
 export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> {
   if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return null;
+  const isCurrent = useSaveConflictStore.getState().captureDocument();
   const result = buildExportPayload(spec);
   if (!result.ok) {
     window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
@@ -104,7 +107,7 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
   }
 
   const filename = useDocumentStore.getState().fileName ?? result.filename;
-  if (await saveToWorkspace(filename, result.json)) {
+  if (await saveToWorkspace(filename, result.json, isCurrent) && isCurrent()) {
     useDocumentStore.getState().setFileName(filename);
   }
   return { ...result, filename };
@@ -119,6 +122,7 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
  */
 export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null> {
   if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return null;
+  const isCurrent = useSaveConflictStore.getState().captureDocument();
   const result = buildExportPayload(spec);
   if (!result.ok) {
     window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
@@ -132,7 +136,7 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
   }
 
   const filename = resolveFilename(chosenName, current);
-  if (await saveToWorkspace(filename, result.json)) {
+  if (await saveToWorkspace(filename, result.json, isCurrent) && isCurrent()) {
     useDocumentStore.getState().setFileName(filename);
   }
   return { ...result, filename };

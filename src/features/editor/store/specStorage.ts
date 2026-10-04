@@ -151,3 +151,8 @@ export function publishProjectRename(oldFileName: string, spec: ProjectSpec, new
     localStorage.setItem(`${projectStorageKey(oldFileName, "")}:rename`, raw);
   } catch { /* Workspace rename already succeeded; in-memory document remains usable. */ }
 }
+
+/** One envelope order for autosave, Save and post-Save-as identity comparisons. */
+export function serializeStoredDocument(document: StoredDocument): string {
+  return JSON.stringify({ fileName: document.fileName, spec: document.spec });
+}
