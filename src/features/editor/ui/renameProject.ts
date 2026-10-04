@@ -51,8 +51,10 @@ async function renameLocked(fileName: string, name: string, nextFileName: string
     }
     publishProjectRename(fileName, renamedDiskSpec, nextFileName);
     if (useDocumentStore.getState().fileName === fileName) {
-      useEditorStore.getState().renameProject(name);
-      useDocumentStore.getState().setFileName(nextFileName);
+      useSaveConflictStore.getState().adoptRename(() => {
+        useEditorStore.getState().renameProject(name);
+        useDocumentStore.getState().setFileName(nextFileName);
+      });
     }
     return { ok: true, path: `specs/${nextFileName}` };
   } catch {
