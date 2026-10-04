@@ -143,14 +143,14 @@ function FillItem({ fill, index, count, background, onCommit }: FillItemProps) {
             onCommit(setSolidColor(background, index, color), continueEdit)
           }
         />
-      ) : (
+      ) : fill.type === "linear" ? (
         <LinearFillFields
           fill={fill}
           index={index}
           background={background}
           onCommit={onCommit}
         />
-      )}
+      ) : <p>이미지 배경 (편집 UI는 후속 PR)</p>}
     </div>
   );
 }

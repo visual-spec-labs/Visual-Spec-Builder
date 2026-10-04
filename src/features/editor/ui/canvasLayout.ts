@@ -131,6 +131,8 @@ export function backgroundStyle(background: Background | undefined): CSSProperti
  */
 function fillLayer(fill: Fill): string {
   switch (fill.type) {
+    case "image":
+      return "none"; // #235 renderer integration follows the schema contract PR.
     case "solid":
       return `linear-gradient(${fill.color}, ${fill.color})`;
     case "linear": {

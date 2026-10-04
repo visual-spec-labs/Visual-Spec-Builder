@@ -92,7 +92,7 @@ export function changeFillType(
   type: FillType,
 ): Background | undefined {
   const fill = fillAt(current, index);
-  if (current === undefined || fill === undefined || fill.type === type) return current;
+  if (current === undefined || fill === undefined || fill.type === type || fill.type === "image" || type === "image") return current;
 
   const next: Fill =
     fill.type === "solid"
