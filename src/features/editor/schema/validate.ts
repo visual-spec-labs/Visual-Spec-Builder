@@ -1,3 +1,5 @@
+import { validateResponsive } from "./validateResponsive";
+
 import Ajv2020 from "ajv/dist/2020";
 import type { ErrorObject } from "ajv/dist/2020";
 
@@ -13,7 +15,12 @@ export type IssueCode =
   | "multiple-parents"
   | "orphan-node"
   | "page-order-mismatch"
-  | "gradient-stop-order";
+  | "gradient-stop-order"
+  | "responsive-breakpoint-missing"
+  | "responsive-node-missing"
+  | "responsive-duplicate-width"
+  | "responsive-node-property"
+  | "responsive-effective-node";
 
 export interface ValidationIssue {
   code: IssueCode;
@@ -316,6 +323,7 @@ export function validateVisualSpec(input: unknown): ValidationResult {
     const issues = [
       ...validateScreenReferences(screen, "/screen"),
       ...validateGradientStops(screen, "/screen"),
+      ...validateResponsive(screen, "/screen"),
     ];
     return { valid: issues.length === 0, issues };
   } catch {
@@ -408,6 +416,7 @@ export function validateProjectSpec(input: unknown): ValidationResult {
       issues.push(
         ...validateScreenReferences(page, pagePath),
         ...validateGradientStops(page, pagePath),
+        ...validateResponsive(page, pagePath),
       );
     }
 

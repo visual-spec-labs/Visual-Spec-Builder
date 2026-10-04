@@ -22,13 +22,13 @@
 - `border` (`align`, 모서리별 `radius` 포함)
 - `typography`
 - `shadow` · `opacity` · `blur`
+- `ScreenSpec.responsive` — 선택적 breakpoint·노드별 표현 override. 아래 반응형 확장 계약 참고.
 
 지원하지 않는다.
 
 - `component`
 - `event`
 - `token`
-- `responsive` — 표현 결정은 [12-responsive-ir-design.md](12-responsive-ir-design.md)에 기록했다. 현재 정본에는 여전히 없으며, 스키마 추가는 이 문서의 동결 변경 규칙을 따르는 별도 PR이다.
 - 배경의 `radial`·`image` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
@@ -60,6 +60,10 @@ import type {
   SolidFill,
   LinearFill,
   GradientStop,
+  Responsive,
+  Breakpoint,
+  NodeOverride, // FrameOverride | TextOverride | ImageOverride | ButtonOverride | InputOverride
+  PartialBox, PartialLayout, PartialPadding, PartialBorder, PartialRadius, PartialTypography,
 } from "@/features/editor/schema";
 ```
 
@@ -393,3 +397,37 @@ pnpm test
 ```
 
 `generate:types` 실행 후 `git diff`가 비어 있지 않다면 `types.ts`가 정본과 어긋난 것이다.
+
+
+## 반응형 선택 확장 — #222 PR 제안
+
+정본의 `ScreenSpec.responsive`를 선택 필드로 추가한다. **문서 버전 0.3 유지가 이 PR의
+리뷰 제안**이며, 최소 1명의 팀 승인 없이 병합하지 않는다. 기존 0.3 문서는 변환 없이 새
+검증기를 통과한다. 확장 전 0.3 validator는 `additionalProperties: false` 때문에
+`responsive`가 있는 새 문서를 거부한다. 같은 버전이라는 이유로 양방향 호환을 보장하지
+않는다. 기존 0.1/0.2 문서는 이전과 같이 입구에서 0.3 변환 후 검증한다.
+
+- 생략 시 기존 단일 레이아웃이다. 블록을 쓸 때 `breakpoints`와 `overrides` 두 맵은 필수이며
+  빈 맵은 허용한다. ID 형식은 NodeId와 같은 영문·숫자·밑줄·하이픈이다.
+- breakpoint 폭은 양의 CSS px이고 페이지 안에서 중복되지 않는다. 숫자 폭 오름차순으로
+  기본 노드 위에 override를 누적한다. 선언되지 않은 breakpoint나 없는 노드는 거부한다.
+- 타입별 `FrameOverride`, `TextOverride`, `ImageOverride`, `ButtonOverride`, `InputOverride`가
+  해당 노드에 정의된 표현 속성만 받는다. `shadow`는 이번 범위 밖이며 정체성·내용·트리는
+  바꿀 수 없다. 공통 `NodeOverride`는 이들 중 하나지만, 실제 노드 타입과의 대응은 의미
+  검증이 보장한다.
+- `PartialBox/Layout/Padding/Border/Radius/Typography`는 생략한 칸을 상속한다. **기본 노드의
+  필수 칸 규칙을 완화하지 않는다.** 모든 breakpoint 적용 결과가 완전한 노드여야 한다.
+  기반에 border가 없으면 `{border:{width:2}}`는 무효이고, color·radius도 제공해야 한다.
+  숫자 radius를 corner 객체로 바꾸면 네 모서리를 전부 제공해야 하며, 이미 corner 객체인
+  경우에는 한 모서리만 바꿀 수 있다. 숫자에서 다른 모서리 값을 추측하지 않는다.
+- 배열은 통째로 교체한다. `background: []`는 배경 제거, 생략은 상속이다. 개별 fill과
+  stop은 여전히 완전해야 하고 stop 오름차순 검사도 적용된다. `null` 삭제 연산은 없다.
+- 새 IssueCode: `responsive-breakpoint-missing`, `responsive-node-missing`,
+  `responsive-duplicate-width`, `responsive-node-property`, `responsive-effective-node`.
+  오류 경로는 `screen/responsive` 또는 `pages/<id>/responsive` 아래 override를 가리킨다.
+- 맵 키는 객체에서 고유하다. 원문 JSON에 같은 키를 두 번 썼는지는 `JSON.parse` 후에는
+  복원할 수 없어 이 객체 validator의 검증 범위 밖이다.
+
+`examples/responsive-cards.json`과 `test/responsive-schema.test.ts`가 계약 예제다.
+GUI·캔버스·Command 편집·코드 생성 지원은 #223/#224에서 별도로 구현한다. 현재 GUI가
+폭별로 그려 준다는 뜻은 아니다.

@@ -87,7 +87,7 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 - variants
 - states
 - slots
-- 반응형 IR 필드 — 설계는 [12-responsive-ir-design.md](12-responsive-ir-design.md)에 기록했으며, 정본 스키마 추가는 별도 PR로 진행한다.
+- 반응형 GUI·코드 생성 — IR 선택 필드는 아래 #222 PR 제안 절을 참조한다.
 - Tailwind 클래스 변환
 - React 코드 생성
 
@@ -119,3 +119,13 @@ interface ChildReference {
 - 페이지 내부에 ID를 중복 저장하지 않는다. 노드 ID와 같은 관용구다.
 - `pageOrder`는 `pages`의 key와 정확히 일치해야 한다.
   JSON Schema로는 표현할 수 없어 `validateProjectSpec`이 `page-order-mismatch`로 따로 잡는다.
+
+
+## 반응형 선택 필드 (#222 PR 제안)
+
+`ScreenSpec.responsive`에 페이지별 `breakpoints`(ID → `{minWidthPx}`)와
+`overrides`(breakpoint ID → node ID → 표현 속성의 부분값)를 둔다. 생략하면 기존 단일
+레이아웃이다. 각 객체의 필수 기반값은 `nodes`에 있고, 폭 오름차순으로 객체를 병합하며
+배열은 통째로 바꾼다. 문서 버전 0.3 유지의 호환성 제안과 타입별 제약은
+[동결 계약의 확장 절](06-schema-freeze.md#반응형-선택-확장--222-pr-제안)을 참조한다.
+GUI·반응형 코드 생성은 별도 후속 범위다.
