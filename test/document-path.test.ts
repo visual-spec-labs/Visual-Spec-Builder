@@ -18,7 +18,7 @@ import type { ProjectSpec, VisualSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { saveSpecToStorage } from "@/features/editor/store/specStorage";
-import { saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
+import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import {
@@ -402,5 +402,52 @@ describe("documentStore", () => {
 
     useDocumentStore.getState().clearFileName();
     expect(useDocumentStore.getState().fileName).toBeNull();
+  });
+});
+
+
+describe("JSON Export 검증 실패 알림 (#230)", () => {
+  it("무효 상태를 내보내면 원인과 위치를 알리고 다운로드하지 않는다", () => {
+    const project = structuredClone(dashboardSpec());
+    const page = project.pages[project.pageOrder[0]];
+    page.nodes[page.root].box.width = -1;
+    const createObjectURL = vi.spyOn(URL, "createObjectURL");
+    const result = exportSpecAsJson(project);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]).toContain(`검증 실패 ${result.issueCount}건`);
+      for (const issue of result.issues.slice(0, 3)) {
+        expect(alerts[0]).toContain(`${issue.path}: ${issue.message}`);
+      }
+      if (result.issueCount > 3) {
+        expect(alerts[0]).toContain(`외 ${result.issueCount - 3}건`);
+      }
+    }
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(specsDir()).toEqual([]);
+    createObjectURL.mockRestore();
+  });
+
+  it("유효한 스펙은 알림 없이 브라우저 다운로드하고 현재 문서명을 바꾸지 않는다", () => {
+    useDocumentStore.getState().setFileName("original.json");
+    const click = vi.fn();
+    const anchor = { href: "", download: "", click };
+    vi.stubGlobal("document", { createElement: () => anchor });
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:export");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    try {
+      const result = exportSpecAsJson(dashboardSpec());
+      expect(result.ok).toBe(true);
+      expect(anchor.download).toBe("Dashboard.json");
+      expect(click).toHaveBeenCalledOnce();
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:export");
+      expect(alerts).toEqual([]);
+      expect(specsDir()).toEqual([]);
+      expect(useDocumentStore.getState().fileName).toBe("original.json");
+    } finally {
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+    }
   });
 });

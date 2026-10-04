@@ -34,7 +34,9 @@ export function SegmentedControl<T extends string>({
               type="button"
               title={option.title}
               aria-pressed={active}
-              onClick={() => onChange(option.value)}
+              onClick={() => {
+                if (!active) onChange(option.value);
+              }}
               className={`flex flex-1 items-center justify-center rounded-control px-2 py-1 text-sm transition-colors ${
                 active
                   ? "bg-primary-subtle text-primary"
