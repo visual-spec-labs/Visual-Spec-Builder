@@ -12,9 +12,11 @@ vi.mock("@/features/editor/store/specStorage", async (original) => ({
 }));
 vi.mock("@/features/editor/ui/workspaceClient", () => ({ readWorkspaceTextFile: vi.fn() }));
 const fetchMock = vi.fn();
+const lockMock = vi.fn(async (_key: string, action: () => Promise<unknown>) => action());
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("navigator", { locks: { request: lockMock } });
   useEditorStore.getState().loadSpec(blankSpec);
   useDocumentStore.getState().setFileName("old.json");
   vi.mocked(readWorkspaceTextFile).mockResolvedValue(JSON.stringify(blankSpec));
@@ -78,6 +80,21 @@ describe("home rename", () => {
     expect(useEditorStore.getState()).toBe(before);
     expect(publishProjectRename).not.toHaveBeenCalled();
     expect(useDocumentStore.getState().fileName).toBe("old.json");
+  });
+  it("acquires sorted source and destination locks before reading disk", async () => {
+    await renameProject("old.json", "New");
+    expect(lockMock.mock.calls.map(([key]) => key)).toEqual([
+      "visual-spec:autosave:file:New.json", "visual-spec:autosave:file:old.json",
+    ]);
+    expect(lockMock.mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(readWorkspaceTextFile).mock.invocationCallOrder[0]);
+  });
+  it("refuses safely when Web Locks are unavailable", async () => {
+    vi.stubGlobal("navigator", {});
+    const before = useEditorStore.getState();
+    expect((await renameProject("old.json", "New")).ok).toBe(false);
+    expect(readWorkspaceTextFile).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(useEditorStore.getState()).toBe(before);
   });
   it("does not send invalid names or missing source", async () => {
     expect((await renameProject("old.json", "../New")).ok).toBe(false);
