@@ -20,7 +20,8 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
    실패하면 반환된 `issues`를 사용자에게 그대로 보여주고 **중단한다**. 임의로 고치지 않는다.
 3. **통과하면 아래 매핑 참고표를 따라 TSX 코드를 직접 작성한다.** 표에 없는 상황을 만나면
    판단해서 채우되, 왜 그렇게 했는지 한 줄로 밝힌다. 화면이 컴포넌트 여러 개로 쪼개질
-   상황이면 "컴포넌트 단위로 분리 생성한다" 절을 먼저 본다.
+   상황이면 "컴포넌트 단위로 분리 생성한다" 절을 먼저 본다. `screen.responsive`가 있으면
+   아래 반응형 절대로 기반과 모든 breakpoint를 함께 옮긴다.
 4. **고정 워크스페이스 경로에 쓴다.** 대상 프로젝트 구조를 분석하거나 사용자에게 위치를
    묻지 않는다. Visual Spec Builder는 라이브러리로 설치돼 프로젝트마다 폴더 구조가 다른
    상태로 쓰이므로, 대상 프로젝트에 의존하지 않는 도구 전용 경로에 쓴다.
@@ -122,6 +123,83 @@ import { Sidebar } from "../components/Sidebar";
   요청한 건 "버튼 색 바꿔줘" 하나인데 파일 전체를 다시 붙여 넣으면 실제로 뭐가
   바뀐 건지 찾기 어렵다.
 
+## 반응형 (`screen.responsive`)
+
+이 절은 #222의 선택적 반응형 스키마 계약을 사용하는 문서에 적용한다. 별도 변환 엔진이나
+대상 프로젝트 자동 분석 기능을 추가하지 않는다. `responsive`가 없으면 기존 매핑 그대로다.
+
+### 누적 값과 CSS 경계
+
+1. `responsive.breakpoints`를 **`minWidthPx` 숫자 오름차순**으로 정렬한다. ID의 이름이나
+   JSON 키 순서는 적용 순서가 아니다. `size.width`는 초기 아트보드 폭이며 breakpoint가 아니다.
+2. 기본 `nodes`에서 시작해 각 경계 이상(`>=`)에서 해당 override를 누적한다. 객체는 재귀
+   병합하고 **배열은 통째 교체**한다. 생략은 상속이다. `background: []`는 배경을 지운다.
+3. 각 구간의 **완성된 노드와 부모 레이아웃**을 매핑한 뒤 이전 구간과 달라진 CSS를 낸다.
+   override 키에 접두어만 붙이면 안 된다. 부모 row/column/grid 변화는 override가 없는
+   자식의 `fill` 해석도 바꾼다. 반복 컴포넌트의 인스턴스별 override가 다르면 정적인 전체
+   클래스 문자열을 props로 전달하는 등 차이를 보존한다. 한 인스턴스의 배경/폭을 공유하지 않는다.
+4. 기본은 `min-[768px]:gap-[16px]`, `min-[1024px]:gap-[24px]` 같은 **숫자 px variant**다.
+   ID가 `tablet`이어도 `md:`로 추측하지 않는다. 사용자에게 제공받은 대상 설정에서 named
+   variant의 실제 경계가 같은 CSS px임을 확인하고, 정렬도 같은 경우에만 그 이름을 쓸 수 있다.
+   `48rem`을 근거 없이 768px로 단정하지 않는다. 프로젝트를 자동 검색하거나 설정을 바꾸지 않는다.
+   한 화면에서 px/rem variant를 섞어 정렬을 추측하지 말고, 불확실하면 전부 숫자 px로 통일한다.
+5. Tailwind가 스캔할 수 있도록 **완전한 클래스 문자열을 리터럴로 쓴다**. 런타임에
+   `min-[${width}px]:...`처럼 조립하지 않는다. 사용자 제공 Tailwind 버전이 임의 min variant를
+   지원하지 않거나 복합 속성 reset을 확신할 수 없으면 아래 일반 CSS 방식으로 내보낸다.
+
+`examples/responsive-cards.json`의 root는 다음 클래스다. desktop가 JSON에서 먼저 선언돼도
+768px padding-left=32가 1024px에도 남고, 1024px에서 gap=32·배경 없음으로 바뀐다.
+
+```tsx
+<div className="flex flex-row gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full h-full min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]">{/* 자식들 */}</div>
+```
+
+### 배경 배열은 color와 image를 함께 교체한다
+
+배경은 CSS 속성 하나가 아니다. 앞선 폭의 클래스를 남긴 채 색만 바꾸면 기존 그라디언트가
+계속 위에 그려지고, gradient만 바꾸면 예전 단색이 투명 stop 아래에 남는다. **background
+배열을 override한 경계마다 아래 세 속성을 모두 설정한다.** background 생략에는 reset을
+내지 않는다. 아래 모든 클래스에 그 경계의 같은 접두어를 붙인다.
+
+| 새 배열 | background-color | background-image | background-origin |
+|---|---|---|---|
+| `[]` | `bg-transparent` | `bg-none` | `[background-origin:padding-box]` |
+| solid 한 겹 | `bg-[#...]` | `bg-none` | `[background-origin:padding-box]` |
+| 맨 아래 solid + 위 겹들 | 아래 solid의 `bg-[#...]` | 위 겹을 `bg-[image:...]` 하나로 | `bg-origin-border` |
+| 맨 아래가 linear인 한/여러 겹 | `bg-transparent` | 모든 겹을 `bg-[image:...]` 하나로 | `bg-origin-border` |
+
+예: gradient+solid에서 768px에 파란 solid로 바꾸려면
+`min-[768px]:bg-[#0000FF80] min-[768px]:bg-none min-[768px]:[background-origin:padding-box]`.
+1024px에 비우려면
+`min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]`.
+solid에서 gradient-only로 바꾸면 `min-[768px]:bg-transparent`도 반드시 낸다. 겹 순서·각도·
+stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background` shorthand와 개별 속성을
+섞지 않는다. base/override에 inline `style`로 배경을 두면 responsive 클래스보다 우선하므로 피한다.
+
+### 다른 속성의 reset과 일반 CSS 대안
+
+- 어떤 폭에서든 보이는 노드는 DOM에서 제거하지 않는다. 해당 폭만 `hidden`, 다시 보일 때
+  frame은 `flex`/`grid`, text는 `block`, button/input/image는 캔버스에 맞는 display로 복원한다.
+  `block`으로 frame의 flex/grid를 덮지 않는다. 숨은 부모의 자식도 마찬가지다.
+- row/column/grid 전환에는 컨테이너뿐 아니라 자식의 flex-grow/shrink/basis, width/height,
+  align-self와 최소 크기를 다시 매핑한다. 예전 `flex-1`/`self-stretch`가 더 이상 필요 없으면
+  `flex-[0_1_auto]`/`self-auto` 등의 reset을 명시한다. grid에서 flex로 돌아오면 grid columns도
+  해제한다. CSS가 바뀌지 않는 `box` 키도 부모 방향 때문에 다시 계산할 수 있다.
+- inside↔outside/center 테두리는 border-width와 합성 box-shadow를 함께 재계산한다.
+  border.radius 숫자↔객체 전환은 네 모서리 전체를 낸다. `opacity: 1`, `blur: 0`처럼 기본으로
+  돌아오는 값도 이전 효과를 제거하는 선언(`opacity-[1]`, `blur-none`)을 낸다.
+- 일반 CSS fallback은 화면/노드별로 충돌하지 않는 클래스를 만들고, 기본 규칙 뒤에
+  `@media (min-width: 768px)`, `@media (min-width: 1024px)`를 작은 폭부터 배치한다.
+  기반과 반응형이 같은 속성을 소유하게 하고, inline style·다른 레이어의 Tailwind 규칙과
+  우선순위를 다투게 두지 않는다. 배경은 `background-color`, `background-image`,
+  `background-origin`을 위 표의 값(`transparent`, `none`, `padding-box` 등)으로 모두 쓴다.
+  현재 Export가 별도 `.css` 파일을 수집한다고 가정하지 않는다. 필요하면 해당 TSX 안의
+  `<style>{정적인 CSS 문자열}</style>`로 포함하고, 동적 노드 이름을 CSS에 무검증 삽입하지 않는다.
+
+각 breakpoint의 직전/정확한 경계/다음 구간에서 컴파일된 CSS와 렌더를 검증한다. 클래스
+문자열만 보고 통과했다고 말하지 않는다. 실제 AI 생성 실행 여부, 수동 매핑 fixture 결과,
+캔버스 비교 여부를 구분해서 보고한다. 실측 조건과 사례는 `docs/16-responsive-codegen-qa.md`에 있다.
+
 ## 매핑 참고표
 
 강제 규격이 아니라 **일관성을 위한 기본값**이다. JSON에 없는 상황은 판단해서 채운다.
@@ -141,7 +219,7 @@ import { Sidebar } from "../components/Sidebar";
 | `layout.crossAxis` | `items-start`/`center`/`end`/`stretch` |
 | `background` = solid 한 겹 `[{ "type": "solid", "color": c }]` | `bg-[c]` (`bg-[#RRGGBB(AA)]`) |
 | `background` = 그 밖(여러 겹·`linear` 겹) | 맨 아래 solid는 `bg-[c]`, 나머지 겹은 `bg-[image:…]` 한 클래스 + `bg-origin-border`. 아래 "배경 채우기 (`background`)" 참고 |
-| `background` 생략·`[]` | 배경 클래스를 붙이지 않는다 |
+| 기반 `background` 생략·`[]` | 배경 클래스를 붙이지 않는다. 반응형 배열 교체는 아래 reset 규칙 사용 |
 | `border.width/color` | `border-[Npx] border-[#..]` — 단, `align`이 `inside`가 아니면 아래 "테두리 정렬" 참고 |
 | `border.radius` = `number` | `rounded-[Npx]` |
 | `border.radius` = 객체 | `rounded-[Apx_Bpx_Cpx_Dpx]` (좌상 · 우상 · 우하 · 좌하 순서) |
@@ -165,7 +243,7 @@ import { Sidebar } from "../components/Sidebar";
 | `ButtonNode.content` | 버튼의 텍스트 children |
 | `input` 노드 | `<input>` (자기닫힘 태그, children 없음) |
 | `InputNode.placeholder` | `placeholder` 속성 |
-| `visible: false` | 해당 노드와 자식은 코드에서 아예 제외한다 |
+| `visible: false` | 모든 폭에서 false일 때만 제외한다. 폭에 따라 보이면 DOM 유지 + 아래 반응형 display 규칙 |
 
 `fill`의 주축/교차축 판단: 부모 `layout.direction`이 `row`면 width가 주축, `column`이면 height가
 주축이다.
@@ -207,7 +285,8 @@ shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
    - 맨 아래 겹이 `linear` 면 `bg-[c]` 없이 전부 이 목록이다.
 3. **`bg-[image:…]` 를 냈으면 `bg-origin-border` 를 함께 붙인다**(`background-origin:
    border-box`). 이미지 겹이 테두리 밑까지 `background-color` 와 같은 상자에 걸린다.
-4. 생략·`[]` 면 배경 클래스를 하나도 붙이지 않는다.
+4. 기반 배경의 생략·`[]` 면 배경 클래스를 하나도 붙이지 않는다. **반응형 override의 `[]`는
+   앞선 배경을 지워야 하므로 아래 반응형 reset 규칙을 적용한다.**
 
 **클래스 글자는 캔버스 CSS 문자열의 공백을 `_` 로 바꾼 것이다.** 캔버스가
 `linear-gradient(180deg, #6366F1 0%, #8B5CF6 100%)` 를 그리면 클래스는
