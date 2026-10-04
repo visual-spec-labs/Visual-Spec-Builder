@@ -31,7 +31,9 @@ describe("compiler → ticket request → export 식별자 호환 (PR #237)", ()
       expect(ticket.componentName).toMatch(/^[A-Z][A-Za-z0-9]*$/);
       expect(ticket.id).toBe(ticket.componentName);
       for (const dependency of ticket.dependsOn) {
-        expect(tickets.findIndex((item) => item.id === dependency)).toBeLessThan(tickets.indexOf(ticket));
+        const dependencyIndex = tickets.findIndex((item) => item.id === dependency);
+        expect(dependencyIndex).toBeGreaterThanOrEqual(0);
+        expect(dependencyIndex).toBeLessThan(tickets.indexOf(ticket));
       }
     }
     expect(compileTickets(screen)).toEqual(tickets);
