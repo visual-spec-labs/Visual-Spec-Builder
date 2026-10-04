@@ -320,7 +320,7 @@ describe("applyCommand — updateNode", () => {
     { path: "layout.direction", value: "row" }, // LayoutSection
     { path: "layout.gap", value: 24 },
     { path: "layout.padding.top", value: 12 },
-    // BackgroundSection은 solidBackgroundPatch가 만든 배열을 통째로 넘긴다(#127).
+    // BackgroundSection은 backgroundPatch가 만든 배열을 통째로 넘긴다(#127).
     { path: "background", value: [{ type: "solid", color: "#123456" }] },
     // BorderSection은 mergeBorder가 만든 완전한 Border를 통째로 넘긴다.
     { path: "border", value: { width: 2, color: "#FF0000", radius: 8 } },
