@@ -21,6 +21,8 @@ export function buildGroupCommands(screen: ScreenSpec, id: NodeId) {
   // 부모가 grid여도 wrapper의 한 자식은 column으로 놓아 별도 열을 만들지 않는다.
   const node: FrameNode = {
     type: "frame", name: "Group", box: { ...screen.nodes[id].box },
+    // 자식만 숨기면 fixed/fill wrapper가 빈 공간을 차지한다. 숨김만 계승한다.
+    ...(screen.nodes[id].visible === false ? { visible: false } : {}),
     layout: {
       direction: at.parent.layout.direction === "row" ? "row" : "column",
       gap: 0, padding: { top: 0, right: 0, bottom: 0, left: 0 },

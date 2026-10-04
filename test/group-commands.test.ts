@@ -26,6 +26,35 @@ describe("단일 노드 Group / Ungroup (#225)", () => {
     expect(ungrouped).toEqual(original);
     expect(JSON.stringify(original)).toBe(before);
   });
+  it.each([240, "fill"] as const)("숨긴 %s 노드는 wrapper도 숨기고 해제·Undo로 복원한다", (width) => {
+    const fixture = structuredClone(seedSpec);
+    fixture.screen.nodes.cardA = { ...fixture.screen.nodes.cardA, visible: false,
+      box: { width, height: 100 } };
+    const store = useEditorStore;
+    store.getState().loadSpec(fixture);
+    const original = store.getState().spec;
+    store.getState().groupNode("cardA");
+    const groupId = store.getState().selectedId!;
+    const grouped = store.getState().spec;
+    expect(screen().nodes[groupId].visible).toBe(false);
+    expect(screen().nodes.cardA.visible).toBe(false);
+    expect(store.getState().history.past).toHaveLength(1);
+    store.getState().ungroupNode(groupId);
+    expect(store.getState().spec).toEqual(original);
+    expect(store.getState().history.past).toHaveLength(2);
+    store.getState().undo(); expect(store.getState().spec).toEqual(grouped);
+    store.getState().undo(); expect(store.getState().spec).toEqual(original);
+  });
+  it.each([true, undefined])("visible=%s의 wrapper는 기존처럼 표시 필드를 생략한다", (visible) => {
+    const original = screen();
+    const input = { ...original, nodes: { ...original.nodes,
+      cardA: { ...original.nodes.cardA, visible },
+    } };
+    const built = buildGroupCommands(input, "cardA")!;
+    const grouped = applyTransaction(input, built.commands);
+    expect(Object.hasOwn(grouped.nodes[built.selectedId], "visible")).toBe(false);
+    expect(grouped.nodes.cardA).toBe(input.nodes.cardA);
+  });
   it("여러 자식은 frame 위치부터 순서대로 꺼내며 자손을 지우지 않는다", () => {
     const original = screen();
     const result = applyTransaction(original, buildUngroupCommands(original, "content")!.commands);

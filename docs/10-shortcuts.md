@@ -252,7 +252,9 @@ Ungroup은 첫 자식을 선택한다(빈 frame이면 부모). root는 감싸거
 각각 Undo 한 번으로 되돌리며, 다중 선택 Group은 지원하지 않는다. 키를 누른 채 반복해도
 한 번만 실행하고 입력칸에서는 물러난다.
 
-새 frame은 원노드의 box를 복사하고 배경·테두리·여백·간격을 추가하지 않는다. 방향은
+새 frame은 원노드의 box를 복사하고 배경·테두리·여백·간격을 추가하지 않는다.
+원노드가 숨김(`visible: false`)이면 새 frame도 숨겨 빈 공간이 생기지 않게 한다.
+명시적 true와 생략 상태에는 새 frame의 visible 필드를 추가하지 않는다. 방향은
 부모 row면 row, column/grid면 column, 정렬은 start/stretch다. 한 자식 wrapper가 새 grid
 열이나 장식을 만들지 않게 한 기본값이다. 원노드의 속성은 그대로 보존한다.
 Group도 부모가 한 겹 늘어나므로 `fill` 형제의 padding 등 flex 크기 배분에 따라 너비가 달라질 수 있다.
