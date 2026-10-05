@@ -91,4 +91,4 @@ Visual Spec Builder는 기존 프로젝트의 폴더 구조와 공통 컴포넌�
 | [02-mvp-scope.md](02-mvp-scope.md) | 무엇을 만들고 무엇을 만들지 않는가 |
 | [03-user-flow.md](03-user-flow.md) | 사용자가 거치는 경로와 내부 구조 |
 | [04-gui-spec.md](04-gui-spec.md) | 홈화면과 에디터 화면 명세 |
-| [05-schema.md](05-schema.md) | JSON 스키마 v0.1 |
+| [05-schema.md](05-schema.md) | JSON 스키마 (현재 0.3) |
