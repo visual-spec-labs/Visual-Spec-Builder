@@ -7,6 +7,7 @@ body:
     attributes:
       value: |
         리팩토링 제안 감사합니다. 아래 항목을 작성해주세요.
+        제목은 `<접두어>: <무엇이 문제인지 또는 무엇이 없는지 한 문장> — <보충 맥락>` 형식으로 씁니다 (예: `refactor: Canvas.tsx가 1023줄이다 — '임시 스탠드인'을 정식으로 둘지 교체할지 정해야 한다`). 자세한 규칙은 [CONTRIBUTING.md](https://github.com/visual-spec-labs/Visual-Spec-Builder/blob/develop/CONTRIBUTING.md#이슈)에 있습니다.
 
   - type: textarea
     id: description
