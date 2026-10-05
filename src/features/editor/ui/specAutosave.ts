@@ -1,11 +1,12 @@
 import { migrateV01 } from "@/features/editor/schema";
+import { blankSpec } from "@/features/editor/store/blankSpec";
 import { readWorkspaceSpecSnapshot } from "./workspaceClient";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
+import { useSaveConflictStore, type PauseReason } from "@/features/editor/store/saveConflictStore";
 import {
-  serializeStoredDocument, parseStoredDocument, projectStorageKey, readRecovery, saveSpecToStorage,
+  serializeStoredDocument, parseStoredDocument, projectStorageKey, readRecovery, saveSpecToStorage, loadStoredSpec,
   writeRecovery, SPEC_STORAGE_KEY, type StoredDocument,
 } from "@/features/editor/store/specStorage";
 
@@ -26,25 +27,39 @@ export function startSpecAutosave() {
   let baseline = namedRecovery ? namedRecovery.baseline : read(key);
   let conflicted = recovery?.conflicted ?? false;
   let diskConflict = recovery?.diskConflict ?? false;
+  let pauseReason: PauseReason = recovery?.reason === "draft" ? "draft" : "remote";
   let renameBaseline = namedRecovery?.renameBaseline ?? null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let generation = 0;
   let restoring = false;
   let ownedTarget: { key: string; raw: string } | undefined;
+  // An untitled draft has no file to reopen it from; switching away must ask (#267).
+  // At startup the history is empty, so judge by content: anything restored from
+  // storage that is not a blank New may be the user's only copy.
+  let untitledEdited = document.fileName === null && loadStoredSpec() !== undefined &&
+    JSON.stringify(document.spec) !== JSON.stringify(migrateV01(blankSpec));
 
   function read(storageKey: string): string | null {
     try { return localStorage.getItem(storageKey); } catch { return null; }
   }
   function preserve() {
-    return writeRecovery({ document, key, baseline, conflicted, renameBaseline, diskConflict });
+    return writeRecovery({ document, key, baseline, conflicted, renameBaseline, diskConflict, reason: pauseReason });
   }
-  function pause(fromDisk = false) {
+  function pause(fromDisk = false, reason: PauseReason = "remote") {
     diskConflict ||= fromDisk;
     conflicted = true;
+    pauseReason = reason;
     clearTimeout(timer);
     preserve();
-    useSaveConflictStore.setState({ paused: true });
+    useSaveConflictStore.setState({ paused: true, reason });
+  }
+  // The autosave is an unsaved draft of the opened file only when it was based on
+  // the same disk revision. Otherwise the disk moved on too (#267 review): keep
+  // the conflict wording, whose default does not replace the newer disk content.
+  function draftOf(stored: string, opened: StoredDocument): PauseReason {
+    const revision = parseStoredDocument(stored)?.diskRevision;
+    return revision && revision === opened.diskRevision ? "draft" : "remote";
   }
   function check() {
     if (read(key) !== baseline || read(`${key}:rename`) !== renameBaseline) pause();
@@ -82,7 +97,7 @@ export function startSpecAutosave() {
       baseline = read(key);
       renameBaseline = read(`${key}:rename`);
       if (baseline !== null && baseline !== serializeStoredDocument(next) &&
-        !(ownedTarget?.key === key && ownedTarget.raw === baseline)) pause();
+        !(ownedTarget?.key === key && ownedTarget.raw === baseline)) pause(false, draftOf(baseline, next));
       ownedTarget = undefined;
     }
     document = next;
@@ -136,6 +151,7 @@ export function startSpecAutosave() {
     renameBaseline = read(`${key}:rename`);
     conflicted = false;
     diskConflict = false;
+    untitledEdited = latest.fileName === null;
     useEditorStore.getState().loadSpec(latest.spec);
     if (latest.fileName === null) useDocumentStore.getState().clearFileName();
     else useDocumentStore.getState().setFileName(latest.fileName, latest.diskRevision ?? null);
@@ -190,6 +206,30 @@ export function startSpecAutosave() {
       return false;
     }
   }
+  // New/Open/home replace the document synchronously, so a debounced draft would
+  // be dropped with the cancelled timer (#267). Persist it under the lock first.
+  async function settle(): Promise<boolean> {
+    if (!conflicted && read(key) !== serializeStoredDocument(document)) await flush();
+    if (stopped || conflicted || check()) return false;
+    if (document.fileName === null && untitledEdited) {
+      return window.confirm("저장하지 않은 제목 없는 문서입니다. 계속하면 이 문서의 내용은 다시 열 수 없습니다. 먼저 File → Save로 저장하려면 취소하세요.");
+    }
+    if (read(key) === serializeStoredDocument(document)) return true;
+    return window.confirm("현재 문서의 변경 내용을 자동저장하지 못했습니다. 계속하면 저장되지 않은 변경이 사라집니다. File → Export로 먼저 보관하려면 취소하세요.");
+  }
+  // The opened file is older than its autosave draft: keep the opened content and
+  // let the next autosave replace that draft. The dialog confirms the discard.
+  function discardDraft() {
+    conflicted = false;
+    diskConflict = false;
+    baseline = read(key);
+    renameBaseline = read(`${key}:rename`);
+    preserve();
+    useSaveConflictStore.setState({ paused: false });
+    clearTimeout(timer);
+    timer = setTimeout(() => { void flush(); }, 500);
+  }
+  const readDraft = () => parseStoredDocument(read(key))?.spec;
   const captureDocument = () => {
     const expectedGeneration = generation;
     return () => !stopped && generation === expectedGeneration;
@@ -206,8 +246,8 @@ export function startSpecAutosave() {
     clearTimeout(timer);
     if (!conflicted) timer = setTimeout(() => { void flush(); }, 500);
   };
-  useSaveConflictStore.setState({ paused: conflicted, loadLatest, check, pause, save, captureDocument, adoptRename });
-  if (!recovery && baseline !== null && baseline !== serializeStoredDocument(document)) pause();
+  useSaveConflictStore.setState({ paused: conflicted, reason: pauseReason, loadLatest, check, pause, save, settle, discardDraft, readDraft, captureDocument, adoptRename });
+  if (!recovery && baseline !== null && baseline !== serializeStoredDocument(document)) pause(false, draftOf(baseline, document));
   check();
   preserve();
   const unsubscribeSpec = useEditorStore.subscribe((s, prev) => {
@@ -215,13 +255,14 @@ export function startSpecAutosave() {
       // loadSpec/New/Open reset history; edits and undo/redo retain a history side.
       if (!restoring && s.history.past.length === 0 && s.history.future.length === 0) {
         generation++;
+        untitledEdited = false;
         if (useDocumentStore.getState().fileName === null) {
           untitledId = crypto.randomUUID();
           key = projectStorageKey(null, untitledId);
           baseline = null;
           renameBaseline = null;
         }
-      }
+      } else if (!restoring) untitledEdited = true;
       changed();
     }
   });

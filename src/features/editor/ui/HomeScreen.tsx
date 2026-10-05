@@ -9,6 +9,7 @@ import type {
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
@@ -84,15 +85,16 @@ export function HomeScreen() {
   // "+ 새 화면"도 File ▸ New와 같은 동작이다 — 빈 스펙을 열고 **현재 문서 이름을
   // 비운다**(PR #145 리뷰). 비우지 않으면 새로 만든 화면의 Save가 직전에 열어 둔
   // 파일을 덮어쓴다. 둘이 같은 동작이라 정의는 ui/newSpec.ts 한 곳에 있다.
-  function handleNewScreen() {
-    newSpec();
-    openEditor();
+  async function handleNewScreen() {
+    if (await newSpec()) openEditor();
   }
 
   // 카드는 목록을 만들 때 이미 내용을 읽어 뒀다 — 다시 읽지 않고 그 spec을 그대로
   // loadSpec에 넘긴다. setFileName으로 "지금 연 파일"을 기억시켜야 그 뒤의
   // File ▸ Save가 이 파일에 그대로 쓴다(documentStore.ts, 이슈 #185).
-  function handleOpenProject(project: HomeProject) {
+  // 갈아 끼우기 전에 현재 문서의 대기 중 자동저장을 먼저 끝낸다(#267).
+  async function handleOpenProject(project: HomeProject) {
+    if (!await useSaveConflictStore.getState().settle()) return;
     useEditorStore.getState().loadSpec(project.spec);
     useDocumentStore.getState().setFileName(project.fileName, project.diskRevision);
     openEditor();
@@ -137,7 +139,7 @@ export function HomeScreen() {
       : state.projects.map((project) => ({
           key: project.fileName,
           spec: project.spec,
-          onOpen: () => handleOpenProject(project),
+          onOpen: () => void handleOpenProject(project),
           onRename: () => void handleRename(project),
         }));
 
@@ -151,7 +153,7 @@ export function HomeScreen() {
         <div className="flex w-full max-w-sm flex-col divide-y divide-line overflow-hidden rounded-panel border border-line bg-surface">
           <button
             type="button"
-            onClick={handleNewScreen}
+            onClick={() => void handleNewScreen()}
             className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
           >
             <span className="text-sm font-medium text-content-strong">자연어로 초안 만들기</span>
@@ -159,7 +161,7 @@ export function HomeScreen() {
           </button>
           <button
             type="button"
-            onClick={handleNewScreen}
+            onClick={() => void handleNewScreen()}
             className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
           >
             <span className="text-sm font-medium text-content-strong">빈 캔버스에서 시작</span>
@@ -189,7 +191,7 @@ export function HomeScreen() {
         </div>
         <button
           type="button"
-          onClick={handleNewScreen}
+          onClick={() => void handleNewScreen()}
           className="rounded-control bg-primary px-3 py-1.5 text-sm font-medium text-text-on-accent hover:opacity-90"
         >
           + 새 화면
