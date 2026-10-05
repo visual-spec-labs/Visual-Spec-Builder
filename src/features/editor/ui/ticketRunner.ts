@@ -17,6 +17,7 @@
  * 직접 읽고 쓴다.
  */
 
+import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import {
   createTicketRequestId,
@@ -33,6 +34,21 @@ import type { Ticket } from "@/features/editor/ticket/types";
 
 /** 진행 중인 웨이브의 취소 토큰. 없으면(null) 아무 웨이브도 돌고 있지 않다. */
 let activeCancel: TicketCancelToken | null = null;
+
+export const STALE_TICKET_MESSAGE = "화면이 바뀌었습니다. 현재 스펙으로 티켓을 다시 생성해야 실행할 수 있습니다.";
+
+/**
+ * 티켓을 만든 뒤 편집·페이지 전환·문서 전환이 있었으면 true다(이슈 #271).
+ *
+ * 편집과 문서 전환은 모두 페이지 객체를 새로 만들므로 참조 비교로 충분하다. 패널의
+ * 안내문만으로는 막지 못한다 — 버튼이 아닌 경로(다음 웨이브 자동 이어가기, 다른
+ * 호출자)도 낡은 `sourcePage`를 요청 파일에 그대로 쓴다.
+ */
+export function isTicketPlanStale(): boolean {
+  const { sourcePageId, sourcePage } = useTicketStore.getState();
+  const { activePageId, spec } = useEditorStore.getState();
+  return sourcePageId !== activePageId || sourcePage !== spec.pages[activePageId];
+}
 
 function revertToPending(waveTickets: Ticket[]): void {
   useTicketStore.setState((state) => ({
@@ -60,6 +76,16 @@ function revertToPending(waveTickets: Ticket[]): void {
 async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   const { sourcePageId, sourcePage, generation } = useTicketStore.getState();
   if (sourcePageId === null || sourcePage === null || waveTickets.length === 0) return;
+  // 첫 웨이브와 자동으로 이어지는 다음 웨이브 모두 여기서 막는다(#271). 응답을 기다리는
+  // 동안 편집했다면 이미 받은 결과는 그 요청(이전 스펙)의 사실이라 반영하지만, 바뀐
+  // 화면을 이전 스펙으로 이어서 구현하지는 않는다. 안내는 `runError`에 남기지 않는다 —
+  // Undo로 같은 페이지 객체에 돌아오면 다시 실행할 수 있으므로, 패널이 현재 낡음을
+  // 매번 계산해 보여준다.
+  if (isTicketPlanStale()) {
+    activeCancel = null;
+    useTicketStore.setState({ running: false, runError: null });
+    return;
+  }
 
   const cancelToken: TicketCancelToken = { cancelled: false };
   activeCancel = cancelToken;

@@ -4,7 +4,12 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { isReady, readyTickets } from "@/features/editor/ticket/ticketStatus";
 import type { TicketStatus } from "@/features/editor/ticket/types";
-import { cancelTicketRun, runAllTickets, runOneTicket } from "@/features/editor/ui/ticketRunner";
+import {
+  cancelTicketRun,
+  runAllTickets,
+  runOneTicket,
+  STALE_TICKET_MESSAGE,
+} from "@/features/editor/ui/ticketRunner";
 import { isWorkspaceAvailable } from "@/features/editor/ui/workspaceClient";
 
 const STATUS_LABEL: Record<TicketStatus, string> = {
@@ -71,7 +76,7 @@ export function TicketPanel() {
           <button
             type="button"
             onClick={() => (running ? cancelTicketRun() : void runAllTickets())}
-            disabled={!running && readyWave.length === 0}
+            disabled={!running && (readyWave.length === 0 || isStale)}
             className="rounded-control border border-line px-2 py-1 text-xs text-content hover:bg-hover disabled:opacity-50"
           >
             {running ? "중지" : "전체 실행"}
@@ -101,7 +106,7 @@ export function TicketPanel() {
 
       {isStale && (
         <p className="border-b border-line bg-surface-raised px-3 py-2 text-xs text-content-muted">
-          화면이 바뀌었습니다. 현재 스펙으로 티켓을 다시 생성해야 실행할 수 있습니다.
+          {STALE_TICKET_MESSAGE}
         </p>
       )}
 
@@ -181,7 +186,7 @@ export function TicketPanel() {
 
       <p role="status" aria-live="polite" className="border-t border-line px-3 py-2 text-xs">
         {workspaceAvailable === true ? (
-          runError !== null ? (
+          runError !== null && !isStale ? (
             <span className="text-error">{runError}</span>
           ) : (
             <span className="text-content-subtle">
