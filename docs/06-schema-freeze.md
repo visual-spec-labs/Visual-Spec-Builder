@@ -29,7 +29,7 @@
 - `component`
 - `event`
 - `token`
-- 배경의 `radial` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
+- 배경의 `radial` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). `image` 겹도 정본(#254)·편집·렌더·Export(#257)가 지원한다(아래 "이미지 배경 추가 계약" 절). 둘 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
 `instance`, `props`, `bindings`, `variants`, `states`, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
@@ -431,11 +431,13 @@ pnpm test
   복원할 수 없어 이 객체 validator의 검증 범위 밖이다.
 
 `examples/responsive-cards.json`과 `test/responsive-schema.test.ts`가 계약 예제다.
-GUI·캔버스·Command 편집·코드 생성 지원은 #223/#224에서 별도로 구현한다. 현재 GUI가
-폭별로 그려 준다는 뜻은 아니다.
+GUI·캔버스·Command 편집·코드 생성 지원은 #223/#224에서 별도로 구현했다(#247·#248·#252 병합).
+이 절은 스키마 계약만 다룬다.
 
 
 ## 이미지 배경 추가 계약 (#235, 팀 리뷰 필요)
+
+현재 상태: 아래 계약은 스키마 #254와 기능 #257로 병합됐다. 향후 계약 변경의 리뷰 규칙은 유지한다.
 
 `Fill`에 `{ type: "image", src, fit }`를 추가한다. `fit`은 `cover`·`contain`·`fill`
 셋뿐이며 중앙 정렬·반복 없음이다. frame/button/input 및 해당 responsive background

@@ -110,8 +110,8 @@ radius 8px였다. 실제 로그인 인증·비밀번호 마스킹은 스펙 범�
 코드 기준은 develop `809b897390c9aa570479bfe48a3bae873cd09ac9`(#258·#259 포함)이다.
 두 PR은 최신 HEAD의 로컬 검사·원격 CI와 병합 뒤 develop CI까지 통과했다.
 타입 검사·린트·빌드·생성 타입 일치, 전체 86파일 1,456테스트를 확인했다.
-저장/rename의 Chromium 회귀는 [저장 충돌](tab-save-conflicts.md)과
-[이름 변경 QA](project-file-rename-qa.md)에 따로 적었다.
+저장/rename의 Chromium 회귀는 [저장 충돌](qa/tab-save-conflicts.md)과
+[이름 변경 QA](qa/project-file-rename-qa.md)에 따로 적었다.
 
 별도 쓰기 가능한 `/workspace/vsb-real-ai-qa`에서 실행했다.
 

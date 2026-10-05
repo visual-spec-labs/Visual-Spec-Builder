@@ -7,7 +7,7 @@ TypeScript 테스트 프로젝트의 include/exclude 충돌은 양쪽 목록의 
 타입 검사·린트·production build·생성 타입 일치가 통과했다. 전체 Vitest는
 86파일 1,456테스트 통과, 선택적 반응형 브라우저 테스트 1개 제외다.
 #258의 실제 Chromium 저장 보호 8개 시나리오를 통합 코드에서 다시 실행해 통과했다.
-[저장 충돌 기록](tab-save-conflicts.md)에 정상 동작과 실패 주입 범위를 설명한다.
+[저장 충돌 기록](./tab-save-conflicts.md)에 정상 동작과 실패 주입 범위를 설명한다.
 
 추가 Chromium 검증:
 
