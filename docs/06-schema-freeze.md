@@ -18,7 +18,7 @@
 - `input`
 - `layout` (`direction`: `row` | `column` | `grid`)
 - `box`
-- `background` (채우기 겹 배열 `Fill[]` — `solid`·`linear`. 0.3부터, 아래 "v0.3" 절)
+- `background` (채우기 겹 배열 `Fill[]` — `solid`·`linear`·`image`. 0.3부터, 아래 "v0.3" 절)
 - `border` (`align`, 모서리별 `radius` 포함)
 - `typography`
 - `shadow` · `opacity` · `blur`
@@ -29,7 +29,7 @@
 - `component`
 - `event`
 - `token`
-- 배경의 `radial`·`image` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
+- 배경의 `radial` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
 `instance`, `props`, `bindings`, `variants`, `states`, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
@@ -56,7 +56,7 @@ import type {
   ButtonNode,
   InputNode,
   Background,    // Fill[] — 0.3
-  Fill,          // SolidFill | LinearFill
+  Fill,          // SolidFill | LinearFill | ImageFill
   SolidFill,
   LinearFill,
   GradientStop,
@@ -149,7 +149,7 @@ v0.1 타입으로 아래 GUI 조작 결과를 저장할 수 있다. 예제와 �
 - **`fontWeight`의 100 단위 제약.** JSON Schema는 강제하지만 생성된 TS 타입은 `number`다. 타입만으로는 못 막으니 `validateVisualSpec`을 거쳐야 한다.
 - **편집 연산.** 노드 추가·삭제·이동·재부모화 함수는 없다. 지금은 각 화면이 직접 `nodes`를 다루므로 불변조건을 깨뜨릴 수 있다. `validateVisualSpec`은 예방 수단이 아니라 최후 방어선이다.
 - **`ImageNode.src`가 가리키는 워크스페이스 assets 저장소.** 스키마는 문자열 참조만 정의한다. 실제로 파일을 어디에 저장하고 `src` 값을 어떻게 채우는지는 Import 기능 쪽 책임이다. **이 항목은 2026-09-18 이슈 #133으로 해소됐다** — 아래 "assets 저장소 연결" 참고.
-- **Grid의 셀 배치.** `layout.columns`만큼 균등한 열로 자동 배치할 뿐, 특정 자식을 특정 셀·여러 칸에 놓는 기능은 없다. `mainAxis`/`crossAxis`는 grid에서 무시된다. Canvas.tsx가 "임시 스탠드인"이라 정식 grid 배치는 그 교체 작업과 함께 다시 다룬다.
+- **Grid의 셀 배치.** `layout.columns`만큼 균등한 열로 자동 배치할 뿐, 특정 자식을 특정 셀·여러 칸에 놓는 기능은 없다. `mainAxis`/`crossAxis`는 grid에서 무시된다. 현재 DOM 렌더러를 유지한다(#236). 명시적 grid 셀 배치는 별도 스키마 설계·팀 리뷰가 필요하다.
 - **Button/Input의 상호작용.** `content`/`placeholder`는 표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은 이벤트·바인딩은 정의하지 않는다. props/bindings는 MVP 제외 범위(`docs/05-schema.md`)에 그대로 속한다.
 
 ---
@@ -431,3 +431,22 @@ pnpm test
 `examples/responsive-cards.json`과 `test/responsive-schema.test.ts`가 계약 예제다.
 GUI·캔버스·Command 편집·코드 생성 지원은 #223/#224에서 별도로 구현한다. 현재 GUI가
 폭별로 그려 준다는 뜻은 아니다.
+
+
+## 이미지 배경 추가 계약 (#235, 팀 리뷰 필요)
+
+`Fill`에 `{ type: "image", src, fit }`를 추가한다. `fit`은 `cover`·`contain`·`fill`
+셋뿐이며 중앙 정렬·반복 없음이다. frame/button/input 및 해당 responsive background
+전체 배열에서 같은 계약을 쓴다. repeat와 위치 조절은 이번 범위에 없다.
+
+`src`는 기존 ImageNode처럼 비지 않은 문자열이며 assets 상대 경로, assetId, 기존 data URI를
+보존한다. assetId는 기존 경로 해석과 동일하게 다룬다(별도 자산 레지스트리 없음).
+ImageNode 자체를 배경으로 삽입하지 않는다. leaf 노드의 box/선택/자식 구조와 배경 겹은
+역할이 다르므로 src/fit 및 이미지 URL 해석만 공유한다.
+
+추가 유니온 갈래이므로 version은 0.3을 유지한다. 기존 0.3 solid/linear 문서는 변경하지
+않으며 `migrateToV03`의 기존 0.1/0.2 단색 마이그레이션도 유지한다. 구버전 앱은 image
+갈래를 읽지 못하므로 이미지 배경을 사용한 파일은 새 버전에서 연다.
+
+**정본·생성 타입·계약 테스트 PR은 기능 PR과 분리하고 병합 전에 팀 스키마 리뷰가 필요하다.**
+스키마 PR의 기존 UI 타입 가드는 후속 기능 PR의 renderer/편집 지원을 대신하지 않는다.

@@ -73,7 +73,8 @@ export function imageUrlCss(src: string): string {
   // 따옴표 안에서 뜻을 갖는 두 글자만 막으면 된다. 역슬래시를 먼저 바꿔야
   // 따옴표 이스케이프가 무효화되지 않는다.
   const escaped = resolveImageSrc(src).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  return `url("${escaped}")`;
+  const singleLine = escaped.replace(/[\n\r\f]/g, (character) => `\\${character.charCodeAt(0).toString(16)} `);
+  return `url("${singleLine}")`;
 }
 
 /**

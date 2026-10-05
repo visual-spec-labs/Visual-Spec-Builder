@@ -12,6 +12,7 @@ import {
   type FillType,
 } from "./backgroundPatch";
 import { addButtonClass, iconButtonClass } from "./fillButtons";
+import { ImageFillFields } from "./ImageFillFields";
 import { LinearFillFields } from "./LinearFillFields";
 import { PropertySection } from "./PropertySection";
 import { useNodeField } from "./useNodeField";
@@ -20,6 +21,7 @@ import { ColorField, FieldLabel, SegmentedControl } from "./fields";
 const FILL_TYPE_OPTIONS = [
   { value: "solid", content: "단색", title: "단색 (solid)" },
   { value: "linear", content: "선형", title: "선형 그라디언트 (linear)" },
+  { value: "image", content: "이미지", title: "이미지 배경 (image)" },
 ] as const;
 
 /**
@@ -143,14 +145,14 @@ function FillItem({ fill, index, count, background, onCommit }: FillItemProps) {
             onCommit(setSolidColor(background, index, color), continueEdit)
           }
         />
-      ) : (
+      ) : fill.type === "linear" ? (
         <LinearFillFields
           fill={fill}
           index={index}
           background={background}
           onCommit={onCommit}
         />
-      )}
+      ) : <ImageFillFields fill={fill} index={index} background={background} onCommit={onCommit} />}
     </div>
   );
 }

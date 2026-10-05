@@ -25,8 +25,8 @@ import { imageUrlCss } from "./properties/imageSrc";
  * 그 차이조차 실질적이지 않다.
  *
  * **합칠지는 별도로 판단한다.** 합치면 미리보기가 캔버스 렌더러의 변경을 그대로
- * 받게 되는데, `Canvas.tsx` 가 정식 구현으로 교체될 예정이라 그때 함께 보는 편이
- * 낫다. 지금 섣불리 합쳤다가 교체 작업에서 다시 갈라야 할 수 있다.
+ * 받게 된다. #236은 현재 DOM 렌더러를 유지하고 역할만 분리한다.
+ * 홈 미리보기와 편집기 스타일 통합은 이번 순수 이동의 범위 밖이다.
  */
 
 const MAIN_AXIS: Record<string, CSSProperties["justifyContent"]> = {

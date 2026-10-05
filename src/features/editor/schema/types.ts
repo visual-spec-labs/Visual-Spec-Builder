@@ -8,9 +8,9 @@ export type Node = FrameNode | TextNode | ImageNode | ButtonNode | InputNode;
  */
 export type Size = number | ("auto" | "fill");
 /**
- * 채우기 겹 하나. 종류는 type으로 가른다. radial·image는 아직 없다 — 나중에 갈래를 더해도 기존 문서는 깨지지 않는다.
+ * 채우기 겹 하나. 종류는 type으로 가른다. radial은 아직 없다 — 나중에 갈래를 더해도 기존 문서는 깨지지 않는다.
  */
-export type Fill = SolidFill | LinearFill;
+export type Fill = SolidFill | LinearFill | ImageFill;
 /**
  * #RRGGBB 또는 #RRGGBBAA
  */
@@ -143,6 +143,14 @@ export interface GradientStop {
    * 그라디언트 선 위의 위치. 0 = 시작, 1 = 끝. CSS로 옮길 때 at × 100%다.
    */
   at: number;
+}
+/**
+ * 이미지 배경. ImageNode와 같은 src 및 fit 계약. 중앙 정렬, 반복 없음. 기존 0.3 문서를 보존하는 추가 갈래다.
+ */
+export interface ImageFill {
+  type: "image";
+  src: string;
+  fit: "cover" | "contain" | "fill";
 }
 /**
  * MVP는 solid 고정, 네 모서리 균일

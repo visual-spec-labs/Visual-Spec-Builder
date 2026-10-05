@@ -109,14 +109,28 @@ export function packageNameOf(specifier: string): string {
  * **내보낸 폴더에서는 `../assets/`가 맞는 표기가 된다** — ZIP은 `pages/`·`components/`
  * 옆에 `assets/`를 나란히 담기 때문이다(`bundle.ts`).
  */
-const ASSET_REFERENCE = /(?:\.\.\/)+assets\/([^"'`\s)]+)/g;
+const ASSET_REFERENCE = /(?:\.\.\/)+assets\/([^"'`\s)\\]+)/g;
 
 export function scanAssetReferences(source: string): string[] {
   const names = new Set<string>();
+  // A generated JS string may escape CSS delimiters (url(\"…\")); the opposite
+  // quote is a valid filename character. Match the same delimiter at both ends.
+  const remaining = source.replace(/url\(\s*(\\?["'])(.*?)\1\s*\)/g,
+    (_match, _quote: string, path: string) => {
+      if (/^(?:\.\.\/)+assets\//.test(path)) {
+        names.add(decodeAssetName(path.replace(/^(?:\.\.\/)+assets\//, "")));
+      }
+      return "";
+    });
   ASSET_REFERENCE.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = ASSET_REFERENCE.exec(source)) !== null) {
-    names.add(match[1]);
+  while ((match = ASSET_REFERENCE.exec(remaining)) !== null) {
+    names.add(decodeAssetName(match[1]));
   }
   return [...names];
+}
+
+/** Generated asset URLs encode each filename segment; the workspace list holds raw names. */
+function decodeAssetName(name: string): string {
+  try { return decodeURIComponent(name); } catch { return name; }
 }

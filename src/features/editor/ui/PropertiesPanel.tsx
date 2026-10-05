@@ -1,3 +1,5 @@
+import { ResponsivePanel } from "@/features/editor/responsive/ResponsivePanel";
+import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 
 import { ExportJsonButton } from "./properties/ExportJsonButton";
@@ -16,6 +18,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 /** 노드 이름 + 타입 배지 + 표시 토글. 패널 맨 위 공통 영역. */
 function NodeHeader({ typeLabel }: { typeLabel: string }) {
+  const { breakpoint } = useResponsiveScreen();
   const [name, setName] = useNodeField<string>("name");
   const [visible, setVisible] = useNodeField<boolean>("visible");
 
@@ -25,6 +28,7 @@ function NodeHeader({ typeLabel }: { typeLabel: string }) {
         <input
           type="text"
           aria-label="노드 이름"
+          disabled={breakpoint !== null}
           value={name ?? ""}
           onChange={(event) => setName(event.target.value)}
           className="min-w-0 flex-1 rounded-control border border-transparent px-1.5 py-1 text-sm font-semibold text-content hover:border-line focus:border-primary focus:outline-none"
@@ -40,6 +44,7 @@ function NodeHeader({ typeLabel }: { typeLabel: string }) {
 
 /** 우측 세부설정 패널 — 선택 노드의 속성을 편집한다. */
 export function PropertiesPanel() {
+  const { breakpoint, pageId } = useResponsiveScreen();
   const selectedId = useEditorStore((state) => state.selectedId);
   const page = useEditorStore((state) => state.spec.pages[state.activePageId]);
   const node = selectedId === null ? undefined : page.nodes[selectedId];
@@ -57,11 +62,12 @@ export function PropertiesPanel() {
           Properties
         </h2>
       ) : (
-        <NodeHeader typeLabel={TYPE_LABEL[node.type] ?? node.type} />
+        <NodeHeader key={`${pageId}:${breakpoint}`} typeLabel={TYPE_LABEL[node.type] ?? node.type} />
       )}
 
       <div className="flex-1 overflow-auto">
-        {showPage ? <PageProperties /> : null}
+        <ResponsivePanel key={pageId} />
+        {showPage && !breakpoint ? <PageProperties /> : null}
 
         {node === undefined || selectedId === null ? (
           <p className="p-4 text-sm text-content-subtle">
@@ -69,7 +75,7 @@ export function PropertiesPanel() {
           </p>
         ) : (
           // 타입별 분기는 여기 없다 — properties/nodeSections.ts 의 표가 정한다(#92).
-          <NodeSectionList type={node.type} selectedId={selectedId} />
+          <NodeSectionList key={`${pageId}:${breakpoint}:${selectedId}`} type={node.type} selectedId={selectedId} />
         )}
       </div>
 

@@ -1,0 +1,446 @@
+{
+  "version": "0.3",
+  "screen": {
+    "name": "Image background",
+    "size": {
+      "width": 1440,
+      "height": 900
+    },
+    "root": "root",
+    "nodes": {
+      "root": {
+        "type": "frame",
+        "name": "Screen",
+        "box": {
+          "width": "fill",
+          "height": "fill"
+        },
+        "layout": {
+          "direction": "column",
+          "gap": 0,
+          "padding": {
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "background": [
+          {
+            "type": "solid",
+            "color": "#FFFFFF"
+          }
+        ],
+        "children": [
+          {
+            "node": "hero"
+          },
+          {
+            "node": "content"
+          }
+        ]
+      },
+      "hero": {
+        "type": "frame",
+        "name": "Hero",
+        "box": {
+          "width": "fill",
+          "height": 520
+        },
+        "layout": {
+          "direction": "column",
+          "gap": 24,
+          "padding": {
+            "top": 96,
+            "right": 120,
+            "bottom": 96,
+            "left": 120
+          },
+          "mainAxis": "center",
+          "crossAxis": "start"
+        },
+        "background": [
+          {
+            "type": "linear",
+            "angle": 180,
+            "stops": [
+              {
+                "color": "#0F172A00",
+                "at": 0
+              },
+              {
+                "color": "#0F172ACC",
+                "at": 1
+              }
+            ]
+          },
+          {
+            "type": "image",
+            "src": "assets/hero.png",
+            "fit": "cover"
+          }
+        ],
+        "children": [
+          {
+            "node": "heroEyebrow"
+          },
+          {
+            "node": "heroTitle"
+          },
+          {
+            "node": "heroBody"
+          },
+          {
+            "node": "heroCta"
+          }
+        ]
+      },
+      "heroEyebrow": {
+        "type": "text",
+        "name": "HeroEyebrow",
+        "box": {
+          "width": "auto",
+          "height": "auto"
+        },
+        "content": "NEW · 베타 공개",
+        "color": "#E0E7FF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 600,
+          "lineHeight": 20,
+          "letterSpacing": 1,
+          "textAlign": "left"
+        }
+      },
+      "heroTitle": {
+        "type": "text",
+        "name": "HeroTitle",
+        "box": {
+          "width": 720,
+          "height": "auto"
+        },
+        "content": "화면 설계를 JSON 한 장으로",
+        "color": "#FFFFFF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 56,
+          "fontWeight": 700,
+          "lineHeight": 68,
+          "letterSpacing": -1.2,
+          "textAlign": "left"
+        }
+      },
+      "heroBody": {
+        "type": "text",
+        "name": "HeroBody",
+        "box": {
+          "width": 560,
+          "height": "auto"
+        },
+        "content": "그린 화면이 곧 스펙이 되고, 스펙이 곧 코드가 됩니다.",
+        "color": "#E0E7FF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 18,
+          "fontWeight": 400,
+          "lineHeight": 28,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "heroCta": {
+        "type": "button",
+        "name": "HeroCta",
+        "box": {
+          "width": 200,
+          "height": 52
+        },
+        "content": "베타 신청하기",
+        "color": "#FFFFFF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 16,
+          "fontWeight": 600,
+          "lineHeight": 24,
+          "letterSpacing": 0,
+          "textAlign": "center"
+        },
+        "background": [
+          {
+            "type": "linear",
+            "angle": 90,
+            "stops": [
+              {
+                "color": "#F97316",
+                "at": 0
+              },
+              {
+                "color": "#EC4899",
+                "at": 1
+              }
+            ]
+          }
+        ],
+        "border": {
+          "width": 0,
+          "color": "#F97316",
+          "radius": 12
+        }
+      },
+      "content": {
+        "type": "frame",
+        "name": "Content",
+        "box": {
+          "width": "fill",
+          "height": "fill"
+        },
+        "layout": {
+          "direction": "row",
+          "gap": 24,
+          "padding": {
+            "top": 48,
+            "right": 120,
+            "bottom": 48,
+            "left": 120
+          },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "background": [
+          {
+            "type": "solid",
+            "color": "#F8FAFC"
+          }
+        ],
+        "children": [
+          {
+            "node": "launchCard"
+          },
+          {
+            "node": "noteCard"
+          }
+        ]
+      },
+      "launchCard": {
+        "type": "frame",
+        "name": "LaunchCard",
+        "box": {
+          "width": "fill",
+          "height": "auto"
+        },
+        "layout": {
+          "direction": "column",
+          "gap": 12,
+          "padding": {
+            "top": 24,
+            "right": 24,
+            "bottom": 24,
+            "left": 24
+          },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "background": [
+          {
+            "type": "linear",
+            "angle": 180,
+            "stops": [
+              {
+                "color": "#0F172A00",
+                "at": 0
+              },
+              {
+                "color": "#0F172ACC",
+                "at": 1
+              }
+            ]
+          },
+          {
+            "type": "solid",
+            "color": "#6366F1"
+          }
+        ],
+        "border": {
+          "width": 0,
+          "color": "#6366F1",
+          "radius": 16
+        },
+        "children": [
+          {
+            "node": "launchTitle"
+          },
+          {
+            "node": "launchCaption"
+          },
+          {
+            "node": "launchProgress"
+          }
+        ]
+      },
+      "launchTitle": {
+        "type": "text",
+        "name": "LaunchTitle",
+        "box": {
+          "width": "fill",
+          "height": "auto"
+        },
+        "content": "베타 모집",
+        "color": "#FFFFFF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 20,
+          "fontWeight": 700,
+          "lineHeight": 28,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "launchCaption": {
+        "type": "text",
+        "name": "LaunchCaption",
+        "box": {
+          "width": "fill",
+          "height": "auto"
+        },
+        "content": "목표 인원의 62%가 모였습니다",
+        "color": "#E0E7FF",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "launchProgress": {
+        "type": "frame",
+        "name": "LaunchProgress",
+        "box": {
+          "width": "fill",
+          "height": 8
+        },
+        "layout": {
+          "direction": "row",
+          "gap": 0,
+          "padding": {
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          },
+          "mainAxis": "start",
+          "crossAxis": "start"
+        },
+        "background": [
+          {
+            "type": "linear",
+            "angle": 90,
+            "stops": [
+              {
+                "color": "#FACC15",
+                "at": 0
+              },
+              {
+                "color": "#FACC15",
+                "at": 0.62
+              },
+              {
+                "color": "#FFFFFF33",
+                "at": 0.62
+              },
+              {
+                "color": "#FFFFFF33",
+                "at": 1
+              }
+            ]
+          }
+        ],
+        "border": {
+          "width": 0,
+          "color": "#FACC15",
+          "radius": 4
+        },
+        "children": []
+      },
+      "noteCard": {
+        "type": "frame",
+        "name": "NoteCard",
+        "box": {
+          "width": "fill",
+          "height": "auto"
+        },
+        "layout": {
+          "direction": "column",
+          "gap": 12,
+          "padding": {
+            "top": 24,
+            "right": 24,
+            "bottom": 24,
+            "left": 24
+          },
+          "mainAxis": "start",
+          "crossAxis": "stretch"
+        },
+        "background": [
+          {
+            "type": "solid",
+            "color": "#FFFFFF"
+          }
+        ],
+        "border": {
+          "width": 1,
+          "color": "#E2E8F0",
+          "radius": 16
+        },
+        "children": [
+          {
+            "node": "noteTitle"
+          },
+          {
+            "node": "noteBody"
+          }
+        ]
+      },
+      "noteTitle": {
+        "type": "text",
+        "name": "NoteTitle",
+        "box": {
+          "width": "fill",
+          "height": "auto"
+        },
+        "content": "누가 쓰나요?",
+        "color": "#0F172A",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 20,
+          "fontWeight": 700,
+          "lineHeight": 28,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      },
+      "noteBody": {
+        "type": "text",
+        "name": "NoteBody",
+        "box": {
+          "width": "fill",
+          "height": "auto"
+        },
+        "content": "기획자는 화면을 그리고, 개발자는 같은 파일에서 코드를 받아 갑니다.",
+        "color": "#475569",
+        "typography": {
+          "fontFamily": "Pretendard",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "lineHeight": 20,
+          "letterSpacing": 0,
+          "textAlign": "left"
+        }
+      }
+    }
+  }
+}

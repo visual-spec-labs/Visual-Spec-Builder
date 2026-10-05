@@ -7,6 +7,8 @@ import { seedSpec } from "@/features/editor/store/seedSpec";
 import { nodeGroupCommandForKey } from "@/features/editor/ui/canvasInput";
 import { buildNodeContextMenuEntries } from "@/features/editor/ui/nodeContextMenuEntries";
 
+import { resolveResponsiveScreen } from "@/features/editor/responsive/resolveResponsive";
+
 const screen = () => useEditorStore.getState().spec.pages[useEditorStore.getState().activePageId];
 beforeEach(() => useEditorStore.getState().loadSpec(migrateV01(seedSpec)));
 
@@ -54,6 +56,57 @@ describe("단일 노드 Group / Ungroup (#225)", () => {
     const grouped = applyTransaction(input, built.commands);
     expect(Object.hasOwn(grouped.nodes[built.selectedId], "visible")).toBe(false);
     expect(grouped.nodes.cardA).toBe(input.nodes.cardA);
+  });
+  it.each([false, true, undefined])("기반 visible=%s의 반응형 표시만 wrapper에 복사하고 해제·Undo한다", (visible) => {
+    const fixture = structuredClone(seedSpec);
+    fixture.screen.nodes.cardA.visible = visible;
+    fixture.screen.responsive = {
+      // 선언 순서 대신 폭 순서로 누적되어야 한다.
+      breakpoints: { wide: { minWidthPx: 1200 }, tablet: { minWidthPx: 600 }, desktop: { minWidthPx: 900 } },
+      overrides: {
+        wide: { cardA: { visible: true } },
+        tablet: { cardA: { visible: !visible, box: { width: 320 } }, cardB: { visible: false } },
+        desktop: { cardA: { opacity: 0.5 }, cardALabel: { visible: false } },
+      },
+    };
+    const store = useEditorStore;
+    store.getState().loadSpec(fixture);
+    const original = store.getState().spec;
+    const originalScreen = screen();
+    store.getState().groupNode("cardA");
+    const groupId = store.getState().selectedId!;
+    const grouped = store.getState().spec;
+    expect(screen().nodes.cardA).toEqual(originalScreen.nodes.cardA);
+    expect(screen().responsive?.overrides.tablet[groupId]).toEqual({ visible: !visible });
+    expect(screen().responsive?.overrides.wide[groupId]).toEqual({ visible: true });
+    expect(screen().responsive?.overrides.desktop[groupId]).toBeUndefined();
+    for (const key of ["tablet", "desktop", "wide"]) {
+      expect(screen().responsive?.overrides[key].cardA).toEqual(originalScreen.responsive?.overrides[key].cardA);
+    }
+    for (const width of [599, 600, 899, 900, 1199, 1200]) {
+      const resolved = resolveResponsiveScreen(screen(), width);
+      expect(resolved.nodes[groupId].visible !== false).toBe(resolved.nodes.cardA.visible !== false);
+      expect(resolved.nodes.cardA).toEqual(resolveResponsiveScreen(originalScreen, width).nodes.cardA);
+    }
+    expect(validateVisualSpec({ version: "0.3", screen: screen() }).valid).toBe(true);
+    expect(store.getState().history.past).toHaveLength(1);
+    store.getState().ungroupNode(groupId);
+    expect(store.getState().spec).toEqual(original);
+    expect(store.getState().history.past).toHaveLength(2);
+    expect(validateVisualSpec({ version: "0.3", screen: screen() }).valid).toBe(true);
+    store.getState().undo(); expect(store.getState().spec).toEqual(grouped);
+    store.getState().undo(); expect(store.getState().spec).toEqual(original);
+    store.getState().redo(); expect(store.getState().spec).toEqual(grouped);
+  });
+  it("표시 override가 없으면 responsive 객체와 명령 수를 유지한다", () => {
+    const original = screen();
+    const input = { ...original, responsive: {
+      breakpoints: { tablet: { minWidthPx: 600 } },
+      overrides: { tablet: { cardA: { opacity: 0.5 } } },
+    } };
+    const built = buildGroupCommands(input, "cardA")!;
+    expect(built.commands).toHaveLength(2);
+    expect(applyTransaction(input, built.commands).responsive).toBe(input.responsive);
   });
   it("여러 자식은 frame 위치부터 순서대로 꺼내며 자손을 지우지 않는다", () => {
     const original = screen();

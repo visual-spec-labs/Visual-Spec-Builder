@@ -12,6 +12,9 @@ Visual Spec Builder 편집기에서 지금 **실제로 동작하는** 것만 적
 
 ## 도구
 
+Button/Input은 상단 **Insert** 메뉴로 바로 추가한다(#226). 새 단축키를 배정하지 않고
+기존 도구 키를 유지한다. 메뉴는 Tab으로 이동해 Enter/Space로 실행하며 Escape로 닫는다.
+
 | 키 | 도구 |
 |---|---|
 | `V` | Select — 고르기 |
