@@ -37,11 +37,15 @@ export function startSpecAutosave() {
   // Open/홈 카드로 지금 파일을 다시 여는 중이다(#267 리뷰). 파일명이 그대로라 아래
   // changed()의 파일 전환 비교를 타지 않으므로, 불러온 직후 따로 초안과 비교한다.
   let reopenKey: string | null = null;
-  // An untitled draft has no file to reopen it from; switching away must ask (#267).
-  // At startup the history is empty, so judge by content: anything restored from
-  // storage that is not a blank New may be the user's only copy.
-  let untitledEdited = document.fileName === null && loadStoredSpec() !== undefined &&
-    JSON.stringify(document.spec) !== JSON.stringify(migrateV01(blankSpec));
+  // 이 탭이 지금 문서를 불러온 뒤 편집했는가(#267). 편집이 없으면 잃을 것이 없으므로
+  // 전환 시 묻지 않고, 같은 파일을 다시 열 때 초안과 비교하지도 않는다(PR #294 리뷰).
+  // 제목 없는 초안은 다시 열 곳이 없어 편집이 있으면 반드시 묻는다. 시작 시점엔
+  // history가 비어 있으므로 내용으로 판단한다 — 저장소에서 복원한 제목 없는 문서가 빈
+  // New가 아니면 사용자의 유일한 사본일 수 있다. 이름 있는 문서는 새로고침으로 탭 복구를
+  // 이어받았을 때만 편집이 남아 있을 수 있다고 본다.
+  let edited = document.fileName === null
+    ? loadStoredSpec() !== undefined && JSON.stringify(document.spec) !== JSON.stringify(migrateV01(blankSpec))
+    : namedRecovery !== undefined;
 
   function read(storageKey: string): string | null {
     try { return localStorage.getItem(storageKey); } catch { return null; }
@@ -130,7 +134,8 @@ export function startSpecAutosave() {
       if (cache !== announcedCache) latest = parseStoredDocument(cache) ?? latest;
     }
     if (!latest) return false;
-    return adoptLatest(latest);
+    // 자동저장본은 디스크에 저장되지 않은 내용이다 — 편집이 있는 상태로 이어받는다.
+    return adoptLatest(latest, true);
   }
   async function loadLatestDisk(): Promise<boolean> {
     const fileName = document.fileName;
@@ -141,9 +146,9 @@ export function startSpecAutosave() {
     const parsed = parseSpecJson(snapshot.text);
     if (!parsed.ok) return false;
     const spec = "screen" in parsed.spec ? migrateV01(parsed.spec) : parsed.spec;
-    return adoptLatest({ fileName, spec, diskRevision: snapshot.revision });
+    return adoptLatest({ fileName, spec, diskRevision: snapshot.revision }, false);
   }
-  function adoptLatest(latest: StoredDocument): boolean {
+  function adoptLatest(latest: StoredDocument, unsaved: boolean): boolean {
     restoring = true;
     generation++;
     clearTimeout(timer);
@@ -154,7 +159,7 @@ export function startSpecAutosave() {
     renameBaseline = read(`${key}:rename`);
     conflicted = false;
     diskConflict = false;
-    untitledEdited = latest.fileName === null;
+    edited = unsaved;
     useEditorStore.getState().loadSpec(latest.spec);
     if (latest.fileName === null) useDocumentStore.getState().clearFileName();
     else useDocumentStore.getState().setFileName(latest.fileName, latest.diskRevision ?? null);
@@ -214,24 +219,29 @@ export function startSpecAutosave() {
   async function settle(nextFileName?: string | null): Promise<boolean> {
     if (!conflicted && read(key) !== serializeStoredDocument(document)) await flush();
     if (stopped || conflicted || check()) return false;
-    reopenKey = typeof nextFileName === "string" && document.fileName !== null &&
+    reopenKey = edited && typeof nextFileName === "string" && document.fileName !== null &&
       projectStorageKey(nextFileName, untitledId) === key ? key : null;
-    if (document.fileName === null && untitledEdited) {
+    if (document.fileName === null && edited) {
       return window.confirm("저장하지 않은 제목 없는 문서입니다. 계속하면 이 문서의 내용은 다시 열 수 없습니다. 먼저 File → Save로 저장하려면 취소하세요.");
     }
-    if (read(key) === serializeStoredDocument(document)) return true;
+    // 잠금이 없는 브라우저(보안 컨텍스트가 아닌 http 등)에서는 자동저장이 기록되지 않는다.
+    // 그래도 편집이 없으면 잃을 것이 없으므로 묻지 않는다(PR #294 리뷰).
+    if (!edited || read(key) === serializeStoredDocument(document)) return true;
     return window.confirm("현재 문서의 변경 내용을 자동저장하지 못했습니다. 계속하면 저장되지 않은 변경이 사라집니다. File → Export로 먼저 보관하려면 취소하세요.");
   }
-  // A reopened file whose autosave differs is the same choice as opening it from
-  // another document: the draft must be offered, not overwritten by the next autosave.
+  // 편집한 파일을 다시 열면 자동저장에는 이 탭의 초안이 있다(settle이 방금 기록했다).
+  // 다음 자동저장이 그 초안을 덮기 전에 초안과 방금 연 파일 내용 중 하나를 고르게 한다.
+  // 디스크가 그 사이 바뀌었어도 초안은 이 탭의 것이므로 같은 선택이다 — "다른 탭의
+  // 최신 내용"으로 안내하지 않는다. 내용이 같으면(편집을 되돌렸다) 묻지 않는다.
   function checkReopen() {
     if (conflicted || document.fileName === null || projectStorageKey(document.fileName, untitledId) !== key) return;
-    const stored = read(key);
-    if (stored !== null && stored !== serializeStoredDocument(document)) pause(false, draftOf(stored, document));
+    const draft = parseStoredDocument(read(key));
+    if (draft && JSON.stringify(draft.spec) !== JSON.stringify(document.spec)) pause(false, "draft");
   }
   // The opened file is older than its autosave draft: keep the opened content and
   // let the next autosave replace that draft. The dialog confirms the discard.
   function discardDraft() {
+    edited = false;
     conflicted = false;
     diskConflict = false;
     baseline = read(key);
@@ -267,7 +277,7 @@ export function startSpecAutosave() {
       // loadSpec/New/Open reset history; edits and undo/redo retain a history side.
       if (!restoring && s.history.past.length === 0 && s.history.future.length === 0) {
         generation++;
-        untitledEdited = false;
+        edited = false;
         if (reopenKey !== null && reopenKey === key) {
           // Open은 loadSpec 다음 줄에서 setFileName(같은 이름, 디스크 리비전)을 부른다.
           // 그 리비전까지 반영된 뒤 비교해야 디스크가 바뀐 경우를 초안으로 오인하지 않는다.
@@ -280,7 +290,7 @@ export function startSpecAutosave() {
           baseline = null;
           renameBaseline = null;
         }
-      } else if (!restoring) untitledEdited = true;
+      } else if (!restoring) edited = true;
       changed();
     }
   });

@@ -5,6 +5,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { parseStoredDocument, projectStorageKey } from "@/features/editor/store/specStorage";
 import { openHomeProject } from "@/features/editor/ui/homeProjects";
+import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import { startSpecAutosave } from "@/features/editor/ui/specAutosave";
 import { readWorkspaceSpecSnapshot } from "@/features/editor/ui/workspaceClient";
@@ -94,13 +95,57 @@ describe("같은 파일 다시 열기 (#267 리뷰)", () => {
     expect(useSaveConflictStore.getState().paused).toBe(false);
   });
 
-  it("그 사이 디스크가 바뀌었으면 초안이 아니라 충돌로 안내하고 초안은 덮지 않는다", async () => {
+  it("편집 뒤 디스크가 바뀌었어도 이 탭의 초안으로 묻고(다른 탭 안내 아님) 초안은 덮지 않는다", async () => {
     stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
     const pageId = editPageName("디스크 변경 전 편집");
     vi.mocked(readWorkspaceSpecSnapshot).mockResolvedValue(disk("changed-on-disk"));
     await openSpec();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "remote" });
+    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "draft" });
     expect(storedName(pageId)).toBe("디스크 변경 전 편집");
+  });
+
+  it("편집 없이 다시 열 때 디스크가 바뀌었으면 묻지 않고 새 디스크 내용으로 이어간다 (PR #294 리뷰)", async () => {
+    stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
+    const pageId = useEditorStore.getState().activePageId;
+    const newer = { ...initial, pages: { ...initial.pages, [pageId]: { ...initial.pages[pageId], name: "외부에서 바뀜" } } };
+    vi.mocked(readWorkspaceSpecSnapshot).mockResolvedValue({ text: JSON.stringify(newer), revision: "changed-on-disk" });
+    await openSpec();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(useSaveConflictStore.getState().paused).toBe(false);
+    expect(useEditorStore.getState().spec.pages[pageId].name).toBe("외부에서 바뀜");
+    expect(storedName(pageId)).toBe("외부에서 바뀜");
+  });
+
+  it("편집했다가 되돌려 내용이 같으면 다시 열어도 묻지 않는다", async () => {
+    stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
+    editPageName("잠깐 바꿈");
+    useEditorStore.getState().undo();
+    await openSpec();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(useSaveConflictStore.getState().paused).toBe(false);
+  });
+});
+
+describe("Web Locks가 없는 브라우저 (PR #294 리뷰)", () => {
+  beforeEach(() => { vi.stubGlobal("navigator", {}); });
+
+  it("편집이 없으면 New·Open·홈 카드 어디서도 변경 손실 확인을 띄우지 않는다", async () => {
+    const confirm = vi.mocked(window.confirm);
+    stop = startSpecAutosave();
+    expect(await newSpec()).toBe(true);
+    expect(await newSpec()).toBe(true);
+    await openSpec();
+    expect(await openHomeProject({ fileName: "same.json", spec: initial, diskRevision: "loaded-revision" })).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("편집이 있으면 기록되지 않은 변경을 버릴지 묻는다", async () => {
+    const confirm = vi.mocked(window.confirm);
+    stop = startSpecAutosave();
+    editPageName("기록 못 한 편집");
+    confirm.mockReturnValueOnce(false);
+    expect(await newSpec()).toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
   });
 });
