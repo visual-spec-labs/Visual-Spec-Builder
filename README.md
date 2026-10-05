@@ -24,6 +24,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [13-background-fill-design.md](docs/13-background-fill-design.md) | 이슈 #127 배경 그라디언트·다중 채우기 설계 결정과 후속 범위 |
 | [14-getting-started.md](docs/14-getting-started.md) | 설치 → GUI 편집·저장 → 외부 에이전트 → 코드 Export·앱 통합 |
 | [15-workflow-qa.md](docs/15-workflow-qa.md) | 전체 흐름의 실제 검증 기록과 한계 |
+| [16-responsive-codegen-qa.md](docs/16-responsive-codegen-qa.md) | 이슈 #224 반응형 React 코드 매핑 fixture 검증 기록과 한계 |
 | [11-ticket-schema-freeze.md](docs/11-ticket-schema-freeze.md) | Ticket 스키마 v0.1 동결 계약과 변경 절차 |
 | [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
 | [open-questions.md](docs/open-questions.md) | 미확정 항목 |
@@ -32,10 +33,11 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 
 ## 현재 구현 상태
 
-문서 스키마 0.3과 검증기, 노드 5종의 GUI 편집·Undo/Redo, CLI 작업공간 저장·복원,
-solid·linear 다중 배경 편집, 자연어 Command 적용, 구현 티켓 요청·응답, 생성 코드 ZIP Export가 구현돼 있다.
+문서 스키마 0.3과 검증기, 노드 5종의 GUI 편집·그룹화·Undo/Redo, CLI 작업공간 저장·복원,
+solid·linear·image 다중 배경 편집, 반응형(breakpoint·override) 편집과 코드 생성 지침,
+자연어 Command 적용, 구현 티켓 요청·응답, 생성 코드 ZIP Export가 구현돼 있다.
 자연어 응답과 React 코드 생성은 별도로 실행한 Claude Code·Codex 등 외부 에이전트가 담당한다.
-GUI가 에이전트 프로세스를 자동 실행하지 않는다. 반응형 편집 등 남은 기능은 구현 현황을 참고한다.
+GUI가 에이전트 프로세스를 자동 실행하지 않는다. 남은 한계는 구현 현황을 참고한다.
 
 MVP 구현 단위별 상세 현황, 확인된 결함, 다음에 할 만한 것은
 **[`docs/07-implementation-status.md`](docs/07-implementation-status.md)** 에 있다.
