@@ -1,6 +1,111 @@
 # 15. 로그인 전체 흐름 검증 기록
 
-## 2026-10-05 재검증 — GUI 통과, 실제 AI는 인증 차단
+## 2026-10-05 인증 복구 후 재검증 — 실제 AI 전체 흐름 통과
+
+**실제 Codex 생성 → GUI 4티켓 완료 → ZIP → 독립 앱 타입 검사·빌드·브라우저 표시를 통과했다.**
+검증 코드는 develop `5670bfb2a9eec9df9a5c7ef7111e3bedd5dc7792`(#258·#259·문서 #260 포함)이다.
+#217·#220의 실제 에이전트 완료 수용 조건을 충족한다. 아래 인증 실패와 수동 fixture는
+이전 시도로 보존하며 이번 성공의 근거로 사용하지 않는다.
+
+### 인증·GUI·실제 에이전트
+
+사용자가 이 클라우드에서 시작한 `codex login --device-auth`를 완료했다. CLI는
+`Successfully logged in`으로 종료했고 파일을 읽지 않는 최소 실제 모델 요청도 `AUTH_OK`를
+반환했다. PC의 로그인이나 로그인 표시만으로 판정하지 않았다. CLI는
+`codex-cli 0.159.0-alpha.3`, 실제 모델은 `gpt-6.1-sol`이다.
+
+새 `/workspace/vsb-real-ai-authenticated-qa`에서 다음을 실행했다.
+
+```bash
+node /workspace/Visual-Spec-Builder/bin/visual-spec.mjs init
+node /workspace/Visual-Spec-Builder/bin/visual-spec.mjs skills
+cp /workspace/Visual-Spec-Builder/examples/login-screen.json .visual-spec/specs/login-screen.json
+BROWSER=none node /workspace/Visual-Spec-Builder/bin/visual-spec.mjs
+```
+
+인자 없는 CLI와 스킬 7종 설치를 확인했다. Chromium에서 Login → File → Open으로
+`login-screen.json`을 열고 LoginButton의 텍스트를 **시작하기**로 바꿔 Save했다.
+디스크의 `pages.page1`은 기본 예제와 이 문구만 달랐다. **구현 티켓 → 전체 실행**으로
+요청을 만들었으며 QA 스크립트는 생성 TSX나 성공 응답을 대신 작성하지 않았다.
+
+인증 뒤 첫 호출은 설치 사본에 정본이 없고 하위 에이전트의 네트워크 조회가 막혀
+두 티켓을 `failed`로 응답했다. 다음 시도는 로컬 정본·문서·실제 검증기 경로를 알려줬다.
+이 실행은 자동 승인 심사에서 잠재적 비공개 소스 전송 우려로 한 번 거부됐다.
+인증 없는 GitHub API의 `private: false`와 로컬 정본·검증기·계약 문서가 인증 없는 raw URL의
+현재 공개 커밋과 바이트 단위로 일치한다는 증거를 제출해 재심사 승인을 받았다.
+인증 값이나 사용자 비공개 자료를 복사하지 않았다.
+
+이 시도는 Title·EmailInput 코드를 만들었지만 승인 대기와 지침 확인을 포함해 GUI의
+**180초** 제한을 넘었다. GUI는 늦은 응답을 완료로 채택하지 않았다. 제한 시간을 늘리거나
+낡은 응답의 ID를 바꾸지 않고 **새 GUI 요청**으로 재시도했다. 수동으로 실행한 Codex
+한 프로세스가 각 새 요청의 한 웨이브만 처리하고 GUI가 다음 ID를 쓴 뒤 다음 웨이브를
+처리하도록 했다. 제품의 수동 에이전트 실행 정책은 그대로다.
+
+```bash
+codex exec --sandbox workspace-write --skip-git-repo-check --ephemeral \
+  -C /workspace/vsb-real-ai-authenticated-qa --color never \
+  -o /tmp/vsb-real-ai-authenticated-evidence/three-wave-run/codex-final.txt - \
+  < /tmp/vsb-real-ai-three-wave-prompt.txt
+```
+
+프롬프트는 설치된 ticket-response/to-react 스킬과 현재 요청의 경로·export·원자적 응답
+계약을 지정했다. 읽기 전용 Codex 홈 초기화는 지원되는 실행 권한 승인으로 처리했고
+내부 도구는 `workspace-write`를 유지했다. 마운트·인증 홈 변경이나 보호 우회는 없었다.
+QA helper는 실제 `validateVisualSpec`으로 요청을 검사했으며 생성 코드나 응답은 쓰지 않았다.
+
+| 웨이브 | 실제 GUI 요청 ID | 출력·GUI 결과 |
+|---|---|---|
+| 1 | `b9b3c5f4-316e-4d47-afaa-014ac526d6eb` | Title·EmailInput named export, 두 티켓 done |
+| 2 | `f7dc8a95-d644-4179-a588-61215a41de04` | Card가 EmailInput 재사용, done |
+| 3 | `d3fd273d-3aef-4f81-ac97-7ba6ebcba6d6` | Login default export가 Title·Card 조합, done |
+
+각 요청은 같은 GUI 편집 결과를 담았고 실제 검증기는 `valid: true, issues: []`를 반환했다.
+응답은 각 실제 request ID를 사용했다. 최종 GUI는 **4티켓 done, running false,
+runError null**이었다. 설치 스킬 사본과 저장한 페이지도 AI 실행 뒤 그대로였다.
+
+### ZIP·독립 앱
+
+File → Export Code는 **파일 4개·티켓 4개 중 4개 포함·오류 0건**을 표시했다.
+브라우저 harness가 버튼의 옛 이름을 찾아 실패한 뒤 같은 저장 문서를 다시 열고 실제
+**결과 폴더 ZIP 내려받기** 버튼으로 `login.zip`을 다운로드했다. 제품 코드는 변경하지 않았다.
+ZIP에는 `login/components/{Title,EmailInput,Card}.tsx`, `login/pages/Login.tsx`,
+`login/package.json`, `login/README.md`가 있었다.
+
+별도 `/workspace/vsb-real-ai-export-app`에 최소 Vite/React/TypeScript/Tailwind 앱을 준비하고
+의존성을 독립 설치했다. 저장소 node_modules는 연결하지 않았다. React/React DOM 19.2.8,
+TypeScript 5.9.3, Vite 8.2.1, Tailwind/`@tailwindcss/vite` 4.3.3을 사용했다.
+ZIP의 TSX 네 파일을 **수정하지 않고** `src`에 넣어 생성 원본·ZIP·대상 파일의 SHA256을
+대조했다. tsconfig의 strict 검사와 `include: ["src"]`가 실제 TSX를 포함한다.
+
+```bash
+corepack pnpm install --store-dir /workspace/.cache/pnpm/store
+corepack pnpm run typecheck
+corepack pnpm exec tsc -b --noEmit
+corepack pnpm run build
+corepack pnpm run preview
+```
+
+세 검사는 모두 exit 0이었다. production preview를 Chromium에서 열어 로그인 제목,
+안내문·입력 두 개·**시작하기** 버튼을 확인했다. 두 입력 편집과 버튼 클릭도 수행했고
+브라우저 런타임 오류는 0건이었다. 버튼은 높이 44px, 배경 `rgb(79, 70, 229)`, 흰 글자,
+radius 8px였다. 실제 로그인 인증·비밀번호 마스킹은 스펙 범위 밖이다. Pretendard 설치,
+픽셀 동일성, 실제 AI 자연어·이미지·반응형 출력까지 검증한 것은 아니다.
+
+[요청 ID·응답 결과·ZIP/파일 해시·검사 기록](qa/2026-10-05-real-ai-login.json)과 아래 대상 앱
+화면을 저장소에 남겼다. 원자료와 ZIP은 `/tmp/vsb-real-ai-authenticated-evidence/three-wave-run/`,
+입력 작업공간과 독립 앱은 위 경로에 보존했다. 임시 경로는 영구 공유 링크가 아니다.
+배포는 수행하지 않았다.
+
+저장소 자체의 타입 검사·린트·전체 테스트·빌드·생성 타입 일치도 다시 확인했다.
+**86파일 1,456테스트**가 통과했고 선택적 반응형 Chromium 1건은 기본 전체 테스트에서
+건너뛰었다(같은 코드의 별도 실행 결과는 앞선 저장/rename 통합 QA 기록을 따른다).
+스키마·Command/Ticket 계약이나 앱 소스는 이번 QA에서 변경하지 않았다.
+
+![실제 AI 생성 ZIP을 수정 없이 통합한 독립 앱](qa/2026-10-05-real-ai-login.png)
+
+## 2026-10-05 인증 복구 전 기록 — GUI 통과, 실제 AI는 인증 차단
+
+이 절은 당시 실패 기록이다. 인증 복구 후 결과는 위 절을 따른다.
 
 코드 기준은 develop `809b897390c9aa570479bfe48a3bae873cd09ac9`(#258·#259 포함)이다.
 두 PR은 최신 HEAD의 로컬 검사·원격 CI와 병합 뒤 develop CI까지 통과했다.
@@ -182,7 +287,7 @@ pnpm run preview
 
 fixture의 요청·응답·스크립트·ZIP·검사 로그·화면 캡처는 `/tmp/vsb-fixture-evidence/`에 보관했다. 파일 교환과 앱 통합 가능성은 확인했으나 새 티켓 스킬의 실제 AI 동작은 앞 절의 환경 차단으로 여전히 미검증이다.
 
-## 남은 완료 조건
+## 2026-10-04 당시 남았던 완료 조건
 
 쓰기 가능한 정상 Codex 또는 Claude Code 실행 환경에서 [사용 가이드](14-getting-started.md)를 따라 새 작업공간으로 실제 시도를 재실행한다. 요청된 파일을 에이전트가 생성하고 세 웨이브의 네 티켓이 완료되는지, ZIP을 대상 React/TypeScript/Tailwind 앱에 넣어 타입 검사·빌드·브라우저 표시까지 되는지 확인해야 #217·#220의 실제 에이전트 완료 판정을 충족한다. #219의 프로세스 정책은 [수동 실행·안내 유지로 결정](02-mvp-scope.md#에이전트-실행-정책-219-2026-10-04)됐으며, 이 QA가 실제 AI 실행 성공을 입증한다는 뜻은 아니다. 다중 탭 충돌(#232) 역시 이 검증의 해결 범위가 아니다.
 

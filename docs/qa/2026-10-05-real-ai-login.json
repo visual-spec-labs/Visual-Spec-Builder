@@ -1,0 +1,136 @@
+{
+  "date": "2026-10-05",
+  "timezone": "Asia/Seoul",
+  "codeCommit": "5670bfb2a9eec9df9a5c7ef7111e3bedd5dc7792",
+  "agent": {
+    "cli": "codex-cli 0.159.0-alpha.3",
+    "model": "gpt-6.1-sol",
+    "realModelCall": true,
+    "sandbox": "workspace-write",
+    "manuallyStarted": true,
+    "syntheticResponses": false
+  },
+  "guiSave": {
+    "buttonText": "시작하기",
+    "matchesBundledExampleExceptButton": true,
+    "skillCopiesUnchanged": true
+  },
+  "waves": [
+    {
+      "wave": 1,
+      "requestId": "b9b3c5f4-316e-4d47-afaa-014ac526d6eb",
+      "tickets": [
+        "Title",
+        "EmailInput"
+      ],
+      "results": [
+        {
+          "ticketId": "Title",
+          "status": "done"
+        },
+        {
+          "ticketId": "EmailInput",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "requestId": "f7dc8a95-d644-4179-a588-61215a41de04",
+      "tickets": [
+        "Card"
+      ],
+      "results": [
+        {
+          "ticketId": "Card",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "wave": 3,
+      "requestId": "d3fd273d-3aef-4f81-ac97-7ba6ebcba6d6",
+      "tickets": [
+        "Login"
+      ],
+      "results": [
+        {
+          "ticketId": "Login",
+          "status": "done"
+        }
+      ]
+    }
+  ],
+  "guiCompletion": {
+    "doneTickets": 4,
+    "running": false,
+    "runError": null
+  },
+  "export": {
+    "files": 4,
+    "ticketCoverage": "4/4",
+    "errors": 0,
+    "zipSha256": "2976c69de3b89bd64fcfb2d2521f6023f2c0b67b461bb5da2266dbeb26992e4d",
+    "zipEntries": [
+      "login/components/Card.tsx",
+      "login/components/EmailInput.tsx",
+      "login/components/Title.tsx",
+      "login/pages/Login.tsx",
+      "login/package.json",
+      "login/README.md"
+    ],
+    "tsxSha256": {
+      "components/Card.tsx": "de892546ed70c2bb09f8b0af7f1f52b74847cf79b6cfd6f74c12ec9ca2d978f4",
+      "components/EmailInput.tsx": "c5bdb1a5f404c07064db064e904ae02b2e70e9a6e9a05f9803e5f2c372bc4f11",
+      "components/Title.tsx": "cf8d403f51c92b4775f0f54374e6a0899c78154f2f828b7e91cadcaf2a1647c7",
+      "pages/Login.tsx": "11cd366791e56b6e3dadd7be5e07b15a769f606f557626f3142e4b6deea06562"
+    },
+    "tsxUnchanged": true,
+    "independentDependencyInstall": true
+  },
+  "targetChecks": [
+    {
+      "check": "typecheck",
+      "exitCode": 0
+    },
+    {
+      "check": "tsc-build-noemit",
+      "exitCode": 0
+    },
+    {
+      "check": "build",
+      "exitCode": 0
+    }
+  ],
+  "targetBrowser": {
+    "url": "http://127.0.0.1:5192",
+    "productionPreview": true,
+    "title": "로그인",
+    "hint": "계정 정보를 입력하세요",
+    "inputCount": 2,
+    "inputEditing": true,
+    "buttonText": "시작하기",
+    "buttonStyle": {
+      "height": 44,
+      "backgroundColor": "rgb(79, 70, 229)",
+      "color": "rgb(255, 255, 255)",
+      "borderRadius": "8px"
+    },
+    "pageErrors": []
+  },
+  "limits": [
+    "실제 로그인 인증·비밀번호 마스킹은 스펙 범위 밖",
+    "Pretendard 설치·픽셀 동일성·자연어 AI 생성·이미지/반응형 AI 출력은 이번 검증 범위 밖",
+    "이 환경에서 읽기 전용 Codex 홈 초기화는 지원되는 실행 권한 승인으로 처리",
+    "초기 스키마 다운로드 실패와 늦은 응답 시간 초과 후 새 GUI 요청으로 재시도"
+  ],
+  "repositoryChecks": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "testFilesPassed": 86,
+    "testsPassed": 1456,
+    "optInBrowserTestsSkipped": 1,
+    "build": "passed",
+    "schemaDrift": false
+  }
+}
