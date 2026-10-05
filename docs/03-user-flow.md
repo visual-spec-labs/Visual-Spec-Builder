@@ -162,7 +162,10 @@ AI가 한 요청으로 여러 노드를 수정했다면 그 요청 전체를 하
 }
 ```
 
-> 인터랙션 스펙은 IR 스키마 v0.1의 제외 범위다. [05-schema.md](05-schema.md) 참고.
+> 인터랙션 스펙은 IR 스키마(현재 0.3)의 제외 범위다. v0.1 동결 때부터 제외였고 v0.2·v0.3과 반응형 선택
+> 확장(#245)에서도 `events`·`props`·`bindings`는 들어오지 않았다. `button`·`input`의 `content`·`placeholder`도
+> 표시용 텍스트일 뿐이다. [05-schema.md](05-schema.md)의 MVP 제외 범위,
+> [06-schema-freeze.md](06-schema-freeze.md)의 "이 계약이 보장하지 않는 것" 참고.
 
 ## 대표 사용 플로우 3가지
 

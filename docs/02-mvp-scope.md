@@ -124,11 +124,22 @@ Codex를 직접 실행하고 인증한다. GUI는 요청 파일을 작성하고 
 
 ## 스키마 계약
 
-MVP는 다음 세 가지 스키마를 v0.1로 고정한다.
+MVP는 다음 세 가지 스키마를 동결하고, 변경은 각 동결 문서의 절차로만 한다.
 
-- IR 스키마 v0.1 — 화면 구조 ([05-schema.md](05-schema.md))
-- Command 스키마 v0.1 — 편집 명령
-- Ticket 스키마 v0.1 — 구현 작업 단위
+| 스키마 | 현재 버전 | 다루는 것 | 계약·변경 절차 |
+|---|---|---|---|
+| IR 스키마 | 0.3 | 화면 구조 ([05-schema.md](05-schema.md)) | [06-schema-freeze.md](06-schema-freeze.md) |
+| Command 스키마 | v0.1 | 편집 명령 | [09-command-schema-freeze.md](09-command-schema-freeze.md) |
+| Ticket 스키마 | v0.1 | 구현 작업 단위 | [11-ticket-schema-freeze.md](11-ticket-schema-freeze.md) |
+
+IR은 v0.1로 동결을 시작한 뒤 06의 절차를 거쳐 v0.2(`ProjectSpec`, #60)와 v0.3(배경 채우기 겹 배열, #127)이
+추가됐다. 정본 `src/features/editor/schema/visual-spec.schema.json`의 `version`은 화면 문서·프로젝트 문서 모두
+`"0.3"`이다. Command는 `createNode.index` 선택 필드 추가(#193)와 `updateScreen`의 `responsive` 경로 허용(#247)이
+있었지만 버전은 v0.1 그대로다(09의 변경 이력). Ticket은 동결 이후 버전 변경이 없다(11).
+
+> **정정 이력 (2026-10-05)**
+> 이 절은 "세 가지 스키마를 v0.1로 고정한다"였다. IR이 06 절차로 0.3까지 올라간 뒤에도 남아 있던 문장을
+> 현재 버전과 변경 절차 문서로 바꿨다. MVP 범위 자체는 바꾸지 않았다.
 
 ## 결과물 원칙
 
