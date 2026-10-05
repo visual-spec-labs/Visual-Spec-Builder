@@ -180,7 +180,7 @@ setNodeField("headerTitle", "typography.fontSize", 24);
 
 ## 4. 스키마 타입은 정해진 경로에서만 import
 
-`SCHEMA_V0.1_FREEZE.md` 규칙 그대로. 셋 다 여기서만 가져온다.
+[06-schema-freeze.md §정본과 공개 표면](06-schema-freeze.md#정본과-공개-표면) 규칙 그대로. 셋 다 여기서만 가져온다.
 
 ```ts
 import type {
