@@ -279,7 +279,7 @@ Ungroup" 절, `ui/nodeContextMenuEntries.ts`). 패널에 그룹 전용 필드는
 
 1. **`spec`을 직접 수정하지 않는다.** 반드시 `setNodeField` / `setPageField`(또는 `select` / `selectPage`)를 통해서만 변경한다.
 2. 스토어 외의 곳에서 선택 상태/스펙을 따로 두지 않는다.
-3. 스키마 확장(rotation, shadow, 절대좌표 등)은 **별도 PR + 팀 합의**로만 한다(`SCHEMA_V0.1_FREEZE.md §변경 규칙`).
+3. 스키마 확장(rotation, shadow, 절대좌표 등)은 **별도 PR + 팀 합의**로만 한다([06-schema-freeze.md §변경 규칙](06-schema-freeze.md#변경-규칙)).
    - `visual-spec.schema.json` 수정 → `pnpm generate:types` → 예제·테스트 갱신 → typecheck·test 통과.
 4. 파일 소유: **패널 내부는 내가, 트리·캔버스는 팀원이** 담당한다. 서로의 파일은 건드리지 않는다.
 
