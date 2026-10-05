@@ -1,3 +1,6 @@
+import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
+import { useNodeField } from "./useNodeField";
+import { SegmentedControl } from "./fields";
 import type { NodeId } from "@/features/editor/schema";
 
 import { BackgroundSection } from "./BackgroundSection";
@@ -16,10 +19,10 @@ import { TypographySection } from "./TypographySection";
  * 어떤 타입이 어떤 섹션을 갖는지는 전부 그 표에 있고, 여기는 id를 컴포넌트로
  * 바꾸기만 한다. 새 섹션을 만들 때 손볼 곳은 표와 이 switch 두 군데다.
  */
-function renderSection(id: SectionId, type: NodeType, selectedId: NodeId) {
+function renderSection(id: SectionId, type: NodeType, selectedId: NodeId, responsive: boolean) {
   switch (id) {
     case "content":
-      return <ContentSection type={type} />;
+      return responsive ? type === "image" ? <ResponsiveImageFit /> : null : <ContentSection type={type} />;
     case "layout":
       return <LayoutSection />;
     case "size":
@@ -38,7 +41,7 @@ function renderSection(id: SectionId, type: NodeType, selectedId: NodeId) {
       // 접어 둔 섹션이 노드를 고를 때마다 도로 펼쳐진다.
       return <BorderSection key={selectedId} />;
     case "effects":
-      return <EffectsSection withShadow={hasShadow(type)} />;
+      return <EffectsSection withShadow={!responsive && hasShadow(type)} />;
   }
 }
 
@@ -49,11 +52,19 @@ export function NodeSectionList({
   type: NodeType;
   selectedId: NodeId;
 }) {
+  const { breakpoint } = useResponsiveScreen();
   return (
     <>
       {sectionsFor(type).map((id) => (
-        <div key={id}>{renderSection(id, type, selectedId)}</div>
+        <div key={id}>{renderSection(id, type, selectedId, breakpoint !== null)}</div>
       ))}
     </>
   );
+}
+
+function ResponsiveImageFit() {
+  const [fit, setFit] = useNodeField<"cover" | "contain" | "fill">("fit");
+  return <div className="p-3"><SegmentedControl label="채우기 방식 (fit)" value={fit} onChange={setFit} options={[
+    { value: "cover", content: "채우기" }, { value: "contain", content: "맞추기" }, { value: "fill", content: "늘이기" },
+  ]} /></div>;
 }

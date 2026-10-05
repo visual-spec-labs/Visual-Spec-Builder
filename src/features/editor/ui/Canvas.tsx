@@ -1,6 +1,8 @@
+import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -58,7 +60,8 @@ import { handleBackgroundClick } from "./canvasSelection";
 export function Canvas() {
   const activePageId = useEditorStore((state) => state.activePageId);
   const root = useEditorStore((state) => state.spec.pages[state.activePageId].root);
-  const size = useEditorStore((state) => state.spec.pages[state.activePageId].size);
+  const { screen: responsiveScreen, resolved, width: previewWidth } = useResponsiveScreen();
+  const size = useMemo(() => ({ width: previewWidth, height: responsiveScreen.size.height }), [previewWidth, responsiveScreen.size.height]);
   const screenName = useEditorStore((state) => state.spec.pages[state.activePageId].name);
   const selectedId = useEditorStore((state) => state.selectedId);
   const activeTool = useToolStore((state) => state.activeTool);
@@ -373,6 +376,7 @@ export function Canvas() {
           docs/DESIGN-TOKEN-RULES.md의 인라인 스타일 금지 예외에 해당한다.
         */}
         <div
+          data-testid="responsive-artboard"
           ref={artboardRef}
           className="relative flex flex-col bg-transparent shadow-modal origin-top-left"
           style={{
@@ -381,7 +385,7 @@ export function Canvas() {
             transform: `scale(${scale})`,
           }}
         >
-          <RenderNode id={root} />
+          <RenderNode screen={resolved} id={root} />
         </div>
 
         {/*

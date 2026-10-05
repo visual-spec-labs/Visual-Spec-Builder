@@ -77,3 +77,28 @@ v0.1 변경은 다음을 한 PR에서 함께 수행한다.
 `moveNode`를 붙이는 2단계로만 표현됐다. `MoveNodeCommand.index`가 이미 있는 개념이라
 같은 이름·같은 제약·같은 clamp 규칙으로 맞췄다(이슈 #193 본문 "MoveNodeCommand.index와
 의미를 맞춘다").
+
+## 반응형 전체 블록 편집 (#223 PR 제안, #245 의존)
+
+Command 6종과 `command.schema.json`의 형태는 바꾸지 않는다.
+`updateScreen`의 `path: "responsive"`로 검증된 블록 전체를 교체한다. 맵 내부의
+`responsive.breakpoints.<id>` 같은 점 경로는 `editablePath`가 거부한다. breakpoint
+추가·수정·삭제와 override 편집은 모두 이 명령 하나이므로 Undo 한 단계다.
+
+이 허용 경로 확장도 공개 Command 계약 변경이다. **별도 PR에서 리뷰하며 최소 1명의 팀
+승인 없이 병합하지 않는다.** 스키마 #245의 승인·병합을 선행으로 한다.
+
+- `applyUpdateScreen`은 반응형 전체 화면의 스키마·참조·누적 의미를 검증하고 무효이면
+  no-op과 이유를 반환한다. 중복 폭이나 잘못된 노드 타입 속성을 성공처럼 적용하지 않는다.
+- GUI `setResponsive`는 같은 검증을 먼저 수행해 패널 오류를 보여 준다. 같은 블록을 다시
+  쓰면 history가 늘지 않는다. 연속 입력은 기존 `continueEdit` 계약을 따른다.
+- 기존 기반 노드 편집도 반응형 블록이 있는 경우 최종 화면을 검사한다. 예를 들어 기반
+  border 삭제가 상속 중인 partial border를 무효로 만들면 문서·history를 유지하고 오류를
+  알린다. 사용자는 먼저 해당 override를 해제하거나 완전한 객체로 바꿔야 한다.
+- 노드/서브트리 삭제는 모든 breakpoint의 해당 ID override도 같은 명령에서 정리한다.
+  복제는 새 ID에 원본 override를 함께 복사하고 한 트랜잭션으로 기록한다.
+- 기존 클립보드는 노드 기반값만 담는다. 복사·붙여넣기로 breakpoint 정의나 override를
+  다른 페이지로 옮기지 않는다. 페이지별 breakpoint 충돌 해소는 이번 범위가 아니다.
+
+미리보기 폭은 별도 뷰 상태다. Command·문서 크기·Undo를 바꾸지 않는다. 폭 경계는
+`minWidthPx`를 포함하고, 여러 breakpoint가 맞으면 가장 큰 폭을 편집 대상으로 삼는다.

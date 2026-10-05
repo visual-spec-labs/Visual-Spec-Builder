@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
-import type { NodeId } from "@/features/editor/schema";
+import type { NodeId, ScreenSpec } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
 import type { Direction } from "./canvasLayout";
@@ -39,16 +39,16 @@ function useReportMeasuredSize(
 }
 
 export function RenderNode({
+  screen,
   id,
   parentDirection,
 }: {
+  screen: ScreenSpec;
   id: NodeId;
   /** 부모 프레임의 레이아웃 방향. 최상위 노드는 부모가 없어 undefined. */
   parentDirection?: Direction;
 }) {
-  const node = useEditorStore(
-    (state) => state.spec.pages[state.activePageId].nodes[id],
-  );
+  const node = screen.nodes[id];
   const selectedId = useEditorStore((state) => state.selectedId);
   const ref = useRef<HTMLDivElement>(null);
   const selected = selectedId === id;
@@ -77,7 +77,7 @@ export function RenderNode({
         onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         {node.content}
-        {selected && <ResizeHandles id={id} box={node.box} />}
+        {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
       </div>
     );
   }
@@ -92,7 +92,7 @@ export function RenderNode({
         onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
         onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
-        {selected && <ResizeHandles id={id} box={node.box} />}
+        {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
       </div>
     );
   }
@@ -108,7 +108,7 @@ export function RenderNode({
         onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         {node.content}
-        {selected && <ResizeHandles id={id} box={node.box} />}
+        {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
       </div>
     );
   }
@@ -124,7 +124,7 @@ export function RenderNode({
         onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         <span style={{ opacity: 0.6 }}>{node.placeholder}</span>
-        {selected && <ResizeHandles id={id} box={node.box} />}
+        {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
       </div>
     );
   }
@@ -140,12 +140,13 @@ export function RenderNode({
     >
       {node.children.map((child) => (
         <RenderNode
+          screen={screen}
           key={child.node}
           id={child.node}
           parentDirection={node.layout.direction}
         />
       ))}
-      {selected && <ResizeHandles id={id} box={node.box} />}
+      {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
     </div>
   );
 }

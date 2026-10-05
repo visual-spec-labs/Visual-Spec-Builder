@@ -248,6 +248,19 @@ Import로 삽입은 되지만 세부설정 패널에는 아직 편집 필드가 
   → 트리·캔버스·패널이 아직 없어도 각자 실제 데이터로 개발/테스트 가능.
 - 트리/캔버스가 준비되면 같은 스토어에 `select`만 연결하면 즉시 맞물린다.
 
+## 반응형 GUI (#223 PR 제안)
+
+`setResponsive(pageId, value, continueEdit?) => string | null`을 추가한다. 값은 완전한
+`Responsive` 블록이며 검증 실패 시 이유를 반환하고 문서·history를 보존한다. 성공 시
+기존 `updateScreen("responsive")` 경로로 한 번 적용하며 `null`을 반환한다. 동일값은
+history를 쌓지 않는다. 기존 `setNodeField`는 계속 기반값을 편집한다. 반응형 패널만
+선택 폭의 희소 override를 계산해 `setResponsive`를 호출한다.
+
+반응형 문서의 기반값 변경도 최종 화면을 검증한다. `deleteNode`는 override 참조를 함께
+정리하고 `duplicateNode`는 새 ID의 override를 함께 생성한다. 두 동작의 Undo는 모두
+프로젝트 스냅숏 한 단계다. `pasteNode`는 기존 클립보드 계약대로 기반 노드만 옮긴다.
+미리보기 폭은 `responsiveViewStore`의 페이지별 UI 값이며 문서나 history에 들어가지 않는다.
+
 ### 단일 노드 Group / Ungroup (#225)
 
 `groupNode(id)`와 `ungroupNode(id)`는 캔버스 컨텍스트 메뉴와 Ctrl/Cmd+G·Shift+G가 호출한다.

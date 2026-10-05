@@ -34,6 +34,20 @@ export function buildGroupCommands(screen: ScreenSpec, id: NodeId) {
     { type: "createNode", id: groupId, parentId: at.parentId, index: at.index, node },
     { type: "moveNode", id, newParentId: groupId, index: 0 },
   ];
+  const responsive = screen.responsive;
+  if (responsive) {
+    let copiedVisibility = false;
+    const overrides = Object.fromEntries(Object.entries(responsive.overrides).map(([key, patches]) => {
+      const visible = patches[id]?.visible;
+      if (typeof visible !== "boolean") return [key, patches];
+      copiedVisibility = true;
+      // 크기·배치 등 원노드 전용 override는 wrapper에 적용하지 않는다.
+      return [key, { ...patches, [groupId]: { visible } }];
+    }));
+    if (copiedVisibility) {
+      commands.push({ type: "updateScreen", path: "responsive", value: { ...responsive, overrides } });
+    }
+  }
   return { commands, selectedId: groupId };
 }
 

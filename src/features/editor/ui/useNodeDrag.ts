@@ -1,3 +1,5 @@
+import { resolveResponsiveScreen } from "@/features/editor/responsive/resolveResponsive";
+import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
 import { useEffect, useState, type RefObject } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -105,7 +107,8 @@ export function useNodeDrag(
       if (clickedId === undefined) return;
 
       const { spec, activePageId, focusRootId, selectedId } = useEditorStore.getState();
-      const { nodes, root } = spec.pages[activePageId];
+      const page = spec.pages[activePageId];
+      const { nodes, root } = resolveResponsiveScreen(page, useResponsiveViewStore.getState().widths[activePageId] ?? page.size.width);
       const dragId = resolveDragTarget({
         nodes,
         root,
@@ -184,7 +187,8 @@ export function useNodeDrag(
       const rects = measureNodeRects(outer, artboard);
       const origin = outer.getBoundingClientRect();
       const { spec, activePageId } = useEditorStore.getState();
-      const { nodes, root } = spec.pages[activePageId];
+      const page = spec.pages[activePageId];
+      const { nodes, root } = resolveResponsiveScreen(page, useResponsiveViewStore.getState().widths[activePageId] ?? page.size.width);
 
       const target = resolveCanvasDrop({
         nodes,

@@ -1,3 +1,4 @@
+import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
 import { create } from "zustand";
 import { buildGroupCommands, buildUngroupCommands } from "@/features/editor/command/groupCommands";
 
@@ -22,9 +23,10 @@ import {
   type TransactionGateResult,
 } from "@/features/editor/command/transactionGate";
 import type { Command } from "@/features/editor/command/types";
-import { migrateV01 } from "@/features/editor/schema";
+import { migrateV01, validateVisualSpec } from "@/features/editor/schema";
 import type {
   Node,
+  Responsive,
   NodeId,
   PageId,
   ProjectSpec,
@@ -176,6 +178,8 @@ export interface EditorState {
    * `continueEdit`도 setNodeField와 같다(#121) — 기본 false.
    */
   setPageField: (pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => void;
+  /** 반응형 블록은 전체 검증 후 기존 updateScreen 한 번으로 적용한다. */
+  setResponsive: (pageId: PageId, value: Responsive, continueEdit?: boolean) => string | null;
   /**
    * 빈 페이지를 끝에 추가하고 그 페이지로 이동한다. 트리가 호출한다.
    * #131: history에 쌓인다 — undo하면 추가된 페이지가 사라지고 직전에 보던
@@ -347,6 +351,14 @@ function appliedTransaction(
 
   const nextPage = applyTransaction(page, commands);
   if (nextPage === page) return null;
+  if (page.responsive || nextPage.responsive) {
+    const validation = validateVisualSpec({ version: "0.3", screen: nextPage });
+    if (!validation.valid) {
+      useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+      return null;
+    }
+    useResponsiveViewStore.getState().reportError(null);
+  }
 
   const spec = withPage(state.spec, pageId, nextPage);
   // #131 리뷰(wook3964, PR #142): 지금 호출부는 전부 활성 페이지를 넘겨서 둘이
@@ -431,6 +443,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       );
       return next ?? state;
     }),
+  setResponsive: (pageId, value, continueEdit = false) => {
+    const state = get();
+    const page = state.spec.pages[pageId];
+    if (!page) return "페이지가 없습니다.";
+    if (JSON.stringify(page.responsive) === JSON.stringify(value)) return null;
+    const result = validateVisualSpec({ version: "0.3", screen: { ...page, responsive: value } });
+    if (!result.valid) return result.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n");
+    const next = applied(state, pageId, { type: "updateScreen", path: "responsive", value }, continueEdit);
+    if (next) set(next);
+    return null;
+  },
   addPage: () =>
     set((state) => {
       const id = generateNodeId("page", state.spec.pages);
@@ -495,6 +518,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
   loadSpec: (spec) => {
+    useResponsiveViewStore.getState().reset();
     const project = "screen" in spec ? migrateV01(spec) : spec;
     set({
       spec: project,
@@ -573,6 +597,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const built = buildDuplicateCommands(nodes, id, nodes, parentId, index + 1);
       if (built === null) return state;
 
+      const responsive = state.spec.pages[state.activePageId].responsive;
+      if (responsive) {
+        const overrides = Object.fromEntries(Object.entries(responsive.overrides).map(([key, patches]) => [key, {
+          ...patches, ...Object.fromEntries(Object.entries(patches).filter(([oldId]) => built.idMap.has(oldId)).map(([oldId, patch]) => [built.idMap.get(oldId)!, structuredClone(patch)])),
+        }]));
+        built.commands.push({ type: "updateScreen", path: "responsive", value: { ...responsive, overrides } });
+      }
       const next = appliedTransaction(state, state.activePageId, built.commands);
       if (next === null) return state;
 

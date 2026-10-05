@@ -1,3 +1,4 @@
+import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import {
   AlignCenterHorizontal,
   AlignCenterVertical,
@@ -100,6 +101,7 @@ const CROSS_AXIS_OPTIONS: Record<FlexDirection, readonly SegmentOption<CrossAxis
  * 칸만 감춘다 — 자세한 근거는 `layoutPatch` 의 `showsMainAxis`/`showsCrossAxis`.
  */
 export function LayoutSection() {
+  const { breakpoint, resolved } = useResponsiveScreen();
   // 방향을 바꿀 때 columns도 함께 손대야 해서 layout 전체를 읽고 쓴다 — 두 필드를
   // 따로 쓰면 Undo가 두 단계로 쌓여 한 동작을 되돌리는 데 Ctrl+Z를 두 번 눌러야 한다.
   const [layout, setLayout] = useNodeField<Layout>("layout");
@@ -114,12 +116,8 @@ export function LayoutSection() {
   const [padLeft, setPadLeft] = useNodeField<number>("layout.padding.left");
 
   const selectedId = useEditorStore((state) => state.selectedId);
-  const node = useEditorStore((state) =>
-    selectedId === null
-      ? undefined
-      : state.spec.pages[state.activePageId].nodes[selectedId],
-  );
-  const nodes = useEditorStore((state) => state.spec.pages[state.activePageId].nodes);
+  const node = selectedId === null ? undefined : resolved.nodes[selectedId];
+  const nodes = resolved.nodes;
   const setNodeFields = useEditorStore((state) => state.setNodeFields);
   const frameNode = node !== undefined && node.type === "frame" ? node : undefined;
   const children = frameNode?.children ?? [];
@@ -135,6 +133,7 @@ export function LayoutSection() {
         ? frameNode.box.width
         : frameNode.box.height;
   const canEqualize =
+    breakpoint === null &&
     direction !== undefined &&
     parentMainAxisSize !== undefined &&
     canEqualizeChildren(direction, parentMainAxisSize, children.length);
