@@ -8,14 +8,14 @@
 | 질문 | 결정 |
 |---|---|
 | 어떤 모양으로 넓힐까? | **A안.** `background`를 채우기 겹의 배열 `Fill[]`로 바꾼다. 유니온(B안)과 "그라디언트만 먼저"(C안)는 택하지 않는다. 기존 JSON은 깨지고 열 때 자동 변환한다. |
-| 첫 채우기 종류는? | `solid`·`linear` 둘. `radial`·`image`는 뺀다 — 나중에 `oneOf` 갈래로 더해도 기존 문서가 깨지지 않는 추가 변경이다. |
+| 첫 채우기 종류는? | `solid`·`linear`에서 시작. #235로 `image`를 추가한다. `radial`은 뺀다 — 나중에 `oneOf` 갈래로 더해도 기존 문서가 깨지지 않는 추가 변경이다. |
 | 겹 순서는? | **배열 앞이 위다.** CSS `background-image`·`box-shadow`와 같다. 패널도 배열 순서 그대로 위에서 아래로 보인다(Figma 패널과 같은 방향). |
 | 각도와 stop은? | 각도는 CSS `linear-gradient`의 각도 그대로(0 = 위쪽, 시계 방향, 180 = 아래쪽), `[0, 360)`. stop 위치 `at`은 0..1, 2개 이상, 오름차순(같은 값 허용). 정렬은 validator가 본다. |
 | 겹마다 불투명도·표시 여부를 둘까? | 두지 않는다. 투명도는 `Color`의 알파(`#RRGGBBAA`)로 쓴다. 표시 토글은 나중에 선택 필드로 더해도 안 깨진다. |
 | 캔버스에서 어떻게 그릴까? | **맨 아래 겹이 solid면 그 색은 `background-color`**, 나머지 겹은 `background-image` 쉼표 목록 하나로 그린다. 목록 안의 solid 겹은 `linear-gradient(c, c)`로 바꾼다. (처음엔 `background-color`를 쓰지 않기로 했으나 1단계에서 실측 후 바꿨다 — "캔버스 번역" 참고.) |
 | 버전과 마이그레이션은? | 문서 버전을 `0.3`으로 올린다 — `VisualSpec`(단일 화면)과 `ProjectSpec` 둘 다. 0.1·0.2 문서는 열 때 자동 변환하고, 저장은 항상 0.3이다. 0.3을 모르는 구버전은 새 문서를 거부한다. |
 | Command는 바뀔까? | 바뀌지 않는다. 인덱스 경로(`background.0.color`)도 새 Command도 만들지 않는다. `updateNode { path: "background", value: Fill[] }`로 배열을 통째로 교체한다. Command 스키마([09](09-command-schema-freeze.md))는 그대로다. |
-| 패널은 어디까지? | 겹 목록(추가·삭제·위/아래 이동)과 겹 편집(solid 색 / linear 각도·stop). 드래그 정렬·캔버스 그라디언트 핸들·겹 숨김은 뺀다. |
+| 패널은 어디까지? | 겹 목록(추가·삭제·위/아래 이동)과 겹 편집(solid 색 / linear 각도·stop / #235 image src·fit). 드래그 정렬·캔버스 그라디언트 핸들·겹 숨김은 뺀다. |
 
 ## 표현 방식
 
@@ -106,7 +106,7 @@ C안은 B안의 병합 문제를 그대로 가지면서, 다중 채우기를 넣
 - **stop 위치 `at`은 0..1이다.** CSS로 옮길 때 `at × 100`%다. stop은 2개 이상이고, `at`은 오름차순이어야 하며 같은 값은 허용한다(딱 끊기는 경계). 정렬을 렌더에서 고쳐 주지 않고 무효로 두는 이유는 CSS가 앞보다 작은 stop을 정렬하지 않고 앞 값으로 끌어올리기 때문이다 — 순서가 틀린 JSON의 뜻이 번역기마다 달라진다. 패널은 커밋할 때 안정 정렬해서 쓴다(아래 "Command와 패널").
 - **겹마다 불투명도를 두지 않는다.** solid의 `color`와 stop의 `color`가 이미 알파를 가진다. CSS 배경 겹에는 겹 단위 불투명도가 없어 어차피 색마다 곱해야 하고, 같은 결과를 두 방법으로 쓸 수 있게 될 뿐이다.
 - **겹마다 표시 여부를 두지 않는다.** 첫 범위에서는 지우는 것이 유일한 숨김이다. `visible?: boolean`(생략 = `true` = 지금 렌더)은 나중에 더해도 기존 문서가 깨지지 않으므로 필요해질 때 넣는다.
-- **`radial`·`image`를 뺀다.** radial은 중심·모양·크기 칸이 더 필요하고, CSS 기본(`farthest-corner` 타원)과 Figma 핸들의 의미가 달라 따로 정해야 하며, 패널에서 쓸 만하려면 2차원 핸들 편집이 필요하다. image는 두 번째 에셋 참조 지점을 만든다 — 지금은 `ImageNode.src` 하나만 있고 `ui/properties/imageSrc.ts`의 경로 해석, File ▸ Import, 내보내기 묶음의 `usedAssets`, 코드 생성 스킬의 이미지 경로 규칙이 전부 그 한 곳을 전제한다. 둘 다 `Fill`의 `oneOf`에 갈래를 더하는 추가 변경이라 기존 문서를 깨지 않고 나중에 넣을 수 있다. **대신 이슈가 대표 용례로 든 "사진 위 반투명 그라디언트"는 첫 범위에서 표현할 수 없다** — 이미지 채우기도, 겹쳐 놓는 배치(absolute)도 없기 때문이다.
+- **초기 #127에서는 `radial`·`image`를 뺐다(#235는 아래 절에서 image를 추가).** radial은 중심·모양·크기 칸이 더 필요하고, CSS 기본(`farthest-corner` 타원)과 Figma 핸들의 의미가 달라 따로 정해야 하며, 패널에서 쓸 만하려면 2차원 핸들 편집이 필요하다. image는 두 번째 에셋 참조 지점을 만든다 — 지금은 `ImageNode.src` 하나만 있고 `ui/properties/imageSrc.ts`의 경로 해석, File ▸ Import, 내보내기 묶음의 `usedAssets`, 코드 생성 스킬의 이미지 경로 규칙이 전부 그 한 곳을 전제한다. 둘 다 `Fill`의 `oneOf`에 갈래를 더하는 추가 변경이라 기존 문서를 깨지 않고 나중에 넣을 수 있다. **대신 이슈가 대표 용례로 든 "사진 위 반투명 그라디언트"는 첫 범위에서 표현할 수 없다** — 이미지 채우기도, 겹쳐 놓는 배치(absolute)도 없기 때문이다.
 
 JSON Schema로 안 되는 의미 검증은 **stop의 `at` 오름차순** 하나다. 배열 원소끼리 비교하는 문법이 없다. `validateVisualSpec`·`validateProjectSpec`이 새 `IssueCode` `gradient-stop-order`(8종 → 9종, 1단계)로 잡는다. 나머지(`type` 상수, 각도·위치 범위, stop 2개 이상)는 스키마가 막는다.
 
@@ -252,3 +252,23 @@ Command 스키마([09](09-command-schema-freeze.md))와 Ticket 스키마([11](11
 반응형(#181) 스키마 PR과는 순서 의존이 없다. 나중에 머지되는 쪽이 위 "반응형 IR과의 관계"를 반영한다. `radial`·`image` 채우기, 겹 표시 토글은 일정에 넣지 않는다 — 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
 이 문서는 설계 결정을 기록한다. 위 1부터 정본 `Background`는 `Fill[]`이고 문서 버전은 0.3이다. 2부터 캔버스와 홈 미리보기가 `linear` 겹과 여러 겹을 그린다. 3부터 패널이 solid·linear 여러 겹을 편집하고, 4부터 스킬이 그라디언트 작성·NL 편집·코드 생성을 가르친다. 5의 예제가 그 모두를 한 화면에 담는다.
+
+
+## #235 이미지 배경
+
+`image` 갈래는 `src`와 `fit`을 필수로 갖는다. cover/contain/fill만 지원하고 반복은 없다.
+세부설정 Background의 종류에서 이미지를 고르고 파일 가져오기 또는 assets 경로를 입력한다.
+새 image 겹은 투명 1px로 시작하며 파일을 선택하기 전에는 기존 아래 겹을 가리지 않는다.
+File Import와 같은 저장소·파일명 UUID 격리(병렬 Import도 기존 자산 보존)·data URI 폴백을 쓰고, 가져오는 동안 문서/선택이
+바뀌면 기존 배열을 덮지 않는다. 저장 실패 시 data URI로 보존한다. 편집은 background 전체
+배열을 Command로 교체해 Undo 한 단계이며 텍스트 경로 편집은 기존 burst를 따른다.
+
+배경은 DOM을 추가하지 않는다. 기존 frame/button/input nodeStyles 및 홈 미리보기에서
+공통 backgroundStyle을 사용한다. 이미지 URL 해석은 ImageNode의 imageSrc 도우미를 재사용한다.
+맨 아래 solid 분리·앞이 위 순서·origin border-box는 유지한다. image가 있는 목록만
+size/position/repeat longhand를 추가하고 gradient에는 auto, 이미지에는 cover/contain/100% 100%를
+같은 인덱스로 대응한다. image를 제거하면 React가 longhand를 지워 기존 solid/linear로 돌아간다.
+
+JSON Export는 스키마 검증 후 image 겹을 보존한다. 코드 Export는 to-react 스킬 매핑의
+정적 fixture로 사진+gradient 및 assets 포함을 검사한다. 실제 AI 생성은 별도 검증 대상이다.
+스키마 변경 PR은 독립 Draft로 팀 리뷰가 필요하고 기능 PR은 그 PR에 의존한다.

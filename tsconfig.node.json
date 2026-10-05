@@ -27,5 +27,5 @@
   // 맡는다. 한 파일이 두 프로젝트에 겹쳐 들어가지 않도록 여기서 뺀다.
   // ticket-runner.test.ts는 ui/ticketRunner.ts를 거쳐 ticketAgentClient.ts(fetch)를
   // 끌어들인다(이슈 #184) — 같은 이유로 뺀다.
-  "exclude": ["test/document-path.test.ts", "test/ticket-runner.test.ts", "test/home-projects.test.ts", "test/workspace-list-metadata.test.ts"]
+  "exclude": ["test/document-path.test.ts", "test/ticket-runner.test.ts", "test/home-projects.test.ts", "test/workspace-list-metadata.test.ts", "test/image-asset-import.test.ts"]
 }

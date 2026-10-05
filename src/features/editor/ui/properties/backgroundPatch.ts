@@ -3,6 +3,7 @@ import type {
   Fill,
   GradientStop,
   LinearFill,
+  ImageFill,
 } from "@/features/editor/schema";
 
 /**
@@ -92,19 +93,16 @@ export function changeFillType(
   type: FillType,
 ): Background | undefined {
   const fill = fillAt(current, index);
-  if (current === undefined || fill === undefined || fill.type === type || fill.type === "image" || type === "image") return current;
+  if (current === undefined || fill === undefined || fill.type === type) return current;
 
-  const next: Fill =
-    fill.type === "solid"
-      ? {
-          type: "linear",
-          angle: LINEAR_DEFAULT_ANGLE,
-          stops: [
-            { color: fill.color, at: 0 },
-            { color: transparentOf(fill.color), at: 1 },
-          ],
-        }
-      : { type: "solid", color: fill.stops[0].color };
+  const color = fill.type === "solid" ? fill.color
+    : fill.type === "linear" ? fill.stops[0].color : FILL_DEFAULT_COLOR;
+  const next: Fill = type === "image"
+    ? { type: "image", src: EMPTY_IMAGE_SRC, fit: "cover" }
+    : type === "linear"
+      ? { type: "linear", angle: LINEAR_DEFAULT_ANGLE,
+          stops: [{ color, at: 0 }, { color: transparentOf(color), at: 1 }] }
+      : { type: "solid", color };
 
   return replaceFill(current, index, next);
 }
@@ -301,4 +299,17 @@ function replaceFill(current: Background, index: number, fill: Fill): Background
  */
 function asStops(stops: GradientStop[]): LinearFill["stops"] {
   return stops as LinearFill["stops"];
+}
+
+/** 유효한 투명 1px 초기값. 존재하지 않는 assets 경로를 지어내지 않는다. */
+export const EMPTY_IMAGE_SRC = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+
+export function setImageFill(
+  current: Background | undefined, index: number, patch: Partial<Pick<ImageFill, "src" | "fit">>,
+): Background | undefined {
+  const fill = fillAt(current, index);
+  if (current === undefined || fill?.type !== "image" || patch.src === "") return current;
+  const next = { ...fill, ...patch };
+  if (next.src === fill.src && next.fit === fill.fit) return current;
+  return replaceFill(current, index, next);
 }

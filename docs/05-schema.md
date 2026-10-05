@@ -63,9 +63,10 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 - Box (`width` / `height` — 0 이상 숫자(px) | `"auto"` | `"fill"`)
 - Background — 채우기 겹 배열(`Fill[]`, 0.3부터). 배열 앞이 위 겹이고, 생략과 `[]`는 둘 다 배경 없음
   - 겹 종류는 `solid`(`color`)와 `linear`(`angle` — CSS `linear-gradient` 각도, `[0, 360)` / `stops` — `{ color, at }` 2개 이상, `at`은 0..1 오름차순)
+  - #235 이미지 겹은 `image`(`src`, `fit`: cover/contain/fill)다. 중앙 정렬·반복 없음
   - 단색은 `[{ "type": "solid", "color": "#FFFFFF" }]` 한 겹이다. 0.2까지의 `{ "color": … }`는 무효다
   - 겹마다 불투명도는 없다 — 색의 알파(`#RRGGBBAA`)로 쓴다
-  - 캔버스와 홈 미리보기는 `linear` 겹과 여러 겹을 그리고, 패널은 겹 목록(추가·삭제·위/아래 이동·종류 전환, solid 색, linear 각도·stop)을 편집한다(설계는 [13](13-background-fill-design.md))
+  - 캔버스와 홈 미리보기는 `linear`·`image` 겹과 여러 겹을 그리고, 패널은 겹 목록(추가·삭제·위/아래 이동·종류 전환, solid 색, linear 각도·stop, image 파일·src·fit)을 편집한다(설계는 [13](13-background-fill-design.md))
 - Border (`width` / `color` / `radius` / `align`)
   - `radius`는 숫자 하나 또는 모서리별 객체(`topLeft` `topRight` `bottomRight` `bottomLeft`)
   - `align`은 `inside` | `center` | `outside`, 생략 시 `inside`
@@ -129,3 +130,18 @@ interface ChildReference {
 배열은 통째로 바꾼다. 문서 버전 0.3 유지의 호환성 제안과 타입별 제약은
 [동결 계약의 확장 절](06-schema-freeze.md#반응형-선택-확장--222-pr-제안)을 참조한다.
 GUI·반응형 코드 생성은 별도 후속 범위다.
+
+
+### #235 이미지 배경 지원 (스키마 PR #254 선행)
+
+frame/button/input의 background 배열에 image 겹을 지원한다: `{ type: "image", src, fit }`.
+fit은 cover/contain/fill, 중앙 정렬, 반복 없음이다. ImageNode의 경로 해석과 파일 Import를
+재사용한다. 파일명에는 UUID를 붙여 병렬 가져오기가 기존 assets를 덮지 않게 한다.
+GUI는 파일 가져오기·경로·fit 및 기존 겹 추가/삭제/정렬·Undo를 제공한다. 사진 위 linear는
+배열 앞에 linear, 뒤에 image로 표현한다. JSON Export는 배열을 보존하고 코드 Export는
+생성 코드의 quoted URL assets 참조를 검증·포함한다. 상세 매핑은 배포 원본
+`skills/visual-spec-to-react/SKILL.md`의 이미지 배경 절을 따른다.
+
+스키마 #254는 팀 리뷰가 필요하며 기능 PR은 이에 의존한다. #252의 반응형 codegen 리뷰
+수정은 별도 Draft이므로 병합하지 않았다. 같은 스킬 문서가 겹쳐 합칠 때 다시 검토해야 한다.
+fixture/브라우저 검증은 실제 AI 성공 검증이 아니다.

@@ -11,6 +11,8 @@ import type {
   Size,
 } from "@/features/editor/schema";
 
+import { imageUrlCss } from "./properties/imageSrc";
+
 export type Direction = FrameNode["layout"]["direction"];
 
 /**
@@ -118,6 +120,12 @@ export function backgroundStyle(background: Background | undefined): CSSProperti
     backgroundColor: bottomSolid?.color,
     backgroundImage: hasImages ? layers.join(", ") : undefined,
     backgroundOrigin: hasImages ? "border-box" : undefined,
+    ...(imageFills.some((fill) => fill.type === "image") ? {
+      backgroundSize: imageFills.map((fill) => fill.type === "image"
+        ? (fill.fit === "fill" ? "100% 100%" : fill.fit) : "auto").join(", "),
+      backgroundPosition: imageFills.map(() => "center").join(", "),
+      backgroundRepeat: imageFills.map(() => "no-repeat").join(", "),
+    } : {}),
   };
 }
 
@@ -132,7 +140,7 @@ export function backgroundStyle(background: Background | undefined): CSSProperti
 function fillLayer(fill: Fill): string {
   switch (fill.type) {
     case "image":
-      return "none"; // #235 renderer integration follows the schema contract PR.
+      return imageUrlCss(fill.src);
     case "solid":
       return `linear-gradient(${fill.color}, ${fill.color})`;
     case "linear": {

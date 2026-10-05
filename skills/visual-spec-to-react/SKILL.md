@@ -189,7 +189,7 @@ Tailwind 클래스를 중복 적용하지 않는다. `<style>`을 TSX에 포함�
 
 배경은 CSS 속성 하나가 아니다. 앞선 폭의 클래스를 남긴 채 색만 바꾸면 기존 그라디언트가
 계속 위에 그려지고, gradient만 바꾸면 예전 단색이 투명 stop 아래에 남는다. **background
-배열을 override한 경계마다 아래 세 속성을 모두 설정한다.** background 생략에는 reset을
+배열을 override한 경계마다 아래 세 속성과 image 겹의 size/position/repeat를 모두 설정한다.** background 생략에는 reset을
 내지 않는다. 아래 모든 클래스에 그 경계의 같은 접두어를 붙인다.
 
 | 새 배열 | background-color | background-image | background-origin |
@@ -317,7 +317,8 @@ shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
    여러 개로 나누지 않는다 — `background-image` 는 속성 하나라 나중 클래스가 앞을 덮어쓴다.
    - `linear` 겹 → `linear-gradient(<angle>deg, <c1> <at1×100>%, <c2> <at2×100>%, …)`
    - 목록 안의 solid 겹(맨 아래가 아닌 solid) → `linear-gradient(c, c)`
-   - 맨 아래 겹이 `linear` 면 `bg-[c]` 없이 전부 이 목록이다.
+   - `image` 겹 → `url("<resolved-src>")`. 아래 이미지 배경 매핑을 따른다.
+   - 맨 아래 겹이 `linear` 또는 `image`면 `bg-[c]` 없이 전부 이 목록이다.
 3. **`bg-[image:…]` 를 냈으면 `bg-origin-border` 를 함께 붙인다**(`background-origin:
    border-box`). 이미지 겹이 테두리 밑까지 `background-color` 와 같은 상자에 걸린다.
 4. 기반 배경의 생략·`[]` 면 배경 클래스를 하나도 붙이지 않는다. **반응형 override의 `[]`는
@@ -630,3 +631,41 @@ grid 컨테이너 바로 아래라 자식들은 `flex-1`/`self-stretch`가 아�
 ---
 
 코드 생성이 끝나면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)로 돌아가 다음 요청을 받는다.
+
+
+## 이미지 배경 매핑 (#235)
+
+`{ "type": "image", "src": "assets/hero.png", "fit": "cover" }`는 frame/button/input의
+배경 겹이다. leaf ImageNode를 만들거나 자식 DOM을 더하지 않는다. 기존 src/fit 의미를
+공유하지만 ImageNode의 box나 object-fit이 아닌 아래 CSS background 속성을 쓴다.
+
+- 배열 순서 그대로 URL/gradient/solid 이미지 목록을 만든다. 맨 아래 solid만 color로 뺀다.
+- 이미지 URL은 따옴표로 감싸고 CSS 문자열의 역슬래시·따옴표·개행을 escape한다.
+  ImageNode와 같은 자산 계약으로 `assets/a.png` → `../assets/a.png`를 사용한다. 파일명 세그먼트는 URL encode한다
+  (`hero#1.png` → `hero%231.png`, `%` → `%25`). Export 자산 검사는 이를 decode해 원본 이름과 맞춘다.
+  앱 전용 `/__visual-spec/...` URL을 생성 결과에 넣지 않는다. data URI는 보존한다.
+  `assetId`는 실제 파일 경로로 해석되는지 확인하고, 없는 이미지를 성공으로 보고하지 않는다.
+- 이미지 겹의 `background-size`는 cover→`cover`, contain→`contain`, fill→`100% 100%`.
+  gradient/solid 이미지 겹의 size는 `auto`. **겹별 목록 길이와 순서를 맞춘다.**
+- position은 전부 `center`, repeat는 전부 `no-repeat`, origin은 `border-box`다. 반복은 미지원.
+- image→solid/gradient/빈 배열 반응형 교체는 기존 color/image/origin reset에 더해
+  size=`auto`, position=`0% 0%`, repeat=`repeat`도 reset한다. image가 있는 새 배열은
+  그 배열의 모든 longhand를 다시 낸다. 생략된 background는 상속한다.
+- 이미지 겹이 있는 노드는 정적 CSS 규칙 또는 style longhand로 표현해 URL의 공백/특수문자가
+  Tailwind 클래스 분리로 망가지지 않게 한다. **반응형 override가 있으면 기반과 모든 경계를
+  같은 scoped CSS selector + 숫자 min-width media query로 작성한다**(inline style 금지).
+  inline 기반이 media query보다 우선되어 reset을 막는 혼합은 하지 않는다.
+
+사진 위 linear 예시(정적, assets 파일이 실제로 있어야 한다):
+
+```tsx
+<div style={{
+  backgroundImage: 'linear-gradient(180deg, #0F172A00 0%, #0F172ACC 100%), url("../assets/hero.png")',
+  backgroundSize: 'auto, cover', backgroundPosition: 'center, center',
+  backgroundRepeat: 'no-repeat, no-repeat', backgroundOrigin: 'border-box',
+}} />
+```
+
+Export는 생성된 코드의 `../assets/...` 참조를 `usedAssets`로 모아 ZIP에 넣는다.
+모든 참조가 실제 assets 파일과 맞는지 확인한다. 이 매핑의 fixture 검증은 실제 AI 실행 성공의
+증거가 아니다. 수동 에이전트가 코드를 생성한 뒤 별도로 검증해야 한다.
