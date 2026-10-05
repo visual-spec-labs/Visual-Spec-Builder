@@ -1,4 +1,6 @@
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
+import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
+import { editResponsiveNode } from "@/features/editor/responsive/editResponsive";
 import {
   ChevronDown,
   ChevronRight,
@@ -88,9 +90,8 @@ function LayerRow({
   onDrop: (targetId: NodeId, targetParentId: NodeId | null) => void;
   onDragEnd: () => void;
 }) {
-  const node = useEditorStore(
-    (state) => state.spec.pages[state.activePageId].nodes[id],
-  );
+  const { pageId, resolved, breakpoint } = useResponsiveScreen();
+  const node = resolved.nodes[id];
   const isRoot = useEditorStore(
     (state) => state.spec.pages[state.activePageId].root === id,
   );
@@ -253,7 +254,7 @@ function LayerRow({
 
           <button
             type="button"
-            onClick={() => setNodeField(id, "visible", !isVisible)}
+            onClick={() => breakpoint ? editResponsiveNode(pageId, breakpoint, id, "visible", !isVisible) : setNodeField(id, "visible", !isVisible)}
             aria-label={isVisible ? "숨기기" : "표시"}
             className={`flex size-5 shrink-0 items-center justify-center ${
               isVisible ? "opacity-0 group-hover:opacity-100" : "opacity-100"

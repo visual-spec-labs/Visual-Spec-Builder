@@ -38,7 +38,8 @@ function readAsDataUrl(file: File): Promise<string | null> {
  * 이미지를 `.visual-spec/assets/`에 저장하고 스펙에 넣을 상대 경로를 돌려준다.
  * 작업공간이 없거나 확장자가 허용 목록 밖이면 null — 호출 측이 data URI로 되돌아간다.
  *
- * 이름이 겹치면 `-1`을 붙여 새 파일로 쓴다(`uniqueAssetName` 주석 참고).
+ * 파일명에 UUID를 붙여 병렬 Import의 list→PUT 경합에서도 기존 자산을 덮지 않는다.
+ * 안전한 UUID를 만들 수 없으면 data URI로 보존한다.
  */
 async function storeInWorkspace(file: File): Promise<string | null> {
   const existing = await listWorkspaceFiles(ASSET_DIR);
@@ -47,7 +48,10 @@ async function storeInWorkspace(file: File): Promise<string | null> {
   const safeName = sanitizeAssetFileName(file.name);
   if (safeName === null) return null;
 
-  const relativePath = `${ASSET_DIR}/${uniqueAssetName(safeName, existing)}`;
+  const nonce = globalThis.crypto?.randomUUID?.();
+  if (nonce === undefined) return null;
+  const isolatedName = safeName.replace(/(\.[^.]+)$/, `-${nonce}$1`);
+  const relativePath = `${ASSET_DIR}/${uniqueAssetName(isolatedName, existing)}`;
   const written = await writeWorkspaceFile(
     relativePath,
     file,
@@ -72,7 +76,7 @@ async function storeInWorkspace(file: File): Promise<string | null> {
  * 확장자가 assets 화이트리스트 밖(예: `.heic`)일 때다. 이미 data URI로 저장된 기존
  * 스펙도 그대로 열리고 그려진다(`properties/imageSrc.ts`가 두 형태를 구분한다).
  */
-async function importImage(file: File): Promise<void> {
+export async function loadImageAsset(file: File): Promise<{ src: string; width: number; height: number } | null> {
   // 크기는 파일에서 바로 잰다 — 작업공간에 쓰기 전에 이미지가 맞는지부터 확인해야
   // 엉뚱한 파일이 assets에 남지 않는다. objectURL은 재지 않는 경로에서도 꼭 회수한다.
   const objectUrl = URL.createObjectURL(file);
@@ -85,14 +89,22 @@ async function importImage(file: File): Promise<void> {
 
   if (size === null) {
     window.alert("이미지를 불러올 수 없습니다. 이미지 파일이 맞는지 확인하세요.");
-    return;
+    return null;
   }
 
   const src = (await storeInWorkspace(file)) ?? (await readAsDataUrl(file));
   if (src === null) {
     window.alert("파일을 읽을 수 없습니다.");
-    return;
+    return null;
   }
+
+  return { src, ...size };
+}
+
+async function importImage(file: File): Promise<void> {
+  const asset = await loadImageAsset(file);
+  if (asset === null) return;
+  const { src, ...size } = asset;
 
   const { spec, activePageId, selectedId, insertNode } = useEditorStore.getState();
   const page = spec.pages[activePageId];

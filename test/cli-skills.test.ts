@@ -54,6 +54,19 @@ describe("visual-spec skills (#104)", () => {
     }
   });
 
+  it("설치된 반응형 QA 참조는 함께 설치한 docs 스킬과 저장소 원문으로 이어진다", () => {
+    expect(runCli(["skills"], projectDir).exitCode).toBe(0);
+    expect(existsSync(join(projectDir, "docs"))).toBe(false);
+    const installed = join(projectDir, ".claude/skills/visual-spec-to-react");
+    const skill = readFileSync(join(installed, "SKILL.md"), "utf8");
+    const docsLink = skill.match(/\[visual-spec-docs\]\(([^)]+)\)/);
+    expect(docsLink).not.toBeNull();
+    const docsSkill = readFileSync(resolve(installed, docsLink![1]), "utf8");
+    expect(docsSkill).toContain("https://raw.githubusercontent.com/visual-spec-labs/Visual-Spec-Builder/develop/");
+    expect(skill).toContain("https://raw.githubusercontent.com/visual-spec-labs/Visual-Spec-Builder/develop/docs/16-responsive-codegen-qa.md");
+    expect(existsSync(join(REPO_ROOT, "docs/16-responsive-codegen-qa.md"))).toBe(true);
+  });
+
   it("이미 최신 상태면 다시 실행해도 '최신 상태'로 보고한다(내용 비교로 불필요한 쓰기를 피한다)", () => {
     runCli(["skills"], projectDir);
 

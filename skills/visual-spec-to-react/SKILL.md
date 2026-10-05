@@ -138,27 +138,58 @@ import { Sidebar } from "../components/Sidebar";
    override 키에 접두어만 붙이면 안 된다. 부모 row/column/grid 변화는 override가 없는
    자식의 `fill` 해석도 바꾼다. 반복 컴포넌트의 인스턴스별 override가 다르면 정적인 전체
    클래스 문자열을 props로 전달하는 등 차이를 보존한다. 한 인스턴스의 배경/폭을 공유하지 않는다.
-4. 기본은 `min-[768px]:gap-[16px]`, `min-[1024px]:gap-[24px]` 같은 **숫자 px variant**다.
-   ID가 `tablet`이어도 `md:`로 추측하지 않는다. 사용자에게 제공받은 대상 설정에서 named
-   variant의 실제 경계가 같은 CSS px임을 확인하고, 정렬도 같은 경우에만 그 이름을 쓸 수 있다.
-   `48rem`을 근거 없이 768px로 단정하지 않는다. 프로젝트를 자동 검색하거나 설정을 바꾸지 않는다.
-   한 화면에서 px/rem variant를 섞어 정렬을 추측하지 말고, 불확실하면 전부 숫자 px로 통일한다.
-5. Tailwind가 스캔할 수 있도록 **완전한 클래스 문자열을 리터럴로 쓴다**. 런타임에
-   `min-[${width}px]:...`처럼 조립하지 않는다. 사용자 제공 Tailwind 버전이 임의 min variant를
-   지원하지 않거나 복합 속성 reset을 확신할 수 없으면 아래 일반 CSS 방식으로 내보낸다.
+4. **대상 Tailwind 버전·설정의 호환성이 미확인이면 정적 CSS media query를 기본으로 쓴다.**
+   아래 일반 CSS 방식으로 기반값과 override를 함께 내보낸다. 프로젝트를 자동 검색하거나
+   설정을 바꾸지 않는다. 사용자가 제공한 버전·설정과 실제 컴파일 결과로 지원을 확인한
+   경우에만 `min-[768px]:gap-[16px]` 같은 숫자 px variant를 쓴다.
+   [Tailwind v3.2 공식 발표](https://tailwindcss.com/blog/tailwindcss-v3-2#max-width-and-dynamic-breakpoints)에
+   따르면 임의 `min-*`는 v3.2에서 도입됐고, v3에서는 문자열 값만 있는 단순 `screens`가
+   필요하다. v3.0/3.1 또는 복합 screens에서는 이 variant를 가정하지 않는다.
+   이 저장소의 v4.3.3 fixture 검증은 v3 호환성이나 미확인 v4 대상 설정을 보장하지 않는다.
+   ID가 `tablet`이어도 `md:`로 추측하지 않는다. 제공된 설정에서 named variant의 실제
+   경계가 같은 CSS px이고 정렬도 같은 경우에만 그 이름을 쓴다. `48rem`을 근거 없이
+   768px로 단정하지 않는다. px/rem 정렬이 불확실하면 정적 px media CSS로 통일한다.
+5. Tailwind를 사용하는 경우 **완전한 클래스 문자열을 리터럴로 쓴다**. 런타임에
+   `min-[${width}px]:...`처럼 조립하지 않는다. 지원이나 복합 속성 reset을 확신할 수
+   없으면 아래 일반 CSS 방식으로 내보낸다.
 
-`examples/responsive-cards.json`의 root는 다음 클래스다. desktop가 JSON에서 먼저 선언돼도
+`examples/responsive-cards.json`의 root를 **검증된 Tailwind v4.3.3 대상**에 옮긴 예다.
+`crossAxis: "start"`는 `items-start`로 보존한다(auto 높이 자식이 stretch되지 않아야 한다).
 768px padding-left=32가 1024px에도 남고, 1024px에서 gap=32·배경 없음으로 바뀐다.
 
 ```tsx
-<div className="flex flex-row gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full h-full min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]">{/* 자식들 */}</div>
+<div className="flex flex-row items-start gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full h-full min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]">{/* 자식들 */}</div>
+```
+
+같은 root의 **호환성 미확인 대상 기본 출력**은 다음과 같다. 이 요소에는 기반/반응형
+Tailwind 클래스를 중복 적용하지 않는다. `<style>`을 TSX에 포함해 Export와 함께 전달한다.
+
+```tsx
+<>
+  <style>{`
+.vsb-card-effects-root {
+  display: flex; flex-direction: row; align-items: flex-start;
+  box-sizing: border-box; justify-content: flex-start;
+  gap: 24px; padding: 48px; width: 100%; height: 100%;
+  background-color: #F1F5F9; background-image: none; background-origin: padding-box;
+}
+@media (min-width: 768px) {
+  .vsb-card-effects-root { padding-left: 32px; }
+}
+@media (min-width: 1024px) {
+  .vsb-card-effects-root {
+    gap: 32px; background-color: transparent; background-image: none; background-origin: padding-box;
+  }
+}`}</style>
+  <div className="vsb-card-effects-root">{/* 자식들 */}</div>
+</>
 ```
 
 ### 배경 배열은 color와 image를 함께 교체한다
 
 배경은 CSS 속성 하나가 아니다. 앞선 폭의 클래스를 남긴 채 색만 바꾸면 기존 그라디언트가
 계속 위에 그려지고, gradient만 바꾸면 예전 단색이 투명 stop 아래에 남는다. **background
-배열을 override한 경계마다 아래 세 속성을 모두 설정한다.** background 생략에는 reset을
+배열을 override한 경계마다 아래 세 속성과 image 겹의 size/position/repeat를 모두 설정한다.** background 생략에는 reset을
 내지 않는다. 아래 모든 클래스에 그 경계의 같은 접두어를 붙인다.
 
 | 새 배열 | background-color | background-image | background-origin |
@@ -168,7 +199,7 @@ import { Sidebar } from "../components/Sidebar";
 | 맨 아래 solid + 위 겹들 | 아래 solid의 `bg-[#...]` | 위 겹을 `bg-[image:...]` 하나로 | `bg-origin-border` |
 | 맨 아래가 linear인 한/여러 겹 | `bg-transparent` | 모든 겹을 `bg-[image:...]` 하나로 | `bg-origin-border` |
 
-예: gradient+solid에서 768px에 파란 solid로 바꾸려면
+호환성을 확인한 Tailwind 대상의 예: gradient+solid에서 768px에 파란 solid로 바꾸려면
 `min-[768px]:bg-[#0000FF80] min-[768px]:bg-none min-[768px]:[background-origin:padding-box]`.
 1024px에 비우려면
 `min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]`.
@@ -198,7 +229,11 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 
 각 breakpoint의 직전/정확한 경계/다음 구간에서 컴파일된 CSS와 렌더를 검증한다. 클래스
 문자열만 보고 통과했다고 말하지 않는다. 실제 AI 생성 실행 여부, 수동 매핑 fixture 결과,
-캔버스 비교 여부를 구분해서 보고한다. 실측 조건과 사례는 `docs/16-responsive-codegen-qa.md`에 있다.
+캔버스 비교 여부를 구분해서 보고한다. 실측 조건과 사례는
+[visual-spec-docs](../visual-spec-docs/SKILL.md)의 원문 획득 절차로
+`docs/16-responsive-codegen-qa.md`를 읽는다. 설치된 프로젝트에는 docs가 없으므로
+[저장소 원문](https://raw.githubusercontent.com/visual-spec-labs/Visual-Spec-Builder/develop/docs/16-responsive-codegen-qa.md)을
+가져온다. 읽지 못했으면 그 한계를 보고한다.
 
 ## 매핑 참고표
 
@@ -282,7 +317,8 @@ shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
    여러 개로 나누지 않는다 — `background-image` 는 속성 하나라 나중 클래스가 앞을 덮어쓴다.
    - `linear` 겹 → `linear-gradient(<angle>deg, <c1> <at1×100>%, <c2> <at2×100>%, …)`
    - 목록 안의 solid 겹(맨 아래가 아닌 solid) → `linear-gradient(c, c)`
-   - 맨 아래 겹이 `linear` 면 `bg-[c]` 없이 전부 이 목록이다.
+   - `image` 겹 → `url("<resolved-src>")`. 아래 이미지 배경 매핑을 따른다.
+   - 맨 아래 겹이 `linear` 또는 `image`면 `bg-[c]` 없이 전부 이 목록이다.
 3. **`bg-[image:…]` 를 냈으면 `bg-origin-border` 를 함께 붙인다**(`background-origin:
    border-box`). 이미지 겹이 테두리 밑까지 `background-color` 와 같은 상자에 걸린다.
 4. 기반 배경의 생략·`[]` 면 배경 클래스를 하나도 붙이지 않는다. **반응형 override의 `[]`는
@@ -595,3 +631,41 @@ grid 컨테이너 바로 아래라 자식들은 `flex-1`/`self-stretch`가 아�
 ---
 
 코드 생성이 끝나면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)로 돌아가 다음 요청을 받는다.
+
+
+## 이미지 배경 매핑 (#235)
+
+`{ "type": "image", "src": "assets/hero.png", "fit": "cover" }`는 frame/button/input의
+배경 겹이다. leaf ImageNode를 만들거나 자식 DOM을 더하지 않는다. 기존 src/fit 의미를
+공유하지만 ImageNode의 box나 object-fit이 아닌 아래 CSS background 속성을 쓴다.
+
+- 배열 순서 그대로 URL/gradient/solid 이미지 목록을 만든다. 맨 아래 solid만 color로 뺀다.
+- 이미지 URL은 따옴표로 감싸고 CSS 문자열의 역슬래시·따옴표·개행을 escape한다.
+  ImageNode와 같은 자산 계약으로 `assets/a.png` → `../assets/a.png`를 사용한다. 파일명 세그먼트는 URL encode한다
+  (`hero#1.png` → `hero%231.png`, `%` → `%25`). Export 자산 검사는 이를 decode해 원본 이름과 맞춘다.
+  앱 전용 `/__visual-spec/...` URL을 생성 결과에 넣지 않는다. data URI는 보존한다.
+  `assetId`는 실제 파일 경로로 해석되는지 확인하고, 없는 이미지를 성공으로 보고하지 않는다.
+- 이미지 겹의 `background-size`는 cover→`cover`, contain→`contain`, fill→`100% 100%`.
+  gradient/solid 이미지 겹의 size는 `auto`. **겹별 목록 길이와 순서를 맞춘다.**
+- position은 전부 `center`, repeat는 전부 `no-repeat`, origin은 `border-box`다. 반복은 미지원.
+- image→solid/gradient/빈 배열 반응형 교체는 기존 color/image/origin reset에 더해
+  size=`auto`, position=`0% 0%`, repeat=`repeat`도 reset한다. image가 있는 새 배열은
+  그 배열의 모든 longhand를 다시 낸다. 생략된 background는 상속한다.
+- 이미지 겹이 있는 노드는 정적 CSS 규칙 또는 style longhand로 표현해 URL의 공백/특수문자가
+  Tailwind 클래스 분리로 망가지지 않게 한다. **반응형 override가 있으면 기반과 모든 경계를
+  같은 scoped CSS selector + 숫자 min-width media query로 작성한다**(inline style 금지).
+  inline 기반이 media query보다 우선되어 reset을 막는 혼합은 하지 않는다.
+
+사진 위 linear 예시(정적, assets 파일이 실제로 있어야 한다):
+
+```tsx
+<div style={{
+  backgroundImage: 'linear-gradient(180deg, #0F172A00 0%, #0F172ACC 100%), url("../assets/hero.png")',
+  backgroundSize: 'auto, cover', backgroundPosition: 'center, center',
+  backgroundRepeat: 'no-repeat, no-repeat', backgroundOrigin: 'border-box',
+}} />
+```
+
+Export는 생성된 코드의 `../assets/...` 참조를 `usedAssets`로 모아 ZIP에 넣는다.
+모든 참조가 실제 assets 파일과 맞는지 확인한다. 이 매핑의 fixture 검증은 실제 AI 실행 성공의
+증거가 아니다. 수동 에이전트가 코드를 생성한 뒤 별도로 검증해야 한다.

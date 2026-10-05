@@ -6,7 +6,7 @@ import { Field, FieldLabel, SegmentedControl, TextField } from "./fields";
 
 type ImageFit = "cover" | "contain" | "fill";
 
-const FIT_OPTIONS = [
+export const FIT_OPTIONS = [
   { value: "cover", content: "채우기", title: "채우기 (cover) — 비율 유지, 넘치면 잘린다" },
   { value: "contain", content: "맞추기", title: "맞추기 (contain) — 비율 유지, 남으면 빈다" },
   { value: "fill", content: "늘이기", title: "늘이기 (fill) — 비율을 무시하고 상자를 채운다" },

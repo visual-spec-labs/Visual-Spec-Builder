@@ -1,21 +1,18 @@
+import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
-  type RefObject,
 } from "react";
 
 import { useContextMenuStore } from "@/features/editor/store/contextMenuStore";
-import { createNode, type NodeKind } from "@/features/editor/store/createNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { generateNodeId } from "@/features/editor/store/nodeId";
-import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
-import type { Box, NodeId, PageId } from "@/features/editor/schema";
+import type { PageId } from "@/features/editor/schema";
 
 import { isScrolledToBottom, toolCursorClass } from "./canvasInput";
 import { ContextMenu } from "./ContextMenu";
@@ -26,7 +23,7 @@ import {
   stripBar,
   type GapStrip,
 } from "./gapStrips";
-import { artboardBoxSize, resizedValue, type Direction } from "./canvasLayout";
+import { artboardBoxSize } from "./canvasLayout";
 import { useCanvasKeys } from "./canvasKeys";
 import {
   useArtboardHeight,
@@ -43,464 +40,28 @@ import {
 } from "./canvasZoom";
 import { measureSegments, segmentBadge } from "./measureDistance";
 import { buildNodeContextMenuEntries } from "./nodeContextMenuEntries";
-import {
-  buttonStyle,
-  frameStyle,
-  imageStyle,
-  inputStyle,
-  textStyle,
-} from "./nodeStyles";
-import { createResizeGesture, type ResizeTarget } from "./resizeGesture";
-import { clickBoundary, resolveClickTarget, resolveInsertParent } from "./selection";
 import { useNodeDrag } from "./useNodeDrag";
 
-/**
- * 중앙 캔버스.
- *
- * ⚠️ 임시 스탠드인: 패널 편집이 즉시 반영되는지 눈으로 확인하려고 만든 최소 렌더러.
- * 팀원(캔버스 담당)이 정식 구현으로 교체할 예정. 계약은 spec을 읽고, 클릭 시 select(),
- * 드래그/리사이즈 시 setNodeField를 부르면 된다. 참고: docs/EDITOR_STORE_CONTRACT.md
- *
- * 이 주석은 **이 파일에 있어야 한다.** `docs/07-implementation-status.md` 와
- * `docs/06-schema-freeze.md`, 그리고 `ui/homePreview.ts` 가 "Canvas.tsx 상단 주석이
- * 스스로를 임시 스탠드인이라 밝힌다"를 근거로 삼는다 — 옮기거나 지우면 네 곳이
- * 한꺼번에 거짓이 된다(2026-09-19·이슈 #148 분할 때 실제로 그랬다).
- *
- * 분할된 이웃들: `nodeStyles.ts`(노드 타입별 CSS 조립) · `canvasOverlays.ts`(측정 훅)
- * · `canvasZoom.ts`(줌 앵커·Alt) · `canvasKeys.ts`(키보드 배선) · `useNodeDrag.ts`
- * (노드 끌어 옮기기, #187).
- */
+import { RenderNode } from "./CanvasNode";
+import { handleBackgroundClick } from "./canvasSelection";
 
 /**
- * 선택된 노드가 실제로 몇 px로 그려졌는지 재서 스토어에 올린다.
- * transform: scale은 offsetWidth/Height에 영향을 주지 않으므로 줌과 무관한 실측값이다.
+ * 중앙 DOM 캔버스(#236). 현재 렌더러를 유지하며 엔진 교체를 전제하지 않는다.
+ * Canvas는 뷰포트·팬·줌·오버레이를 조립하고, 역할별 구현은 이웃에 둔다.
+ * - CanvasNode: DOM 렌더 트리와 선택 노드 실측
+ * - canvasSelection: 클릭·더블클릭·우클릭의 선택/삽입 배선
+ * - CanvasResizeHandles: 리사이즈 핸들과 드래그 수명·Undo 묶음
+ * - useNodeDrag/canvasDrop: 노드 드래그와 놓을 자리 판정
+ * - canvasOverlays/canvasZoom/canvasKeys/nodeStyles: 측정·줌·키보드·CSS
+ * 스펙 변경은 기존 editorStore Command 액션을 거친다.
+ * 참고: docs/EDITOR_STORE_CONTRACT.md
  */
-function useReportMeasuredSize(
-  ref: RefObject<HTMLDivElement | null>,
-  active: boolean,
-) {
-  useEffect(() => {
-    const element = ref.current;
-    if (!active || element === null) return;
-
-    function report() {
-      if (element === null) return;
-      useMeasureStore.getState().setSize({
-        width: Math.round(element.offsetWidth),
-        height: Math.round(element.offsetHeight),
-      });
-    }
-
-    report();
-    const observer = new ResizeObserver(report);
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      useMeasureStore.getState().setSize(null);
-    };
-  }, [ref, active]);
-}
-
-/** 새 노드를 만들어 부모에 붙이고, 도구를 Select로 되돌린다. */
-function insertNewNode(kind: NodeKind, parentId: NodeId) {
-  const { spec, activePageId, insertNode } = useEditorStore.getState();
-  const { nodes } = spec.pages[activePageId];
-  insertNode(parentId, generateNodeId(kind, nodes), createNode(kind));
-  // 피그마와 같은 흐름 — 하나 만들면 바로 그것을 만질 수 있게 선택 도구로 돌아온다.
-  useToolStore.getState().setActiveTool("select");
-}
-
-/**
- * 노드를 클릭했을 때 활성 도구에 따라 무엇을 할지 정한다.
- *
- * 스토어를 구독하는 대신 getState로 읽는다 — 재귀 렌더 트리의 모든 노드에
- * 핸들러를 내려보내거나 도구가 바뀔 때마다 트리 전체를 다시 그리지 않기 위해서다.
- */
-function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
-  // 중첩된 부모의 핸들러까지 함께 실행되면 어느 노드를 클릭했는지 알 수 없다.
-  event.stopPropagation();
-
-  const tool = useToolStore.getState().activeTool;
-  if (tool === "hand") return; // 팬 전용 도구 — 선택을 바꾸지 않는다
-
-  const { spec, activePageId, focusRootId, select } = useEditorStore.getState();
-  const { nodes, root } = spec.pages[activePageId];
-
-  if (tool === "frame" || tool === "text") {
-    insertNewNode(tool, resolveInsertParent({ nodes, root, clickedId }));
-    return;
-  }
-
-  // Select 도구 — Cmd(macOS) / Ctrl(Windows)를 누르면 상세 지정(최하위).
-  // 경계는 clickBoundary가 정한다(#151) — 더블클릭으로 들어간 프레임 안에서는
-  // 그 프레임의 자식이 "최상위"가 되지만, 클릭이 그 밖(다른 가지)이면 진짜
-  // root로 물러난다.
-  select(
-    resolveClickTarget({
-      nodes,
-      root: clickBoundary(nodes, root, focusRootId, clickedId),
-      clickedId,
-      deep: event.metaKey || event.ctrlKey,
-    }),
-  );
-}
-
-/**
- * 노드를 더블클릭했을 때 그 안으로 "들어간다"(#151, 피그마와 같은 진입).
- *
- * 지금 클릭 경계로 한 번 골라(= 평소 클릭이 고를 대상) 그게 자식 있는 프레임이면
- * 그 프레임을 새 경계(focusRootId)로 세우고, 그 새 경계로 다시 한 번 골라 그
- * 안의 대상을 선택한다 — 새 해석 규칙을 만들지 않고 `resolveClickTarget`를
- * 경계만 바꿔 두 번 부르는 것으로 푼다.
- */
-function handleNodeDoubleClick(clickedId: NodeId, event: ReactMouseEvent) {
-  event.stopPropagation();
-
-  const tool = useToolStore.getState().activeTool;
-  if (tool !== "select") return; // 진입은 Select 도구에서만 뜻이 있다
-
-  const { spec, activePageId, focusRootId, select, enterFocus } = useEditorStore.getState();
-  const { nodes, root } = spec.pages[activePageId];
-
-  const entered = resolveClickTarget({
-    nodes,
-    root: clickBoundary(nodes, root, focusRootId, clickedId),
-    clickedId,
-    deep: false,
-  });
-  const enteredNode = nodes[entered];
-  if (enteredNode === undefined || enteredNode.type !== "frame" || enteredNode.children.length === 0) {
-    return; // 들어갈 자식이 없다 — 문맥을 바꿀 이유가 없다
-  }
-
-  enterFocus(entered);
-  select(resolveClickTarget({ nodes, root: entered, clickedId, deep: false }));
-}
-
-/**
- * 노드를 우클릭했을 때 컨텍스트 메뉴를 연다(#152).
- *
- * 선택 해석은 좌클릭(handleNodeClick)과 완전히 같다 — 같은 `clickBoundary`로
- * 진입 문맥을 존중하고, Ctrl/Cmd로 상세 지정도 그대로 받는다. 새 규칙을 만들지
- * 않고 기존 걸 얹기만 한다. 대상을 먼저 선택한 뒤 메뉴를 연다 — 우클릭이
- * 선택을 바꾸는 건 대부분의 편집기와 같은 관례다.
- *
- * Hand 도구는 팬 전용이라 좌클릭도 선택을 안 바꾸므로 메뉴도 안 띄운다.
- * `preventDefault`는 항상 부른다 — EditorLayout의 블랭킷 차단(shouldSuppressContextMenu)
- * 에 기대지 않고 이 자리에서 스스로 브라우저 메뉴를 막는다.
- */
-function handleNodeContextMenu(clickedId: NodeId, event: ReactMouseEvent) {
-  event.preventDefault();
-  event.stopPropagation();
-
-  const tool = useToolStore.getState().activeTool;
-  if (tool !== "select") return;
-
-  const { spec, activePageId, focusRootId, select } = useEditorStore.getState();
-  const { nodes, root } = spec.pages[activePageId];
-
-  const resolved = resolveClickTarget({
-    nodes,
-    root: clickBoundary(nodes, root, focusRootId, clickedId),
-    clickedId,
-    deep: event.metaKey || event.ctrlKey,
-  });
-
-  select(resolved);
-  useContextMenuStore.getState().open({ nodeId: resolved, x: event.clientX, y: event.clientY });
-}
-
-/** 아트보드 바깥(캔버스 바탕)을 클릭했을 때. */
-function handleBackgroundClick() {
-  const tool = useToolStore.getState().activeTool;
-  if (tool === "hand") return;
-
-  const { spec, activePageId, select } = useEditorStore.getState();
-
-  if (tool === "frame" || tool === "text") {
-    insertNewNode(tool, spec.pages[activePageId].root);
-    return;
-  }
-
-  select(null); // 선택 문맥(focusRootId)도 함께 비워진다 — select의 계약(#151)
-}
-
-/** 우측(e) · 하단(s) · 우하단(se) 세 방향만 지원한다 — ResizeHandles 주석 참고. */
-type ResizeEdge = "e" | "s" | "se";
-
-const RESIZE_HANDLE_SIZE = 8;
-
-/**
- * 리사이즈 드래그를 시작한다. Hand 도구 팬(위 useEffect)과 달리 끄는 동안만
- * 필요한 리스너라 mousedown 시점에 등록하고 mouseup에서 바로 정리한다 — 매
- * 렌더마다 새로 붙였다 뗄 이유가 없는 팬과는 수명이 다르다.
- *
- * 마우스 이동량은 화면 px다. 캔버스 전체가 transform: scale로 확대돼 있어
- * 화면 px과 스펙 px이 다르므로, 시작 시점의 줌 배율로 나눠 보정한다(줌을
- * 끄는 도중에 바꾸는 경로가 없어 시작 값 하나로 충분하다).
- *
- * Fill/Hug처럼 스펙에 숫자가 없는 상태에서 시작하면 measureStore의 실측값을
- * 시작 크기로 삼는다 — SizeField.tsx가 Fixed로 전환할 때 쓰는 것과 같은 값이다.
- * setNodeField가 숫자를 쓰는 순간 box.width/height는 자동으로 Fixed가 된다.
- */
-function startResize(event: ReactMouseEvent, id: NodeId, edge: ResizeEdge, box: Box) {
-  event.preventDefault();
-  event.stopPropagation();
-
-  const zoom = useViewStore.getState().zoom / 100;
-  const measured = useMeasureStore.getState().size;
-
-  // root 를 끌면 노드의 box 가 아니라 **페이지 해상도(page.size)** 를 바꾼다.
-  //
-  // root 는 곧 페이지이고 크기를 정하는 곳은 page.size 하나다(boxStyle 이 root 의
-  // box 를 보지 않는 것과 같은 이유). box 에 쓰면 스펙만 바뀌고 화면은 그대로여서
-  // 끌어도 아무 일이 안 일어난 것처럼 보인다. 해상도에 쓰면 아트보드가 실제로
-  // 커지고 패널의 해상도 칸도 함께 움직인다 — Figma 에서 아트보드를 끄는 것과 같다.
-  const { spec, activePageId } = useEditorStore.getState();
-  const page = spec.pages[activePageId];
-  const isRoot = page.root === id;
-
-  const startWidth = isRoot
-    ? page.size.width
-    : typeof box.width === "number"
-      ? box.width
-      : (measured?.width ?? 100);
-  const startHeight = isRoot
-    ? page.size.height
-    : typeof box.height === "number"
-      ? box.height
-      : (measured?.height ?? 100);
-  const startX = event.clientX;
-  const startY = event.clientY;
-  // 끌기 한 번 = undo 한 단계(#207). 값이 바뀐 첫 커밋만 새 단계를 만든다.
-  const gesture = createResizeGesture({ width: startWidth, height: startHeight });
-
-  function handleMove(moveEvent: MouseEvent) {
-    // 창 밖에서 버튼을 떼면 mouseup이 여기까지 안 온다 — 팬과 같은 방어.
-    if (moveEvent.buttons === 0) {
-      end();
-      return;
-    }
-
-    const target: ResizeTarget = {};
-    if (edge === "e" || edge === "se") {
-      target.width = resizedValue(startWidth, moveEvent.clientX - startX, zoom);
-    }
-    if (edge === "s" || edge === "se") {
-      target.height = resizedValue(startHeight, moveEvent.clientY - startY, zoom);
-    }
-
-    const { setNodeField, setPageField } = useEditorStore.getState();
-    for (const { axis, value, continueEdit } of gesture.commits(target)) {
-      if (isRoot) setPageField(activePageId, `size.${axis}`, value, continueEdit);
-      else setNodeField(id, `box.${axis}`, value, continueEdit);
-    }
-  }
-
-  // mousedown에서 stopPropagation해도 뒤이어 브라우저가 합성하는 click은 막지
-  // 못한다. 커서가 드래그 도중 노드 밖(형제나 배경)으로 나가 있으면 그 click이
-  // handleNodeClick/handleBackgroundClick을 건드려 방금 만든 선택을 지워버린다
-  // — capture 단계에서 한 번만 가로채 죽인다.
-  function suppressClick(clickEvent: MouseEvent) {
-    clickEvent.stopPropagation();
-  }
-
-  function end() {
-    window.removeEventListener("mousemove", handleMove);
-    window.removeEventListener("mouseup", end);
-    // click은 mouseup 뒤 브라우저가 같은 동기 흐름 안에서 이어서 내보낸다 —
-    // 그 click을 잡아야 하니 여기서 곧바로 떼면 안 된다. once가 실제로 클릭이
-    // 오면 스스로 정리하고, 클릭이 안 오는 예외 상황(예: 이 tick 안에 다른
-    // 코드가 이벤트 흐름을 끊는 경우)을 대비해 다음 매크로태스크에서 한 번 더
-    // 방어적으로 뗀다 — 이미 스스로 떼졌으면 그냥 no-op이다.
-    setTimeout(() => window.removeEventListener("click", suppressClick, { capture: true }), 0);
-  }
-
-  window.addEventListener("mousemove", handleMove);
-  window.addEventListener("mouseup", end);
-  window.addEventListener("click", suppressClick, { capture: true, once: true });
-}
-
-const RESIZE_HANDLE_BASE: CSSProperties = {
-  position: "absolute",
-  background: "#F97316",
-  borderRadius: 2,
-};
-
-/**
- * 선택된 노드에만 오버레이로 그리는 리사이즈 핸들.
- *
- * 우측·하단·우하단 세 방향만 있다 — 스키마에 x/y(절대좌표)가 없어 노드는 항상
- * 부모 레이아웃 흐름(flex) 안에서만 위치가 정해진다. 좌측·상단으로 "자라는"
- * 핸들을 만들면 실제로는 크기만 커지고 화면상 위치는 그대로라(옮길 좌표 필드가
- * 없다) Figma를 흉내 낸 값싼 흉내가 시각적으로 거짓말을 하게 된다. 그래서
- * box-model이 그대로 지원하는 방향만 남겼다.
- *
- * 부모 요소(RenderNode의 각 분기)가 `position: relative`여야 좌표가 그 노드
- * 기준으로 앉는다 — `resizeAnchor`가 선택 시 같이 얹어준다.
- */
-function ResizeHandles({ id, box }: { id: NodeId; box: Box }) {
-  const half = RESIZE_HANDLE_SIZE / 2;
-  return (
-    <>
-      <div
-        data-resize-handle="e"
-        onMouseDown={(event) => startResize(event, id, "e", box)}
-        style={{
-          ...RESIZE_HANDLE_BASE,
-          top: "50%",
-          right: -half,
-          width: RESIZE_HANDLE_SIZE,
-          height: RESIZE_HANDLE_SIZE * 3,
-          transform: "translateY(-50%)",
-          cursor: "ew-resize",
-        }}
-      />
-      <div
-        data-resize-handle="s"
-        onMouseDown={(event) => startResize(event, id, "s", box)}
-        style={{
-          ...RESIZE_HANDLE_BASE,
-          left: "50%",
-          bottom: -half,
-          width: RESIZE_HANDLE_SIZE * 3,
-          height: RESIZE_HANDLE_SIZE,
-          transform: "translateX(-50%)",
-          cursor: "ns-resize",
-        }}
-      />
-      <div
-        data-resize-handle="se"
-        onMouseDown={(event) => startResize(event, id, "se", box)}
-        style={{
-          ...RESIZE_HANDLE_BASE,
-          right: -half,
-          bottom: -half,
-          width: RESIZE_HANDLE_SIZE,
-          height: RESIZE_HANDLE_SIZE,
-          cursor: "nwse-resize",
-        }}
-      />
-    </>
-  );
-}
-
-function RenderNode({
-  id,
-  parentDirection,
-}: {
-  id: NodeId;
-  /** 부모 프레임의 레이아웃 방향. 최상위 노드는 부모가 없어 undefined. */
-  parentDirection?: Direction;
-}) {
-  const node = useEditorStore(
-    (state) => state.spec.pages[state.activePageId].nodes[id],
-  );
-  const selectedId = useEditorStore((state) => state.selectedId);
-  const ref = useRef<HTMLDivElement>(null);
-  const selected = selectedId === id;
-
-  useReportMeasuredSize(ref, selected && node?.visible !== false);
-
-  if (node === undefined || node.visible === false) {
-    return null;
-  }
-
-  // position: relative는 리사이즈 핸들(ResizeHandles)이 이 노드 기준으로 앉기
-  // 위한 것 — 선택 안 됐을 때는 핸들도 안 그리니 필요 없다. 선택 시각 표시
-  // 자체는 이 값이 아니라 아래 useSelectionRect 기반 오버레이가 맡는다.
-  const resizeAnchor = selected ? { position: "relative" as const } : {};
-
-  if (node.type === "text") {
-    return (
-      <div
-        ref={ref}
-        // 스펙상의 노드 id를 DOM에 그대로 남긴다 — 중첩 안쪽을 상세 지정했을 때
-        // 어떤 item이 잡혔는지 개발자 도구에서 바로 확인할 수 있다.
-        data-node-id={id}
-        style={{ ...textStyle(node, parentDirection), ...resizeAnchor }}
-        onClick={(event) => handleNodeClick(id, event)}
-        onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
-        onContextMenu={(event) => handleNodeContextMenu(id, event)}
-      >
-        {node.content}
-        {selected && <ResizeHandles id={id} box={node.box} />}
-      </div>
-    );
-  }
-
-  if (node.type === "image") {
-    return (
-      <div
-        ref={ref}
-        data-node-id={id}
-        style={{ ...imageStyle(node, parentDirection), ...resizeAnchor }}
-        onClick={(event) => handleNodeClick(id, event)}
-        onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
-        onContextMenu={(event) => handleNodeContextMenu(id, event)}
-      >
-        {selected && <ResizeHandles id={id} box={node.box} />}
-      </div>
-    );
-  }
-
-  if (node.type === "button") {
-    return (
-      <div
-        ref={ref}
-        data-node-id={id}
-        style={{ ...buttonStyle(node, parentDirection), ...resizeAnchor }}
-        onClick={(event) => handleNodeClick(id, event)}
-        onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
-        onContextMenu={(event) => handleNodeContextMenu(id, event)}
-      >
-        {node.content}
-        {selected && <ResizeHandles id={id} box={node.box} />}
-      </div>
-    );
-  }
-
-  if (node.type === "input") {
-    return (
-      <div
-        ref={ref}
-        data-node-id={id}
-        style={{ ...inputStyle(node, parentDirection), ...resizeAnchor }}
-        onClick={(event) => handleNodeClick(id, event)}
-        onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
-        onContextMenu={(event) => handleNodeContextMenu(id, event)}
-      >
-        <span style={{ opacity: 0.6 }}>{node.placeholder}</span>
-        {selected && <ResizeHandles id={id} box={node.box} />}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={ref}
-      data-node-id={id}
-      style={{ ...frameStyle(node, parentDirection), ...resizeAnchor }}
-      onClick={(event) => handleNodeClick(id, event)}
-      onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
-      onContextMenu={(event) => handleNodeContextMenu(id, event)}
-    >
-      {node.children.map((child) => (
-        <RenderNode
-          key={child.node}
-          id={child.node}
-          parentDirection={node.layout.direction}
-        />
-      ))}
-      {selected && <ResizeHandles id={id} box={node.box} />}
-    </div>
-  );
-}
 
 export function Canvas() {
   const activePageId = useEditorStore((state) => state.activePageId);
   const root = useEditorStore((state) => state.spec.pages[state.activePageId].root);
-  const size = useEditorStore((state) => state.spec.pages[state.activePageId].size);
+  const { screen: responsiveScreen, resolved, width: previewWidth } = useResponsiveScreen();
+  const size = useMemo(() => ({ width: previewWidth, height: responsiveScreen.size.height }), [previewWidth, responsiveScreen.size.height]);
   const screenName = useEditorStore((state) => state.spec.pages[state.activePageId].name);
   const selectedId = useEditorStore((state) => state.selectedId);
   const activeTool = useToolStore((state) => state.activeTool);
@@ -815,6 +376,7 @@ export function Canvas() {
           docs/DESIGN-TOKEN-RULES.md의 인라인 스타일 금지 예외에 해당한다.
         */}
         <div
+          data-testid="responsive-artboard"
           ref={artboardRef}
           className="relative flex flex-col bg-transparent shadow-modal origin-top-left"
           style={{
@@ -823,7 +385,7 @@ export function Canvas() {
             transform: `scale(${scale})`,
           }}
         >
-          <RenderNode id={root} />
+          <RenderNode screen={resolved} id={root} />
         </div>
 
         {/*

@@ -10,11 +10,12 @@ import { formatDocumentTitle } from "@/features/editor/ui/documentTitle";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
+import { insertControl } from "@/features/editor/ui/insertControl";
 import { MenuList, type MenuEntry } from "@/features/editor/ui/menu";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 
-type MenuKey = "file" | "view";
+type MenuKey = "file" | "insert" | "view";
 
 /**
  * spec을 렌더 시점 구독값이 아니라 클릭 시점에 getState()로 읽는다.
@@ -58,7 +59,7 @@ function handleExportCode() {
 
 /**
  * 상단 메뉴바 — Figma 디자인 기준 레이아웃(로고·브랜드·중앙 프로젝트명·테마 토글) +
- * File/View 드롭다운.
+ * File/Insert/View 드롭다운.
  * New는 newSpec(빈 스펙 + 현재 문서 이름 비우기), Open은 openSpec(.visual-spec/specs/
  * 목록에서 고르기 → 검증 → loadSpec)로 연결돼 있다. Save/Save as는 작업공간
  * `.visual-spec/specs/`에 쓰고(이슈 #133), Save as만 파일명을 먼저 묻는다.
@@ -105,6 +106,11 @@ export function MenuBar() {
     { kind: "action", label: "Import", onSelect: importImageFromFile },
     { kind: "action", label: "Export", onSelect: handleExport },
     { kind: "action", label: "Export Code", onSelect: handleExportCode },
+  ];
+
+  const INSERT_MENU: MenuEntry[] = [
+    { kind: "action", label: "Button", onSelect: () => insertControl("button") },
+    { kind: "action", label: "Input", onSelect: () => insertControl("input") },
   ];
 
   const VIEW_MENU: MenuEntry[] = [
@@ -167,6 +173,13 @@ export function MenuBar() {
           onToggle={() => setOpenMenu((prev) => (prev === "file" ? null : "file"))}
           onCloseMenu={() => setOpenMenu(null)}
           entries={FILE_MENU}
+        />
+        <MenuButton
+          label="Insert"
+          isOpen={openMenu === "insert"}
+          onToggle={() => setOpenMenu((prev) => (prev === "insert" ? null : "insert"))}
+          onCloseMenu={() => setOpenMenu(null)}
+          entries={INSERT_MENU}
         />
         <MenuButton
           label="View"

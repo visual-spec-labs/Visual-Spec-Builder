@@ -195,6 +195,8 @@ function isEditablePath(
  * 판정에 화면의 지금 값을 함께 쓴다 — 이유는 파일 머리말 참고.
  */
 export function isEditableScreenPath(screen: ScreenSpec, path: string): boolean {
+  // 맵 안으로 점 경로 쓰기는 금지한다. 전체 블록만 검증 후 교체한다.
+  if (path.startsWith("responsive.")) return false;
   return isEditablePath("ScreenSpec", SCREEN_STRUCTURAL_ROOTS, screen, path);
 }
 

@@ -1,3 +1,4 @@
+import { validateVisualSpec } from "@/features/editor/schema";
 import type { FrameNode, Node, NodeId, ScreenSpec } from "@/features/editor/schema";
 import { generateNodeIds } from "@/features/editor/store/nodeId";
 import { setByPath } from "@/features/editor/store/path";
@@ -179,7 +180,15 @@ function applyDeleteNode(screen: ScreenSpec, command: DeleteNodeCommand): ApplyR
     Object.entries(nextNodes).filter(([id]) => !toRemove.has(id)),
   );
 
-  return applied(withNodes(screen, nextNodes));
+  const next = withNodes(screen, nextNodes);
+  if (screen.responsive) {
+    next.responsive = { ...screen.responsive, overrides: Object.fromEntries(
+      Object.entries(screen.responsive.overrides).map(([breakpoint, patches]) => [breakpoint,
+        Object.fromEntries(Object.entries(patches).filter(([id]) => !toRemove.has(id))),
+      ]),
+    ) };
+  }
+  return applied(next);
 }
 
 function applyMoveNode(screen: ScreenSpec, command: MoveNodeCommand): ApplyResult {
@@ -236,7 +245,13 @@ function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): Ap
     return noOp(screen, `path '${command.path}'는 화면에 쓸 수 없습니다`);
   }
 
-  return applied(setByPath(screen, command.path, command.value));
+  const next = setByPath(screen, command.path, command.value);
+  if (command.path === "responsive") {
+    const result = validateVisualSpec({ version: "0.3", screen: next });
+    if (!result.valid) return noOp(screen, result.issues.map((issue) => issue.message).join(" "));
+    if (JSON.stringify(screen.responsive) === JSON.stringify(next.responsive)) return noOp(screen, "반응형 값이 같습니다");
+  }
+  return applied(next);
 }
 
 /**
@@ -322,7 +337,7 @@ export function buildDuplicateCommands(
   liveNodes: Record<NodeId, Node>,
   parentId: NodeId,
   insertIndex: number,
-): { commands: Command[]; newRootId: NodeId } | null {
+): { commands: Command[]; newRootId: NodeId; idMap: Map<NodeId, NodeId> } | null {
   if (sourceNodes[sourceId] === undefined) return null;
 
   const subtreeIds = [...collectSubtreeIds(sourceNodes, sourceId)];
@@ -354,5 +369,5 @@ export function buildDuplicateCommands(
   const newRootId = idMap.get(sourceId) as NodeId;
   commands.push({ type: "moveNode", id: newRootId, newParentId: parentId, index: insertIndex });
 
-  return { commands, newRootId };
+  return { commands, newRootId, idMap };
 }
