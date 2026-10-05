@@ -250,6 +250,8 @@ Import로 삽입은 되지만 세부설정 패널에는 아직 편집 필드가 
 
 ## 반응형 GUI (#223 PR 제안)
 
+현재 상태: 아래 스토어 계약과 GUI는 #247로 병합됐다.
+
 `setResponsive(pageId, value, continueEdit?) => string | null`을 추가한다. 값은 완전한
 `Responsive` 블록이며 검증 실패 시 이유를 반환하고 문서·history를 보존한다. 성공 시
 기존 `updateScreen("responsive")` 경로로 한 번 적용하며 `null`을 반환한다. 동일값은

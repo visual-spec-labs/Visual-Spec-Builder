@@ -76,7 +76,10 @@ Claude Code를 사용한다면 같은 폴더에서 `codex` 대신 `claude`를 �
 5. 새로고침하거나 다시 Open한 뒤 문구를 확인한다. 최초 단일 화면 예제는 로드 시 프로젝트 상태로 확장되고, Save 결과는 0.3 `ProjectSpec`(`pages`·`pageOrder`)이다.
 
 Save as는 새 이름으로 저장하고 그 파일을 다음 Save 대상으로 삼는다. File → Export와 패널의 Export JSON은 스펙 JSON 다운로드다. React 코드는 뒤의 **Export Code**를 사용한다.
-localStorage 자동 복원과 명시적인 Save는 별개다. 현재 같은 브라우저의 여러 편집 탭 사이에는 충돌 조정이 없으므로 이 절차는 편집 탭 하나로 진행한다(#232의 해결 방식은 미결정).
+localStorage 자동 복원과 명시적인 Save는 별개다. 다른 탭 변경을 감지하면 자동저장과
+파일 저장을 중지하고 내 초안을 보존한다(#258). 충돌 안내에서 내 작업을 별도 JSON으로
+보관하거나 확인 후 최신 내용을 불러온다. localhost/127.0.0.1의 오래된 Save도 서버가
+읽은 디스크 리비전으로 거부한다. 자세한 한계는 [저장 충돌](tab-save-conflicts.md)을 따른다.
 
 ## 4. 자연어로 간격 수정
 

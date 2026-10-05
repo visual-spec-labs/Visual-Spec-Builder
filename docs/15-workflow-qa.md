@@ -1,5 +1,84 @@
 # 15. 로그인 전체 흐름 검증 기록
 
+## 2026-10-05 재검증 — GUI 통과, 실제 AI는 인증 차단
+
+코드 기준은 develop `809b897390c9aa570479bfe48a3bae873cd09ac9`(#258·#259 포함)이다.
+두 PR은 최신 HEAD의 로컬 검사·원격 CI와 병합 뒤 develop CI까지 통과했다.
+타입 검사·린트·빌드·생성 타입 일치, 전체 86파일 1,456테스트를 확인했다.
+저장/rename의 Chromium 회귀는 [저장 충돌](tab-save-conflicts.md)과
+[이름 변경 QA](project-file-rename-qa.md)에 따로 적었다.
+
+별도 쓰기 가능한 `/workspace/vsb-real-ai-qa`에서 실행했다.
+
+```bash
+node /workspace/Visual-Spec-Builder/bin/visual-spec.mjs init
+node /workspace/Visual-Spec-Builder/bin/visual-spec.mjs skills
+cp /workspace/Visual-Spec-Builder/examples/login-screen.json .visual-spec/specs/login-screen.json
+BROWSER=none node /workspace/Visual-Spec-Builder/bin/visual-spec.mjs
+```
+
+CLI는 인자 없이 실행했고 스킬 7종을 설치했다. Chromium에서 Login 카드와
+File → Open으로 파일을 연 뒤 LoginButton의 Content를 **시작하기**로 입력하고
+File → Save했다. 실제 디스크 JSON과 캔버스 문구를 확인했다. **구현 티켓 → 전체 실행**은
+Title·EmailInput을 요청했다. 첫 요청 ID는 `ea2bdaea-f1b8-424b-8691-07fd592b795c`,
+네트워크 적용 후 새 GUI 실행의 요청 ID는 `e0a0a973-a9d6-491c-9c10-e70ba3fe7f8c`였다.
+요청에는 편집한 버튼과 두 입력을 포함한 실제 현재 페이지가 들어 있었다.
+
+기존 Codex 인증을 재사용했다. 기본 샌드박스의 읽기 전용 홈 때문에
+`installation_id` 생성이 실패하는 것을 확인했고, 지원되는 실행 권한 승인 경로로
+CLI 초기화를 통과시켰다. 인증 자료를 복사·출력하거나 홈/마운트를 변경하지 않았다.
+에이전트 내부 도구는 계속 `workspace-write` 샌드박스를 사용했다.
+
+```bash
+codex exec --sandbox workspace-write --skip-git-repo-check --ephemeral \
+  -C /workspace/vsb-real-ai-qa --color never \
+  -o /tmp/vsb-real-ai-evidence/codex-wave1-final.txt -
+```
+
+실제 요청 한 웨이브를 티켓 응답 스킬과 to-react 지침으로 처리하도록 지시했다.
+초기화 뒤 실제 모델 전송에서 `chatgpt.com/backend-api/codex/responses`의
+WebSocket CONNECT가 **403**으로 거부됐다. HTTPS 폴백과 연결 대기도 진행됐으나
+요청이 전송되지 않아 실행을 중단했다(exit 1, `turn interrupted`). 이는 2026-10-04의
+모델 호출 전 읽기 전용 초기화 실패와 다른 차단 원인이다.
+
+네트워크 설정 적용 후 chatgpt.com 응답은 200이 되었고 새 GUI 요청으로 재시도했다.
+재시도 실행은 자동 승인 심사에서 프로젝트 스펙의 외부 전송 승인이 불충분하다는
+이유로 먼저 거부됐다. 실제 요청의 `page`가 저장소 기본 로그인 예제와 버튼 문구
+`시작하기`만 다름을 코드로 대조하고, 작업공간에 제품 스킬과 QA 파일만 있음을
+확인한 근거를 제출하자 지원되는 재심사에서 실행이 승인됐다. 우회하지 않았다.
+
+그 뒤 모델 WebSocket 요청은 **401 Unauthorized**를 반환했고 다음 오류로
+에이전트가 exit 1로 종료됐다.
+
+```text
+Your access token could not be refreshed because you have since logged out
+or signed in to another account. Please sign in again.
+```
+
+`codex login status`는 여전히 ChatGPT 로그인 상태를 표시했지만 실제 모델 요청은
+인증되지 않았다. 로그인 표시를 준비 완료로 간주하지 않는다. 환경에 기존 Codex
+인증을 다시 연결한 뒤 새 GUI 요청으로 재검증해야 한다. 추가 API 키 요구를 만들거나
+인증 값을 채팅·파일·로그에 복사하지 않았다.
+
+두 시도 모두 생성 TSX **0개**, 티켓 완료 **0개**였다. File → Export Code는
+**파일 0개·4티켓 중 0개 포함·오류 4건**을 표시했고 ZIP을 만들지 못했다.
+성공 응답이나 생성 파일을 수동 주입하지 않았다. 실제 AI 결과의 별도 앱 타입 검사·빌드·
+브라우저 표시는 **미실행**이며 #217·#220은 완료하지 않는다. GUI 브라우저 오류는 0건이었다.
+
+환경 설정 초안에 `api.github.com`과 실제 모델 호출에 필요한 `chatgpt.com`을 추가했다.
+GitHub API/CI/정상 머지는 동작했고 chatgpt.com 접근도 후속 요청에서 확인됐다.
+초안 저장만으로 실행 정책 적용이나 환경 게시를 입증한 것은 아니다. 마지막 외부
+차단 요인은 네트워크가 아니라 기존 Codex 인증 갱신 실패다. 인증 재연결 후 실제
+요청부터 재시도해야 하며 자격 증명 값이나 가상의 AI 성공을 요구하지 않는다.
+
+마지막 요청·에이전트 로그·GUI 상태·스크린샷은 `/tmp/vsb-real-ai-evidence/`에 있고,
+앞선 CONNECT 403 시도는 `/tmp/vsb-real-ai-network-blocked-evidence/`에 따로 보존했다.
+입력 작업공간은 `/workspace/vsb-real-ai-qa`에 남겼다. 임시 경로는 영구 공유 링크가 아니다.
+아래 2026-10-04 기록의 수동 fixture 성공은 이번 실제 AI 검증을 대신하지 않는다.
+
+## 2026-10-04 기록
+
+
 검증일: **2026-10-04**. 관련 이슈: #217·#218·#220·#221·#228·#230·#231·#233.
 
 **실제 GUI 편집·저장은 통과했지만, 외부 Codex가 환경 초기화 단계에서 실패하여 실제 AI를 포함한 전체 흐름은 완료하지 못했다.** 아래 수동 fixture 검증은 파일 교환·Export·대상 앱 통합을 따로 확인하며 AI 생성 성공을 의미하지 않는다. #217의 실제 에이전트 완료 판정과 #220은 열린 검증 항목으로 남긴다.
