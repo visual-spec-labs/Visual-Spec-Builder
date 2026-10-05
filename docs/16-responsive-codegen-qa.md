@@ -80,8 +80,9 @@ border-box(여러 이미지면 각 겹), 이미지가 없는 구간은 padding-b
 
 `md=960px`인 대상에서 `md:gap-[96px]`는 959px까지 적용되지 않고 960px부터 적용됐다.
 같은 요소의 `min-[768px]:pl-[32px]`는 정확히 768px부터 적용됐다. 따라서 tablet이라는
-IR ID나 보통 쓰는 Tailwind 기본값만 보고 `md:`로 바꾸면 안 된다. 실제 설정이 불명확하면
-숫자 px variant, 지원하지 않는 대상이면 정적인 CSS min-width가 안전한 표현이다.
+IR ID나 보통 쓰는 Tailwind 기본값만 보고 `md:`로 바꾸면 안 된다. 대상 버전·설정의 지원이
+불명확하면 정적인 CSS min-width를 기본으로 사용한다. 숫자 px variant는 호환성을 확인한
+대상에만 사용한다(아래 #248 후속 검증 참고).
 
 - 저장소 타입·린트·빌드·생성 타입 동기화 통과. **70파일·1,270테스트 통과**(이 브랜치 기준).
 - 별도 앱 `tsc -b --noEmit`·production build·브라우저 오류 0건.
@@ -112,3 +113,66 @@ GUI 미리보기 폭 변경은 원본 문서와 history를 바꾸지 않았고, 
 증거는 QA 실행 환경의 `/tmp/vsb-responsive-qa/gui-react-comparison.json`(폭별 양쪽 값과
 assertion 항목), `/tmp/vsb-responsive-qa/results.json`(편집·Undo 및 오류 결과)에 남겼다.
 초기 공유 Vite 캐시/HMR의 임시 오류는 독립 캐시로 해소한 뒤 검사했으며 제품 회귀로 세지 않았다.
+
+
+## #248 리뷰 후속 검증 (2026-10-04)
+
+기반 develop `d1f8b65`에서 세 리뷰를 수정했다. 위 기록은 당시 실행 결과이며,
+아래 실행이 #247 GUI 재검증이나 실제 AI 생성을 뜻하지 않는다.
+
+### auto 높이와 교차축
+
+`autoSizedCardsSpec()`은 원본 카드 세 개의 height만 auto로 바꾼 유효한 스키마다.
+브라우저 harness는 가운데 카드에 두 줄을 넣어 서로 다른 자연 높이를 만든다.
+`test/responsive-codegen-browser.test.ts`는 React 정적 마크업, 실제 Tailwind 4.3.3 compile
+CSS, 일반 CSS fallback, 현 develop의 캔버스 `frameStyle` 참조를 Chromium에서 비교한다.
+root 높이는 300px로 고정해 stretch 차이가 드러나게 했다.
+
+```bash
+# Python Playwright와 /usr/bin/chromium이 있는 환경에서 명시적으로 실행
+VSB_RESPONSIVE_BROWSER=1 pnpm exec vitest run test/responsive-codegen-browser.test.ts
+```
+
+767→768→769→1023→1024→1025→767px 모두 통과했다. `items-start`를 제거한
+수정 전 대조군은 세 카드 높이가 모두 204px로 늘었다. 수정된 Tailwind·CSS fallback·
+캔버스 style 참조는 세 높이가 각각 66·100·68px로 같았다. `alignItems=flex-start`,
+flexDirection, gap, paddingLeft/Top, backgroundColor/Image 및 자식 높이를 assertion으로
+대조했다. 브라우저 오류는 0건이다. 기본 `pnpm test`에서는 이 브라우저 검사를 건너뛰고,
+위 명령으로 별도 실행한다. 전체 GUI 상호작용이나 모든 노드의 픽셀 비교는 아니다.
+
+### Tailwind 호환성
+
+[Tailwind v3.2 공식 발표](https://tailwindcss.com/blog/tailwindcss-v3-2#max-width-and-dynamic-breakpoints)를
+확인했다. 미확인 대상에는 TSX `<style>`의 정적 media CSS가 기본이다. v3의 단순 문자열
+screens 조건을 v4의 설정 계약으로 옮기지 않는다. v4 검증을 v3 지원 증거로 쓰지도 않는다.
+
+별도 `/tmp/vsb-tailwind-v3`에서 pnpm으로 alias 패키지 tailwind31=3.1.8,
+tailwind32=3.2.7 및 PostCSS 8.5.6을 설치해 실제로 컴파일했다. raw content는
+`<div class="min-[768px]:gap-[24px]"></div>`, 입력 CSS는 `@tailwind utilities;`다.
+
+| 버전 | theme.screens | gap 규칙 출력 |
+|---|---|---|
+| 3.1.8 | `{md: "768px"}` | 없음 |
+| 3.2.7 | `{md: "768px"}` | `@media (min-width: 768px)` 안에 출력 |
+| 3.2.7 | `{md: {min: "768px", max: "1023px"}}` | 없음, 복합 screens 경고 |
+| 4.3.3 | 기존 fixture compile 설정 | 출력, 위 Chromium 경계값 통과 |
+
+v3는 CSS 컴파일만 수행했고 v3 앱 빌드·브라우저 실행은 하지 않았다.
+
+### 설치된 패키지의 문서 참조
+
+`pnpm pack --pack-destination /tmp/vsb-package`로 만든 tarball을 `/tmp/vsb-packed`에
+풀고, 빈 `/tmp/vsb-consumer`에서 패키지 CLI의 `skills` 명령을 실행했다. docs가 없는
+소비자 프로젝트에서 sibling `visual-spec-docs/SKILL.md`가 실제로 존재하고, 지시된
+raw develop QA URL이 HTTP 200이며 올바른 문서인지 확인했다. 자동 CLI 회귀도 추가했다.
+배포 범위는 기존 bin/skills 그대로이며, 원문을 가져오지 못하면 한계를 보고하도록 했다.
+
+### 실행 범위
+
+Node 24.19.0, pnpm 10.33.0, Chromium 151.0.7922.173, Python Playwright 환경이다.
+저장소 typecheck/lint/production build 및 생성 타입 드리프트가 통과했다.
+전체 76파일·1,327테스트 통과, 선택 실행 브라우저 1파일·1테스트는 기본 실행에서 skip하고
+별도 명령에서 통과했다.
+빌드에는 기존 Vite native-loader 및 500kB 초과 청크 경고가 남는다.
+이번 실행에서 독립 React 앱 production build나 실제 외부 AI 생성은 하지 않았다.
+브라우저는 수동 매핑 fixture의 컴파일된 CSS와 React 정적 마크업을 실행했다.

@@ -2,7 +2,7 @@ import type { Background, VisualSpec } from "@/features/editor/schema";
 import responsiveCards from "../../examples/responsive-cards.json";
 
 /** #224 스킬을 사람이 옮긴 검증 fixture다. 제품 변환기나 AI 생성 결과가 아니다. */
-export const responsiveCardsClasses = "flex flex-row gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full h-full min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]";
+export const responsiveCardsClasses = "flex flex-row items-start gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full h-full min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]";
 
 const gradient: Background = [{ type: "linear", angle: 90, stops: [{ at: 0, color: "#FF000000" }, { at: 1, color: "#FF000080" }] }];
 
@@ -42,3 +42,28 @@ export function backgroundSpec(index: number): VisualSpec {
 
 // 제공된 대상 설정이 md=960px인 예. IR tablet=768px를 md라는 이름으로 추측하면 틀린다.
 export const mismatchedNamedVariant = "md:gap-[96px] min-[768px]:pl-[32px]";
+
+/** 미확인 Tailwind 대상의 기본 출력. 기반/override를 모두 같은 CSS가 소유한다. */
+export const responsiveCardsCss = `
+.vsb-card-effects-root {
+  display: flex; flex-direction: row; align-items: flex-start;
+  box-sizing: border-box; justify-content: flex-start;
+  gap: 24px; padding: 48px; width: 100%; height: 100%;
+  background-color: #F1F5F9; background-image: none; background-origin: padding-box;
+}
+@media (min-width: 768px) {
+  .vsb-card-effects-root { padding-left: 32px; }
+}
+@media (min-width: 1024px) {
+  .vsb-card-effects-root {
+    gap: 32px; background-color: transparent; background-image: none; background-origin: padding-box;
+  }
+}`;
+
+export function autoSizedCardsSpec(): VisualSpec {
+  const spec = structuredClone(responsiveCards) as VisualSpec;
+  for (const id of ["elevatedCard", "outlinedCard", "fadedCard"]) {
+    spec.screen.nodes[id].box.height = "auto";
+  }
+  return spec;
+}
