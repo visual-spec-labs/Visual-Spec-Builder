@@ -80,6 +80,8 @@ v0.1 변경은 다음을 한 PR에서 함께 수행한다.
 
 ## 반응형 전체 블록 편집 (#223 PR 제안, #245 의존)
 
+현재 상태: 아래 계약은 #247로 병합됐으며 선행 정본 #245도 병합됐다. 향후 계약 변경의 리뷰 규칙은 유지한다.
+
 Command 6종과 `command.schema.json`의 형태는 바꾸지 않는다.
 `updateScreen`의 `path: "responsive"`로 검증된 블록 전체를 교체한다. 맵 내부의
 `responsive.breakpoints.<id>` 같은 점 경로는 `editablePath`가 거부한다. breakpoint

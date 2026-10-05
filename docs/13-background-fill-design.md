@@ -271,4 +271,5 @@ size/position/repeat longhand를 추가하고 gradient에는 auto, 이미지에�
 
 JSON Export는 스키마 검증 후 image 겹을 보존한다. 코드 Export는 to-react 스킬 매핑의
 정적 fixture로 사진+gradient 및 assets 포함을 검사한다. 실제 AI 생성은 별도 검증 대상이다.
-스키마 변경 PR은 독립 Draft로 팀 리뷰가 필요하고 기능 PR은 그 PR에 의존한다.
+독립 스키마 PR #254와 기능 PR #257은 병합됐다. 이후 구조·제약 변경에도
+[06](06-schema-freeze.md)의 별도 PR·리뷰·생성 타입·예제/테스트 규칙을 적용한다.
