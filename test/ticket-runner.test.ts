@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { seedSpec } from "@/features/editor/store/seedSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
+import { newSpec } from "@/features/editor/ui/newSpec";
 import type { TicketBatchOutcome } from "@/features/editor/ticket/ticketAgentClient";
 import { requestTicketBatch } from "@/features/editor/ticket/ticketAgentClient";
 import {
@@ -357,4 +358,27 @@ describe("낡은 티켓 실행 차단 (#271)", () => {
     await runAllTickets();
     expect(mockedRequestTicketBatch.mock.calls[1][0].tickets.map((t) => t.id)).toEqual(["Content"]);
   });
+
+  it("File → New를 두 번 하면(같은 blankSpec 화면 객체) 이전 문서의 티켓을 실행하지 않는다 (PR #295 리뷰)", async () => {
+    newSpec();
+    compileCurrent();
+    const compiledPage = useTicketStore.getState().sourcePage;
+    newSpec();
+
+    // 리뷰가 짚은 그대로 — 페이지 참조는 같지만 문서는 다르다.
+    expect(useEditorStore.getState().spec.pages[useEditorStore.getState().activePageId]).toBe(compiledPage);
+    expect(isTicketPlanStale()).toBe(true);
+    await runAllTickets();
+    await runOneTicket(useTicketStore.getState().tickets[0].id);
+    expect(mockedRequestTicketBatch).not.toHaveBeenCalled();
+  });
+
+  it("같은 문서 안의 편집을 Undo하면 문서 식별자가 그대로라 다시 실행할 수 있다", () => {
+    compileCurrent();
+    editHeaderTitle();
+    expect(isTicketPlanStale()).toBe(true);
+    useEditorStore.getState().undo();
+    expect(isTicketPlanStale()).toBe(false);
+  });
 });
+

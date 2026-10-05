@@ -39,6 +39,8 @@ export function TicketPanel() {
   const tickets = useTicketStore((state) => state.tickets);
   const sourcePageId = useTicketStore((state) => state.sourcePageId);
   const sourcePage = useTicketStore((state) => state.sourcePage);
+  const documentId = useEditorStore((state) => state.documentId);
+  const sourceDocumentId = useTicketStore((state) => state.sourceDocumentId);
   const running = useTicketStore((state) => state.running);
   const runError = useTicketStore((state) => state.runError);
   const compile = useTicketStore((state) => state.compile);
@@ -59,7 +61,8 @@ export function TicketPanel() {
     };
   }, []);
 
-  const isStale = sourcePageId !== pageId || sourcePage !== page;
+  // ticketRunner.isTicketPlanStale과 같은 판정이다 — 여기서는 렌더가 따라오도록 구독값으로 계산한다.
+  const isStale = sourceDocumentId !== documentId || sourcePageId !== pageId || sourcePage !== page;
   const canExecute = workspaceAvailable === true && !isStale;
   const readyWave = readyTickets(tickets);
 

@@ -40,14 +40,17 @@ export const STALE_TICKET_MESSAGE = "화면이 바뀌었습니다. 현재 스펙
 /**
  * 티켓을 만든 뒤 편집·페이지 전환·문서 전환이 있었으면 true다(이슈 #271).
  *
- * 편집과 문서 전환은 모두 페이지 객체를 새로 만들므로 참조 비교로 충분하다. 패널의
- * 안내문만으로는 막지 못한다 — 버튼이 아닌 경로(다음 웨이브 자동 이어가기, 다른
- * 호출자)도 낡은 `sourcePage`를 요청 파일에 그대로 쓴다.
+ * 편집은 페이지 객체를 새로 만들므로 참조로 가른다. 문서 전환은 참조만으로 못
+ * 가른다 — New를 두 번 하면 같은 `blankSpec` 화면 객체를 다시 쓴다(PR #295 리뷰) —
+ * 그래서 `editorStore.documentId`를 함께 본다. Undo는 문서를 바꾸지 않으므로 다시
+ * 실행할 수 있다. 패널의 안내문만으로는 막지 못한다 — 버튼이 아닌 경로(다음 웨이브
+ * 자동 이어가기, 다른 호출자)도 낡은 `sourcePage`를 요청 파일에 그대로 쓴다.
  */
 export function isTicketPlanStale(): boolean {
-  const { sourcePageId, sourcePage } = useTicketStore.getState();
-  const { activePageId, spec } = useEditorStore.getState();
-  return sourcePageId !== activePageId || sourcePage !== spec.pages[activePageId];
+  const { sourcePageId, sourcePage, sourceDocumentId } = useTicketStore.getState();
+  const { activePageId, spec, documentId } = useEditorStore.getState();
+  return sourceDocumentId !== documentId || sourcePageId !== activePageId ||
+    sourcePage !== spec.pages[activePageId];
 }
 
 function revertToPending(waveTickets: Ticket[]): void {

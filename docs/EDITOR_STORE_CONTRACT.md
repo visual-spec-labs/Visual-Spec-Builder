@@ -30,6 +30,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `selectedId` | `NodeId \| null` | 선택된 노드 id (활성 페이지 안) | 셋 다 **읽음** (하이라이트) |
 | `focusRootId` | `NodeId \| null` | 더블클릭으로 "들어간" 프레임 — 선택 문맥(#151). null이면 root 기준 | **캔버스**가 읽음(클릭 해석 기준점) |
 | `history` | `HistoryState<EditorSnapshot>` | 프로젝트 하나의 실행 취소 스택(#40, 단위는 #131에서 프로젝트로 올렸다) | 보통 안 읽는다 — `undo`/`redo`가 대신 씀. 트리 footer만 버튼 비활성화 판정에 읽는다 |
+| `documentId` | `number` | 지금 문서의 식별자(#271). `loadSpec`마다 1씩 늘고 편집·Undo/Redo·페이지 전환에서는 그대로다 | **구현 티켓**이 읽음(만들 때의 문서와 같은지 판정). New는 같은 `blankSpec` 화면 객체를 다시 쓰므로 페이지 참조만으로는 문서 전환을 못 가른다 |
 | `select` | `(id: NodeId \| null) => void` | 노드 선택 / 해제. `null`이면 `focusRootId`도 함께 비운다(#151) | **트리 · 캔버스**가 호출 |
 | `enterFocus` | `(id: NodeId \| null) => void` | 더블클릭으로 `focusRootId`를 바꾼다(#151). `null`이면 root 문맥으로 복귀 | **캔버스**가 호출(더블클릭 진입/이탈) |
 | `selectPage` | `(id: PageId) => void` | 캔버스에 띄울 페이지 전환 | **트리**가 호출 |
@@ -38,7 +39,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `setPageField` | `(pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => void` | 페이지 이름 · 크기(해상도) 변경 | **패널**이 호출 |
 | `addPage` | `() => void` | 빈 페이지를 끝에 추가하고 이동 | **트리**가 호출 |
 | `removePage` | `(id: PageId) => void` | 페이지 삭제(#131부터 되돌릴 수 있다) | **트리**가 호출 |
-| `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제 + history 초기화(New/Open) | **MenuBar**가 호출 |
+| `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제 + history 초기화 + `documentId` 증가(New/Open) | **MenuBar**가 호출 |
 | `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import·Insert) | **MenuBar**가 호출 |
 | `removeNode` | `(id: NodeId) => void` | 노드 삭제. 프레임이면 자손까지 연쇄 삭제, root는 지우지 않음 | **트리**가 호출 |
 | `moveNode` | `(id: NodeId, newParentId: NodeId, index: number) => void` | 노드를 newParentId의 children 중 index 위치로 옮김. root 이동 불가, 순환 방지 | **트리·캔버스**가 호출(드래그, #187) |

@@ -117,6 +117,15 @@ export interface EditorState {
    */
   history: HistoryState<EditorSnapshot>;
   /**
+   * 지금 편집 중인 문서의 식별자(#271). `loadSpec`(New·Open·홈 카드·다른 탭 최신본 불러오기)
+   * 마다 1씩 늘고, 편집·Undo/Redo·페이지 전환에서는 그대로다.
+   *
+   * 페이지 객체 참조만으로는 "다른 문서"를 가를 수 없다 — New는 매번 같은 `blankSpec`을
+   * 불러오고 `migrateV01`이 그 화면 객체를 그대로 쓰므로, 두 번째 New의 페이지가 첫 번째와
+   * 같은 참조다. 파생 계획(구현 티켓)이 자기가 만들어진 문서를 기억할 때 쓴다.
+   */
+  documentId: number;
+  /**
    * 노드 선택/해제. 트리·캔버스가 호출한다.
    * 해제(id === null)는 선택 문맥(focusRootId)도 함께 벗어난다 — Esc·바깥
    * 클릭이 전부 이 호출을 거치므로, 여기 하나로 그 둘을 함께 처리한다(#151).
@@ -381,6 +390,7 @@ function appliedTransaction(
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   spec: initialSpec,
+  documentId: 0,
   activePageId: initialSpec.pageOrder[0],
   selectedId: null,
   focusRootId: null,
@@ -535,8 +545,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   loadSpec: (spec) => {
     useResponsiveViewStore.getState().reset();
     const project = "screen" in spec ? migrateV01(spec) : spec;
-    set({
+    set((state) => ({
       spec: project,
+      documentId: state.documentId + 1,
       activePageId: project.pageOrder[0],
       selectedId: null,
       focusRootId: null,
@@ -544,7 +555,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // 한다. 이어 쓰면 undo 한 번이 방금 연 파일이 아니라 전에 열려 있던
       // 파일의 옛 상태로 튀어버린다 — New/Open은 되돌릴 대상이 아니다.
       history: initHistory(makeSnapshot(project, project.pageOrder[0])),
-    });
+    }));
   },
   insertNode: (parentId, id, node) =>
     set((state) => {
