@@ -205,7 +205,14 @@ Properties 대신 표시된다. 이후 #184로 개별/전체 실행·중지와 `
 | Show/Hide Grid | 캔버스 그리드(격자) 표시 여부 |
 | Panels/Sidebars | 좌우 패널 표시 여부 |
 
-### 4.3 Help ⚠️
+### 4.3 Insert (#226)
+
+Button / Input을 선택하면 기본 스타일의 새 노드를 즉시 만든다. 선택한 프레임의 자식 끝,
+비프레임 선택이면 가장 가까운 부모 프레임의 자식 끝, 선택이 없으면 root에 넣는다.
+기존 `createNode` Command 경로로 적용하고 새 노드를 선택하며 Undo/Redo 한 단계로 처리한다.
+전용 도구나 새 단축키는 추가하지 않으며 현재 활성 도구를 유지한다.
+
+### 4.4 Help ⚠️
 
 Documentation / Keyboard Shortcuts / Release Notes / Support. **MVP 범위에서 제외한다.**
 
@@ -299,6 +306,8 @@ DashboardPage
 | Image | 이미지 삽입 | ➕ |
 
 **MVP 도구 세트:** Select · Frame · Text · Hand
+
+Button/Input 직접 생성은 상단 **Insert** 메뉴가 담당한다(4.3절).
 
 ❓ Esc 동작, Frame 기본 스타일, Shape 도구 처리 방식, 캔버스 드래그 생성 시 root 추가 로직은 미확정이다.
 
