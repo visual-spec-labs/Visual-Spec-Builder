@@ -18,7 +18,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [03-user-flow.md](docs/03-user-flow.md) | 사용자 경로, Command Engine 구조, 대표 플로우 3가지 |
 | [04-gui-spec.md](docs/04-gui-spec.md) | 홈 화면과 에디터 화면 명세 |
 | [05-schema.md](docs/05-schema.md) | JSON 스키마 (현재 0.3) |
-| [06-schema-freeze.md](docs/06-schema-freeze.md) | v0.1 동결 계약과 변경 절차 — **스키마 수정 전 필독** |
+| [06-schema-freeze.md](docs/06-schema-freeze.md) | IR 스키마 동결 계약과 변경 절차 (v0.1에서 시작, 현재 0.3) — **스키마 수정 전 필독** |
 | [07-implementation-status.md](docs/07-implementation-status.md) | 지금 무엇이 구현됐고 무엇이 남았는가 — **다음 할 일 판단의 근거** |
 | [08-natural-language.md](docs/08-natural-language.md) | 자연어 → Command 변환 설계 |
 | [09-command-schema-freeze.md](docs/09-command-schema-freeze.md) | Command 스키마 v0.1 동결 계약과 변경 절차 |

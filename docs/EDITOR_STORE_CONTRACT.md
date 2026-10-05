@@ -180,7 +180,7 @@ setNodeField("headerTitle", "typography.fontSize", 24);
 
 ## 4. 스키마 타입은 정해진 경로에서만 import
 
-`SCHEMA_V0.1_FREEZE.md` 규칙 그대로. 셋 다 여기서만 가져온다.
+[06-schema-freeze.md §정본과 공개 표면](06-schema-freeze.md#정본과-공개-표면) 규칙 그대로. 셋 다 여기서만 가져온다.
 
 ```ts
 import type {
@@ -198,37 +198,80 @@ import type {
 
 ---
 
-## 5. 지금 편집 가능한 필드 (스키마 v0.1 범위)
+## 5. 지금 편집 가능한 필드 (스키마 0.3 범위)
 
-세부설정 패널은 v0.1에 실제로 존재하는 필드만 다룬다.
+세부설정 패널은 정본(현재 0.3)에 실제로 존재하는 필드만 다룬다. 아래는 develop `3d57903` 기준
+`ui/PropertiesPanel.tsx`와 `ui/properties/` 섹션 컴포넌트를 읽어 적었다. 어떤 타입에 어떤 섹션이
+뜨는지는 `ui/properties/nodeSections.ts`의 표 하나가 정한다(#92) — 표를 고치면 이 절도 같이 고친다.
 
-**Frame 노드**
+> **정정 이력 (2026-10-05)**
+> 이 절은 "스키마 v0.1 범위"로 Frame·Text만 적고 Image는 "편집 필드 없음", 그림자는 "아직 없음"이었다.
+> 이후 #83(button·input), #88·#78(불투명도·블러·그림자·`border.align`), #89(모서리별 radius), #127(채우기 겹),
+> #235(이미지 배경, #254·#257), #223(반응형 GUI, #247)이 병합돼 현재 상태로 다시 썼다.
 
-| 섹션 | 필드 | 경로 |
+**공통 — 패널 머리 (`PropertiesPanel.tsx`의 `NodeHeader`)**
+
+| 필드 | 경로 | 비고 |
 |---|---|---|
-| Layout | 방향 / 간격 / 패딩 / 주축 정렬 / 교차축 정렬 | `layout.direction`, `layout.gap`, `layout.padding.*`, `layout.mainAxis`, `layout.crossAxis` |
-| Size | width / height | `box.width`, `box.height` |
-| Background | 채우기 겹 목록 — 추가·삭제·위/아래 이동·종류(solid / linear) 전환, solid 색, linear 각도·stop(색·위치 %) | `background` — 배열 통째(`ui/properties/backgroundPatch.ts`가 완전한 배열을 만든다) |
-| Border | 두께 / 색 / 라운드 | `border.width`, `border.color`, `border.radius` |
-| 기타 | 표시 여부 | `visible` |
+| 노드 이름 | `name` | 반응형 breakpoint 편집 중에는 비활성(기반값 전용) |
+| 표시 여부 | `visible` | |
 
-**Text 노드**
+**섹션 배치 (`nodeSections.ts`)**
 
-| 섹션 | 필드 | 경로 |
-|---|---|---|
-| Content | 텍스트 내용 | `content` |
-| Size | width / height | `box.width`, `box.height` |
-| Font | 종류 / 크기 / 굵기 / 행간 / 자간 / 정렬 | `typography.fontFamily`, `typography.fontSize`, `typography.fontWeight`, `typography.lineHeight`, `typography.letterSpacing`, `typography.textAlign` |
-| Color | 글자색 | `color` |
-| 기타 | 표시 여부 | `visible` |
+| 노드 타입 | 섹션(화면 순서) |
+|---|---|
+| frame | Layout · Size · Background · Border · Effects(그림자 포함) |
+| text | Content · Size · Font · Color · Effects |
+| image | Content · Size · Effects |
+| button | Content · Size · Font · Color · Background · Border |
+| input | Content · Size · Font · Color · Background · Border |
 
-**Image 노드**
+**섹션별 필드**
 
-Import로 삽입은 되지만 세부설정 패널에는 아직 편집 필드가 없다(플레이스홀더만 표시).
-`box.width/height`는 삽입 시점의 이미지 원본 픽셀 크기로 채워진다.
+| 섹션 | 필드 | 경로 | 쓰는 타입 |
+|---|---|---|---|
+| Content | 텍스트(여러 줄) | `content` | text |
+| Content | 라벨(한 줄) | `content` | button |
+| Content | 안내 문구 | `placeholder` | input |
+| Content | 경로 / 채우기 방식(채우기·맞추기·늘이기) | `src`, `fit` | image — Import로 들어온 data URI는 요약만 보이고 "지우기"로 비운 뒤 경로를 넣는다(`ContentSection.tsx`) |
+| Layout | 방향(세로·가로·그리드) / 간격 / 열 개수(그리드만) / 패딩 4방향 / 주축 정렬(그리드 제외) / 교차축 정렬 | `layout.direction`, `layout.gap`, `layout.columns`, `layout.padding.*`, `layout.mainAxis`, `layout.crossAxis` | frame |
+| Layout | 자식 크기 균등(버튼, #150) | 자식 전부의 주축 `box.width`/`box.height` → `"fill"`, 부모 `layout.crossAxis` → `"stretch"`를 `setNodeFields`로 한 번에 | frame — 그리드·Hug 부모·자식 2개 미만·breakpoint 편집 중에는 비활성 |
+| Size | 너비 / 높이 (Fixed px · Hug `"auto"` · Fill `"fill"`) | `box.width`, `box.height` | 전부 |
+| Font | 종류 / 크기 / 굵기 / 행간 / 자간 / 정렬(left·center·right) | `typography.fontFamily`, `typography.fontSize`, `typography.fontWeight`, `typography.lineHeight`, `typography.letterSpacing`, `typography.textAlign` | text · button · input |
+| Color | 글자색 | `color` | text · button · input |
+| Background | 채우기 겹 목록 — 추가·삭제·위/아래 이동·종류(단색 solid / 선형 linear / 이미지 image) 전환. solid 색, linear 각도·stop(색·위치 %·추가·삭제, 2개 이상), image 파일 가져오기·경로·채우기 방식 | `background` — 배열 통째(`ui/properties/backgroundPatch.ts`가 완전한 `Fill[]`을 만든다) | frame · button · input |
+| Border | 두께 / 모서리 반경(전체 또는 좌상·우상·우하·좌하 개별) / 테두리색 / 정렬(안쪽·가운데·바깥) | `border` — 객체 통째(`borderPatch`·`radiusPatch`), 아무것도 그리지 않으면 필드를 지운다 | frame · button · input |
+| Effects | 불투명도(%) / 블러(px) | `opacity`, `blur` — 항등값(1·0)이면 필드를 지운다 | frame · text · image |
+| Effects | 그림자 켜기 + X / Y / 번짐 / 확장 / 그림자색 | `shadow` — 객체 통째(`shadowPatch`) | frame만(`hasShadow`) |
 
-> **X / Y / Rotation / Shadow는 아직 없음.** 스키마 v0.1이 Auto Layout 전용이라 절대좌표·회전·그림자 필드가 없다.
-> 필요해지면 스키마 v0.2로 확장한다(아래 규칙 참고). 패널은 그때 필드 한 줄만 추가하면 되도록 설계돼 있다.
+image 노드에는 Background·Border·Font가 없고, button·input에는 Effects가 없다 — 정본에 해당 필드가
+없어서다(`nodeSections.ts` 주석). image의 `box.width/height`는 Import 시점의 원본 픽셀 크기로 채워진다
+(`ui/importImageFromFile.ts`).
+
+**페이지 (`ui/properties/PageProperties.tsx`)** — 아무것도 고르지 않았거나 root를 골랐을 때, 기본값 편집 중에만 뜬다.
+
+| 필드 | 경로 |
+|---|---|
+| 페이지 이름 | `name` (`setPageField`) |
+| 해상도 프리셋 / 너비 / 높이 | `size.width`, `size.height` (`setPageField`) |
+
+root는 그 아래에 일반 frame 섹션으로 함께 편집된다.
+
+**반응형 편집 (#223, #247 — `responsive/ResponsivePanel.tsx`)**
+
+패널 맨 위 "반응형" 영역에서 편집 기준(기본값 또는 breakpoint)·미리보기 폭을 고르고 breakpoint를
+추가·폭 변경·삭제한다. breakpoint를 고르면 위 섹션들의 같은 칸이 `useNodeField` → `editResponsiveNode`를
+거쳐 그 breakpoint의 override(`responsive.overrides.<bp>.<nodeId>`)를 쓴다. 이때 노드 이름·Content
+텍스트·페이지 속성·그림자·자식 크기 균등은 숨기거나 비활성하고, image는 `fit`만 남긴다. override 경로별
+"상속"(해제)·"현재 표현값 고정"·"이 노드 override 삭제"도 이 영역에 있다. 저장은 `setResponsive`(위 "반응형
+GUI" 절)로 한다.
+
+**그룹화 (#225, #250)** 는 패널이 아니라 캔버스 컨텍스트 메뉴와 단축키에서 한다(아래 "단일 노드 Group /
+Ungroup" 절, `ui/nodeContextMenuEntries.ts`). 패널에 그룹 전용 필드는 없다 — 만들어진 wrapper는 일반 frame이다.
+
+> **X / Y / Rotation은 아직 없음.** 스키마 0.3도 Auto Layout 전용이라 절대좌표·회전 필드가 없다.
+> 필요해지면 [06의 변경 규칙](06-schema-freeze.md#변경-규칙)으로 확장한다. 패널은 그때 표(`nodeSections.ts`)와
+> 섹션 한 줄만 추가하면 되도록 설계돼 있다.
 
 ---
 
@@ -236,7 +279,7 @@ Import로 삽입은 되지만 세부설정 패널에는 아직 편집 필드가 
 
 1. **`spec`을 직접 수정하지 않는다.** 반드시 `setNodeField` / `setPageField`(또는 `select` / `selectPage`)를 통해서만 변경한다.
 2. 스토어 외의 곳에서 선택 상태/스펙을 따로 두지 않는다.
-3. 스키마 확장(rotation, shadow, 절대좌표 등)은 **별도 PR + 팀 합의**로만 한다(`SCHEMA_V0.1_FREEZE.md §변경 규칙`).
+3. 스키마 확장(rotation, shadow, 절대좌표 등)은 **별도 PR + 팀 합의**로만 한다([06-schema-freeze.md §변경 규칙](06-schema-freeze.md#변경-규칙)).
    - `visual-spec.schema.json` 수정 → `pnpm generate:types` → 예제·테스트 갱신 → typecheck·test 통과.
 4. 파일 소유: **패널 내부는 내가, 트리·캔버스는 팀원이** 담당한다. 서로의 파일은 건드리지 않는다.
 
