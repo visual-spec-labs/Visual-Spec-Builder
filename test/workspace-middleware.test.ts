@@ -7,6 +7,8 @@ import { join } from "node:path";
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { blankSpec } from "@/features/editor/store/blankSpec";
+import { migrateV01 } from "@/features/editor/schema";
 import { resolveImageSrc } from "@/features/editor/ui/properties/imageSrc";
 import { WORKSPACE_MARKER_HEADER, workspaceFileUrl } from "@/features/workspace/protocol";
 import {
@@ -18,7 +20,7 @@ import {
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
-  return { ...actual, lstatSync: vi.fn(actual.lstatSync) };
+  return { ...actual, lstatSync: vi.fn(actual.lstatSync), openSync: vi.fn(actual.openSync), writeFileSync: vi.fn(actual.writeFileSync), unlinkSync: vi.fn(actual.unlinkSync) };
 });
 
 /**
@@ -758,5 +760,100 @@ describe("목록 메타데이터 opt-in (#227 일부)", () => {
     });
     rmSync(join(workspaceRoot, "specs"), { recursive: true });
     expect(await (await fetch(`${baseUrl}/__vs/list/specs?metadata=1`)).json()).toMatchObject({ files: [], entries: [] });
+  });
+});
+
+
+describe("project rename (#227)", () => {
+  const oldText = JSON.stringify({ ...migrateV01(blankSpec), name: "Old" });
+  function rename(name = "New", fileName = "old.json", expectedText = oldText) {
+    return fetch(`${baseUrl}/__vs/rename`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fileName, name, expectedText }) });
+  }
+  beforeEach(() => writeFileSync(join(workspaceRoot, "specs/old.json"), oldText));
+  afterEach(() => vi.mocked(fs.writeFileSync).mockRestore());
+  afterEach(() => vi.mocked(fs.unlinkSync).mockRestore());
+  afterEach(() => vi.mocked(fs.openSync).mockRestore());
+
+  it("changes name and filename while preserving all other fields", async () => {
+    expect((await rename()).status).toBe(200);
+    expect(existsSync(join(workspaceRoot, "specs/old.json"))).toBe(false);
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"))).toEqual({ ...JSON.parse(oldText), name: "New" });
+  });
+  it("preserves legacy screen shape/version while changing its display name", async () => {
+    const legacy = JSON.stringify(blankSpec);
+    writeFileSync(join(workspaceRoot, "specs/old.json"), legacy);
+    expect((await rename("New", "old.json", legacy)).status).toBe(200);
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"))).toEqual({ ...blankSpec, screen: { ...blankSpec.screen, name: "New" } });
+  });
+  it("rejects arbitrary JSON objects without changing their contents", async () => {
+    const invalid = JSON.stringify({ name: "Old" });
+    writeFileSync(join(workspaceRoot, "specs/old.json"), invalid);
+    expect((await rename("New", "old.json", invalid)).status).toBe(400);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(invalid);
+  });
+  it("rejects existing and case-insensitive destination names without changing either file", async () => {
+    writeFileSync(join(workspaceRoot, "specs/new.json"), "other project");
+    expect((await rename()).status).toBe(409);
+    expect(readFileSync(join(workspaceRoot, "specs/new.json"), "utf8")).toBe("other project");
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
+  });
+  it("rejects stale requests and leaves newer contents in place", async () => {
+    writeFileSync(join(workspaceRoot, "specs/old.json"), "newer");
+    expect((await rename()).status).toBe(409);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe("newer");
+    expect(existsSync(join(workspaceRoot, "specs/New.json"))).toBe(false);
+  });
+  it.each(["../escape", "a/b", "a\\b", "CON", "trailing.", "", " padded ", "a?b", "\ud800", "한".repeat(84)])("rejects unsafe name %s", async (name) => {
+    expect((await rename(name)).status).toBe(400);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
+  });
+  it("rejects malformed source unicode without crashing or modifying files", async () => {
+    expect((await rename("New", "\ud800.json")).status).toBe(400);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
+  });
+  it("rejects symlink source and destination without modifying their targets", async () => {
+    symlinkSync(join(workspaceRoot, "specs/old.json"), join(workspaceRoot, "specs/link.json"));
+    expect((await rename("New", "link.json")).status).toBe(400);
+    symlinkSync(join(workspaceRoot, "specs/old.json"), join(workspaceRoot, "specs/New.json"));
+    expect((await rename()).status).toBe(409);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
+  });
+  it("keeps source and removes partial destination when writing fails", async () => {
+    vi.mocked(fs.writeFileSync).mockImplementationOnce(() => { throw new Error("disk full"); });
+    expect((await rename()).status).toBe(500);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
+    expect(existsSync(join(workspaceRoot, "specs/New.json"))).toBe(false);
+  });
+  it("never overwrites a destination created after the collision listing", async () => {
+    const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+    vi.mocked(fs.openSync).mockImplementationOnce((path, flags, mode) => {
+      actual.writeFileSync(path, "arrived concurrently");
+      return actual.openSync(path, flags, mode);
+    });
+    expect((await rename()).status).toBe(409);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
+    expect(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8")).toBe("arrived concurrently");
+  });
+  it("preserves original on same-filename write failure", async () => {
+    vi.mocked(fs.writeFileSync).mockImplementationOnce(() => { throw new Error("disk full"); });
+    expect((await rename("old")).status).toBe(500);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
+  });
+  it("rolls back destination if source unlink fails", async () => {
+    vi.mocked(fs.unlinkSync).mockImplementationOnce(() => { throw new Error("permission denied"); });
+    expect((await rename()).status).toBe(500);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
+    expect(existsSync(join(workspaceRoot, "specs/New.json"))).toBe(false);
+  });
+  it("retains two complete copies if rollback unlink also fails", async () => {
+    vi.mocked(fs.unlinkSync).mockImplementation(() => { throw new Error("permission denied"); });
+    expect((await rename()).status).toBe(500);
+    expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8")).pages).toEqual(JSON.parse(oldText).pages);
+  });
+  it("updates display name in place when filename already matches", async () => {
+    expect((await rename("old")).status).toBe(200);
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).name).toBe("old");
   });
 });

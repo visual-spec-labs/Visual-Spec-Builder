@@ -202,6 +202,8 @@ export interface EditorState {
    * 0.1·0.2 → 0.3 변환은 여기 오기 전에 입구(store/loadSpec.ts)가 끝낸다(#127).
    */
   loadSpec: (spec: VisualSpec | ProjectSpec) => void;
+  /** Filesystem rename metadata; preserve edits, selection and undo history. */
+  renameProject: (name: string) => void;
   /**
    * 새 노드를 활성 페이지의 parentId(frame) 자식 목록 끝에 추가하고 선택한다(Import).
    * parentId가 없거나 frame이 아니면 아무 것도 하지 않는다 — 호출자가
@@ -517,6 +519,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         focusRootId: isActive ? null : state.focusRootId,
       };
     }),
+  renameProject: (name) => set((state) => {
+    const rename = (snapshot: EditorSnapshot): EditorSnapshot => ({
+      ...snapshot, spec: { ...snapshot.spec, name },
+    });
+    return {
+      spec: { ...state.spec, name },
+      history: {
+        past: state.history.past.map(rename),
+        present: rename(state.history.present),
+        future: state.history.future.map(rename),
+      },
+    };
+  }),
   loadSpec: (spec) => {
     useResponsiveViewStore.getState().reset();
     const project = "screen" in spec ? migrateV01(spec) : spec;

@@ -131,6 +131,8 @@ export function isWorkspaceDir(value: string): value is WorkspaceDir {
   return Object.prototype.hasOwnProperty.call(WORKSPACE_DIR_RULES, value);
 }
 
+/** Rename one project and its filename together; destination must not exist. */
+export const WORKSPACE_RENAME_ROUTE = `${WORKSPACE_API_PREFIX}/rename`;
 /** Disk compare-and-write tokens; missing is create-only, never overwrite. */
 export const WORKSPACE_REVISION_HEADER = "x-visual-spec-revision";
 export const WORKSPACE_EXPECTED_REVISION_HEADER = "x-visual-spec-expected-revision";

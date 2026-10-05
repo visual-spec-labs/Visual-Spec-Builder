@@ -7,6 +7,8 @@ import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import { createWorkspaceMiddleware, ensureWorkspaceDirs } from "@/features/workspace/workspaceServer";
 import { WORKSPACE_EXPECTED_REVISION_HEADER as expectedHeader, WORKSPACE_REVISION_HEADER as revisionHeader } from "@/features/workspace/protocol";
 
+import { blankSpec } from "@/features/editor/store/blankSpec";
+
 let root: string;
 let server: Server;
 let url: string;
@@ -53,6 +55,31 @@ describe("disk Save compare-and-write across accepted origins", () => {
     unlinkSync(join(root, "specs/a.json"));
     expect((await put("a.json", "stale source", revision)).status).toBe(409);
     expect((await fetch(url + "a.json")).status).toBe(404);
+  });
+  it("rename returns the new revision and stale source Saves cannot recreate the original", async () => {
+    const original = JSON.stringify(blankSpec);
+    writeFileSync(join(root, "specs/old.json"), original);
+    const oldRevision = (await fetch(url + "old.json")).headers.get(revisionHeader)!;
+    const renamed = await fetch(`http://127.0.0.1:${port}/__vs/rename`, { method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fileName: "old.json", name: "New", expectedText: original }) });
+    expect(renamed.status).toBe(200);
+    const revision = renamed.headers.get(revisionHeader)!;
+    expect(revision).toMatch(/^[a-f0-9]{64}$/);
+    expect((await put("old.json", "stale draft", oldRevision, "localhost")).status).toBe(409);
+    expect((await fetch(url + "old.json")).status).toBe(404);
+    expect((await put("New.json", "saved after rename", revision)).status).toBe(200);
+  });
+  it("rename and cross-origin Save as serialize case-insensitive destination collisions", async () => {
+    const original = JSON.stringify(blankSpec);
+    writeFileSync(join(root, "specs/old.json"), original);
+    const responses = await Promise.all([
+      fetch(`http://127.0.0.1:${port}/__vs/rename`, { method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fileName: "old.json", name: "New", expectedText: original }) }),
+      put("new.json", "other tab", "missing", "localhost"),
+    ]);
+    expect(responses.map(r => r.status).sort()).toEqual([200, 409]);
   });
   it("Save as is create-only and case variants cannot overwrite or create duplicate projects", async () => {
     const responses = await Promise.all([put("New.json", "first", "missing", "localhost"), put("new.json", "second", "missing")]);

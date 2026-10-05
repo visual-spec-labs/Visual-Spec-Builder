@@ -20,6 +20,7 @@ import {
   previewScale,
   previewTextStyle,
 } from "@/features/editor/ui/homePreview";
+import { renameProject } from "./renameProject";
 import { loadWorkspaceProjects, type HomeProject } from "./homeProjects";
 
 const PREVIEW_WIDTH = 208;
@@ -48,7 +49,7 @@ const PREVIEW_HEIGHT = 140;
  * 입력창을 새로 만드는 건 이 이슈(파일 목록 배선) 범위 밖이다.
  *
  * 목록의 opt-in mtime 메타데이터로 최근 수정순 정렬한다(#227 일부).
- * 동률은 파일명순이다. 카드 액션·이름 정책은 여전히 별도 결정 사항이다.
+ * 동률은 파일명순이다. 이름 변경은 표시 이름과 실제 파일명을 함께 바꾸고 동명 파일은 보존한다.
  *
  * **카드 하나 = 프로젝트 하나(화면 아님).** 스키마 v0.2(#60/#61)에서 저장 단위가
  * "화면 1개"(VisualSpec)에서 "프로젝트 1개, 페이지 여러 장"(ProjectSpec)으로
@@ -65,6 +66,8 @@ type HomeState =
 export function HomeScreen() {
   const spec = useEditorStore((s) => s.spec);
   const openEditor = useNavigationStore((s) => s.openEditor);
+  const [renaming, setRenaming] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [state, setState] = useState<HomeState>({ kind: "loading" });
 
   useEffect(() => {
@@ -95,6 +98,19 @@ export function HomeScreen() {
     openEditor();
   }
 
+  async function handleRename(project: HomeProject) {
+    if (renaming) return;
+    const name = window.prompt("프로젝트 이름 (저장 파일명도 함께 변경됩니다)", project.spec.name);
+    if (name === null) return;
+    setRenaming(true);
+    setMessage(null);
+    const result = await renameProject(project.fileName, name);
+    if (!result.ok) setMessage(result.error);
+    const projects = await loadWorkspaceProjects();
+    if (projects !== null) setState({ kind: "ready", projects });
+    setRenaming(false);
+  }
+
   // 상태 2의 "기존 화면 불러오기" — File ▸ Open과 같은 openSpec()을 그대로 쓴다.
   // openSpec()은 성공 여부를 돌려주지 않으므로(prompt 취소·검증 실패 시 아무
   // 일도 안 하고 조용히 끝난다) spec 참조가 바뀌었는지로 판정한다 — 바뀌었어야만
@@ -117,11 +133,12 @@ export function HomeScreen() {
   // 파일이 아니니 클릭해도 openEditor()만 한다 — 이미 그 spec이 에디터에도 떠 있다.
   const cards =
     state.kind === "no-workspace"
-      ? [{ key: spec.name, spec, onOpen: openEditor }]
+      ? [{ key: spec.name, spec, onOpen: openEditor, onRename: undefined }]
       : state.projects.map((project) => ({
           key: project.fileName,
           spec: project.spec,
           onOpen: () => handleOpenProject(project),
+          onRename: () => void handleRename(project),
         }));
 
   if (cards.length === 0) {
@@ -180,12 +197,13 @@ export function HomeScreen() {
       </header>
 
       <div className="flex-1 overflow-auto p-6">
+        {message && <p role="alert" className="mb-4 text-sm">{message}</p>}
         <p className="mb-4 text-sm text-content-subtle">
           프로젝트 {cards.length}개
         </p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(208px,1fr))] gap-4">
           {cards.map((card) => (
-            <ProjectCard key={card.key} spec={card.spec} onOpen={card.onOpen} />
+            <ProjectCard key={card.key} spec={card.spec} onOpen={card.onOpen} onRename={card.onRename} disabled={renaming} />
           ))}
         </div>
       </div>
@@ -196,9 +214,13 @@ export function HomeScreen() {
 function ProjectCard({
   spec,
   onOpen,
+  onRename,
+  disabled,
 }: {
   spec: ProjectSpec;
   onOpen: () => void;
+  onRename?: () => void;
+  disabled: boolean;
 }) {
   // 열면 editorStore.loadSpec이 항상 pageOrder[0]을 활성 페이지로 잡는다
   // (editorStore.ts) — 그래서 카드 미리보기·크기도 같은 페이지를 기준으로
@@ -206,8 +228,10 @@ function ProjectCard({
   const coverPage = spec.pages[spec.pageOrder[0]];
 
   return (
+    <div className="flex flex-col rounded-panel border border-line bg-surface">
     <button
       type="button"
+      disabled={disabled}
       onClick={onOpen}
       className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-2 text-left hover:border-primary"
     >
@@ -222,6 +246,9 @@ function ProjectCard({
         </p>
       </div>
     </button>
+    {onRename && <button type="button" disabled={disabled} onClick={onRename}
+      aria-label={`${spec.name} 이름 변경`} className="px-2 py-1 text-left text-xs hover:bg-hover">이름 변경</button>}
+    </div>
   );
 }
 

@@ -272,3 +272,11 @@ Group은 같은 형제 위치의 새 frame에 선택 노드를 옮기고 새 fra
 root로 돌아간다. Ungroup은 자식을 원래 순서대로 frame의 형제 위치에 꺼낸 뒤 빈 frame을
 지우고 첫 자식(없으면 부모)을 선택한다. 지워진 frame이 focusRootId면 문맥도 해제한다.
 기존 노드의 필드는 바꾸지 않으며 새 wrapper 기본값과 시각적 한계는 [단축키 문서](10-shortcuts.md#단일-노드-그룹)에 있다.
+
+### 홈 프로젝트 이름 변경 (#227)
+
+`renameProject(name)`은 홈의 파일 이름 변경이 성공했을 때만 호출하는 메타데이터 동기화다.
+프로젝트 이름과 실제 `specs/<이름>.json`을 함께 변경한다. 파일 이동은 Command가 아니며
+Undo 대상이 아니다. 메모리의 미저장 편집·선택과 편집 Undo/Redo는 보존하고, 모든 history
+snapshot의 프로젝트 이름도 함께 갱신해 Undo가 이전 파일 이름의 표시명으로 돌아가지 않게 한다.
+활성 문서의 `documentStore.fileName`은 성공 후 새 이름으로 변경된다.
