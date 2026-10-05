@@ -40,7 +40,7 @@
 >
 > | 확인일 | 확인한 항목 | 확인 방법 |
 > |---|---|---|
-> | 2026-10-05 (`develop` `26ba851`, #237~#261) | 1절 6개 단위 전체, 2절 CLI·Undo/Redo·반응형·홈 행과 스키마 요약 문장, 3절 끝 요약, 4절 예제·테스트·오류 코드, 5.4 신설, "확인 방법" | 각 행을 `src/features/editor/` 아래 코드, PR #237~#261 본문, [15](15-workflow-qa.md)의 실제 Codex 전체 흐름 기록과 대조했다. 테스트 수는 `26ba851` CI와 이 브랜치의 로컬 `pnpm test` 실행값이다. 끝에 붙어 있던 #235 이미지 배경 절은 4절로 옮겼다. 이 표의 이전 행은 고치지 않았다 |
+> | 2026-10-05 (`develop` `26ba851`, #237~#261) | 1절 6개 단위 전체, 2절 CLI·Undo/Redo·반응형·홈 행과 스키마 요약 문장, 3절 끝 요약, 4절 예제·테스트·오류 코드, 5.4 신설(#262), "확인 방법" | 각 행을 `src/features/editor/` 아래 코드, PR #237~#261 본문, [15](15-workflow-qa.md)의 실제 Codex 전체 흐름 기록과 대조했다. 테스트 수는 `26ba851` CI와 이 브랜치의 로컬 `pnpm test` 실행값이다. 끝에 붙어 있던 #235 이미지 배경 절은 4절로 옮겼다. 이 표의 이전 행은 고치지 않았다 |
 > | 2026-10-04 (#127, 8차) | 5절 "유효 예제" 행(8개 → 9개, `gradient-hero.json`) | 이 단위를 구현하며 갱신했다 — 다른 행은 재검증하지 않았다. `examples/gradient-hero.json`(0.3 화면 문서 — 히어로 linear 위 반투명 오버레이 linear, 버튼 linear, 반투명 오버레이 + 맨 아래 solid 카드, 딱 끊기는 stop 진행 막대, 각도 180·90·112.5)을 더하고 `test/validate.test.ts` 의 유효 예제 목록에 넣었다. 노드별 `canvasLayout.backgroundStyle` 출력을 뽑아 to-react 스킬의 예제 클래스와 대조하고, 같은 클래스를 Tailwind v4.3.3 `compile` 에 넣어 나온 `background-image` 가 그 출력과 글자까지 같은 것을 확인. `pnpm test`(**67파일 1234케이스**) · `typecheck` · `lint` · `build` 통과. `pnpm dev` 에서 File ▸ Open 으로 열어 캔버스·홈 미리보기와 패널의 겹 편집을 눈으로 확인 |
 > | 2026-10-04 (#127, 7차) | 5절 "스킬 6종" 행(배경 가르침 한 문장 추가) | 4단계(PR #215)는 3단계와 함께 진행돼 07을 고치지 않았고, 5단계에서 적었다. `skills/visual-spec-to-react/SKILL.md`("배경 채우기" 절 — 맨 아래 solid는 `bg-[c]`, 나머지 겹은 `bg-[image:…]` 한 클래스 + `bg-origin-border`)·`visual-spec-authoring`("그라디언트 배경" 절)·`visual-spec-nl-response`·`visual-spec-validate` 와 [08](08-natural-language.md) 3.5를 열람. 머지된 `develop` 562f8da 에서 `pnpm test`(**67파일 1233케이스**) · `typecheck` · `lint` · `build` 통과 |
 > | 2026-10-04 (#127, 6차) | "GUI 각 영역의 실제 동작" 표의 `ui/PropertiesPanel.tsx` 와 `ui/properties/` 행(배경 겹 목록 편집 한 문장 추가) | 3단계(PR #214)는 4단계와 함께 진행돼 07을 고치지 않았고, 5단계에서 적었다. `properties/BackgroundSection.tsx`·`LinearFillFields.tsx`·`backgroundPatch.ts`·`fillButtons.ts`·`fields/NumberField.tsx`(`maxExclusive`)를 열람. 머지된 `develop` 562f8da 에서 `pnpm test`(**67파일 1233케이스**) · `typecheck` · `lint` · `build` 통과 |
@@ -459,7 +459,7 @@ IR(0.3), Command(v0.1), Ticket(v0.1) 세 스키마 모두 런타임 정본과 �
 | 타입 생성 스크립트 | `scripts/generate-types.mjs` | `pnpm run generate:types` |
 | 유효 예제 11개 | `examples/*.json` | **2026-10-05 실측 11개(화면 10 + 프로젝트 1 `two-page-project.json`), 모두 `version: "0.3"`** — #245에서 `responsive-cards.json`, #254에서 `image-background.json`이 늘었다. 이하 경과: 검증 통과(2026-09-08 실측 — `ls examples/*.json` 8개. **7개는 `version: "0.1"` 이라 `validateVisualSpec` 이, `two-page-project.json` 만 `version: "0.2"` 라 `validateProjectSpec` 이 받는다**). **2026-10-04(#127)부터 8개 모두 `version: "0.3"` 이다** — `migrateToV03` 로 변환했고, 화면/프로젝트는 키로 갈라 각각 `validateVisualSpec`/`validateProjectSpec` 이 받는다. `examples/image-hero.json` 이 2026-09-01(PR #67)에, `examples/form-grid.json`(button·input·grid)이 2026-09-02(이슈 #75)에, `examples/card-effects.json`(그림자·불투명도·블러)이 2026-09-04(이슈 #78)에, **`examples/two-page-project.json`(v0.2 `ProjectSpec` — 페이지 2장)**이 그사이 추가됐다. **`examples/gradient-hero.json`(solid·linear 여러 겹 배경, 딱 끊기는 stop)이 2026-10-04(#127 5단계)에 처음부터 0.3으로 추가돼 9개가 됐다**(화면 8 + 프로젝트 1) |
 | 무효 예제 8개 | `examples/invalid/*.json` | 검증기가 잡아야 하는 문서들 |
-| 테스트 | `test/*.test.ts` 전체 — `pnpm test` | **86파일 1,456테스트 통과, 1파일 1테스트 건너뜀(총 87파일·1,457테스트)** — 2026-10-05 `develop` `26ba851` CI(ubuntu, Node 20) 실측. 건너뛴 것은 `VSB_RESPONSIVE_BROWSER=1`일 때만 도는 `test/responsive-codegen-browser.test.ts`다. Windows 로컬 실행 결과는 아래 "확인 방법"과 5.4 참고. 이전 기준(`bad0240`+`1d89835`의 68파일·1,239케이스, `5b0af2c`의 67파일·1,234케이스)과 날짜별 수치는 상단 이력에 보존하며 현재 집계와 합산하지 않는다 |
+| 테스트 | `test/*.test.ts` 전체 — `pnpm test` | **86파일 1,456테스트 통과, 1파일 1테스트 건너뜀(총 87파일·1,457테스트)** — 2026-10-05 `develop` `26ba851` CI(ubuntu, Node 20) 실측. 건너뛴 것은 `VSB_RESPONSIVE_BROWSER=1`일 때만 도는 `test/responsive-codegen-browser.test.ts`다. Windows 로컬 실행 결과는 아래 "확인 방법"과 5.4(#262) 참고. 이전 기준(`bad0240`+`1d89835`의 68파일·1,239케이스, `5b0af2c`의 67파일·1,234케이스)과 날짜별 수치는 상단 이력에 보존하며 현재 집계와 합산하지 않는다 |
 | CI | `.github/workflows/ci.yml` | 타입체크 · 테스트 · 스키마 드리프트 검사 |
 | 스킬 7종(통합 PR, #217 포함) | `skills/` — `visual-spec`(허브) · `visual-spec-docs` · `visual-spec-authoring` · `visual-spec-validate` · `visual-spec-to-react` · `visual-spec-nl-response` · `visual-spec-ticket-response` | 배포 원본은 저장소 루트 `skills/`. 사람이 읽는 설명은 `docs/skills/` 에 같은 이름으로 7개. `analyze-target-project`는 "독립 작업공간" 원칙과 어긋나 제거됨(#33). `visual-spec-nl-response`는 GUI의 `.visual-spec/runtime/` 자연어 요청/응답 교환에 응답하는 법을 담는다 — `visual-spec-authoring`(파일 전체를 직접 쓰거나 고침)과 산출물·도착지가 다르다. **2026-10-04(#127 4단계)부터 solid·linear 여러 겹 배경을 가르친다** — authoring 은 그라디언트 작성 규칙과 관용구, nl-response 는 `updateNode { path: "background", value: 배열 전체 }` 한 경로, to-react 는 캔버스와 같은 규칙의 클래스(맨 아래 solid `bg-[c]` + 나머지 겹 `bg-[image:…]` 한 클래스 + `bg-origin-border`), validate 는 linear 범위 오류 해석([13](13-background-fill-design.md#캔버스-번역)). **to-react 는 #248·#252부터 반응형(`screen.responsive`), #257부터 이미지 배경 매핑도 가르친다** |
 
@@ -538,7 +538,7 @@ fixture/브라우저 검증은 실제 AI 성공 검증이 아니다. #261의 실
 기준선 `5b0af2c`에서는 File > Export가 무효 스펙을 받으면 조용히 취소됐고, #230이 알림을 추가했다.
 이 회귀 조건은 무효 스펙 입력이며, 일반 GUI 조작만으로 그 상태에 도달하는 경로를 확인했다는 뜻은 아니다.
 
-### 5.4 Windows 로컬에서 `pnpm test`가 일부 실패한다 — **미해결 (2026-10-05 확인, 이슈 미등록)**
+### 5.4 Windows 로컬에서 `pnpm test`가 일부 실패한다 — **미해결 (2026-10-05 확인, #262)**
 
 CI(ubuntu)는 통과하지만 Windows 체크아웃에서는 같은 커밋(`develop` `26ba851`)의 테스트 일부가 실패한다. 제품 기능이 아니라 플랫폼 차이에서 나온다.
 
@@ -547,7 +547,7 @@ CI(ubuntu)는 통과하지만 Windows 체크아웃에서는 같은 커밋(`devel
 | `test/responsive-codegen.test.ts` 1건, `test/ticket-response-skill.test.ts` 3건 | 테스트가 스킬 Markdown을 LF(`\n`) 줄바꿈을 가정한 정규식·문자열로 비교하는데, `core.autocrlf=true` 체크아웃에서는 파일이 CRLF라 예제 JSON 블록·기대 CSS 문자열을 찾지 못한다 | 저장소에 `.gitattributes`가 없어 Windows Git 기본값(`autocrlf=true`)이면 재현된다. LF로 체크아웃하면 통과한다 |
 | `test/cli-skills-warning.test.ts` 3건 | GUI 시작 시 스킬 사본 경고(#246)가 OS 경로 구분자를 그대로 출력해 `.claude/skills/visual-spec\references\new.md`처럼 섞인 경로가 나오는데 테스트는 `/` 경로를 기대한다. 읽기 권한 제거 사례도 Windows에서는 재현되지 않아 `unreadable` 경고가 나오지 않는다 | LF 체크아웃에서도 실패한다 |
 
-Windows에서 보이는 경고의 경로 표기(`\` 혼용)는 기능을 막지는 않지만 문서·테스트의 표기와 다르다. 고치려면 `bin/`·`test/` 코드 변경이 필요하므로 이 문서 갱신 범위 밖이다.
+Windows에서 보이는 경고의 경로 표기(`\` 혼용)는 기능을 막지는 않지만 문서·테스트의 표기와 다르다. 고치려면 `bin/`·`test/` 코드 변경이 필요하므로 이 문서 갱신 범위 밖이다. #262에서 다룬다.
 
 ---
 
@@ -608,7 +608,7 @@ Windows에서 보이는 경고의 경로 표기(`\` 혼용)는 기능을 막지�
 | 환경 | 명령 | 결과 |
 |---|---|---|
 | GitHub Actions CI(ubuntu-latest, Node 20) — run `37299922920`, `26ba851` push | `pnpm install --frozen-lockfile` → `pnpm run typecheck` → `pnpm test` → 스키마 드리프트 검사 | 성공. `pnpm test` **86파일 통과·1파일 건너뜀(87), 1,456테스트 통과·1테스트 건너뜀(1,457)** |
-| Windows 11 로컬(Node 24.12.0·pnpm 10.33.0), 이 브랜치 | `pnpm install --frozen-lockfile` → `pnpm test` | 총계는 CI와 같은 **87파일·1,457테스트**. `autocrlf=true` 체크아웃에서 3파일 7테스트 실패, LF로 다시 체크아웃하면 1파일 3테스트 실패(모두 5.4) |
+| Windows 11 로컬(Node 24.12.0·pnpm 10.33.0), 이 브랜치 | `pnpm install --frozen-lockfile` → `pnpm test` | 총계는 CI와 같은 **87파일·1,457테스트**. `autocrlf=true` 체크아웃에서 3파일 7테스트 실패, LF로 다시 체크아웃하면 1파일 3테스트 실패(모두 5.4, #262) |
 | Windows 11 로컬, 이 브랜치 | `pnpm lint` | 통과 |
 
 건너뛴 1건은 `VSB_RESPONSIVE_BROWSER=1`일 때만 도는 `test/responsive-codegen-browser.test.ts`다. 머리의 "86파일 1,456테스트"는 CI의 통과 수와 같다.
