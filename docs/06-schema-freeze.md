@@ -18,7 +18,7 @@
 - `input`
 - `layout` (`direction`: `row` | `column` | `grid`)
 - `box`
-- `background` (채우기 겹 배열 `Fill[]` — `solid`·`linear`. 0.3부터, 아래 "v0.3" 절)
+- `background` (채우기 겹 배열 `Fill[]` — `solid`·`linear`·`image`. 0.3부터, 아래 "v0.3" 절)
 - `border` (`align`, 모서리별 `radius` 포함)
 - `typography`
 - `shadow` · `opacity` · `blur`
@@ -29,7 +29,7 @@
 - `component`
 - `event`
 - `token`
-- 배경의 `radial`·`image` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
+- 배경의 `radial` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). 셋 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
 `instance`, `props`, `bindings`, `variants`, `states`, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
@@ -56,7 +56,7 @@ import type {
   ButtonNode,
   InputNode,
   Background,    // Fill[] — 0.3
-  Fill,          // SolidFill | LinearFill
+  Fill,          // SolidFill | LinearFill | ImageFill
   SolidFill,
   LinearFill,
   GradientStop,
@@ -431,3 +431,22 @@ pnpm test
 `examples/responsive-cards.json`과 `test/responsive-schema.test.ts`가 계약 예제다.
 GUI·캔버스·Command 편집·코드 생성 지원은 #223/#224에서 별도로 구현한다. 현재 GUI가
 폭별로 그려 준다는 뜻은 아니다.
+
+
+## 이미지 배경 추가 계약 (#235, 팀 리뷰 필요)
+
+`Fill`에 `{ type: "image", src, fit }`를 추가한다. `fit`은 `cover`·`contain`·`fill`
+셋뿐이며 중앙 정렬·반복 없음이다. frame/button/input 및 해당 responsive background
+전체 배열에서 같은 계약을 쓴다. repeat와 위치 조절은 이번 범위에 없다.
+
+`src`는 기존 ImageNode처럼 비지 않은 문자열이며 assets 상대 경로, assetId, 기존 data URI를
+보존한다. assetId는 기존 경로 해석과 동일하게 다룬다(별도 자산 레지스트리 없음).
+ImageNode 자체를 배경으로 삽입하지 않는다. leaf 노드의 box/선택/자식 구조와 배경 겹은
+역할이 다르므로 src/fit 및 이미지 URL 해석만 공유한다.
+
+추가 유니온 갈래이므로 version은 0.3을 유지한다. 기존 0.3 solid/linear 문서는 변경하지
+않으며 `migrateToV03`의 기존 0.1/0.2 단색 마이그레이션도 유지한다. 구버전 앱은 image
+갈래를 읽지 못하므로 이미지 배경을 사용한 파일은 새 버전에서 연다.
+
+**정본·생성 타입·계약 테스트 PR은 기능 PR과 분리하고 병합 전에 팀 스키마 리뷰가 필요하다.**
+스키마 PR의 기존 UI 타입 가드는 후속 기능 PR의 renderer/편집 지원을 대신하지 않는다.
