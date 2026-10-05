@@ -6,10 +6,8 @@ import type {
   ProjectSpec,
   ScreenSpec,
 } from "@/features/editor/schema";
-import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
-import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
@@ -22,7 +20,7 @@ import {
   previewTextStyle,
 } from "@/features/editor/ui/homePreview";
 import { renameProject } from "./renameProject";
-import { loadWorkspaceProjects, type HomeProject } from "./homeProjects";
+import { loadWorkspaceProjects, openHomeProject, type HomeProject } from "./homeProjects";
 
 const PREVIEW_WIDTH = 208;
 const PREVIEW_HEIGHT = 140;
@@ -89,15 +87,8 @@ export function HomeScreen() {
     if (await newSpec()) openEditor();
   }
 
-  // 카드는 목록을 만들 때 이미 내용을 읽어 뒀다 — 다시 읽지 않고 그 spec을 그대로
-  // loadSpec에 넘긴다. setFileName으로 "지금 연 파일"을 기억시켜야 그 뒤의
-  // File ▸ Save가 이 파일에 그대로 쓴다(documentStore.ts, 이슈 #185).
-  // 갈아 끼우기 전에 현재 문서의 대기 중 자동저장을 먼저 끝낸다(#267).
   async function handleOpenProject(project: HomeProject) {
-    if (!await useSaveConflictStore.getState().settle()) return;
-    useEditorStore.getState().loadSpec(project.spec);
-    useDocumentStore.getState().setFileName(project.fileName, project.diskRevision);
-    openEditor();
+    if (await openHomeProject(project)) openEditor();
   }
 
   async function handleRename(project: HomeProject) {

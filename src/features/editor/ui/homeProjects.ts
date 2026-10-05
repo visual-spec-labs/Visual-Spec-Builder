@@ -1,5 +1,8 @@
 import { migrateV01, type ProjectSpec } from "@/features/editor/schema";
+import { useDocumentStore } from "@/features/editor/store/documentStore";
+import { useEditorStore } from "@/features/editor/store/editorStore";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { SPEC_DIR } from "@/features/workspace/protocol";
 import { listWorkspaceFileEntries, readWorkspaceSpecSnapshot } from "./workspaceClient";
 
@@ -37,3 +40,19 @@ export async function loadWorkspaceProjects(): Promise<HomeProject[] | null> {
   const loaded = await Promise.all(ordered.map((entry) => loadHomeProject(entry.name)));
   return loaded.filter((project): project is HomeProject => project !== null);
 }
+
+/**
+ * 홈 카드 하나를 연다. 카드는 목록을 만들 때 이미 내용을 읽어 뒀다 — 다시 읽지 않고
+ * 그 spec을 그대로 loadSpec에 넘긴다. setFileName으로 "지금 연 파일"을 기억시켜야
+ * 그 뒤의 File ▸ Save가 이 파일에 그대로 쓴다(documentStore.ts, 이슈 #185).
+ *
+ * 갈아 끼우기 전에 현재 문서의 대기 중 자동저장을 먼저 끝내고, 지금 파일을 다시 여는
+ * 경우 남은 초안을 비교하게 파일명을 넘긴다(#267). false면 현재 문서를 그대로 둔다.
+ */
+export async function openHomeProject(project: HomeProject): Promise<boolean> {
+  if (!await useSaveConflictStore.getState().settle(project.fileName)) return false;
+  useEditorStore.getState().loadSpec(project.spec);
+  useDocumentStore.getState().setFileName(project.fileName, project.diskRevision);
+  return true;
+}
+

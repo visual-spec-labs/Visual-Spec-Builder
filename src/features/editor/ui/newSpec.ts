@@ -19,7 +19,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
  * 문서를 그대로 둔다 — 다른 탭과 충돌했거나 사용자가 폐기를 거절했다.
  */
 export async function newSpec(): Promise<boolean> {
-  if (!await useSaveConflictStore.getState().settle()) return false;
+  if (!await useSaveConflictStore.getState().settle(null)) return false;
   useEditorStore.getState().loadSpec(blankSpec);
   useDocumentStore.getState().clearFileName();
   return true;

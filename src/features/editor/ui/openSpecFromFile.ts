@@ -19,7 +19,7 @@ import { SPEC_DIR } from "@/features/workspace/protocol";
  */
 async function loadSpecText(text: string, fileName: string, diskRevision: string | null = null): Promise<void> {
   // 현재 문서의 대기 중 자동저장을 먼저 끝낸다(#267).
-  if (!await useSaveConflictStore.getState().settle()) return;
+  if (!await useSaveConflictStore.getState().settle(fileName)) return;
   if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return;
   const result = parseSpecJson(text);
   if (!result.ok) {

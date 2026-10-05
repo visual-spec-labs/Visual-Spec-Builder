@@ -34,6 +34,9 @@ export function startSpecAutosave() {
   let generation = 0;
   let restoring = false;
   let ownedTarget: { key: string; raw: string } | undefined;
+  // Open/홈 카드로 지금 파일을 다시 여는 중이다(#267 리뷰). 파일명이 그대로라 아래
+  // changed()의 파일 전환 비교를 타지 않으므로, 불러온 직후 따로 초안과 비교한다.
+  let reopenKey: string | null = null;
   // An untitled draft has no file to reopen it from; switching away must ask (#267).
   // At startup the history is empty, so judge by content: anything restored from
   // storage that is not a blank New may be the user's only copy.
@@ -208,14 +211,23 @@ export function startSpecAutosave() {
   }
   // New/Open/home replace the document synchronously, so a debounced draft would
   // be dropped with the cancelled timer (#267). Persist it under the lock first.
-  async function settle(): Promise<boolean> {
+  async function settle(nextFileName?: string | null): Promise<boolean> {
     if (!conflicted && read(key) !== serializeStoredDocument(document)) await flush();
     if (stopped || conflicted || check()) return false;
+    reopenKey = typeof nextFileName === "string" && document.fileName !== null &&
+      projectStorageKey(nextFileName, untitledId) === key ? key : null;
     if (document.fileName === null && untitledEdited) {
       return window.confirm("저장하지 않은 제목 없는 문서입니다. 계속하면 이 문서의 내용은 다시 열 수 없습니다. 먼저 File → Save로 저장하려면 취소하세요.");
     }
     if (read(key) === serializeStoredDocument(document)) return true;
     return window.confirm("현재 문서의 변경 내용을 자동저장하지 못했습니다. 계속하면 저장되지 않은 변경이 사라집니다. File → Export로 먼저 보관하려면 취소하세요.");
+  }
+  // A reopened file whose autosave differs is the same choice as opening it from
+  // another document: the draft must be offered, not overwritten by the next autosave.
+  function checkReopen() {
+    if (conflicted || document.fileName === null || projectStorageKey(document.fileName, untitledId) !== key) return;
+    const stored = read(key);
+    if (stored !== null && stored !== serializeStoredDocument(document)) pause(false, draftOf(stored, document));
   }
   // The opened file is older than its autosave draft: keep the opened content and
   // let the next autosave replace that draft. The dialog confirms the discard.
@@ -256,6 +268,12 @@ export function startSpecAutosave() {
       if (!restoring && s.history.past.length === 0 && s.history.future.length === 0) {
         generation++;
         untitledEdited = false;
+        if (reopenKey !== null && reopenKey === key) {
+          // Open은 loadSpec 다음 줄에서 setFileName(같은 이름, 디스크 리비전)을 부른다.
+          // 그 리비전까지 반영된 뒤 비교해야 디스크가 바뀐 경우를 초안으로 오인하지 않는다.
+          queueMicrotask(checkReopen);
+        }
+        reopenKey = null;
         if (useDocumentStore.getState().fileName === null) {
           untitledId = crypto.randomUUID();
           key = projectStorageKey(null, untitledId);
