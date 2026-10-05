@@ -19,10 +19,11 @@ export const SPEC_STORAGE_KEY = "visual-spec:project";
  * **하나의 값**으로 묶는다 — 따로 저장하면 한쪽만 쓰기에 성공하거나 서로 다른
  * 시점의 값이 섞여("이름은 A인데 내용은 B였을 때 것") 더 헷갈리는 불일치가 생긴다.
  */
-interface StoredDocument {
+export interface StoredDocument {
   /** `documentStore.fileName`과 같은 뜻 — null이면 그 세션엔 어느 파일도 아니었다. */
   fileName: string | null;
   spec: ProjectSpec;
+  diskRevision?: string | null;
 }
 
 /**
@@ -45,6 +46,11 @@ function readStoredDocument(): StoredDocument | undefined {
   }
   if (raw === null) return undefined;
 
+  return parseStoredDocument(raw);
+}
+
+export function parseStoredDocument(raw: string | null): StoredDocument | undefined {
+  if (raw === null) return undefined;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -62,7 +68,8 @@ function readStoredDocument(): StoredDocument | undefined {
   const result = validateProjectSpec(spec);
   if (!result.valid) return undefined;
 
-  return { fileName, spec: spec as ProjectSpec };
+  const diskRevision = (parsed as Record<string, unknown>).diskRevision;
+  return { fileName, spec: spec as ProjectSpec, ...(typeof diskRevision === "string" ? { diskRevision } : {}) };
 }
 
 /**
@@ -71,7 +78,7 @@ function readStoredDocument(): StoredDocument | undefined {
  * `loadStoredSpec() ?? migrateV01(seedSpec)` 줄을 이 변경 때문에 고칠 필요가 없다.
  */
 export function loadStoredSpec(): ProjectSpec | undefined {
-  return readStoredDocument()?.spec;
+  return readRecovery()?.document.spec ?? readStoredDocument()?.spec;
 }
 
 /**
@@ -81,8 +88,13 @@ export function loadStoredSpec(): ProjectSpec | undefined {
  * 대체한다), `null`은 "그 세션은 정상적으로 저장됐는데 그때 어느 파일도 아니었다"
  * 는 유효한 값이다 — `documentStore.fileName`의 `null`과 같은 뜻이다.
  */
+export function loadStoredDiskRevision(): string | null {
+  return (readRecovery()?.document ?? readStoredDocument())?.diskRevision ?? null;
+}
+
 export function loadStoredFileName(): string | null | undefined {
-  return readStoredDocument()?.fileName;
+  const recovery = readRecovery();
+  return recovery ? recovery.document.fileName : readStoredDocument()?.fileName;
 }
 
 /**
@@ -93,15 +105,59 @@ export function loadStoredFileName(): string | null | undefined {
  * 조용히 무시한다 — 자동저장이 실패했다고 편집 자체를 막을 이유는 없다. 대신
  * File > Save(작업공간 쓰기 또는 다운로드)가 여전히 남아있다.
  *
- * **이 작업이 다루지 않는 것**: 워크스페이스 파일이 그 사이 밖에서(예: 에이전트가)
- * 바뀌었어도 이 함수는 그걸 모른다. Save는 원래도 항상 지금 화면의 내용으로 그
- * 파일을 덮어썼다 — 새로고침·이 저장 방식이 그 위험을 새로 만들거나 줄이지
- * 않는다. 외부 변경 감지·병합은 이 이슈의 범위 밖이다.
+ * 디스크를 열 때 받은 리비전도 함께 보존한다. 이 함수 자체는 디스크를 읽지
+ * 않으며, 명시적 Save가 서버 CAS로 오래된 리비전의 덮어쓰기를 차단한다.
  */
-export function saveSpecToStorage(spec: ProjectSpec, fileName: string | null): void {
+export function saveSpecToStorage(spec: ProjectSpec, fileName: string | null, diskRevision?: string | null): void {
   try {
-    localStorage.setItem(SPEC_STORAGE_KEY, JSON.stringify({ fileName, spec }));
+    localStorage.setItem(SPEC_STORAGE_KEY, serializeStoredDocument({ fileName, spec, diskRevision }));
   } catch {
     /* 위 설명대로 조용히 무시한다. */
   }
+}
+
+/** Per-tab recovery survives reload without replacing another tab's autosave. */
+export const RECOVERY_KEY = "visual-spec:tab-recovery";
+export interface Recovery {
+  document: StoredDocument;
+  key: string;
+  baseline: string | null;
+  conflicted: boolean;
+  diskConflict?: boolean;
+  renameBaseline?: string | null;
+}
+export function readRecovery(): Recovery | undefined {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(RECOVERY_KEY) ?? "null");
+    if (!value || typeof value.key !== "string" ||
+      (value.baseline !== null && typeof value.baseline !== "string") ||
+      typeof value.conflicted !== "boolean") return undefined;
+    const document = parseStoredDocument(JSON.stringify(value.document));
+    return document ? { ...value, document } : undefined;
+  } catch { return undefined; }
+}
+export function writeRecovery(recovery: Recovery): boolean {
+  try {
+    sessionStorage.setItem(RECOVERY_KEY, JSON.stringify(recovery));
+    return true;
+  } catch { return false; }
+}
+export function projectStorageKey(fileName: string | null, untitledId: string): string {
+  return `visual-spec:autosave:${fileName === null ? `draft:${untitledId}` : `file:${fileName}`}`;
+}
+
+/** Rename publishes a redirect for old tabs; they must explicitly resolve their drafts. */
+export function publishProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string): void {
+  try {
+    const target = projectStorageKey(newFileName, "");
+    const raw = JSON.stringify({ fileName: newFileName, spec,
+      cachedRevision: localStorage.getItem(target), revision: crypto.randomUUID() });
+    localStorage.setItem(`${target}:rename`, raw);
+    localStorage.setItem(`${projectStorageKey(oldFileName, "")}:rename`, raw);
+  } catch { /* Workspace rename already succeeded; in-memory document remains usable. */ }
+}
+
+/** One envelope order for autosave, Save and post-Save-as identity comparisons. */
+export function serializeStoredDocument(document: StoredDocument): string {
+  return JSON.stringify({ fileName: document.fileName, spec: document.spec, ...(document.diskRevision ? { diskRevision: document.diskRevision } : {}) });
 }

@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { loadWorkspaceProjects } from "@/features/editor/ui/homeProjects";
-import { listWorkspaceFileEntries, readWorkspaceTextFile } from "@/features/editor/ui/workspaceClient";
+import { listWorkspaceFileEntries, readWorkspaceSpecSnapshot } from "@/features/editor/ui/workspaceClient";
 
 vi.mock("@/features/editor/ui/workspaceClient", () => ({
-  listWorkspaceFileEntries: vi.fn(), readWorkspaceTextFile: vi.fn(),
+  listWorkspaceFileEntries: vi.fn(), readWorkspaceSpecSnapshot: vi.fn(),
 }));
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(readWorkspaceTextFile).mockResolvedValue(JSON.stringify(blankSpec));
+  vi.mocked(readWorkspaceSpecSnapshot).mockResolvedValue({ text: JSON.stringify(blankSpec), revision: "disk-version" });
 });
 
 describe("홈 최근 수정순", () => {
@@ -26,8 +26,8 @@ describe("홈 최근 수정순", () => {
     vi.mocked(listWorkspaceFileEntries).mockResolvedValue([
       {name: "gone.json", mtimeMs: 30}, {name: "broken.json", mtimeMs: 20}, {name: "keep.json", mtimeMs: 10},
     ]);
-    vi.mocked(readWorkspaceTextFile).mockImplementation(async path =>
-      path.endsWith("gone.json") ? null : path.endsWith("broken.json") ? "null" : JSON.stringify(blankSpec),
+    vi.mocked(readWorkspaceSpecSnapshot).mockImplementation(async path =>
+      path.endsWith("gone.json") ? null : { text: path.endsWith("broken.json") ? "null" : JSON.stringify(blankSpec), revision: "disk-version" },
     );
     expect((await loadWorkspaceProjects())?.map(p => p.fileName)).toEqual(["keep.json"]);
   });

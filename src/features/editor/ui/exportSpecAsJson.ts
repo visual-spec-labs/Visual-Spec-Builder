@@ -1,3 +1,4 @@
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import type { ProjectSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import {
@@ -9,7 +10,7 @@ import {
   isWorkspaceAvailable,
   writeWorkspaceFile,
 } from "@/features/editor/ui/workspaceClient";
-import { SPEC_DIR } from "@/features/workspace/protocol";
+import { SPEC_DIR, WORKSPACE_MISSING_REVISION } from "@/features/workspace/protocol";
 
 /**
  * 브라우저 다운로드를 트리거하는 UI 레이어 래퍼(DOM 부수효과).
@@ -60,21 +61,35 @@ export function exportSpecAsJson(spec: ProjectSpec): ExportResult {
  * 갱신한다. 실패한 저장으로 이름을 바꾸면 그 뒤의 Save가 한 번도 써 본 적 없는
  * 파일을 향한다. 다운로드로 되돌아간 경우도 성공으로 친다(파일은 남았다).
  */
-async function saveToWorkspace(filename: string, json: string): Promise<boolean> {
+async function saveToWorkspace(filename: string, json: string, isCurrent: () => boolean): Promise<{ revision: string | null } | null> {
   if (!(await isWorkspaceAvailable())) {
+    if (!isCurrent()) return null;
     downloadJson(filename, json);
-    return true;
+    return { revision: null };
   }
 
+  if (!isCurrent() || useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return null;
   const relativePath = `${SPEC_DIR}/${filename}`;
-  const written = await writeWorkspaceFile(relativePath, json, "application/json");
-
-  if (!written.ok) {
-    window.alert(`저장할 수 없습니다: ${written.error}`);
-    return false;
+  const document = useDocumentStore.getState();
+  const expectedRevision = filename === document.fileName ? document.diskRevision : WORKSPACE_MISSING_REVISION;
+  if (expectedRevision === null) {
+    window.alert("저장 기준을 확인할 수 없습니다. 초안을 Export로 보존한 뒤 작업공간 파일을 다시 열거나 새 파일명으로 저장하세요.");
+    return null;
   }
-  window.alert(`저장했습니다 — .visual-spec/${written.path}`);
-  return true;
+  let revision: string | null = null;
+  const saved = await useSaveConflictStore.getState().save(filename, json, async () => {
+    if (!isCurrent()) return false;
+    const written = await writeWorkspaceFile(relativePath, json, "application/json", expectedRevision);
+    if (!written.ok) {
+      if (isCurrent() && (written.status === 409 || written.status === 428)) useSaveConflictStore.getState().pause(true);
+      window.alert(`저장할 수 없습니다: ${written.error}`);
+      return false;
+    }
+    revision = written.revision ?? null;
+    window.alert(`저장했습니다 — .visual-spec/${written.path}`);
+    return true;
+  });
+  return saved ? { revision } : null;
 }
 
 /**
@@ -92,7 +107,9 @@ async function saveToWorkspace(filename: string, json: string): Promise<boolean>
  * 돌려주는 `filename`은 **실제로 쓴 이름**이다(`buildExportPayload`가 계산한
  * `spec.name` 기반 이름이 아니라).
  */
-export async function saveSpec(spec: ProjectSpec): Promise<ExportResult> {
+export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> {
+  if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return null;
+  const isCurrent = useSaveConflictStore.getState().captureDocument();
   const result = buildExportPayload(spec);
   if (!result.ok) {
     window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
@@ -100,8 +117,9 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult> {
   }
 
   const filename = useDocumentStore.getState().fileName ?? result.filename;
-  if (await saveToWorkspace(filename, result.json)) {
-    useDocumentStore.getState().setFileName(filename);
+  const saved = await saveToWorkspace(filename, result.json, isCurrent);
+  if (saved && isCurrent()) {
+    useDocumentStore.getState().setFileName(filename, saved.revision);
   }
   return { ...result, filename };
 }
@@ -114,6 +132,8 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult> {
  * 다른 이름으로"라서, `spec.name`이 아니라 지금 이름에서 고치기 시작하는 게 맞다.
  */
 export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null> {
+  if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return null;
+  const isCurrent = useSaveConflictStore.getState().captureDocument();
   const result = buildExportPayload(spec);
   if (!result.ok) {
     window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
@@ -127,8 +147,18 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
   }
 
   const filename = resolveFilename(chosenName, current);
-  if (await saveToWorkspace(filename, result.json)) {
-    useDocumentStore.getState().setFileName(filename);
+  const saved = await saveToWorkspace(filename, result.json, isCurrent);
+  if (saved && isCurrent()) {
+    useDocumentStore.getState().setFileName(filename, saved.revision);
   }
   return { ...result, filename };
+}
+
+/** A download cannot overwrite the shared workspace or change its active path. */
+export function downloadConflictCopy(spec: ProjectSpec): ExportResult {
+  const result = buildExportPayload(spec);
+  if (result.ok) {
+    downloadJson(`conflict-copy-${crypto.randomUUID()}.json`, result.json);
+  }
+  return result;
 }
