@@ -131,31 +131,39 @@ export function startAgentEditBridge(): () => void {
   }
 
   async function claim() {
-    if (stopped || claiming) return;
+    if (stopped) return;
+    // 진행 중인 확인보다 먼저 본다 — 그 사이 홈으로 가도 곧바로 연결을 푼다(#279 리뷰).
     if (!onEditor()) { disconnect(); return; }
+    if (claiming) return;
     claiming = true;
     try {
       const outcome = await acquireRequestLock("gui", tabId, holder);
       const nowHolder = outcome === "acquired" || (holder && outcome === "unavailable");
       if (nowHolder && !holder) {
-        // 연결 전에 이미 있던 요청은 이 연결이 읽은 상태로 만든 것이 아니다 — 처리하지 않는다.
-        // 이전 탭이 처리한 마지막 요청도 다시 적용하지 않는다. 복원을 **먼저** 끝내고 연결로
-        // 바꾼다 — 그 사이 폴링이 낡은 값으로 같은 요청을 다시 처리하지 않게(#279 리뷰).
+        // 이전 탭이 처리한 마지막 요청은 다시 적용하지 않는다. 연결 전부터 있던 다른 요청은 이
+        // 연결이 공개한 상태로 만든 것이 아니므로 적용하지 않되, 결과는 남긴다 — 숨기면 에이전트가
+        // 30초 기다린 뒤 "GUI가 연결되지 않았다"고 잘못 안내한다(#279 리뷰). 복원을 **먼저** 끝내고
+        // 연결로 바꾼다 — 그 사이 폴링이 같은 요청을 다시 처리하지 않게.
+        const previous = await readWorkspaceTextFile(AGENT_EDIT_RESULT_PATH);
+        let handled: string | null = null;
+        try { handled = previous ? (JSON.parse(previous) as { requestId?: string }).requestId ?? null : null; }
+        catch { handled = null; }
         const pending = parseAgentEdit(await readWorkspaceTextFile(AGENT_EDIT_PATH));
-        lastHandledId = "id" in pending ? pending.id : null;
-        if (lastHandledId === null) {
-          const previous = await readWorkspaceTextFile(AGENT_EDIT_RESULT_PATH);
-          try { lastHandledId = previous ? (JSON.parse(previous) as { requestId?: string }).requestId ?? null : null; }
-          catch { lastHandledId = null; }
-        }
+        const waiting = "id" in pending && pending.id !== handled ? pending.id : null;
+        lastHandledId = waiting ?? handled;
         if (stopped || !onEditor()) { releaseRequestLock("gui", tabId); return; }
         holder = true;
         useAgentEditStore.setState({ connected: true });
         await publish(true);
+        if (waiting !== null) {
+          await writeResult(waiting, "rejected",
+            "GUI 연결이 새로 맺어져(새로고침·홈 이동·다른 탭) 이 요청을 적용하지 않았습니다. gui-state.json을 다시 읽고 새 id로 요청하세요.");
+        }
       } else if (!nowHolder && holder) {
         holder = false;
         useAgentEditStore.setState({ connected: false });
       } else if (holder) {
+        if (!onEditor()) { disconnect(); return; }
         await publish();
       }
     } finally {

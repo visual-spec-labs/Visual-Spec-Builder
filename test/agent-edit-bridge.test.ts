@@ -201,12 +201,28 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(releaseRequestLock).toHaveBeenCalledWith("gui", tabId);
   });
 
-  it("연결 전부터 있던 요청은 이 연결이 읽은 상태로 만든 것이 아니므로 처리하지 않는다", async () => {
+  it("연결 전부터 있던 요청은 적용하지 않되, 다시 요청하라는 결과를 남긴다", async () => {
     sendEdit({ id: "before-connect", baseStateRevision: "anything", pageId: "page1", commands: retitle("옛 요청") });
     await connect();
     await vi.advanceTimersByTimeAsync(2000);
     expect(title()).not.toBe("옛 요청");
-    expect(result()).toBeNull();
+    expect(result()).toMatchObject({ requestId: "before-connect", status: "rejected" });
+    expect(result().message).toContain("gui-state.json을 다시 읽고");
+  });
+
+  it("연결 확인이 진행되는 도중 홈으로 가도 곧바로 연결을 푼다", async () => {
+    await connect();
+    const tabId = state().id;
+    let finish!: (value: "acquired") => void;
+    vi.mocked(acquireRequestLock).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await vi.advanceTimersByTimeAsync(5000); // 5초 확인이 서버 응답을 기다리는 중
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    expect(releaseRequestLock).toHaveBeenCalledWith("gui", tabId);
+    finish("acquired");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(useAgentEditStore.getState().connected).toBe(false);
   });
 
   it("처리 직전에 연결이 다른 탭으로 넘어갔으면 적용하지 않는다", async () => {
