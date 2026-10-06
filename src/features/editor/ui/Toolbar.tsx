@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Frame, Hand, MousePointer2, Type, type LucideIcon } from "lucide-react";
 
 import { useToolStore, type ToolId } from "@/features/editor/store/toolStore";
@@ -31,6 +32,34 @@ export function Toolbar() {
   // 내용이 뷰포트보다 짧아 스크롤이 없을 때는 숨기지 않는다(isScrolledToBottom 이
   // false 를 돌려준다) — 숨기면 도구를 영영 고를 수 없다.
   const hidden = useViewStore((state) => state.canvasAtBottom);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // `aria-hidden`·pointer-events 만으로는 숨긴 상태에서도 내부 button이 탭 순서에
+  // 남는다(이슈 #275) — 실제로 Tab이 Frame 버튼까지 들어갔다. `inert`를 같이 걸어야
+  // 포커스·탭 순서·스크린 리더 전부에서 제외된다. `aria-hidden`은 그대로 둔다 —
+  // `inert` 지원이 아직 덜 퍼진 조합(예: 구형 스크린 리더 조합)에 대한 보강이고,
+  // `src/app/App.tsx`의 저장 충돌 모달 뒤 편집기(`inert={paused || undefined}`)와
+  // 같은 이중 표기다. `false`가 아니라 `undefined`를 쓰는 이유도 같다 — React가
+  // `inert="false"`를 실제 속성으로 찍어 버리는 버전이 있어, 아예 속성을 없앤다.
+  //
+  // **숨는 순간의 포커스.** 도구 버튼에 포커스가 있는 채로 캔버스를 끝까지 내리면
+  // (예: Tab으로 Frame을 고른 직후) 네이티브 `inert`가 그 포커스를 자동으로 치워
+  // 주는지는 브라우저마다 보장이 다르다 — 직접 치운다. 포커스가 보이지도, 눌리지도
+  // 않는 자리에 남아 있으면 Tab/Shift+Tab을 눌러도 화면이 안 움직이는 것처럼
+  // 보인다. 어디로 보낼지 추리하지 않고 `blur()`만 한다 — 대부분의 브라우저가
+  // body로 포커스를 돌리고, 그다음 Tab은 문서 맨 앞부터 정상적으로 흐른다.
+  //
+  // **다시 보이면** 포커스를 도구 모음으로 되돌리지 않는다 — 사용자는 스크롤했을
+  // 뿐 도구를 쓰려던 게 아니라서, 포커스를 가로채면 방금 하던 입력(캔버스 조작 등)
+  // 이 끊긴다. `inert`가 풀리면 버튼은 다시 탭 순서에 들어가는 것으로 충분하다.
+  useEffect(() => {
+    if (!hidden) return;
+    const root = rootRef.current;
+    const active = document.activeElement;
+    if (root !== null && active instanceof HTMLElement && root.contains(active)) {
+      active.blur();
+    }
+  }, [hidden]);
 
   return (
     // aria-hidden 과 pointer-events-none 을 함께 건다 — 화면 밖으로 밀려난 뒤에도
@@ -50,9 +79,11 @@ export function Toolbar() {
     // (CSS Grid 명세), 이 한 줄이 도구 모음을 캔버스 바닥 기준으로 되돌린다.
     // 덤으로 좌우 패널을 접어도 캔버스 한가운데에 그대로 선다.
     <div
+      ref={rootRef}
       role="toolbar"
       aria-label="도구"
       aria-hidden={hidden}
+      inert={hidden || undefined}
       className={`absolute bottom-4 left-1/2 z-10 flex origin-bottom items-center gap-1 rounded-panel border border-line bg-surface-raised p-1 shadow-popover transition-[transform,opacity] [grid-area:canvas] ${
         hidden
           ? "pointer-events-none -translate-x-1/2 translate-y-[calc(100%+1.25rem)] scale-x-[0.28] scale-y-[0.5] opacity-0 duration-300 ease-in"

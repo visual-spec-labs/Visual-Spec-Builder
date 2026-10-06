@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+  수동 fixture (이슈 #275) — Toolbar.tsx가 숨김 전환 때 거는 그대로를
+  src/features/editor/ui/Toolbar.tsx 바깥에서 재현한다:
+    1. 버튼에 포커스를 준다
+    2. 부모에 inert를 건다(명시적 blur() 없이)
+    3. activeElement가 그대로인지 본다
+    4. inert 상태에서 다시 focus()를 시도해도 안 먹히는지 본다
+    5. inert를 풀면 다시 focus()가 먹히는지 본다
+
+  docs/18-toolbar-inert-qa.md가 이 파일을 `serve`로 띄워 눈으로 확인한 결과를 적는다.
+  Chrome의 네이티브 inert 동작만 보는 것이라 React·zustand·실제 Toolbar 컴포넌트는
+  끌어들이지 않는다 — 앱을 띄워 재현하면 이 저장소와 무관한 다른 멈춤(관련 없는
+  기존 버그, 조사 기록은 별도)에 걸릴 위험이 있어 환경을 최소로 좁혔다.
+-->
+<html>
+<body>
+  <button id="before">before</button>
+  <div id="toolbar">
+    <button id="frame">Frame</button>
+  </div>
+  <button id="after">after</button>
+  <pre id="log"></pre>
+  <script>
+    const log = (msg) => { document.getElementById('log').textContent += msg + "\n"; };
+    const toolbar = document.getElementById('toolbar');
+    const frameBtn = document.getElementById('frame');
+
+    frameBtn.focus();
+    log("1) frameBtn.focus() 직후 activeElement === frameBtn: " + (document.activeElement === frameBtn));
+
+    // Toolbar.tsx가 숨길 때 거는 것과 같다 — inert만, blur()는 아직 안 건다.
+    toolbar.inert = true;
+    log("2) toolbar.inert = true (blur() 없이) 후에도 activeElement === frameBtn: "
+      + (document.activeElement === frameBtn)
+      + " — true면 포커스가 숨겨진 영역에 그대로 남는다는 뜻, Toolbar.tsx가 blur()를 직접 호출해야 하는 이유");
+
+    document.getElementById('before').focus();
+    log("3) 'before'로 수동 이동: " + (document.activeElement.id === 'before'));
+
+    frameBtn.focus();
+    log("4) inert 상태에서 frameBtn.focus() 재시도 — activeElement === frameBtn: "
+      + (document.activeElement === frameBtn)
+      + " (false여야 Tab/Shift+Tab으로 못 들어간다는 완료 조건을 만족)");
+
+    toolbar.inert = false;
+    frameBtn.focus();
+    log("5) toolbar.inert = false 후 frameBtn.focus() 재시도 — activeElement === frameBtn: "
+      + (document.activeElement === frameBtn)
+      + " (true여야 다시 보일 때 탭 가능 상태로 돌아온다)");
+  </script>
+</body>
+</html>
