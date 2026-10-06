@@ -1,12 +1,13 @@
 name: Bug Report
 description: 버그를 제보합니다.
-title: "bug: "
+title: "fix: "
 labels: ["fix"]
 body:
   - type: markdown
     attributes:
       value: |
         버그 제보 감사합니다. 아래 항목을 작성해주세요.
+        제목은 `<접두어>: <무엇이 문제인지 또는 무엇이 없는지 한 문장> — <보충 맥락>` 형식으로 씁니다 (예: `fix: 탭을 여러 개 열면 나중에 저장한 탭이 앞 탭의 변경을 덮어쓴다`). 자세한 규칙은 [CONTRIBUTING.md](https://github.com/visual-spec-labs/Visual-Spec-Builder/blob/develop/CONTRIBUTING.md#이슈)에 있습니다.
 
   - type: textarea
     id: description

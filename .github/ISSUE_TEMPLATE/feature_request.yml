@@ -7,6 +7,7 @@ body:
     attributes:
       value: |
         기능 제안 감사합니다. 아래 항목을 작성해주세요.
+        제목은 `<접두어>: <무엇이 문제인지 또는 무엇이 없는지 한 문장> — <보충 맥락>` 형식으로 씁니다 (예: `feat: 배경 image 채우기가 없다 — '사진 위 반투명 그라디언트'를 아직 표현할 수 없다`). 자세한 규칙은 [CONTRIBUTING.md](https://github.com/visual-spec-labs/Visual-Spec-Builder/blob/develop/CONTRIBUTING.md#이슈)에 있습니다.
 
   - type: textarea
     id: description
