@@ -10,7 +10,16 @@
   },
   "files": [
     "bin",
-    "skills"
+    "skills",
+    "src/features/editor/schema/visual-spec.schema.json",
+    "src/features/editor/command/command.schema.json",
+    "src/features/editor/ticket/ticket.schema.json",
+    "docs/05-schema.md",
+    "docs/08-natural-language.md",
+    "docs/09-command-schema-freeze.md",
+    "docs/11-ticket-schema-freeze.md",
+    "docs/16-responsive-codegen-qa.md",
+    "examples"
   ],
   "packageManager": "pnpm@10.33.0",
   "engines": {
@@ -21,6 +30,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "generate:types": "node scripts/generate-types.mjs",
+    "generate:contract": "node scripts/build-contract.mjs",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest run"

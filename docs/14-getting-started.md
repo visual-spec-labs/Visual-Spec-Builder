@@ -41,7 +41,22 @@ CLI는 도구 저장소의 Vite 서버를 띄우고, 실행한 폴더의 `.visua
 | `.visual-spec/assets/` | 가져온 이미지 |
 | `.visual-spec/generated/` | 에이전트가 생성한 `pages/`·`components/` 코드 |
 | `.visual-spec/runtime/` | 자연어·티켓 요청과 응답 JSON |
-| `.claude/skills/` | `skills` 명령이 복사한 에이전트 지침 |
+| `.claude/skills/` | `skills` 명령이 복사한 에이전트 지침 — Claude Code가 읽는 위치 |
+| `.agents/skills/` | 같은 지침 사본 — Codex가 읽는 위치 |
+| `.../skills/visual-spec/contract/` | 설치한 버전의 스키마·문서·예제 사본과 검증 명령 안내(로컬 계약) |
+| `.../contract/LOCAL.md` | 이 기기의 CLI 경로. `skills`를 실행한 기기 기준이라 기기마다 다르며, 스킬 폴더를 커밋해도 구버전 경고 대상이 아니다 |
+
+`skills`는 사용자가 어느 에이전트를 쓸지 모르므로 기본으로 두 위치에 모두 설치한다.
+한 곳만 원하면 `skills --agent claude` 또는 `--agent codex`를 쓴다. 그 밖의 에이전트는
+그 도구가 스킬을 읽는 폴더를 `skills --dir <현재 폴더 기준 경로>`로 지정하거나, 설치된
+`SKILL.md` 경로를 대화에서 직접 알려 준다. 스킬은 GitHub이 아니라 함께 설치된 로컬 계약을
+읽으므로 네트워크 없이 설치본과 같은 버전으로 동작한다.
+
+스펙 파일은 앱이 열 때와 같은 검증기로 직접 검사할 수 있다.
+
+```bash
+node "$VSB_REPO/bin/visual-spec.mjs" validate .visual-spec/specs/login-screen.json
+```
 
 `skills`를 다시 실행하면 도구 저장소의 스킬로 기존 사본을 즉시 갱신한다. 로컬 수정도
 덮어쓰며, 같은 내용은 건너뛴다. 현재 패키지가 관리하는 스킬 안에서 더 이상 배포하지
@@ -49,7 +64,7 @@ CLI는 도구 저장소의 Vite 서버를 띄우고, 실행한 폴더의 `.visua
 `visual-spec skills` 갱신 명령을 안내하지만 사본을 자동 수정하지 않는다. 내용 차이만으로
 구버전이라고 단정하지 않으며, 링크나 읽기 실패는 비교 불가로 따로 안내한다.
 GUI가 Claude Code나 Codex를 자동 실행하지는 않는다. 사용할 에이전트의 인증과 실행은 별도로 준비한다.
-Codex 등에서 `.claude/skills/`를 자동 발견하지 않으면 아래 예시처럼 스킬 파일 경로를 직접 지정한다.
+스킬을 자동으로 찾지 못하는 환경이면 아래 예시처럼 스킬 파일 경로를 직접 지정한다.
 
 ### 에이전트를 수동으로 시작하기
 

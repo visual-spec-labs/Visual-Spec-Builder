@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // visual-spec CLI 진입점 — 이슈 #42(init), #104(skills), #105(GUI 실행).
 //
-// 지금은 `init`·`skills` 두 명령과, 인자 없이 실행했을 때의 GUI 실행이 있다.
+// 지금은 `init`·`skills`·`validate`(#278) 명령과, 인자 없이 실행했을 때의 GUI 실행이 있다.
 // `docs/02-mvp-scope.md`가 정의한 배송 경로(npx visual-spec init → .visual-spec/
 // 작업공간 → 스킬이 그 안에 씀)의 조각들이다.
 //
@@ -15,7 +15,7 @@
 // (에디터 소스가 사용자 프로젝트가 아니라 이 저장소 안에 있다), `PACKAGE_ROOT`를 cwd로
 // 쓴다 — 아래 runGui 참고.
 
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lstatSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
@@ -27,6 +27,38 @@ const DEFAULT_PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".
 // 아니다(README/사용법 어디에도 없다) — 정식 옵션으로 오해하지 않도록 여기 남긴다.
 const PACKAGE_ROOT = process.env.VISUAL_SPEC_TEST_PACKAGE_ROOT ?? DEFAULT_PACKAGE_ROOT;
 const SKILLS_SRC_DIR = join(PACKAGE_ROOT, "skills");
+
+/**
+ * 에이전트별 프로젝트 스킬 위치(#278). Claude Code는 `.claude/skills/`, Codex는
+ * `.agents/skills/`에서 프로젝트 스킬을 찾는다. 사용자가 어느 쪽을 쓸지 알 수 없으므로
+ * `visual-spec skills`는 기본으로 둘 다 설치한다. 다른 에이전트는 `--dir`로 위치를 고른다.
+ */
+const SKILL_TARGETS = { claude: ".claude/skills", codex: ".agents/skills" };
+
+/**
+ * 설치한 패키지 버전의 정본 사본(#278). 스킬은 GitHub develop 원문이나 이 저장소의
+ * `src/` 경로를 읽지 않고, 함께 설치되는 이 사본을 읽는다 — 네트워크 없이, 설치본과 같은
+ * 버전으로. `visual-spec` 스킬 폴더 아래 `contract/`에 설치되어 다른 스킬 파일과 똑같이
+ * 갱신·구버전 경고·정리 대상이 된다. 왼쪽은 skills 기준 설치 경로, 오른쪽은 패키지 안 원본.
+ */
+const CONTRACT_DIR = "visual-spec/contract";
+const CONTRACT_FILES = [
+  ["schema/visual-spec.schema.json", "src/features/editor/schema/visual-spec.schema.json"],
+  ["schema/command.schema.json", "src/features/editor/command/command.schema.json"],
+  ["schema/ticket.schema.json", "src/features/editor/ticket/ticket.schema.json"],
+  ["docs/05-schema.md", "docs/05-schema.md"],
+  ["docs/08-natural-language.md", "docs/08-natural-language.md"],
+  ["docs/09-command-schema-freeze.md", "docs/09-command-schema-freeze.md"],
+  ["docs/11-ticket-schema-freeze.md", "docs/11-ticket-schema-freeze.md"],
+  ["docs/16-responsive-codegen-qa.md", "docs/16-responsive-codegen-qa.md"],
+];
+const CONTRACT_EXAMPLES_DIR = "examples";
+/**
+ * 이 기기의 CLI 경로를 적는 파일. 경로는 기기·설치 위치마다 다르므로 관리 대상(내용 비교·
+ * 구버전 경고·정리)에서 뺀다 — 넣으면 스킬 폴더를 커밋한 프로젝트를 다른 사람이 열거나
+ * 클론을 옮길 때마다 "내용 다름"이 뜬다(PR 리뷰, #278). `skills`를 실행할 때마다 다시 쓴다.
+ */
+const CONTRACT_LOCAL_FILE = join(CONTRACT_DIR, "LOCAL.md");
 
 // .visual-spec/ 아래 스킬·GUI가 쓸 것으로 이슈 #42가 못박은 네 폴더.
 // skills/visual-spec-to-react/SKILL.md가 쓰는 generated/pages, generated/components 같은
@@ -114,8 +146,93 @@ function listFilesRecursive(dir) {
   return result;
 }
 
+/** 이 패키지의 이름·버전. 로컬 계약 README에 적는다. */
+function packageInfo() {
+  try {
+    const { name, version } = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"));
+    return { name: String(name), version: String(version) };
+  } catch {
+    return { name: "visual-spec", version: "unknown" };
+  }
+}
+
+/** 설치되는 로컬 계약 안내문. 어느 기기에서 설치해도 같은 내용이어야 한다 — 기기별 경로는 LOCAL.md. */
+function contractReadme() {
+  const { name, version } = packageInfo();
+  return [
+    "# Visual Spec 로컬 계약",
+    "",
+    `이 폴더는 \`visual-spec skills\`가 설치한 **${name}@${version}** 의 정본 사본이다.`,
+    "GitHub develop 원문이 아니라 이 사본을 읽는다 — 네트워크 없이, 설치본과 같은 버전이다.",
+    "직접 고치지 않는다. 패키지를 갱신한 뒤 `visual-spec skills`를 다시 실행하면 함께 갱신된다.",
+    "",
+    "- `schema/visual-spec.schema.json` — Visual Spec IR(스펙 파일)의 정본 스키마",
+    "- `schema/command.schema.json` — 자연어 응답의 Command 배열 스키마",
+    "- `schema/ticket.schema.json` — 구현 티켓 스키마",
+    "- `docs/` — 스키마 설명(05)·자연어(08)·Command 계약(09)·Ticket 계약(11)·반응형 코드 생성(16) 문서 사본.",
+    "  문서 안의 다른 저장소 경로 링크는 이 사본에 없다.",
+    "- `examples/` — 예제 스펙. `examples/invalid/`는 일부러 틀린 예다.",
+    "- `LOCAL.md` — **이 기기에서** 쓰는 CLI 실행 명령. `skills`를 실행한 기기 기준이라 기기마다 다르다.",
+    "",
+    "## CLI 실행",
+    "",
+    "`LOCAL.md`에 이 기기의 정확한 명령이 있다. 없거나 그 경로가 없으면 패키지를 설치한 프로젝트에서",
+    "`npx visual-spec <명령>`을 쓰고, 그것도 안 되면 사용자에게 `visual-spec skills`를 실행한 명령을 묻는다.",
+    "",
+    "- 스펙 검증: `visual-spec validate <스펙 파일>...` — 앱이 파일을 열 때와 같은 검증(0.3으로 변환 →",
+    "  스키마·구조 검사). 유효하면 `✓`, 아니면 이슈마다 `[code] path: message`를 출력하고 exit 1.",
+    "- GUI 실행: `visual-spec`(인자 없음, `visual-spec gui`라는 명령은 없다). 끝나지 않는 개발 서버라",
+    "  백그라운드로 띄우고 출력의 `http://localhost:…` 주소를 사용자에게 알려 준다. `.visual-spec/`이",
+    "  없으면 먼저 `visual-spec init`을 실행한다.",
+    "",
+  ].join("\n");
+}
+
+/** 이 기기의 CLI 실행 명령(LOCAL.md). 관리 대상이 아니다 — CONTRACT_LOCAL_FILE 주석. */
+function contractLocal() {
+  const cli = join(PACKAGE_ROOT, "bin", "visual-spec.mjs");
+  return [
+    "# 이 기기의 Visual Spec CLI",
+    "",
+    "`visual-spec skills`를 실행한 기기 기준이다. 다른 기기에서는 그 기기에서 `skills`를 다시 실행한다.",
+    "",
+    "```bash",
+    `node "${cli}" validate <스펙 파일>...`,
+    `node "${cli}" init`,
+    `node "${cli}"`,
+    "```",
+    "",
+    "마지막 줄은 GUI 실행이다(끝나지 않는 개발 서버 — 백그라운드로 띄운다).",
+    "",
+  ].join("\n");
+}
+
 /**
- * 이 패키지의 skills/ 아래 폴더 전부를 cwd/.claude/skills/로 복사한다.
+ * 스킬 하나가 설치할 파일 목록. `path`는 skills 기준 상대 경로다. `visual-spec` 스킬에는
+ * 로컬 계약(`contract/`)이 함께 실린다(#278).
+ *
+ * @param {string} name
+ * @returns {{ path: string, read: () => Buffer }[]}
+ */
+function skillSources(name) {
+  const sources = listFilesRecursive(join(SKILLS_SRC_DIR, name)).map((source) => ({
+    path: relative(SKILLS_SRC_DIR, source),
+    read: () => readFileSync(source),
+  }));
+  if (name !== CONTRACT_DIR.split("/")[0]) return sources;
+  for (const [path, source] of CONTRACT_FILES) {
+    sources.push({ path: join(CONTRACT_DIR, path), read: () => readFileSync(join(PACKAGE_ROOT, source)) });
+  }
+  const examplesDir = join(PACKAGE_ROOT, CONTRACT_EXAMPLES_DIR);
+  for (const source of listFilesRecursive(examplesDir)) {
+    sources.push({ path: join(CONTRACT_DIR, "examples", relative(examplesDir, source)), read: () => readFileSync(source) });
+  }
+  sources.push({ path: join(CONTRACT_DIR, "README.md"), read: () => Buffer.from(contractReadme()) });
+  return sources;
+}
+
+/**
+ * 이 패키지의 skills/ 아래 폴더 전부를 cwd 기준 `target`(기본 `.claude/skills`)으로 복사한다.
  * 개수를 여기 적지 않는다 — `readdirSync`로 폴더를 그대로 훑으므로 스킬이 늘어도
  * 이 함수는 안 바뀌는데, 개수를 주석에 박아 두면 그 숫자만 매번 낡는다(2026-09-28,
  * 이슈 #194로 5종에서 6종이 되며 실제로 낡아 있었다).
@@ -126,23 +243,34 @@ function listFilesRecursive(dir) {
  * 실제로 바뀐 스킬만 "갱신함"으로 보고한다.
  *
  * @param {string} cwd
+ * @param {string} [target] cwd 기준 스킬 폴더(`SKILL_TARGETS` 또는 `--dir`)
  * @returns {{ targetRoot: string, installed: string[], updated: string[], unchanged: string[] }}
  */
-export function installSkills(cwd) {
-  const claudeDir = join(cwd, ".claude");
-  const targetRoot = join(claudeDir, "skills");
+export function installSkills(cwd, target = SKILL_TARGETS.claude) {
+  return applySkillInstall(planSkillInstall(cwd, target));
+}
+
+/**
+ * 한 위치의 설치 계획을 만들고 **쓰기 전에** 전부 검사한다. 위치가 여럿이면 모든 위치의
+ * 계획을 먼저 만든 뒤에 쓴다 — 두 번째 위치가 막혀 첫 위치만 반쯤 바뀐 채 끝나지 않게
+ * 한다(PR 리뷰, #278).
+ *
+ * @param {string} cwd
+ * @param {string} target
+ */
+export function planSkillInstall(cwd, target) {
+  const targetRoot = join(cwd, target);
 
   // init의 .visual-spec 검사와 같은 이유 — .claude나 .claude/skills 자리에 파일이
   // 있으면 그 아래를 stat할 때 나는 ENOTDIR이 raw로 새 나가기 전에 먼저 막는다.
-  if (existsAsNonDir(claudeDir)) {
-    throw new Error(
-      `${claudeDir}가 이미 존재하지만 폴더가 아닙니다 — 지우거나 옮긴 뒤 다시 실행해주세요.`,
-    );
-  }
-  if (existsAsNonDir(targetRoot)) {
-    throw new Error(
-      `${targetRoot}가 이미 존재하지만 폴더가 아닙니다 — 지우거나 옮긴 뒤 다시 실행해주세요.`,
-    );
+  const segments = target.split(/[\\/]/).filter(Boolean);
+  for (let index = 1; index <= segments.length; index += 1) {
+    const path = join(cwd, ...segments.slice(0, index));
+    if (existsAsNonDir(path)) {
+      throw new Error(
+        `${path}가 이미 존재하지만 폴더가 아닙니다 — 지우거나 옮긴 뒤 다시 실행해주세요.`,
+      );
+    }
   }
 
   const skillNames = readdirSync(SKILLS_SRC_DIR, { withFileTypes: true })
@@ -152,52 +280,61 @@ export function installSkills(cwd) {
 
   // 쓰기 전에 관리 대상 전체를 검사한다. 링크 경계를 따라 복사·삭제하지 않는다.
   const plans = skillNames.map((name) => {
-    const sources = listFilesRecursive(join(SKILLS_SRC_DIR, name));
-    const installed = listInstalledSkillFiles(cwd, name);
-    if (installed.unchecked.length) throw new Error(`스킬 경로를 확인해주세요: ${installed.unchecked.join(", ")}. 링크·파일/폴더 종류·읽기 권한을 확인하고 충돌 경로를 옮긴 뒤 다시 실행해주세요.`);
-    for (const source of sources) {
-      const path = join(".claude", "skills", relative(SKILLS_SRC_DIR, source));
-      const status = inspectSkillPath(cwd, path);
-      if (status !== "ok" && status !== "missing") throw new Error(`스킬 경로를 확인해주세요: ${path} (${status}). 링크·파일/폴더 종류·읽기 권한을 확인하고 충돌 경로를 옮긴 뒤 다시 실행해주세요.`);
-    }
-    const expected = new Set(sources.map((path) => relative(SKILLS_SRC_DIR, path)));
-    const obsolete = installed.files.filter((path) => !expected.has(path));
-    return { name, sources, obsolete };
-  });
-
-  const installed = [];
-  const updated = [];
-  const unchanged = [];
-
-  for (const { name, sources, obsolete } of plans) {
-    const srcDir = join(SKILLS_SRC_DIR, name);
     const destDir = join(targetRoot, name);
-
     if (existsAsNonDir(destDir)) {
       throw new Error(
         `${destDir}가 이미 존재하지만 폴더가 아닙니다 — 지우거나 옮긴 뒤 다시 실행해주세요.`,
       );
     }
-
-    const destExisted = existsAsDir(destDir);
-    let changed = false;
-
-    for (const srcFile of sources) {
-      const destFile = join(destDir, relative(srcDir, srcFile));
-      const content = readFileSync(srcFile);
-
-      if (existsAsFile(destFile) && readFileSync(destFile).equals(content)) {
-        continue;
-      }
-      mkdirSync(dirname(destFile), { recursive: true });
-      writeFileSync(destFile, content);
-      changed = true;
+    const sources = skillSources(name);
+    const local = name === CONTRACT_DIR.split("/")[0]
+      ? [{ path: CONTRACT_LOCAL_FILE, read: () => Buffer.from(contractLocal()) }]
+      : [];
+    const installed = listInstalledSkillFiles(cwd, name, target);
+    if (installed.unchecked.length) throw new Error(`스킬 경로를 확인해주세요: ${installed.unchecked.join(", ")}. 링크·파일/폴더 종류·읽기 권한을 확인하고 충돌 경로를 옮긴 뒤 다시 실행해주세요.`);
+    for (const source of [...sources, ...local]) {
+      const path = join(target, source.path);
+      const status = inspectSkillPath(cwd, path);
+      if (status !== "ok" && status !== "missing") throw new Error(`스킬 경로를 확인해주세요: ${path} (${status}). 링크·파일/폴더 종류·읽기 권한을 확인하고 충돌 경로를 옮긴 뒤 다시 실행해주세요.`);
     }
+    const expected = new Set([...sources, ...local].map((source) => source.path));
+    const obsolete = installed.files.filter((path) => !expected.has(path));
+    return { name, sources, local, obsolete, destExisted: existsAsDir(destDir) };
+  });
+
+  return { cwd, target, targetRoot, plans };
+}
+
+/**
+ * 검사를 마친 계획대로 쓴다.
+ *
+ * @param {ReturnType<typeof planSkillInstall>} plan
+ * @returns {{ targetRoot: string, installed: string[], updated: string[], unchanged: string[] }}
+ */
+export function applySkillInstall({ cwd, target, targetRoot, plans }) {
+  const installed = [];
+  const updated = [];
+  const unchanged = [];
+
+  const writeIfChanged = (source) => {
+    const destFile = join(targetRoot, source.path);
+    const content = source.read();
+    if (existsAsFile(destFile) && readFileSync(destFile).equals(content)) return false;
+    mkdirSync(dirname(destFile), { recursive: true });
+    writeFileSync(destFile, content);
+    return true;
+  };
+
+  for (const { name, sources, local, obsolete, destExisted } of plans) {
+    let changed = false;
+    for (const source of sources) changed = writeIfChanged(source) || changed;
+    // 기기별 파일은 쓰되 "갱신함"으로 세지 않는다 — 내용은 기기마다 다른 것이 정상이다.
+    for (const source of local) writeIfChanged(source);
 
     // 명시적 갱신에 한해 현재 관리 스킬 안의 더 이상 배포하지 않는 파일을 정리한다.
     // 다른 스킬 디렉터리는 소유 여부를 알 수 없으므로 건드리지 않는다.
     for (const path of obsolete) {
-      const relativePath = join(".claude", "skills", path);
+      const relativePath = join(target, path);
       const status = inspectSkillPath(cwd, relativePath);
       if (status === "missing") continue;
       if (status !== "ok") throw new Error(`스킬 경로를 확인해주세요: ${relativePath} (${status})`);
@@ -233,11 +370,11 @@ function inspectSkillPath(root, relativePath, directory = false) {
 }
 
 /** 현재 패키지가 관리하는 스킬 디렉터리만 양방향 비교한다. 반환 경로는 skills/ 기준. */
-function listInstalledSkillFiles(cwd, name) {
+function listInstalledSkillFiles(cwd, name, target) {
   const files = [];
   const unchecked = [];
   function visit(path) {
-    const relativePath = join(".claude", "skills", path);
+    const relativePath = join(target, path);
     const status = inspectSkillPath(cwd, relativePath, true);
     if (status === "missing") return;
     if (status !== "ok") { unchecked.push(`${relativePath} (${status})`); return; }
@@ -246,7 +383,7 @@ function listInstalledSkillFiles(cwd, name) {
         const child = join(path, entry.name);
         if (entry.isDirectory()) visit(child);
         else if (entry.isFile()) files.push(child);
-        else unchecked.push(`${join(".claude", "skills", child)} (${entry.isSymbolicLink() ? "symlink" : "unreadable"})`);
+        else unchecked.push(`${join(target, child)} (${entry.isSymbolicLink() ? "symlink" : "unreadable"})`);
       }
     } catch {
       unchecked.push(`${relativePath} (unreadable)`);
@@ -262,7 +399,10 @@ function listInstalledSkillFiles(cwd, name) {
  * 미설치 프로젝트에는 경고하지 않으며, GUI 시작은 어떤 사본도 갱신하지 않는다.
  */
 function warnAboutInstalledSkills(cwd) {
-  const target = ".claude/skills";
+  for (const target of Object.values(SKILL_TARGETS)) warnAboutInstalledSkillsAt(cwd, target);
+}
+
+function warnAboutInstalledSkillsAt(cwd, target) {
   const rootStatus = inspectSkillPath(cwd, target, true);
   if (rootStatus === "missing") return;
   if (rootStatus !== "ok") {
@@ -279,18 +419,20 @@ function warnAboutInstalledSkills(cwd) {
     const unchecked = [];
     const obsolete = [];
     for (const name of names) {
-      const sources = listFilesRecursive(join(SKILLS_SRC_DIR, name));
-      const expected = new Set(sources.map((path) => relative(SKILLS_SRC_DIR, path)));
-      const installed = listInstalledSkillFiles(cwd, name);
+      const sources = skillSources(name);
+      const expected = new Set(sources.map((source) => source.path));
+      const installed = listInstalledSkillFiles(cwd, name, target);
       unchecked.push(...installed.unchecked);
-      obsolete.push(...installed.files.filter((path) => !expected.has(path)).map((path) => join(target, path)));
+      obsolete.push(...installed.files
+        .filter((path) => !expected.has(path) && path !== CONTRACT_LOCAL_FILE)
+        .map((path) => join(target, path)));
       for (const source of sources) {
-        const path = `${target}/${relative(SKILLS_SRC_DIR, source)}`;
+        const path = `${target}/${source.path}`;
         const status = inspectSkillPath(cwd, path);
         if (status === "missing") { missing.push(path); continue; }
         if (status !== "ok") { unchecked.push(`${path} (${status})`); continue; }
         try {
-          if (!readFileSync(join(cwd, path)).equals(readFileSync(source))) changed.push(path);
+          if (!readFileSync(join(cwd, path)).equals(source.read())) changed.push(path);
         } catch {
           unchecked.push(`${path} (unreadable)`);
         }
@@ -344,9 +486,13 @@ function printUsage() {
       "인자 없이 실행하면 편집기 GUI를 띄운다.",
       "",
       "명령:",
-      "  init    현재 폴더에 .visual-spec/ 작업공간을 만든다",
-      "  skills  스킬을 .claude/skills/에 설치·갱신한다",
-      "  help    이 사용법을 보여준다",
+      "  init      현재 폴더에 .visual-spec/ 작업공간을 만든다",
+      "  skills    스킬과 로컬 계약을 설치·갱신한다",
+      "            기본: .claude/skills/(Claude Code)와 .agents/skills/(Codex) 둘 다",
+      "            --agent claude|codex|all  한 에이전트 위치에만 설치",
+      "            --dir <폴더>              그 밖의 에이전트가 읽는 폴더에 설치",
+      "  validate  스펙 파일을 앱과 같은 검증기로 검사한다: validate <파일>...",
+      "  help      이 사용법을 보여준다",
     ].join("\n"),
   );
 }
@@ -366,22 +512,101 @@ function runInit() {
   }
 }
 
-function runSkills() {
-  const { targetRoot, installed, updated, unchanged } = installSkills(process.cwd());
+/**
+ * `skills` 인자에서 설치 위치를 고른다(#278). 기본은 Claude Code·Codex 두 곳이다 —
+ * 사용자가 어느 에이전트를 쓸지 이 CLI는 알 수 없다. 쓰지 않는 쪽 폴더는 읽히지 않을
+ * 뿐이다. 그 밖의 에이전트는 `--dir`로 그 도구가 읽는 폴더를 지정한다.
+ *
+ * @param {string[]} args
+ * @returns {string[]} cwd 기준 스킬 폴더들
+ */
+export function resolveSkillTargets(args) {
+  let agent = "all";
+  const dirs = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    const value = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : args[index + 1];
+    const name = arg.includes("=") ? arg.slice(0, arg.indexOf("=")) : arg;
+    if (name !== "--agent" && name !== "--dir") throw new Error(`알 수 없는 skills 옵션입니다: ${arg}`);
+    if (value === undefined || value === "") throw new Error(`${name}에 값이 필요합니다.`);
+    if (!arg.includes("=")) index += 1;
+    if (name === "--agent") {
+      if (value !== "all" && !Object.hasOwn(SKILL_TARGETS, value)) {
+        throw new Error(`--agent는 ${[...Object.keys(SKILL_TARGETS), "all"].join("|")} 중 하나입니다: ${value}`);
+      }
+      agent = value;
+    } else {
+      // 현재 폴더 자체(`.`)도 거절한다 — 스킬 폴더들이 프로젝트 루트에 바로 깔리고, 다음
+      // 갱신에서 이름이 겹치는 사용자 파일을 "패키지에 없는 파일"로 지울 수 있다(PR 리뷰, #278).
+      const dir = normalize(value).replace(/[\\/]+$/, "");
+      if (isAbsolute(value) || dir === "" || dir === "." || dir === ".." || dir.startsWith(`..${"/"}`) || dir.startsWith("..\\")) {
+        throw new Error(`--dir는 현재 폴더 안의 하위 폴더(상대 경로)여야 합니다: ${value}`);
+      }
+      dirs.push(dir);
+    }
+  }
+  if (dirs.length) return dirs;
+  return agent === "all" ? Object.values(SKILL_TARGETS) : [SKILL_TARGETS[agent]];
+}
 
-  console.log(`.claude/skills/ 설치 대상: ${targetRoot}`);
-  for (const name of installed) {
-    console.log(`  설치함    ${name}/`);
+function runSkills(args) {
+  const targets = resolveSkillTargets(args);
+  // 모든 위치를 검사한 뒤에만 쓴다 — 한 위치라도 막히면 아무것도 쓰지 않는다.
+  const plans = targets.map((target) => planSkillInstall(process.cwd(), target));
+  for (const plan of plans) {
+    const { target } = plan;
+    const { targetRoot, installed, updated, unchanged } = applySkillInstall(plan);
+
+    console.log(`${target}/ 설치 대상: ${targetRoot}`);
+    for (const name of installed) {
+      console.log(`  설치함    ${name}/`);
+    }
+    for (const name of updated) {
+      console.log(`  갱신함    ${name}/`);
+    }
+    for (const name of unchanged) {
+      console.log(`  최신 상태 ${name}/`);
+    }
+    if (installed.length === 0 && updated.length === 0) {
+      console.log("전부 최신 상태라 바뀐 게 없습니다.");
+    }
   }
-  for (const name of updated) {
-    console.log(`  갱신함    ${name}/`);
+  console.log(`로컬 계약(스키마·문서·예제·검증 안내): ${targets.map((target) => `${target}/${CONTRACT_DIR}/`).join(", ")}`);
+}
+
+/**
+ * 스펙 파일을 앱이 열 때와 같은 순서로 검사한다(#278): JSON 파싱 → 0.3으로 변환 →
+ * 프로젝트(`pages`)면 `validateProjectSpec`, 아니면 `validateVisualSpec`.
+ * `store/loadSpec.ts`의 `parseSpecJson`과 같은 판정이다. 하나라도 실패하면 exit 1.
+ *
+ * @param {string[]} files
+ */
+async function runValidate(files) {
+  if (files.length === 0) throw new Error("검사할 스펙 파일을 지정하세요: visual-spec validate <파일>...");
+  const { migrateToV03, validateProjectSpec, validateVisualSpec } = await import("./lib/schema.mjs");
+  let failed = 0;
+  for (const file of files) {
+    let parsed;
+    try {
+      parsed = JSON.parse(readFileSync(resolve(file), "utf8"));
+    } catch (error) {
+      failed += 1;
+      const reason = error instanceof SyntaxError ? "JSON 파싱 실패" : "읽을 수 없음";
+      console.log(`✗ ${file} — ${reason}: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    }
+    const migrated = migrateToV03(parsed);
+    const isProject = typeof migrated === "object" && migrated !== null && "pages" in migrated;
+    const { valid, issues } = isProject ? validateProjectSpec(migrated) : validateVisualSpec(migrated);
+    if (valid) {
+      console.log(`✓ ${file} — 유효함`);
+      continue;
+    }
+    failed += 1;
+    console.log(`✗ ${file} — 이슈 ${issues.length}건`);
+    for (const issue of issues) console.log(`  [${issue.code}] ${issue.path || "/"}: ${issue.message}`);
   }
-  for (const name of unchanged) {
-    console.log(`  최신 상태 ${name}/`);
-  }
-  if (installed.length === 0 && updated.length === 0) {
-    console.log("전부 최신 상태라 바뀐 게 없습니다.");
-  }
+  if (failed) process.exitCode = 1;
 }
 
 /**
@@ -456,8 +681,8 @@ function runGui() {
   });
 }
 
-function main() {
-  const [command] = process.argv.slice(2);
+async function main() {
+  const [command, ...rest] = process.argv.slice(2);
 
   if (command === undefined) {
     try {
@@ -486,7 +711,17 @@ function main() {
 
   if (command === "skills") {
     try {
-      runSkills();
+      runSkills(rest);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (command === "validate") {
+    try {
+      await runValidate(rest);
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exitCode = 1;
@@ -499,4 +734,4 @@ function main() {
   process.exitCode = 1;
 }
 
-main();
+await main();

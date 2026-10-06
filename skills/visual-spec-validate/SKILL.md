@@ -7,10 +7,17 @@ description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해
 
 이 스킬이 지금 상황에 맞지 않으면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)를 대신 연다.
 
-```ts
-import { validateVisualSpec } from "@/features/editor/schema";
-const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, message }[]
-```
+검증은 앱이 스펙 파일을 열 때와 **같은 검증기**로 한다.
+
+- **사용자 프로젝트** — 함께 설치된 로컬 계약의 `validate` 명령을 쓴다. 이 설치본의 정확한 명령은
+  `../visual-spec/contract/LOCAL.md`에 있다(`node "<CLI 경로>" validate <파일>`). 그 파일이 없거나 경로가
+  없으면 `npx visual-spec validate <파일>`을 쓴다(`../visual-spec/contract/README.md` "CLI 실행" 절). 유효하면 `✓`, 아니면 이슈마다 `[code] path: message` 한 줄을
+  출력하고 exit 1로 끝난다.
+- **이 저장소 안** — 같은 함수를 직접 불러도 된다.
+  ```ts
+  import { validateVisualSpec } from "@/features/editor/schema";
+  const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, message }[]
+  ```
 
 ## 먼저 알아야 할 것 — issues 만 봐서는 모르는 규칙
 
@@ -65,6 +72,8 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
 
 ## 실패 분류와 수정 (`examples/invalid/` 8개 + 배경 세 줄)
 
+`examples/`는 사용자 프로젝트에서 `../visual-spec/contract/examples/`에 있다.
+
 | code | 어떤 실수인가 | 어떻게 고치나 |
 |---|---|---|
 | `child-missing` | `children` 에 ID 를 적고 노드 정의를 안 만들었다. 오타이거나 만들다 말았다 | `nodes` 에 그 ID 를 추가하거나, 참조를 지운다 |
@@ -86,7 +95,8 @@ const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, mes
    갈래를 지운다. **다섯 갈래(`frame`·`text`·`image`·`button`·`input`) 중 그 메시지가 나오지
    않은 하나가 살아남은 갈래다.** 남은 이슈의 `message` 가 가리키는 필드가 고칠 대상이다.
    다섯 개가 전부 나왔으면 갈래가 전멸한 것이니 `type` 부터 고친다.
-3. 그 노드를 정본 `src/features/editor/schema/visual-spec.schema.json` 의 `required` 및
+3. 그 노드를 정본 스키마(사용자 프로젝트는 `../visual-spec/contract/schema/visual-spec.schema.json`,
+   저장소 안은 `src/features/editor/schema/visual-spec.schema.json`)의 `required` 및
    `additionalProperties: false` 와 눈으로 대조한다. 정의를 외워서 판단하지 않는다.
 4. 고칠 때마다 다시 검증한다. 가려져 있던 이슈가 새로 나타나는 것이 정상이다.
 5. `valid: true` 가 될 때까지 반복한다. 이슈가 줄었다는 것만으로 완료라고 말하지 않는다.

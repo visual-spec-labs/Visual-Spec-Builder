@@ -15,6 +15,7 @@ Visual Spec Builder 작업의 진입점이다. 여기에는 절차도 스키마 
 | 검증이 실패했고 `issues`를 해석해 고쳐야 한다 | [visual-spec-validate](../visual-spec-validate/SKILL.md) |
 | Spec을 React/Tailwind 코드로 구현해야 한다 | [visual-spec-to-react](../visual-spec-to-react/SKILL.md) |
 | 스키마 계약·용어·문서 원문을 찾아봐야 한다 | [visual-spec-docs](../visual-spec-docs/SKILL.md) |
+| 편집기 GUI를 켜 달라("Visual Spec 켜줘", "편집기 열어줘") | 아래 "GUI 켜기" 절 |
 | GUI가 `.visual-spec/runtime/nl-request.json`을 써 뒀다(자연어 입력창 요청에 Command로 응답해야 한다) | [visual-spec-nl-response](../visual-spec-nl-response/SKILL.md) |
 
 | GUI가 `.visual-spec/runtime/ticket-request.json`을 써 뒀다(구현 티켓 파일을 만들고 결과를 응답해야 한다) | [visual-spec-ticket-response](../visual-spec-ticket-response/SKILL.md) |
@@ -23,12 +24,25 @@ Visual Spec Builder 작업의 진입점이다. 여기에는 절차도 스키마 
 작성 → 검증 → 코드 생성. 코드는 대상 프로젝트를 분석하지 않고 항상 고정 워크스페이스
 경로(`.visual-spec/generated/`)에 쓴다 — 프로젝트 분석 단계 자체가 없다.
 
+## GUI 켜기
+
+이 기기의 정확한 명령은 이 스킬 폴더의 `contract/LOCAL.md`에 있다(설치된 CLI의 경로). 없으면
+`contract/README.md` "CLI 실행" 절을 따른다. 사용자 프로젝트 폴더(`.visual-spec/`이 있거나 만들 곳)에서 실행한다.
+
+- GUI는 끝나지 않는 개발 서버다. **백그라운드로 띄우고**, 출력에 나온 `http://localhost:…` 주소를
+  사용자에게 알려 준다. 기다리느라 대화를 막지 않는다.
+- 이미 떠 있으면 새로 띄우지 않는다. 같은 작업공간을 두 번 띄우면 포트만 늘어난다.
+- `.visual-spec/`이 없으면 먼저 `init`을 실행한다.
+- 에이전트를 자동 실행하지 않는다 — GUI의 자연어 입력창 요청은 사용자가 이 대화로 다시 가져온다
+  ([visual-spec-nl-response](../visual-spec-nl-response/SKILL.md)).
+
 ## 구현 상태는 이 문서가 아니라 07을 본다
 
 이 절이 한동안 "CLI·Command Engine(자연어 명령)·Export·GUI의 화면 생성·편집은 아직
 구현되지 않았다"고 적어 뒀는데 전부 낡았다 — CLI(이슈 #42·#104·#105), Command Engine과
 GUI를 통한 자연어 편집·화면 생성(이슈 #73·#40·#154·#155·#183), Export(이슈 #157)가
 2026-09-28 기준 전부 구현돼 있다. 구현 상태를 여기 다시 나열하지 않는다 — 매번 낡는다.
-최신 상태는 `docs/07-implementation-status.md`를 확인한다. 설치된 스킬에는 `docs/`가
-없으니, 저장소 안이면 파일로 읽고 밖이면 [visual-spec-docs](../visual-spec-docs/SKILL.md)가
-설명하는 GitHub raw URL로 읽는다.
+최신 상태는 `docs/07-implementation-status.md`를 확인한다. 이 문서는 로컬 계약에 없다 —
+저장소 안이면 파일로 읽고, 사용자 프로젝트면 [visual-spec-docs](../visual-spec-docs/SKILL.md)의
+GitHub 원문 절차로 읽되 설치한 패키지보다 새 내용일 수 있음을 함께 말한다.
+스키마·검증·예제는 이 스킬 폴더의 `contract/`(설치한 패키지와 같은 버전)에 있다.

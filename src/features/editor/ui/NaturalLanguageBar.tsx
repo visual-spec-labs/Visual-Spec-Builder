@@ -273,8 +273,8 @@ export function NaturalLanguageBar() {
       <p role="status" aria-live="polite" className="min-h-4 text-xs">
         {shown.kind === "pending" && (
           <span className="text-content-muted">
-            에이전트 응답을 기다리는 중… 에이전트에게 <code>{NL_REQUEST_PATH}</code>를 읽고{" "}
-            <code>{NL_RESPONSE_PATH}</code>에 Command 배열을 쓰게 하세요.
+            에이전트 응답을 기다리는 중… 에이전트에게 <code>.visual-spec/{NL_REQUEST_PATH}</code>를 읽고{" "}
+            <code>.visual-spec/{NL_RESPONSE_PATH}</code>에 Command 배열을 쓰게 하세요.
           </span>
         )}
         {shown.kind === "confirmation" && (

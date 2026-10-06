@@ -13,10 +13,9 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
 ## 실행 순서
 
 1. **대상 JSON을 찾는다.** 사용자가 경로를 줬거나 대화/첨부 파일에 포함돼 있다.
-2. **검증한다.** `@/features/editor/schema`의 `validateVisualSpec`을 호출한다.
-   ```ts
-   import { validateVisualSpec } from "@/features/editor/schema";
-   ```
+2. **검증한다.** 앱과 같은 검증기를 쓴다. 사용자 프로젝트에서는 함께 설치된 로컬 계약의
+   `validate` 명령(이 기기의 정확한 명령은 `../visual-spec/contract/LOCAL.md`, 없으면 `README.md`)으로, 이 저장소 안에서는
+   `@/features/editor/schema`의 `validateVisualSpec`으로 검사한다.
    실패하면 반환된 `issues`를 사용자에게 그대로 보여주고 **중단한다**. 임의로 고치지 않는다.
 3. **통과하면 아래 매핑 참고표를 따라 TSX 코드를 직접 작성한다.** 표에 없는 상황을 만나면
    판단해서 채우되, 왜 그렇게 했는지 한 줄로 밝힌다. 화면이 컴포넌트 여러 개로 쪼개질
@@ -153,7 +152,7 @@ import { Sidebar } from "../components/Sidebar";
    `min-[${width}px]:...`처럼 조립하지 않는다. 지원이나 복합 속성 reset을 확신할 수
    없으면 아래 일반 CSS 방식으로 내보낸다.
 
-`examples/responsive-cards.json`의 root를 **검증된 Tailwind v4.3.3 대상**에 옮긴 예다.
+`examples/responsive-cards.json`(사용자 프로젝트에서는 함께 설치된 `../visual-spec/contract/examples/`)의 root를 **검증된 Tailwind v4.3.3 대상**에 옮긴 예다.
 `crossAxis: "start"`는 `items-start`로 보존한다(auto 높이 자식이 stretch되지 않아야 한다).
 768px padding-left=32가 1024px에도 남고, 1024px에서 gap=32·배경 없음으로 바뀐다.
 
@@ -230,10 +229,9 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 각 breakpoint의 직전/정확한 경계/다음 구간에서 컴파일된 CSS와 렌더를 검증한다. 클래스
 문자열만 보고 통과했다고 말하지 않는다. 실제 AI 생성 실행 여부, 수동 매핑 fixture 결과,
 캔버스 비교 여부를 구분해서 보고한다. 실측 조건과 사례는
-[visual-spec-docs](../visual-spec-docs/SKILL.md)의 원문 획득 절차로
-`docs/16-responsive-codegen-qa.md`를 읽는다. 설치된 프로젝트에는 docs가 없으므로
-[저장소 원문](https://raw.githubusercontent.com/visual-spec-labs/Visual-Spec-Builder/develop/docs/16-responsive-codegen-qa.md)을
-가져온다. 읽지 못했으면 그 한계를 보고한다.
+`16-responsive-codegen-qa.md`를 읽는다 — 사용자 프로젝트는 함께 설치된
+`../visual-spec/contract/docs/16-responsive-codegen-qa.md`, 저장소 안은 `docs/16-responsive-codegen-qa.md`다.
+읽지 못했으면 그 한계를 보고한다.
 
 ## 매핑 참고표
 

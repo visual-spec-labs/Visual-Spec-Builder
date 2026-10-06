@@ -156,7 +156,7 @@ async function waitForNlResponse(
     if (Date.now() >= deadline) {
       return {
         kind: "timeout",
-        message: `${Math.round(NL_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 ${NL_REQUEST_PATH}를 읽고 ${NL_RESPONSE_PATH}에 답을 쓰게 하세요.`,
+        message: `${Math.round(NL_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 .visual-spec/${NL_REQUEST_PATH}를 읽고 .visual-spec/${NL_RESPONSE_PATH}에 답을 쓰게 하세요.`,
       };
     }
     await sleep(NL_POLL_INTERVAL_MS);
