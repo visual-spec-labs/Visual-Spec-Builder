@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import type { PageId, ScreenSpec } from "@/features/editor/schema";
 import { compileTickets } from "@/features/editor/ticket/compileTickets";
+import { useEditorStore } from "./editorStore";
 import { markTicketStatus } from "@/features/editor/ticket/ticketStatus";
 import type { Ticket, TicketStatus } from "@/features/editor/ticket/types";
 
@@ -10,6 +11,8 @@ interface TicketState {
   sourcePageId: PageId | null;
   /** 컴파일 시점 참조. 현재 page 참조와 달라지면 UI가 오래된 계획임을 알린다. */
   sourcePage: ScreenSpec | null;
+  /** 컴파일 시점의 `editorStore.documentId`(#271). 페이지가 같은 참조여도 문서가 바뀌었는지 가른다. */
+  sourceDocumentId: number | null;
   isOpen: boolean;
   /** 웨이브 하나가 요청을 보내고 응답을 기다리는 동안 true다. `ui/ticketRunner.ts`가 쓴다. */
   running: boolean;
@@ -47,6 +50,7 @@ export const useTicketStore = create<TicketState>((set) => ({
   tickets: [],
   sourcePageId: null,
   sourcePage: null,
+  sourceDocumentId: null,
   isOpen: false,
   running: false,
   runError: null,
@@ -56,6 +60,7 @@ export const useTicketStore = create<TicketState>((set) => ({
       tickets: compileTickets(page),
       sourcePageId: pageId,
       sourcePage: page,
+      sourceDocumentId: useEditorStore.getState().documentId,
       isOpen: true,
       running: false,
       runError: null,
