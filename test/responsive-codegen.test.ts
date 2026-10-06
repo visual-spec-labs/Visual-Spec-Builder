@@ -7,7 +7,7 @@ import { validateVisualSpec } from "@/features/editor/schema";
 import responsiveCards from "../examples/responsive-cards.json";
 import { autoSizedCardsSpec, backgroundCases, backgroundSpec, responsiveCardsCss, mismatchedNamedVariant, responsiveCardsClasses } from "./fixtures/responsive-codegen";
 
-const skill = readFileSync(new URL("../skills/visual-spec-to-react/SKILL.md", import.meta.url), "utf8");
+const skill = readFileSync(new URL("../skills/visual-spec-to-react/SKILL.md", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
 describe("반응형 to-react 매핑 fixture (#224)", () => {
   it("스킬의 원본 예제와 배경 배열 교체 사례는 현재 스키마를 통과한다", () => {

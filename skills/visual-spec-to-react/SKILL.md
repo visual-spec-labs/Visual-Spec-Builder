@@ -239,13 +239,13 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 
 | 스키마 필드 | 기본 대응 |
 |---|---|
-| `box.width`/`height` = `number` | `w-[Npx]` / `h-[Npx]` |
-| `box.width`/`height` = `"auto"` | `w-auto` / `h-auto` |
-| `box.width`/`height` = `"fill"`, 부모 주축 방향 | `flex-1` |
-| `box.width`/`height` = `"fill"`, 부모 교차축 방향 | `self-stretch` |
-| `box.width`/`height` = `"fill"`, root(부모 없음) | `w-full` / `h-full` |
+| `box.width`/`height` = `number` | 해당 크기 `w-[Npx]` / `h-[Npx]`와 `flex-[0_0_Npx]` (flex 주축일 때). 고정 크기는 `shrink-0`이어야 한다 |
+| `box.width`/`height` = `"auto"` | `w-auto` / `h-auto`와 `flex-[0_0_auto]` (flex 주축일 때). Hug는 grow/shrink 없이 콘텐츠의 intrinsic 크기를 따른다 |
+| `box.width`/`height` = `"fill"`, 부모 주축 방향 | `flex-[1_1_0]` 및 주축 최소 크기 `min-w-0`(row) / `min-h-0`(column). 주축 width/height를 별도로 지정하지 않아 형제와 남은 공간을 나눈다 |
+| `box.width`/`height` = `"fill"`, 부모 교차축 방향 | `self-stretch`, 교차축 크기는 `auto` |
+| `box.width`/`height` = `"fill"`, root(부모 없음) | `w-full flex-[1_0_auto]`; page wrapper가 `min-height`를 제공한다 |
 | `layout.direction` = `"row"`/`"column"` | `flex flex-row` / `flex flex-col` |
-| `layout.direction` = `"grid"` | `grid grid-cols-[N]` (N은 `layout.columns`, 없으면 1). `mainAxis`/`crossAxis`는 grid에서 무시한다 — 아래 "grid 레이아웃" 참고 |
+| `layout.direction` = `"grid"` | `grid grid-cols-[N]` (N은 `layout.columns`, 없으면 1). `mainAxis`는 무시하고 `crossAxis`는 `items-start`/`center`/`end`/`stretch`로 적용한다 — 아래 "grid 레이아웃" 참고 |
 | `layout.gap` | `gap-[Npx]` |
 | `layout.padding.*` | `pt-/pr-/pb-/pl-[Npx]` |
 | `layout.mainAxis` | `justify-start`/`center`/`end`/`between` |
@@ -267,6 +267,7 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 | `typography.letterSpacing` | `tracking-[Npx]` |
 | `typography.textAlign` | `text-left`/`center`/`right` |
 | `TextNode.color` | `text-[#RRGGBB(AA)]` |
+| `TextNode` 줄바꿈 | `whitespace-pre-wrap`. 연속 공백과 명시적 줄바꿈을 보존하고 자동 줄바꿈한다. Canvas의 기본 동작처럼 긴 단어는 기본 `overflow-wrap: normal`을 유지하며, 넘치는 콘텐츠를 임의로 자르거나 숨기지 않는다 |
 | `frame` 노드 | `<div>` |
 | `text` 노드 | `<p>` |
 | `image` 노드 | `<img>` |
@@ -279,7 +280,23 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 | `visible: false` | 모든 폭에서 false일 때만 제외한다. 폭에 따라 보이면 DOM 유지 + 아래 반응형 display 규칙 |
 
 `fill`의 주축/교차축 판단: 부모 `layout.direction`이 `row`면 width가 주축, `column`이면 height가
-주축이다.
+주축이다. 위의 flex 속성은 **flex 부모의 직계 자식에만** 적용한다. grid 자식은 flex grow/shrink/basis를
+사용하지 않고 grid track 안에서 Fixed/Hug/Fill의 width·height 제약을 따로 옮긴다. root의 box 값은
+무시하고 아트보드 폭을 채운다. 페이지 wrapper가 최소 높이를 제공하고 콘텐츠가 더 크면 세로로 자란다.
+Canvas는 row flex 아이템마다 `min-width: 0`, column flex 아이템마다 `min-height: 0`을 지정한다.
+따라서 Fixed/Hug/Fill 모두 주축 최소 크기 reset을 가진다. 교차축 `fill`만 `align-self: stretch`와
+`auto` 크기로 늘리고, 다른 교차축 크기는 명시 크기 또는 `auto`로 유지한다.
+
+크기 매핑은 아래 CSS 동작이 Canvas `boxStyle`의 계약이다. Fixed는 부모 공간이 부족해도 줄지 않고,
+Hug는 콘텐츠보다 커지거나 작아지도록 강제하지 않으며, Fill은 flex 주축에서 형제와 남은 공간을
+나누고 콘텐츠 최소 크기 때문에 형제를 밀어내지 않는다. `flex-1` 하나만 쓰면 Tailwind의 기본
+`flex-basis: 0%`/grow/shrink 조합에 기대게 되고, 고정 크기의 `shrink: 0`이나 row/column별 최소
+크기를 설명하지 못하므로 위처럼 각 값을 명시한다.
+
+Text는 `<p>` 기본 margin을 제거한다(`m-0`를 붙인다)고 가정한다. `whitespace-pre-wrap`을 붙여 Canvas와
+같이 명시적 줄바꿈을 유지하면서 폭에서 줄바꿈한다. `overflow-wrap: anywhere`나 `break-words`를
+추가하지 않는다: 그것은 기본 Canvas 동작보다 긴 단어를 더 일찍 쪼갠다. 부모에서 잘라내기/스크롤이
+명시되지 않았다면 `overflow-hidden`/`overflow-auto`도 추가하지 않는다.
 
 ### 테두리 정렬 (`border.align`)
 
@@ -453,8 +470,10 @@ shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
 <div className="grid grid-cols-[2] gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full h-full">
 ```
 
-grid 컨테이너의 직계 자식은 `flex-1`/`self-stretch` 같은 flex 전용 클래스를 붙이지 않는다 —
-grid 아이템에는 뜻이 없다. `fill`이면 그냥 `w-full`/`h-full`을 쓴다.
+grid 컨테이너의 직계 자식은 `flex-*`/`self-stretch` 같은 flex 전용 클래스를 붙이지 않는다 —
+grid 아이템에는 뜻이 없다. `fill`의 크기는 해당 grid track을 채우도록 `w-full`/`h-full`로,
+Fixed는 명시 크기로 표현한다. Hug는 지정 크기 없이 intrinsic 크기를 사용한다. row/column의
+flex shrink/grow와 grid track sizing은 서로 대체 관계가 아니므로 부모 방향별로 다시 판단한다.
 
 ## 예제
 
