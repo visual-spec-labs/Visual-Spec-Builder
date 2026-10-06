@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
-import { parseStoredDocument, projectStorageKey } from "@/features/editor/store/specStorage";
+import { parseStoredDocument, projectStorageKey, saveSpecToStorage, serializeStoredDocument } from "@/features/editor/store/specStorage";
 import { openHomeProject } from "@/features/editor/ui/homeProjects";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
@@ -149,3 +149,70 @@ describe("Web Locks가 없는 브라우저 (PR #294 리뷰)", () => {
     expect(confirm).toHaveBeenCalledOnce();
   });
 });
+
+describe("sessionStorage 없는 새 탭이 복원한 이름 있는 초안 (PR #294 리뷰)", () => {
+  /**
+   * 다른 탭(이미 닫힌)에서 same.json을 편집만 하고 디스크에 저장하지 않은 상태를 만든다.
+   * 자동저장은 파일 키와 전역 캐시에 남고, 새 탭은 sessionStorage 복구 없이 전역 캐시에서
+   * 편집본을 초기 화면으로 복원한다(`editorStore`의 `loadStoredSpec()`).
+   */
+  function restoreInFreshTab(name: string) {
+    const pageId = useEditorStore.getState().activePageId;
+    const draft = { ...initial, pages: { ...initial.pages, [pageId]: { ...initial.pages[pageId], name } } };
+    localStorage.setItem(key, serializeStoredDocument({ fileName: "same.json", spec: draft, diskRevision: "loaded-revision" }));
+    saveSpecToStorage(draft, "same.json", "loaded-revision");
+    useEditorStore.getState().loadSpec(draft);
+    useDocumentStore.getState().setFileName("same.json", "loaded-revision");
+    return pageId;
+  }
+
+  it("추가 편집 없이 File → Open으로 같은 파일을 다시 열어도 초안을 묻고 debounce 뒤에도 남긴다", async () => {
+    const pageId = restoreInFreshTab("다른 탭의 미저장 초안");
+    stop = startSpecAutosave();
+
+    await openSpec();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "draft" });
+    expect(storedName(pageId)).toBe("다른 탭의 미저장 초안");
+    expect(await useSaveConflictStore.getState().loadLatest()).toBe(true);
+    expect(useEditorStore.getState().spec.pages[pageId].name).toBe("다른 탭의 미저장 초안");
+  });
+
+  it("추가 편집 없이 같은 홈 카드를 다시 골라도 초안을 묻고 debounce 뒤에도 남긴다", async () => {
+    const pageId = restoreInFreshTab("홈 재선택 전 미저장 초안");
+    stop = startSpecAutosave();
+
+    expect(await openHomeProject({ fileName: "same.json", spec: initial, diskRevision: "loaded-revision" })).toBe(true);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "draft" });
+    expect(storedName(pageId)).toBe("홈 재선택 전 미저장 초안");
+  });
+
+  it("복원한 내용이 디스크와 같으면(저장된 문서) 다시 열어도 묻지 않는다", async () => {
+    const pageId = restoreInFreshTab(initial.pages[useEditorStore.getState().activePageId].name);
+    stop = startSpecAutosave();
+
+    await openSpec();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(useSaveConflictStore.getState().paused).toBe(false);
+    expect(storedName(pageId)).toBe(initial.pages[pageId].name);
+  });
+
+  it("초안을 버리고 디스크 내용으로 계속한 뒤에는 편집 없이 다시 열어도 묻지 않는다", async () => {
+    restoreInFreshTab("버릴 초안");
+    stop = startSpecAutosave();
+    await openSpec();
+    expect(useSaveConflictStore.getState().reason).toBe("draft");
+    useSaveConflictStore.getState().discardDraft(); // 대화상자의 "저장된 파일 내용으로 계속"
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await openSpec();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(useSaveConflictStore.getState().paused).toBe(false);
+  });
+});
+

@@ -37,15 +37,17 @@ export function startSpecAutosave() {
   // Open/홈 카드로 지금 파일을 다시 여는 중이다(#267 리뷰). 파일명이 그대로라 아래
   // changed()의 파일 전환 비교를 타지 않으므로, 불러온 직후 따로 초안과 비교한다.
   let reopenKey: string | null = null;
-  // 이 탭이 지금 문서를 불러온 뒤 편집했는가(#267). 편집이 없으면 잃을 것이 없으므로
-  // 전환 시 묻지 않고, 같은 파일을 다시 열 때 초안과 비교하지도 않는다(PR #294 리뷰).
-  // 제목 없는 초안은 다시 열 곳이 없어 편집이 있으면 반드시 묻는다. 시작 시점엔
-  // history가 비어 있으므로 내용으로 판단한다 — 저장소에서 복원한 제목 없는 문서가 빈
-  // New가 아니면 사용자의 유일한 사본일 수 있다. 이름 있는 문서는 새로고침으로 탭 복구를
-  // 이어받았을 때만 편집이 남아 있을 수 있다고 본다.
-  let edited = document.fileName === null
-    ? loadStoredSpec() !== undefined && JSON.stringify(document.spec) !== JSON.stringify(migrateV01(blankSpec))
-    : namedRecovery !== undefined;
+  // 지금 문서에 디스크에 저장되지 않은 내용이 있을 수 있는가(#267). 없으면 잃을 것이
+  // 없으므로 전환 시 묻지 않고, 같은 파일을 다시 열 때 초안과 비교하지도 않는다.
+  // 편집·Undo/Redo에서 켜지고, 디스크에서 문서를 연 순간(loadSpec)과 초안 폐기에서 꺼진다.
+  //
+  // 시작 시점엔 history가 비어 있어 "이 탭의 편집"으로는 알 수 없다. 저장소(탭 복구나
+  // 전역 캐시)에서 복원한 문서는 다른 세션에서 편집만 하고 저장하지 않은 초안일 수 있다
+  // — sessionStorage가 없는 새 탭도 전역 캐시에서 복원한다(PR #294 리뷰). 그래서 복원한
+  // 문서는 켜 둔다. 같은 파일을 다시 열 때의 비교는 내용 기준이라, 실제로 디스크와
+  // 같으면 묻지 않는다. 제목 없는 문서는 빈 New면 잃을 것이 없다.
+  let edited = loadStoredSpec() !== undefined && (document.fileName !== null ||
+    JSON.stringify(document.spec) !== JSON.stringify(migrateV01(blankSpec)));
 
   function read(storageKey: string): string | null {
     try { return localStorage.getItem(storageKey); } catch { return null; }
