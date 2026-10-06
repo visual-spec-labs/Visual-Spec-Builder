@@ -11,8 +11,10 @@
  *   기존 디스크 충돌 대화상자로 이어진다 — 어느 쪽이든 사용자가 고른 것만 바뀐다.
  * - 검증에 실패하는 내용: 불러오지 않고 알리기만 한다.
  *
- * "미저장 편집"은 마지막으로 디스크와 맞춘 순간(열기·저장·불러오기)의 spec 참조와 지금 spec
- * 참조가 다른가로 판단한다 — 편집·Undo는 새 참조를 만든다.
+ * "미저장 편집"은 디스크에 **실제로 쓰인 내용**과 지금 화면 내용을 비교해 판단한다. 열기·저장·
+ * 이름 변경으로 파일명이나 디스크 버전이 바뀌면 그 버전의 디스크 내용을 읽어 기준으로 삼는다 —
+ * 그 순간의 메모리를 기준으로 삼으면 이름 변경이나 저장 도중의 미저장 편집이 "저장됨"으로
+ * 둔갑한다(#279 리뷰). 기준을 읽기 전에는 미저장 편집이 있는 것으로 보고 묻는다.
  */
 
 import { migrateV01 } from "@/features/editor/schema";
@@ -35,24 +37,52 @@ export function startDiskWatch(): () => void {
   let stopped = false;
   let checking = false;
   /**
-   * 마지막으로 디스크와 맞춘 순간의 spec. 지금 spec과 다르면 미저장 편집이 있다. 시작 시점엔
-   * 모른다(null) — 새로고침으로 탭 복구에서 되살린 문서는 미저장 편집일 수 있으므로, 열기·저장으로
-   * 맞추기 전까지는 디스크 변경을 묻지 않고 불러오지 않는다.
+   * 지금 디스크 버전의 내용(JSON). 지금 화면과 다르면 미저장 편집이 있다. 모르면 null — 시작
+   * 시점(새로고침으로 복원한 문서는 미저장 편집일 수 있다)이나 기준을 읽는 중이다.
    */
-  let baselineSpec: ProjectSpec | null = null;
+  let baselineJson: string | null = null;
+  let baselineRevision: string | null = null;
   /** 사용자가 "내 편집 유지"를 고른 디스크 버전 — 같은 버전으로 다시 묻지 않는다. */
   let keptRevision: string | null = null;
   let stopTicker: (() => void) | undefined;
 
-  const markInSync = () => { baselineSpec = useEditorStore.getState().spec; keptRevision = null; };
-  // 열기·저장·불러오기는 모두 파일명이나 디스크 버전을 새로 정한다 — 그 순간이 디스크와 맞춘 기준이다.
+  const toJson = (spec: ProjectSpec) => JSON.stringify(spec);
+  function parseDisk(text: string): ProjectSpec | null {
+    const parsed = parseSpecJson(text);
+    if (!parsed.ok) return null;
+    return "screen" in parsed.spec ? migrateV01(parsed.spec) : parsed.spec;
+  }
+
+  /** 지금 문서의 디스크 버전 내용을 읽어 기준으로 삼는다. 읽는 동안 기준은 모른다. */
+  async function refreshBaseline() {
+    baselineJson = null;
+    baselineRevision = null;
+    keptRevision = null;
+    const { fileName, diskRevision } = useDocumentStore.getState();
+    if (fileName === null || diskRevision === null) return;
+    const snapshot = await readWorkspaceSpecSnapshot(`${SPEC_DIR}/${fileName}`);
+    const now = useDocumentStore.getState();
+    if (stopped || snapshot === null || now.fileName !== fileName || now.diskRevision !== diskRevision) return;
+    if (snapshot.revision !== diskRevision) return; // 그 사이 디스크가 또 바뀌었다 — 감시가 처리한다
+    const spec = parseDisk(snapshot.text);
+    if (spec === null) return;
+    baselineJson = toJson(spec);
+    baselineRevision = diskRevision;
+  }
+  // 열기·저장·이름 변경·불러오기는 모두 파일명이나 디스크 버전을 새로 정한다.
   const unsubscribeDocument = useDocumentStore.subscribe((s, prev) => {
-    if (s.fileName !== prev.fileName || s.diskRevision !== prev.diskRevision) markInSync();
+    if (s.fileName !== prev.fileName || s.diskRevision !== prev.diskRevision) {
+      if (baselineRevision !== s.diskRevision || s.fileName !== prev.fileName) void refreshBaseline();
+    }
   });
 
   function adopt(fileName: string, spec: ProjectSpec, revision: string) {
     useEditorStore.getState().replaceSpecFromOutside(spec);
-    useDocumentStore.getState().setFileName(fileName, revision); // markInSync가 기준을 옮긴다
+    // 방금 디스크에서 읽은 내용 그대로다 — 다시 읽지 않고 기준으로 삼는다.
+    baselineJson = toJson(spec);
+    baselineRevision = revision;
+    keptRevision = null;
+    useDocumentStore.getState().setFileName(fileName, revision);
   }
 
   async function check() {
@@ -68,25 +98,30 @@ export function startDiskWatch(): () => void {
       const now = useDocumentStore.getState();
       if (now.fileName !== fileName || now.diskRevision !== diskRevision) return;
       if (snapshot.revision === diskRevision || snapshot.revision === keptRevision) return;
+      // 같은 버전을 이미 묻고 있다 — 3초마다 다시 띄우지 않는다(#279 리뷰).
+      const shown = useAgentEditStore.getState().diskNotice;
+      if (shown?.kind === "diskChanged" && shown.revision === snapshot.revision) return;
 
       const parsed = parseSpecJson(snapshot.text);
       if (!parsed.ok) {
         keptRevision = snapshot.revision;
-        useAgentEditStore.setState({ notice: { kind: "diskInvalid", fileName, issueCount: parsed.issueCount } });
+        useAgentEditStore.setState({ diskNotice: { kind: "diskInvalid", fileName, issueCount: parsed.issueCount } });
         return;
       }
       const spec = "screen" in parsed.spec ? migrateV01(parsed.spec) : parsed.spec;
-      const current = useEditorStore.getState().spec;
-      if (JSON.stringify(spec) === JSON.stringify(current)) {
+      const currentJson = toJson(useEditorStore.getState().spec);
+      if (toJson(spec) === currentJson) {
+        baselineJson = currentJson;
+        baselineRevision = snapshot.revision;
         useDocumentStore.getState().setFileName(fileName, snapshot.revision); // 내가 방금 저장한 내용
         return;
       }
-      if (current === baselineSpec) {
+      if (baselineJson !== null && baselineRevision === diskRevision && currentJson === baselineJson) {
         adopt(fileName, spec, snapshot.revision);
-        useAgentEditStore.setState({ notice: { kind: "diskImported", fileName, spec: useEditorStore.getState().spec } });
+        useAgentEditStore.setState({ diskNotice: { kind: "diskImported", fileName, spec: useEditorStore.getState().spec } });
         return;
       }
-      useAgentEditStore.setState({ notice: { kind: "diskChanged", fileName, revision: snapshot.revision, spec } });
+      useAgentEditStore.setState({ diskNotice: { kind: "diskChanged", fileName, revision: snapshot.revision, spec } });
     } finally {
       checking = false;
     }
@@ -94,9 +129,9 @@ export function startDiskWatch(): () => void {
 
   useAgentEditStore.setState({
     resolveDiskChange: (load) => {
-      const notice = useAgentEditStore.getState().notice;
+      const notice = useAgentEditStore.getState().diskNotice;
       if (notice?.kind !== "diskChanged") return;
-      useAgentEditStore.setState({ notice: null });
+      useAgentEditStore.setState({ diskNotice: null });
       if (useDocumentStore.getState().fileName !== notice.fileName) return;
       if (!load) { keptRevision = notice.revision; return; }
       adopt(notice.fileName, notice.spec, notice.revision);

@@ -45,7 +45,7 @@ beforeEach(() => {
   useDocumentStore.getState().setFileName("same.json", "rev-1");
   useNavigationStore.getState().openEditor();
   useSaveConflictStore.setState({ paused: false });
-  useAgentEditStore.setState({ notice: null });
+  useAgentEditStore.setState({ notice: null, diskNotice: null });
   setDisk(base, "rev-1");
   vi.mocked(readWorkspaceSpecSnapshot).mockImplementation(async () => disk);
 });
@@ -60,7 +60,7 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
 
     expect(title()).toBe("에이전트가 파일에서 고침");
     expect(useDocumentStore.getState().diskRevision).toBe("rev-2");
-    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "diskImported", fileName: "same.json" });
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskImported", fileName: "same.json" });
     useEditorStore.getState().undo();
     expect(title()).toBe(before);
   });
@@ -72,7 +72,7 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
     await tick();
     expect(useDocumentStore.getState().diskRevision).toBe("rev-saved");
     expect(useEditorStore.getState().history).toBe(history);
-    expect(useAgentEditStore.getState().notice).toBeNull();
+    expect(useAgentEditStore.getState().diskNotice).toBeNull();
   });
 
   it("미저장 편집이 있으면 묻고, 불러오기를 고르면 Undo로 내 편집에 돌아올 수 있다", async () => {
@@ -81,7 +81,7 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
     setDisk(withTitle("디스크 변경"), "rev-2");
     await tick();
     expect(title()).toBe("내 미저장 편집");
-    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "diskChanged", revision: "rev-2" });
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskChanged", revision: "rev-2" });
 
     useAgentEditStore.getState().resolveDiskChange(true);
     expect(title()).toBe("디스크 변경");
@@ -100,10 +100,10 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
     expect(useDocumentStore.getState().diskRevision).toBe("rev-1"); // 다음 저장은 디스크 충돌로 확인된다
 
     await tick();
-    expect(useAgentEditStore.getState().notice).toBeNull();
+    expect(useAgentEditStore.getState().diskNotice).toBeNull();
     setDisk(withTitle("디스크 변경 2"), "rev-3");
     await tick();
-    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "diskChanged", revision: "rev-3" });
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskChanged", revision: "rev-3" });
   });
 
   it("검증에 실패하는 새 내용은 불러오지 않고 한 번만 알린다", async () => {
@@ -111,24 +111,27 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
     disk = { text: JSON.stringify({ version: "0.3", pages: {} }), revision: "rev-bad" };
     await tick();
     expect(title()).toBe((base.pages.page1.nodes.headerTitle as { content: string }).content);
-    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "diskInvalid" });
-    useAgentEditStore.setState({ notice: null });
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskInvalid" });
+    useAgentEditStore.setState({ notice: null, diskNotice: null });
     await tick();
-    expect(useAgentEditStore.getState().notice).toBeNull();
+    expect(useAgentEditStore.getState().diskNotice).toBeNull();
   });
 
   it("저장하면 기준이 옮겨져, 그 뒤 디스크 변경은 미저장 편집 없이 불러온다", async () => {
     await watch();
     useEditorStore.getState().setNodeField("headerTitle", "content", "저장할 편집");
-    useDocumentStore.getState().setFileName("same.json", "rev-saved"); // Save가 하는 일
+    setDisk(useEditorStore.getState().spec, "rev-saved"); // Save가 디스크에 쓴 내용
+    useDocumentStore.getState().setFileName("same.json", "rev-saved"); // 그리고 버전을 맞춘다
+    await vi.advanceTimersByTimeAsync(10);
     setDisk(withTitle("저장 뒤 디스크 변경"), "rev-4");
     await tick();
     expect(title()).toBe("저장 뒤 디스크 변경");
-    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "diskImported" });
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskImported" });
   });
 
   it("홈 화면·제목 없는 문서·저장 충돌 중에는 확인하지 않는다", async () => {
     await watch();
+    vi.mocked(readWorkspaceSpecSnapshot).mockClear(); // 열 때 기준(디스크 내용)을 읽은 한 번은 빼고 센다
     setDisk(withTitle("바뀜"), "rev-2");
     useNavigationStore.getState().openHome();
     await tick();
@@ -147,7 +150,37 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
     setDisk(withTitle("디스크 변경"), "rev-2");
     await tick();
     expect(title()).toBe("탭 복구로 되살린 미저장 편집");
-    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "diskChanged" });
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskChanged" });
+  });
+
+  it("이름 변경·저장 도중의 미저장 편집은 저장된 것으로 치지 않는다 — 디스크에 실제로 쓰인 내용이 기준이다", async () => {
+    await watch();
+    useEditorStore.getState().setNodeField("headerTitle", "content", "아직 저장 안 한 편집");
+    // 이름 변경(또는 저장 도중 편집): 디스크에는 편집 전 내용이 새 버전으로 있고 메모리엔 편집이 남아 있다
+    setDisk(base, "rev-renamed");
+    useDocumentStore.getState().setFileName("same.json", "rev-renamed");
+    await vi.advanceTimersByTimeAsync(10);
+    setDisk(withTitle("그 뒤 디스크 변경"), "rev-5");
+    await tick();
+    expect(title()).toBe("아직 저장 안 한 편집");
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskChanged", revision: "rev-5" });
+  });
+
+  it("디스크 알림은 에이전트 확인 대기를 덮지 않고, 같은 버전 질문은 다시 띄우지 않는다", async () => {
+    await watch();
+    useEditorStore.getState().setNodeField("headerTitle", "content", "내 편집");
+    const confirm = { kind: "confirm" as const, requestId: "bg", message: "배경 변경", names: ["Screen"], pageId: "page1", commands: [], baseStateRevision: "r" };
+    useAgentEditStore.setState({ notice: confirm });
+    setDisk(withTitle("디스크 변경"), "rev-2");
+    await tick();
+    const asked = useAgentEditStore.getState().diskNotice;
+    expect(asked).toMatchObject({ kind: "diskChanged", revision: "rev-2" });
+    expect(useAgentEditStore.getState().notice).toBe(confirm);
+
+    useAgentEditStore.setState({ notice: { kind: "applied", requestId: "a", message: "적용", spec: useEditorStore.getState().spec } });
+    await tick();
+    expect(useAgentEditStore.getState().diskNotice).toBe(asked);
+    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "applied" });
   });
 });
 
