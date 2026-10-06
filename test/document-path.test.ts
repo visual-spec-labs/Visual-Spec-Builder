@@ -210,7 +210,7 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
 
 describe("Save as 다음의 Save도 그 파일에 쓴다 (PR #145 리뷰)", () => {
   it("Save as로 만든 foo.json을 이어서 Save가 갱신한다", async () => {
-    newSpec();
+    await newSpec();
     promptAnswer = "foo";
     await saveSpecAs(useEditorStore.getState().spec);
 
@@ -280,7 +280,7 @@ describe("New는 현재 문서를 비운다 (PR #145 리뷰)", () => {
     promptAnswer = "customer-copy.json";
     await openSpec();
 
-    newSpec();
+    await newSpec();
     expect(useDocumentStore.getState().fileName).toBeNull();
 
     await save();
@@ -296,7 +296,7 @@ describe("New는 현재 문서를 비운다 (PR #145 리뷰)", () => {
 
 describe("한 번도 저장하지 않은 문서", () => {
   it("첫 Save는 spec.name으로 파일을 만들고, 그 파일이 다음 Save의 대상이 된다", async () => {
-    newSpec();
+    await newSpec();
     await save();
     const created = `${useEditorStore.getState().spec.name}.json`;
 
@@ -377,7 +377,7 @@ describe("새로고침해도 Save는 연 파일에 쓴다 (이슈 #185)", () => 
   });
 
   it("한 번도 저장 안 한 세션은 새로고침해도 여전히 무명이다 — specs/에 아무것도 안 쌓인다", async () => {
-    newSpec();
+    await newSpec();
     expect(useDocumentStore.getState().fileName).toBeNull();
     saveSpecToStorage(useEditorStore.getState().spec, null);
 

@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
-import { loadStoredSpec, parseStoredDocument, projectStorageKey, readRecovery, prepareProjectRename, publishProjectRename } from "@/features/editor/store/specStorage";
+import { loadStoredSpec, saveSpecToStorage, parseStoredDocument, projectStorageKey, readRecovery, prepareProjectRename, publishProjectRename } from "@/features/editor/store/specStorage";
 import { newSpec } from "@/features/editor/ui/newSpec";
+import { blankSpec } from "@/features/editor/store/blankSpec";
 import { startSpecAutosave } from "@/features/editor/ui/specAutosave";
 import { saveSpec, saveSpecAs, downloadConflictCopy } from "@/features/editor/ui/exportSpecAsJson";
 
@@ -32,7 +33,7 @@ beforeEach(() => {
   vi.stubGlobal("navigator", { locks: { request: async (_key: string, fn: () => void) => fn() } });
   listeners = new Map();
   vi.stubGlobal("window", { addEventListener: (name: string, fn: (event: unknown) => void) => listeners.set(name, fn),
-    removeEventListener: (name: string) => listeners.delete(name), alert: vi.fn(), prompt: vi.fn() });
+    removeEventListener: (name: string) => listeners.delete(name), alert: vi.fn(), prompt: vi.fn(), confirm: vi.fn(() => true) });
   useEditorStore.getState().loadSpec(initial);
   useDocumentStore.getState().setFileName("same.json", "loaded-revision");
   useSaveConflictStore.setState({ paused: false, unavailable: false });
@@ -242,11 +243,11 @@ describe("same-project autosave conflict preservation", () => {
     expect(useDocumentStore.getState().fileName).toBe("B.json");
   });
   it("New creates a distinct untitled draft instead of conflicting with a previous New", async () => {
-    stop = startSpecAutosave(); newSpec();
+    stop = startSpecAutosave(); await newSpec();
     let editor = useEditorStore.getState(); editor.setPageField(editor.activePageId, "name", "first draft");
     await vi.advanceTimersByTimeAsync(500);
     const firstKey = readRecovery()!.key;
-    newSpec(); editor = useEditorStore.getState(); editor.setPageField(editor.activePageId, "name", "second draft");
+    await newSpec(); editor = useEditorStore.getState(); editor.setPageField(editor.activePageId, "name", "second draft");
     await vi.advanceTimersByTimeAsync(500);
     expect(readRecovery()!.key).not.toBe(firstKey);
     expect(parseStoredDocument(localStorage.getItem(firstKey))?.spec.pages[editor.activePageId].name).toBe("first draft");
@@ -274,7 +275,7 @@ describe("same-project autosave conflict preservation", () => {
     expect(useEditorStore.getState().spec).toEqual(initial);
   });
   it("copied untitled recovery gets an independent key without losing its contents", async () => {
-    stop = startSpecAutosave(); newSpec();
+    stop = startSpecAutosave(); await newSpec();
     edit("recovered draft");
     await vi.advanceTimersByTimeAsync(500);
     const original = readRecovery()!;
@@ -302,7 +303,7 @@ describe("same-project autosave conflict preservation", () => {
     finish(true); await saving;
   });
   it("genuine reload keeps the untitled recovery key", async () => {
-    stop = startSpecAutosave(); newSpec(); await vi.advanceTimersByTimeAsync(500);
+    stop = startSpecAutosave(); await newSpec(); await vi.advanceTimersByTimeAsync(500);
     const originalKey = readRecovery()!.key;
     stop();
     vi.stubGlobal("performance", { getEntriesByType: () => [{ type: "reload" }] });
@@ -363,5 +364,119 @@ describe("same-project autosave conflict preservation", () => {
     expect(useDocumentStore.getState().fileName).toBe("same.json");
     expect(parseStoredDocument(localStorage.getItem(key))).toEqual(theirs);
     expect(useSaveConflictStore.getState().paused).toBe(true);
+  });
+});
+
+describe("document switch before the autosave debounce (#267)", () => {
+  function editPageName(name: string) {
+    const editor = useEditorStore.getState();
+    editor.setPageField(editor.activePageId, "name", name);
+    return editor.activePageId;
+  }
+  it("New persists the pending draft of the outgoing file before replacing it", async () => {
+    stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
+    const pageId = editPageName("edited just now");
+    expect(await newSpec()).toBe(true);
+    expect(useDocumentStore.getState().fileName).toBeNull();
+    expect(parseStoredDocument(localStorage.getItem(key))?.spec.pages[pageId].name).toBe("edited just now");
+    // The cancelled timer of the old document must not write the new document into the old key.
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(parseStoredDocument(localStorage.getItem(key))?.spec.pages[pageId].name).toBe("edited just now");
+    // Reopening the stale disk copy surfaces the preserved draft instead of hiding it.
+    useEditorStore.getState().loadSpec(initial);
+    useDocumentStore.getState().setFileName("same.json", "loaded-revision");
+    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "draft" });
+    expect(useSaveConflictStore.getState().readDraft()?.pages[pageId].name).toBe("edited just now");
+    expect(await useSaveConflictStore.getState().loadLatest()).toBe(true);
+    expect(useEditorStore.getState().spec.pages[pageId].name).toBe("edited just now");
+  });
+  it("continuing with the opened file explicitly replaces the draft", async () => {
+    stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
+    const pageId = editPageName("draft to discard");
+    expect(await newSpec()).toBe(true);
+    useEditorStore.getState().loadSpec(initial);
+    useDocumentStore.getState().setFileName("same.json", "loaded-revision");
+    useSaveConflictStore.getState().discardDraft();
+    expect(useSaveConflictStore.getState().paused).toBe(false);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(parseStoredDocument(localStorage.getItem(key))?.spec).toEqual(initial);
+    expect(useEditorStore.getState().spec.pages[pageId].name).toBe(initial.pages[pageId].name);
+  });
+  it("an edited untitled document asks before it is replaced; a fresh one does not", async () => {
+    const confirm = vi.mocked(window.confirm);
+    stop = startSpecAutosave(); await newSpec();
+    confirm.mockClear();
+    expect(await newSpec()).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    const pageId = editPageName("untitled work");
+    confirm.mockReturnValueOnce(false);
+    expect(await newSpec()).toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(useEditorStore.getState().spec.pages[pageId].name).toBe("untitled work");
+    expect(await newSpec()).toBe(true);
+    expect(confirm).toHaveBeenCalledTimes(2);
+  });
+  it("a conflicting outgoing draft keeps the current document instead of switching", async () => {
+    stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
+    const pageId = editPageName("mine");
+    const latest = remote("theirs"); // no storage event yet
+    expect(await newSpec()).toBe(false);
+    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "remote" });
+    expect(useDocumentStore.getState().fileName).toBe("same.json");
+    expect(useEditorStore.getState().spec.pages[pageId].name).toBe("mine");
+    expect(parseStoredDocument(localStorage.getItem(key))).toEqual(latest);
+  });
+  it("without safe autosave the switch requires an explicit discard", async () => {
+    vi.stubGlobal("navigator", {});
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("window", { addEventListener: (name: string, fn: (event: unknown) => void) => listeners.set(name, fn),
+      removeEventListener: (name: string) => listeners.delete(name), alert: vi.fn(), confirm });
+    stop = startSpecAutosave();
+    const pageId = editPageName("unsaved");
+    expect(await newSpec()).toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(useEditorStore.getState().spec.pages[pageId].name).toBe("unsaved");
+    confirm.mockReturnValue(true);
+    expect(await newSpec()).toBe(true);
+    expect(useDocumentStore.getState().fileName).toBeNull();
+  });
+  it("a fresh tab restoring stored untitled work asks before New; a stored blank does not (review)", async () => {
+    const confirm = vi.mocked(window.confirm);
+    useDocumentStore.getState().clearFileName();
+    useEditorStore.getState().loadSpec({ ...initial, name: "only copy" });
+    saveSpecToStorage(useEditorStore.getState().spec, null);
+    stop = startSpecAutosave();
+    confirm.mockReturnValueOnce(false);
+    expect(await newSpec()).toBe(false);
+    expect(useEditorStore.getState().spec.name).toBe("only copy");
+    stop();
+    saveSpecToStorage(useEditorStore.getState().spec, null); // the blank New below replaces it
+    useEditorStore.getState().loadSpec(blankSpec);
+    saveSpecToStorage(useEditorStore.getState().spec, null);
+    confirm.mockClear();
+    stop = startSpecAutosave();
+    expect(await newSpec()).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+  it("an autosave based on an older disk revision is not offered as a draft of the newer file (review)", async () => {
+    localStorage.setItem(key, JSON.stringify({ fileName: "same.json", spec: { ...initial, name: "older autosave" }, diskRevision: "old-revision" }));
+    useDocumentStore.getState().clearFileName();
+    stop = startSpecAutosave();
+    useEditorStore.getState().loadSpec({ ...initial, name: "changed on disk" });
+    useDocumentStore.getState().setFileName("same.json", "new-revision");
+    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "remote" });
+  });
+  it("the draft reason survives a reload of the paused tab (review)", async () => {
+    stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
+    editPageName("draft before reload");
+    expect(await newSpec()).toBe(true);
+    useEditorStore.getState().loadSpec(initial);
+    useDocumentStore.getState().setFileName("same.json", "loaded-revision");
+    expect(useSaveConflictStore.getState().reason).toBe("draft");
+    stop();
+    useSaveConflictStore.setState({ paused: false, reason: "remote" });
+    vi.stubGlobal("performance", { getEntriesByType: () => [{ type: "reload" }] });
+    stop = startSpecAutosave();
+    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "draft" });
   });
 });

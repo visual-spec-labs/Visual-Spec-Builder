@@ -98,7 +98,7 @@ export function MenuBar() {
   const togglePanels = useViewStore((s) => s.togglePanels);
 
   const FILE_MENU: MenuEntry[] = [
-    { kind: "action", label: "New", onSelect: newSpec },
+    { kind: "action", label: "New", onSelect: () => void newSpec() },
     { kind: "action", label: "Open", onSelect: handleOpen },
     { kind: "action", label: "Save", onSelect: handleSave },
     { kind: "action", label: "Save as", onSelect: handleSaveAs },

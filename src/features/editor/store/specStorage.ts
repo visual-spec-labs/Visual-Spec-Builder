@@ -1,5 +1,6 @@
 import { migrateToV03, validateProjectSpec } from "@/features/editor/schema";
 import type { ProjectSpec } from "@/features/editor/schema";
+import type { PauseReason } from "./saveConflictStore";
 
 /**
  * 작업 중인 프로젝트 전체를 저장하는 localStorage 키(이슈 #128).
@@ -126,6 +127,7 @@ export interface Recovery {
   conflicted: boolean;
   diskConflict?: boolean;
   renameBaseline?: string | null;
+  reason?: PauseReason;
 }
 export function readRecovery(): Recovery | undefined {
   try {

@@ -360,10 +360,10 @@ describe("낡은 티켓 실행 차단 (#271)", () => {
   });
 
   it("File → New를 두 번 하면(같은 blankSpec 화면 객체) 이전 문서의 티켓을 실행하지 않는다 (PR #295 리뷰)", async () => {
-    newSpec();
+    await newSpec();
     compileCurrent();
     const compiledPage = useTicketStore.getState().sourcePage;
-    newSpec();
+    await newSpec();
 
     // 리뷰가 짚은 그대로 — 페이지 참조는 같지만 문서는 다르다.
     expect(useEditorStore.getState().spec.pages[useEditorStore.getState().activePageId]).toBe(compiledPage);

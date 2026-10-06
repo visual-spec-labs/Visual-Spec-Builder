@@ -17,7 +17,9 @@ import { SPEC_DIR } from "@/features/workspace/protocol";
  * 스펙도 이름도 바꾸지 않는다: 열리지 않은 파일이 Save 대상이 되면 다음 Save가
  * **화면에 떠 있지도 않은 문서의 파일을 덮어쓴다.**
  */
-function loadSpecText(text: string, fileName: string, diskRevision: string | null = null): void {
+async function loadSpecText(text: string, fileName: string, diskRevision: string | null = null): Promise<void> {
+  // 현재 문서의 대기 중 자동저장을 먼저 끝낸다(#267).
+  if (!await useSaveConflictStore.getState().settle(fileName)) return;
   if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return;
   const result = parseSpecJson(text);
   if (!result.ok) {
@@ -53,7 +55,7 @@ export function openSpecFromFileDialog(): void {
     const reader = new FileReader();
     reader.onload = () => {
       const text = typeof reader.result === "string" ? reader.result : "";
-      loadSpecText(text, file.name);
+      void loadSpecText(text, file.name);
     };
     reader.readAsText(file);
   };
@@ -101,5 +103,5 @@ export async function openSpec(): Promise<void> {
     window.alert(`${chosen}을(를) 읽지 못했습니다.`);
     return;
   }
-  loadSpecText(snapshot.text, chosen, snapshot.revision);
+  await loadSpecText(snapshot.text, chosen, snapshot.revision);
 }

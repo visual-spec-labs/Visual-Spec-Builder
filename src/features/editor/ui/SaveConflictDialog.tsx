@@ -4,11 +4,12 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { downloadConflictCopy } from "@/features/editor/ui/exportSpecAsJson";
 
 export function SaveConflictDialog() {
-  const { paused, unavailable, loadLatest } = useSaveConflictStore();
+  const { paused, reason, unavailable, loadLatest } = useSaveConflictStore();
   const [message, setMessage] = useState("");
   if (!paused) return unavailable ? <div role="status" className="fixed bottom-2 left-2 bg-surface-raised p-3">
     이 브라우저에서는 탭 간 자동저장을 사용할 수 없습니다. File → Export로 별도 파일을 보관하세요.
   </div> : null;
+  if (reason === "draft") return <DraftDialog message={message} setMessage={setMessage} />;
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-surface-sunken/80">
     <section role="alertdialog" aria-modal="true" aria-labelledby="save-conflict-title"
       className="max-w-lg rounded-lg bg-surface-raised p-6 text-content shadow-xl">
@@ -26,6 +27,41 @@ export function SaveConflictDialog() {
           else setMessage("");
         }}>다른 탭의 최신 내용 불러오기</button>
         <button className="rounded border px-3 py-2" onClick={() => setMessage("취소했습니다. 내 작업과 저장 중지를 유지합니다.")}>취소 — 내 작업 유지</button>
+      </div>
+      <p role="status" className="mt-3 text-sm">{message}</p>
+    </section>
+  </div>;
+}
+
+/**
+ * 연 파일보다 새 자동저장 초안이 있다(#267) — 저장 전에 다른 문서로 넘어갔거나 다른
+ * 탭에서 편집만 하고 저장하지 않은 경우. "다른 탭의 변경"으로 안내하면 사용자가 방금 연
+ * 디스크 내용을 "내 작업"으로 알고 초안을 버리게 된다.
+ */
+function DraftDialog({ message, setMessage }: { message: string; setMessage: (message: string) => void }) {
+  const { loadLatest, discardDraft, readDraft } = useSaveConflictStore();
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-surface-sunken/80">
+    <section role="alertdialog" aria-modal="true" aria-labelledby="save-draft-title"
+      className="max-w-lg rounded-lg bg-surface-raised p-6 text-content shadow-xl">
+      <h2 id="save-draft-title" className="mb-3 text-lg font-semibold">저장하지 않은 초안이 있습니다</h2>
+      <p>이 프로젝트를 편집한 뒤 파일로 저장하지 않은 자동저장 초안이 남아 있습니다. 지금 화면은 마지막으로 저장된 파일 내용입니다.</p>
+      <p className="my-3 text-sm">초안을 불러오거나, 저장된 파일 내용으로 계속할 수 있습니다. 파일 내용으로 계속하면 초안은 사라지므로 필요하면 먼저 별도 파일로 내려받으세요.</p>
+      <div className="flex flex-wrap gap-3">
+        <button autoFocus className="rounded border px-3 py-2" onClick={async () => {
+          if (!await loadLatest()) setMessage("초안을 읽을 수 없습니다. 자동저장은 중지된 상태로 유지됩니다.");
+          else setMessage("");
+        }}>초안 불러오기</button>
+        <button className="rounded border px-3 py-2" onClick={() => {
+          const draft = readDraft();
+          if (!draft) { setMessage("초안을 읽을 수 없습니다."); return; }
+          downloadConflictCopy(draft);
+          setMessage("초안 다운로드를 요청했습니다. 다운로드 목록에서 파일을 확인하세요.");
+        }}>초안 별도 파일로 내려받기</button>
+        <button className="rounded border px-3 py-2" onClick={() => {
+          if (!window.confirm("초안을 버리고 저장된 파일 내용으로 계속할까요? 초안은 되돌릴 수 없습니다.")) return;
+          discardDraft();
+          setMessage("");
+        }}>저장된 파일 내용으로 계속</button>
       </div>
       <p role="status" className="mt-3 text-sm">{message}</p>
     </section>

@@ -1,4 +1,5 @@
 import { blankSpec } from "@/features/editor/store/blankSpec";
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 
@@ -13,8 +14,13 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
  * (`HomeScreen.tsx`). 둘이 각자 `loadSpec(blankSpec)`을 부르고 있으면 한쪽만 이름을
  * 비우는 실수가 쉽게 난다(실제로 이 결함이 그 모양이었다). "New가 무엇인가"를
  * 여기 한 줄로 모아 둔다.
+ *
+ * 갈아 끼우기 전에 현재 문서의 대기 중 자동저장을 먼저 끝낸다(#267). false면 현재
+ * 문서를 그대로 둔다 — 다른 탭과 충돌했거나 사용자가 폐기를 거절했다.
  */
-export function newSpec(): void {
+export async function newSpec(): Promise<boolean> {
+  if (!await useSaveConflictStore.getState().settle(null)) return false;
   useEditorStore.getState().loadSpec(blankSpec);
   useDocumentStore.getState().clearFileName();
+  return true;
 }
