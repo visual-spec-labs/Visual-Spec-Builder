@@ -29,6 +29,7 @@ import type { PageId } from "@/features/editor/schema";
 import { useAgentEditStore } from "@/features/editor/store/agentEditStore";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { RUNTIME_DIR } from "@/features/workspace/protocol";
 
@@ -48,6 +49,25 @@ export const AGENT_CLAIM_MS = 5000;
 /** 내용이 그대로여도 이 간격으로 `updatedAt`을 갱신한다 — 에이전트가 GUI가 열려 있는지 판단한다. */
 export const GUI_STATE_HEARTBEAT_MS = 10_000;
 
+/**
+ * 주기 작업 타이머. 사용자는 보통 터미널(에이전트)을 앞에 두고 브라우저를 뒤에 둔다 — Chrome은
+ * 5분 넘게 가려진 탭의 setInterval을 1분에 한 번으로 묶어(intensive throttling) 하트비트·폴링·
+ * 잠금 연장이 모두 늦어진다(#279 리뷰). 전용 Worker의 타이머는 그 제약을 받지 않으므로 Worker가
+ * 박자를 보내고 실제 일은 메인 스레드가 한다. Worker를 못 쓰는 환경(테스트 등)은 setInterval로.
+ */
+function startTicker(intervalMs: number, tick: () => void): () => void {
+  if (typeof Worker !== "undefined" && typeof Blob !== "undefined" && typeof URL?.createObjectURL === "function") {
+    try {
+      const url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${intervalMs});`], { type: "text/javascript" }));
+      const worker = new Worker(url);
+      worker.onmessage = tick;
+      return () => { worker.terminate(); URL.revokeObjectURL(url); };
+    } catch { /* 아래 setInterval로 */ }
+  }
+  const timer = setInterval(tick, intervalMs);
+  return () => clearInterval(timer);
+}
+
 function currentState(tabId: string) {
   const { spec, activePageId, selectedId, documentId } = useEditorStore.getState();
   const { fileName, diskRevision } = useDocumentStore.getState();
@@ -58,10 +78,10 @@ function currentState(tabId: string) {
 }
 
 /** 지금 GUI 상태 버전. 편집 요청의 `baseStateRevision`과 비교한다. */
-export function currentStateRevision(): string {
+export function currentStateRevision(tabId: string): string {
   const { spec, activePageId, documentId } = useEditorStore.getState();
   return computeStateRevision({
-    documentId, fileName: useDocumentStore.getState().fileName,
+    tabId, documentId, fileName: useDocumentStore.getState().fileName,
     pageId: activePageId, page: spec.pages[activePageId],
   });
 }
@@ -75,12 +95,15 @@ export function startAgentEditBridge(): () => void {
   let lastPublishedAt = 0;
   let lastHandledId: string | null = null;
   let polling = false;
+  let claiming = false;
   let publishTimer: ReturnType<typeof setTimeout> | undefined;
-  const timers: ReturnType<typeof setInterval>[] = [];
+  const tickers: (() => void)[] = [];
+  /** 에디터 화면일 때만 연결한다 — 홈에서는 보이지 않는 문서에 편집이 적용된다(#279 리뷰). */
+  const onEditor = () => useNavigationStore.getState().screen === "editor";
 
   async function writeResult(requestId: string, status: AgentEditStatus, message: string) {
     await writeWorkspaceFile(AGENT_EDIT_RESULT_PATH,
-      JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision()), null, 2),
+      JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision(tabId)), null, 2),
       "application/json");
   }
 
@@ -100,24 +123,43 @@ export function startAgentEditBridge(): () => void {
     publishTimer = setTimeout(() => { void publish(); }, 200);
   };
 
+  function disconnect() {
+    if (!holder) return;
+    holder = false;
+    releaseRequestLock("gui", tabId); // 서버가 이 탭의 gui-state.json을 정리한다
+    useAgentEditStore.setState({ connected: false });
+  }
+
   async function claim() {
-    if (stopped) return;
-    const outcome = await acquireRequestLock("gui", tabId, holder);
-    const nowHolder = outcome === "acquired" || (holder && outcome === "unavailable");
-    if (nowHolder && !holder) {
-      holder = true;
-      // 새로 연결됐다 — 이전 탭(또는 새로고침 전의 이 탭)이 처리한 마지막 요청을 다시
-      // 적용하지 않도록 결과 파일의 요청 id에서 이어간다.
-      const previous = await readWorkspaceTextFile(AGENT_EDIT_RESULT_PATH);
-      try { lastHandledId = previous ? (JSON.parse(previous) as { requestId?: string }).requestId ?? null : null; }
-      catch { lastHandledId = null; }
-      useAgentEditStore.setState({ connected: true });
-      await publish(true);
-    } else if (!nowHolder && holder) {
-      holder = false;
-      useAgentEditStore.setState({ connected: false });
-    } else if (holder) {
-      await publish();
+    if (stopped || claiming) return;
+    if (!onEditor()) { disconnect(); return; }
+    claiming = true;
+    try {
+      const outcome = await acquireRequestLock("gui", tabId, holder);
+      const nowHolder = outcome === "acquired" || (holder && outcome === "unavailable");
+      if (nowHolder && !holder) {
+        // 연결 전에 이미 있던 요청은 이 연결이 읽은 상태로 만든 것이 아니다 — 처리하지 않는다.
+        // 이전 탭이 처리한 마지막 요청도 다시 적용하지 않는다. 복원을 **먼저** 끝내고 연결로
+        // 바꾼다 — 그 사이 폴링이 낡은 값으로 같은 요청을 다시 처리하지 않게(#279 리뷰).
+        const pending = parseAgentEdit(await readWorkspaceTextFile(AGENT_EDIT_PATH));
+        lastHandledId = "id" in pending ? pending.id : null;
+        if (lastHandledId === null) {
+          const previous = await readWorkspaceTextFile(AGENT_EDIT_RESULT_PATH);
+          try { lastHandledId = previous ? (JSON.parse(previous) as { requestId?: string }).requestId ?? null : null; }
+          catch { lastHandledId = null; }
+        }
+        if (stopped || !onEditor()) { releaseRequestLock("gui", tabId); return; }
+        holder = true;
+        useAgentEditStore.setState({ connected: true });
+        await publish(true);
+      } else if (!nowHolder && holder) {
+        holder = false;
+        useAgentEditStore.setState({ connected: false });
+      } else if (holder) {
+        await publish();
+      }
+    } finally {
+      claiming = false;
     }
   }
 
@@ -137,10 +179,13 @@ export function startAgentEditBridge(): () => void {
 
   /** 적용 전 공통 검사. 거절이면 사유, 통과면 null. */
   function rejectReason(baseStateRevision: string, pageId: PageId): string | null {
+    if (!onEditor()) {
+      return "GUI가 에디터 화면이 아닙니다(홈 화면). 사용자가 문서를 연 뒤 다시 요청하세요.";
+    }
     if (useSaveConflictStore.getState().paused) {
       return "GUI에 저장 충돌 대화상자가 열려 있습니다. 사용자가 먼저 해결한 뒤 다시 요청하세요.";
     }
-    if (baseStateRevision !== currentStateRevision()) {
+    if (baseStateRevision !== currentStateRevision(tabId)) {
       return "요청을 만든 뒤 GUI 상태가 바뀌었습니다(편집·문서 또는 페이지 전환). gui-state.json을 다시 읽고 요청하세요.";
     }
     if (pageId !== useEditorStore.getState().activePageId) {
@@ -153,6 +198,12 @@ export function startAgentEditBridge(): () => void {
     const parsed = parseAgentEdit(text);
     if (parsed.kind === "none" || parsed.kind === "unreadable") return;
     if (parsed.id === lastHandledId) return;
+    // 처리 직전에 연결이 아직 이 탭인지 확인한다 — 연장이 늦어 잠금이 넘어갔다면 새 탭이 처리한다.
+    if (await acquireRequestLock("gui", tabId, true) === "busy") {
+      holder = false;
+      useAgentEditStore.setState({ connected: false });
+      return;
+    }
     lastHandledId = parsed.id;
 
     if (parsed.kind === "malformed") {
@@ -197,7 +248,7 @@ export function startAgentEditBridge(): () => void {
   }
 
   async function poll() {
-    if (stopped || !holder || polling) return;
+    if (stopped || !holder || claiming || polling) return;
     polling = true;
     try {
       const files = await listWorkspaceFiles(RUNTIME_DIR);
@@ -234,24 +285,26 @@ export function startAgentEditBridge(): () => void {
     if (s.spec !== prev.spec || s.activePageId !== prev.activePageId || s.selectedId !== prev.selectedId) schedulePublish();
   });
   const unsubscribeDocument = useDocumentStore.subscribe(schedulePublish);
+  const unsubscribeNavigation = useNavigationStore.subscribe((s, prev) => {
+    if (s.screen !== prev.screen) void claim();
+  });
 
   void (async () => {
     if (!await isWorkspaceAvailable() || stopped) return;
     if (typeof window !== "undefined") window.addEventListener("pagehide", onPageHide);
     await claim();
-    timers.push(setInterval(() => { void claim(); }, AGENT_CLAIM_MS));
-    timers.push(setInterval(() => { void poll(); }, AGENT_EDIT_POLL_MS));
+    tickers.push(startTicker(AGENT_CLAIM_MS, () => { void claim(); }));
+    tickers.push(startTicker(AGENT_EDIT_POLL_MS, () => { void poll(); }));
   })();
 
   return () => {
     stopped = true;
     clearTimeout(publishTimer);
-    for (const timer of timers) clearInterval(timer);
+    for (const stopTicker of tickers) stopTicker();
     unsubscribeEditor();
     unsubscribeDocument();
+    unsubscribeNavigation();
     if (typeof window !== "undefined") window.removeEventListener("pagehide", onPageHide);
-    if (holder) releaseRequestLock("gui", tabId);
-    holder = false;
-    useAgentEditStore.setState({ connected: false });
+    disconnect();
   };
 }

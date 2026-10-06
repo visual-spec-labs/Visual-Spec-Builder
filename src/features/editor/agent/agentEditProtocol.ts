@@ -70,19 +70,25 @@ function fingerprint(text: string): string {
 }
 
 export interface StateRevisionInput {
-  /** `editorStore.documentId` — 같은 내용이어도 다른 문서면 다른 값이 되게 한다. */
+  /**
+   * 이 GUI 탭(연결)의 고유 id. `documentId`는 탭마다 0부터 세므로 그것만으로는 다른 탭·나중
+   * 세션의 같은 파일과 값이 겹친다 — 그러면 처리되지 않고 남은 옛 요청이 나중에 열린 GUI에서
+   * 적용된다(#279 리뷰). 탭 id를 넣어 이 연결에서 읽은 상태에만 맞게 한다.
+   */
+  tabId: string;
+  /** `editorStore.documentId` — 같은 탭에서 같은 내용이어도 다른 문서면 다른 값이 되게 한다. */
   documentId: number;
   fileName: string | null;
   pageId: PageId;
   page: ScreenSpec;
 }
 
-export function computeStateRevision({ documentId, fileName, pageId, page }: StateRevisionInput): string {
-  return fingerprint(JSON.stringify([documentId, fileName, pageId, page]));
+export function computeStateRevision({ tabId, documentId, fileName, pageId, page }: StateRevisionInput): string {
+  return fingerprint(JSON.stringify([tabId, documentId, fileName, pageId, page]));
 }
 
 export function buildGuiState(
-  input: StateRevisionInput & { tabId: string; diskRevision: string | null; selectedId: string | null; now: Date },
+  input: StateRevisionInput & { diskRevision: string | null; selectedId: string | null; now: Date },
 ): GuiState {
   return {
     protocol: AGENT_EDIT_PROTOCOL_VERSION,

@@ -4,6 +4,7 @@ import { computeStateRevision, parseAgentEdit } from "@/features/editor/agent/ag
 import { useAgentEditStore } from "@/features/editor/store/agentEditStore";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { seedSpec } from "@/features/editor/store/seedSpec";
 import { startAgentEditBridge } from "@/features/editor/ui/agentEditBridge";
@@ -46,6 +47,7 @@ beforeEach(() => {
   useDocumentStore.getState().setFileName("same.json", "rev-1");
   useSaveConflictStore.setState({ paused: false });
   useAgentEditStore.setState({ notice: null, connected: false });
+  useNavigationStore.getState().openEditor();
   vi.mocked(acquireRequestLock).mockResolvedValue("acquired");
 });
 afterEach(() => { stop?.(); stop = undefined; vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
@@ -62,7 +64,7 @@ describe("GUI 상태 공개 (#279)", () => {
     });
     expect(published.page.nodes.headerTitle.content).toBe(title());
     expect(published.stateRevision).toBe(computeStateRevision({
-      documentId: useEditorStore.getState().documentId, fileName: "same.json", pageId: "page1",
+      tabId: published.id, documentId: useEditorStore.getState().documentId, fileName: "same.json", pageId: "page1",
       page: useEditorStore.getState().spec.pages.page1,
     }));
   });
@@ -178,8 +180,51 @@ describe("에이전트 편집 적용 (#279)", () => {
 
 function currentRevision() {
   const { spec, documentId } = useEditorStore.getState();
-  return computeStateRevision({ documentId, fileName: "same.json", pageId: "page1", page: spec.pages.page1 });
+  return computeStateRevision({ tabId: state().id, documentId, fileName: "same.json", pageId: "page1", page: spec.pages.page1 });
 }
+
+describe("연결 조건 (#279 셀프 리뷰)", () => {
+  it("홈 화면에서는 연결하지 않고, 에디터로 가면 연결되며, 홈으로 돌아오면 연결을 푼다", async () => {
+    useNavigationStore.getState().openHome();
+    await connect();
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    expect(state()).toBeNull();
+
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    const tabId = state().id;
+
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    expect(releaseRequestLock).toHaveBeenCalledWith("gui", tabId);
+  });
+
+  it("연결 전부터 있던 요청은 이 연결이 읽은 상태로 만든 것이 아니므로 처리하지 않는다", async () => {
+    sendEdit({ id: "before-connect", baseStateRevision: "anything", pageId: "page1", commands: retitle("옛 요청") });
+    await connect();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(title()).not.toBe("옛 요청");
+    expect(result()).toBeNull();
+  });
+
+  it("처리 직전에 연결이 다른 탭으로 넘어갔으면 적용하지 않는다", async () => {
+    await connect();
+    const base = state().stateRevision;
+    vi.mocked(acquireRequestLock).mockResolvedValue("busy");
+    sendEdit({ id: "e1", baseStateRevision: base, pageId: "page1", commands: retitle("넘어간 뒤") });
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(title()).not.toBe("넘어간 뒤");
+    expect(useAgentEditStore.getState().connected).toBe(false);
+  });
+
+  it("상태 버전에 탭 id가 들어가 같은 문서·내용이어도 다른 연결과 값이 다르다", () => {
+    const page = useEditorStore.getState().spec.pages.page1;
+    const base = { documentId: 1, fileName: "same.json", pageId: "page1", page };
+    expect(computeStateRevision({ ...base, tabId: "a" })).not.toBe(computeStateRevision({ ...base, tabId: "b" }));
+  });
+});
 
 describe("요청 형식 (#279)", () => {
   it("버전·기준 상태·페이지가 없으면 이유를 알리고, id를 읽을 수 없으면 답할 짝이 없다", () => {
