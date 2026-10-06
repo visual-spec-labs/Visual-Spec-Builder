@@ -103,6 +103,29 @@ export function acquireRequestLock(
 }
 
 /**
+ * 쥐고 있던 잠금의 기한을 늘린다(#273, PR #296 리뷰). 잠금 기록의 주인이 여전히 나일
+ * 때만이다 — 기한이 지났어도 아무도 가져가지 않았으면 기록은 그대로 내 것이다.
+ *
+ * `acquireRequestLock`으로 연장하면 안 된다. 연장이 끊긴 사이 다른 탭이 잠금을 가져가
+ * 요청 파일을 덮고 응답까지 받아 풀었다면 잠금은 다시 비어 있고, 새로 잡기는 그걸
+ * 허락한다. 그러면 처음 탭은 자기 요청이 덮인 줄 모르고 없는 응답을 기다린다.
+ */
+export function renewRequestLock(
+  workspaceRoot: string,
+  kind: RequestLockKind,
+  owner: string,
+  now = Date.now(),
+): LockResult {
+  return withLockMutex(workspaceRoot, kind, () => {
+    const current = readLock(workspaceRoot, kind);
+    if (current === null || current.owner !== owner) return { ok: false, expiresAt: current?.expiresAt ?? 0 };
+    const expiresAt = now + REQUEST_LOCK_TTL_MS;
+    writeLock(workspaceRoot, kind, { owner, expiresAt });
+    return { ok: true, expiresAt };
+  });
+}
+
+/**
  * 내 잠금일 때만 푼다. 이미 기한이 지나 다른 탭이 가져간 잠금은 건드리지 않는다.
  *
  * 끝난 요청(응답·취소·timeout·탭 닫기)의 요청 파일도 함께 지운다 — 남겨 두면 에이전트가

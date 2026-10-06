@@ -145,6 +145,8 @@ export const WORKSPACE_MISSING_REVISION = "missing";
  */
 export const WORKSPACE_REQUEST_LOCK_ROUTE = `${WORKSPACE_API_PREFIX}/request-lock/`;
 export const WORKSPACE_REQUEST_OWNER_HEADER = "x-visual-spec-request-owner";
+/** `POST ...?renew=1`은 새로 잡지 않고, 주인이 여전히 나인 잠금만 연장한다(PR #296 리뷰). */
+export const WORKSPACE_REQUEST_LOCK_RENEW_PARAM = "renew";
 /** 연장 없이 잠금이 유지되는 시간. 탭이 사라져도 이 시간 뒤엔 다른 탭이 요청할 수 있다. */
 export const REQUEST_LOCK_TTL_MS = 30_000;
 /** 잠금으로 보호하는 요청 파일. 같은 종류의 요청은 작업공간에서 한 번에 하나만 기다린다. */

@@ -64,6 +64,8 @@ it("기다리는 사이 잠금을 잃으면 다른 탭 요청으로 바뀌었다
   const outcome = requestNlEdit(input, { cancelled: false });
   await vi.runAllTimersAsync();
   expect(await outcome).toMatchObject({ kind: "busy", message: expect.stringContaining("만료") });
+  // 연장은 새로 잡기가 아니라 renew로 보낸다(PR #296 리뷰).
+  expect(acquireRequestLock).toHaveBeenLastCalledWith("nl", "req-b", true);
 });
 
 it("뒤로/앞으로 캐시에 들어가는 pagehide는 잠금을 풀지 않고, 실제로 닫을 때만 푼다", async () => {

@@ -954,5 +954,18 @@ describe("runtime/ 요청 파일 잠금(#273)", () => {
     rmSync(join(workspaceRoot, "runtime"), { recursive: true, force: true });
     rmSync(outside, { recursive: true, force: true });
   });
+
+  it("renew=1은 새로 잡지 않는다 — 다른 탭이 가져갔다 풀어 비어 있어도 거절한다 (PR #296 리뷰)", async () => {
+    const renew = (owner: string) => fetch(`${baseUrl}/__vs/request-lock/nl?renew=1`, {
+      method: "POST", headers: { "x-visual-spec-request-owner": owner },
+    });
+    expect((await renew("tab-a")).status).toBe(409); // 잡은 적이 없다
+    await lock("POST", "nl", "tab-a");
+    expect((await renew("tab-a")).status).toBe(200);
+    await lock("DELETE", "nl", "tab-a");
+    await lock("POST", "nl", "tab-b");
+    await lock("DELETE", "nl", "tab-b");
+    expect((await renew("tab-a")).status).toBe(409);
+  });
 });
 

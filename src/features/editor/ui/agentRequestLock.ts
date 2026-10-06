@@ -52,7 +52,8 @@ export async function holdRequestLock(
     async renew() {
       if (released) return false;
       if (Date.now() - renewedAt < RENEW_INTERVAL_MS) return true;
-      const renewed = await acquireRequestLock(kind, owner);
+      // 새로 잡기가 아니라 연장이다 — 끊긴 사이 다른 탭이 가져갔다가 풀었어도 알아챈다.
+      const renewed = await acquireRequestLock(kind, owner, true);
       if (renewed === "busy") return false;
       // 일시적으로 서버에 닿지 않으면 다음 회차에 다시 시도한다 — 폴링도 같은 서버를 본다.
       if (renewed === "acquired") renewedAt = Date.now();

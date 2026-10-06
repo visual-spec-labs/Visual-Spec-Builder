@@ -66,6 +66,7 @@ import {
   WORKSPACE_RENAME_ROUTE,
   WORKSPACE_REQUEST_LOCK_ROUTE,
   WORKSPACE_REQUEST_OWNER_HEADER,
+  WORKSPACE_REQUEST_LOCK_RENEW_PARAM,
   REQUEST_LOCK_FILES,
   isRequestLockKind,
 } from "./protocol";
@@ -73,7 +74,7 @@ import { migrateToV03 } from "../editor/schema/migrate";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
 import { projectFileName } from "./projectName";
 import { checkRequestOrigin } from "./requestOrigin";
-import { acquireRequestLock, holdsRequestLock, releaseRequestLock } from "./requestLock";
+import { acquireRequestLock, holdsRequestLock, releaseRequestLock, renewRequestLock } from "./requestLock";
 import {
   isInsideWorkspace,
   matchWorkspaceRoute,
@@ -618,7 +619,8 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
       }
       try {
         if (method === "DELETE") { releaseRequestLock(root, kind, owner); sendJson(res, 200, { ok: true }); return; }
-        const lock = acquireRequestLock(root, kind, owner);
+        const renew = new URLSearchParams(url.split("#")[0].split("?")[1] ?? "").get(WORKSPACE_REQUEST_LOCK_RENEW_PARAM) === "1";
+        const lock = renew ? renewRequestLock(root, kind, owner) : acquireRequestLock(root, kind, owner);
         if (lock.ok) sendJson(res, 200, { ok: true, expiresAt: lock.expiresAt });
         else sendJson(res, 409, { ok: false, error: "다른 탭에서 보낸 요청이 아직 응답을 기다리고 있습니다.", expiresAt: lock.expiresAt });
       } catch (error) {

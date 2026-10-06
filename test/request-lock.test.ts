@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { REQUEST_LOCK_TTL_MS } from "@/features/workspace/protocol";
-import { acquireRequestLock, holdsRequestLock, releaseRequestLock } from "@/features/workspace/requestLock";
+import { acquireRequestLock, holdsRequestLock, releaseRequestLock, renewRequestLock } from "@/features/workspace/requestLock";
 
 /** 요청 파일 잠금의 임대 규칙(#273) — 기한·연장·해제. */
 let root: string;
@@ -68,5 +68,26 @@ it("잠금 주인이 풀면 id가 같은 요청 파일만 지운다", async () =
   writeFileSync(request, JSON.stringify({ id: "someone-else" }));
   releaseRequestLock(root, "ticket", "b");
   expect(existsSync(request)).toBe(true);
+});
+
+describe("연장은 새로 잡기와 다르다 (PR #296 리뷰)", () => {
+  const now = 1_000_000;
+  it("기한이 지났어도 아무도 가져가지 않았으면 연장된다", () => {
+    acquireRequestLock(root, "nl", "a", now);
+    expect(renewRequestLock(root, "nl", "a", now + REQUEST_LOCK_TTL_MS + 5_000).ok).toBe(true);
+  });
+  it("끊긴 사이 다른 탭이 가져갔다가 풀었으면, 잠금이 비어 있어도 연장을 거절한다", () => {
+    acquireRequestLock(root, "nl", "a", now);
+    acquireRequestLock(root, "nl", "b", now + REQUEST_LOCK_TTL_MS);
+    releaseRequestLock(root, "nl", "b");
+    expect(renewRequestLock(root, "nl", "a", now + REQUEST_LOCK_TTL_MS + 1).ok).toBe(false);
+    // 새로 잡기라면 허락됐을 상황이다 — 그래서 연장에 쓰면 안 된다.
+    expect(acquireRequestLock(root, "nl", "a", now + REQUEST_LOCK_TTL_MS + 1).ok).toBe(true);
+  });
+  it("다른 탭이 쥐고 있으면 연장을 거절한다", () => {
+    acquireRequestLock(root, "nl", "a", now);
+    acquireRequestLock(root, "nl", "b", now + REQUEST_LOCK_TTL_MS);
+    expect(renewRequestLock(root, "nl", "a", now + REQUEST_LOCK_TTL_MS + 1).ok).toBe(false);
+  });
 });
 

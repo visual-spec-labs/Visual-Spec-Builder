@@ -26,6 +26,7 @@ import {
   type WorkspaceDir,
   WORKSPACE_REQUEST_LOCK_ROUTE,
   WORKSPACE_REQUEST_OWNER_HEADER,
+  WORKSPACE_REQUEST_LOCK_RENEW_PARAM,
   type RequestLockKind,
 } from "@/features/workspace/protocol";
 
@@ -195,12 +196,18 @@ export async function writeWorkspaceFile(
 export type RequestLockOutcome = "acquired" | "busy" | "unavailable";
 
 /**
- * 요청 파일 잠금을 잡거나 연장한다(#273). 다른 탭의 요청이 아직 기다리는 중이면
- * `busy`다. 작업공간 미들웨어가 아니면 `unavailable`이다.
+ * 요청 파일 잠금을 잡는다. `renew`면 쥐고 있던 잠금을 연장한다(#273). 다른 탭의
+ * 요청이 아직 기다리는 중이거나, 연장하려는데 그 사이 다른 탭이 가져갔으면 `busy`다.
+ * 작업공간 미들웨어가 아니면 `unavailable`이다.
  */
-export async function acquireRequestLock(kind: RequestLockKind, owner: string): Promise<RequestLockOutcome> {
+export async function acquireRequestLock(
+  kind: RequestLockKind,
+  owner: string,
+  renew = false,
+): Promise<RequestLockOutcome> {
   try {
-    const response = await fetch(`${WORKSPACE_REQUEST_LOCK_ROUTE}${kind}`, {
+    const query = renew ? `?${WORKSPACE_REQUEST_LOCK_RENEW_PARAM}=1` : "";
+    const response = await fetch(`${WORKSPACE_REQUEST_LOCK_ROUTE}${kind}${query}`, {
       method: "POST",
       headers: { [WORKSPACE_REQUEST_OWNER_HEADER]: owner },
     });
