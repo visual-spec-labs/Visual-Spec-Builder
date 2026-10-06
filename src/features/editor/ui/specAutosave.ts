@@ -1,5 +1,6 @@
 import { migrateV01 } from "@/features/editor/schema";
 import { blankSpec } from "@/features/editor/store/blankSpec";
+import { seedSpec } from "@/features/editor/store/seedSpec";
 import { readWorkspaceSpecSnapshot } from "./workspaceClient";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
@@ -9,6 +10,17 @@ import {
   serializeStoredDocument, parseStoredDocument, projectStorageKey, readRecovery, saveSpecToStorage, loadStoredSpec,
   writeRecovery, SPEC_STORAGE_KEY, type StoredDocument,
 } from "@/features/editor/store/specStorage";
+
+/**
+ * 바로 앞 인스턴스가 멈추며 넘긴 편집 여부(#297). React StrictMode(개발)·HMR은 자동저장을
+ * 멈추자마자 다시 시작한다. 새 인스턴스가 저장소만 보고 판단하면 방금 앞 인스턴스가 쓴 탭
+ * 복구를 "다른 세션에서 복원한 문서"로 읽는다. 같은 커밋 안의 재시작에만 쓰도록 마이크로태스크
+ * 한 번 뒤에 버린다 — 진짜 새로고침·다른 탭은 이 값을 보지 못한다.
+ */
+let restartHandoff: { serialized: string; edited: boolean } | null = null;
+
+/** 첫 실행 데모 문서(seedSpec)나 빈 New 그대로인 제목 없는 문서 — 잃을 것이 없다(#297). */
+const PRISTINE_UNTITLED = [migrateV01(blankSpec), migrateV01(seedSpec)].map((spec) => JSON.stringify(spec));
 
 /** Browser lifecycle adapter; session recovery is written before any asynchronous save. */
 export function startSpecAutosave() {
@@ -45,9 +57,14 @@ export function startSpecAutosave() {
   // 전역 캐시)에서 복원한 문서는 다른 세션에서 편집만 하고 저장하지 않은 초안일 수 있다
   // — sessionStorage가 없는 새 탭도 전역 캐시에서 복원한다(PR #294 리뷰). 그래서 복원한
   // 문서는 켜 둔다. 같은 파일을 다시 열 때의 비교는 내용 기준이라, 실제로 디스크와
-  // 같으면 묻지 않는다. 제목 없는 문서는 빈 New면 잃을 것이 없다.
-  let edited = loadStoredSpec() !== undefined && (document.fileName !== null ||
-    JSON.stringify(document.spec) !== JSON.stringify(migrateV01(blankSpec)));
+  // 같으면 묻지 않는다. 제목 없는 문서는 빈 New나 첫 실행 데모 그대로면 잃을 것이 없다(#297).
+  // 바로 앞 인스턴스가 넘긴 값이 있으면(같은 문서의 즉시 재시작) 저장소로 다시 추측하지 않는다.
+  const handoff = restartHandoff;
+  restartHandoff = null;
+  let edited = handoff !== null && handoff.serialized === serializeStoredDocument(document)
+    ? handoff.edited
+    : loadStoredSpec() !== undefined &&
+      (document.fileName !== null || !PRISTINE_UNTITLED.includes(JSON.stringify(document.spec)));
 
   function read(storageKey: string): string | null {
     try { return localStorage.getItem(storageKey); } catch { return null; }
@@ -305,6 +322,9 @@ export function startSpecAutosave() {
     stopped = true;
     clearTimeout(timer);
     preserve();
+    const handed = { serialized: serializeStoredDocument(document), edited };
+    restartHandoff = handed;
+    queueMicrotask(() => { if (restartHandoff === handed) restartHandoff = null; });
     unsubscribeSpec();
     unsubscribeFile();
     window.removeEventListener("storage", storage);

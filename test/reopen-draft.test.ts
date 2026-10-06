@@ -6,6 +6,7 @@ import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore"
 import { parseStoredDocument, projectStorageKey, saveSpecToStorage, serializeStoredDocument } from "@/features/editor/store/specStorage";
 import { openHomeProject } from "@/features/editor/ui/homeProjects";
 import { newSpec } from "@/features/editor/ui/newSpec";
+import { seedSpec } from "@/features/editor/store/seedSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import { startSpecAutosave } from "@/features/editor/ui/specAutosave";
 import { readWorkspaceSpecSnapshot } from "@/features/editor/ui/workspaceClient";
@@ -213,6 +214,68 @@ describe("sessionStorage 없는 새 탭이 복원한 이름 있는 초안 (PR #2
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(useSaveConflictStore.getState().paused).toBe(false);
+  });
+});
+
+describe("편집하지 않은 첫 실행 데모 문서는 묻지 않는다 (#297)", () => {
+  const login = { fileName: "same.json", spec: initial, diskRevision: "loaded-revision" };
+  /** 첫 실행 화면 — 저장된 것 없이 데모 문서(seedSpec)가 제목 없는 문서로 뜬다. */
+  function firstRunDemo() {
+    useEditorStore.getState().loadSpec(seedSpec);
+    useDocumentStore.getState().clearFileName();
+  }
+
+  it("첫 실행에서 StrictMode처럼 곧바로 재시작해도 홈 카드를 묻지 않고 연다", async () => {
+    const confirm = vi.mocked(window.confirm);
+    firstRunDemo();
+    stop = startSpecAutosave();
+    stop(); // React StrictMode(개발)는 마운트 직후 한 번 멈췄다가
+    stop = startSpecAutosave(); // 같은 커밋 안에서 다시 시작한다
+
+    expect(await openHomeProject(login)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(useDocumentStore.getState().fileName).toBe("same.json");
+  });
+
+  it("데모 문서가 저장소에 남은 뒤 새로고침해도 묻지 않는다", async () => {
+    const confirm = vi.mocked(window.confirm);
+    firstRunDemo();
+    saveSpecToStorage(useEditorStore.getState().spec, null); // 첫 실행 자동저장이 남긴 데모
+    stop = startSpecAutosave();
+
+    expect(await openHomeProject(login)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("재시작 직전에 편집했으면 이어받아 계속 묻는다 — 저장소 추측이 아니라 실제 편집 여부다", async () => {
+    const confirm = vi.mocked(window.confirm);
+    firstRunDemo();
+    stop = startSpecAutosave();
+    editPageName("데모를 고쳤다");
+    stop();
+    stop = startSpecAutosave();
+
+    confirm.mockReturnValueOnce(false);
+    expect(await newSpec()).toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
+  });
+
+  it("넘겨받는 값은 바로 다음 재시작에만 쓰이고, 그 뒤 실행으로 새지 않는다", async () => {
+    const confirm = vi.mocked(window.confirm);
+    firstRunDemo();
+    stop = startSpecAutosave();
+    editPageName("앞 실행의 편집");
+    stop();
+    await Promise.resolve(); // 같은 커밋이 끝났다 — 이후 시작은 재시작이 아니다
+    stop = undefined;
+
+    useEditorStore.getState().loadSpec(seedSpec); // 새 페이지 로드처럼 데모로 시작
+    useDocumentStore.getState().clearFileName();
+    vi.stubGlobal("sessionStorage", storage()); // 새 페이지 — 저장된 것이 없다
+    vi.stubGlobal("localStorage", storage());
+    stop = startSpecAutosave();
+    expect(await openHomeProject(login)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
   });
 });
 
