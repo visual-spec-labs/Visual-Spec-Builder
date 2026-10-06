@@ -72,6 +72,12 @@ export function startDiskWatch(): () => void {
   // 열기·저장·이름 변경·불러오기는 모두 파일명이나 디스크 버전을 새로 정한다.
   const unsubscribeDocument = useDocumentStore.subscribe((s, prev) => {
     if (s.fileName !== prev.fileName || s.diskRevision !== prev.diskRevision) {
+      // 문서나 디스크 버전이 바뀌었으면(저장·충돌 덮어쓰기·다른 파일 열기) 떠 있던 "불러올까요"는
+      // 낡았다 — 그대로 두면 지난 버전을 불러와 화면과 버전이 디스크와 어긋난다(#279 리뷰).
+      const shown = useAgentEditStore.getState().diskNotice;
+      if (shown?.kind === "diskChanged" && (shown.fileName !== s.fileName || shown.baseRevision !== s.diskRevision)) {
+        useAgentEditStore.setState({ diskNotice: null });
+      }
       if (baselineRevision !== s.diskRevision || s.fileName !== prev.fileName) void refreshBaseline();
     }
   });
@@ -97,7 +103,16 @@ export function startDiskWatch(): () => void {
       // 기다리는 사이 다른 문서로 옮겼거나 저장으로 버전이 바뀌었으면 이번 결과는 쓰지 않는다.
       const now = useDocumentStore.getState();
       if (now.fileName !== fileName || now.diskRevision !== diskRevision) return;
-      if (snapshot.revision === diskRevision || snapshot.revision === keptRevision) return;
+      if (snapshot.revision === diskRevision) {
+        // 열기·저장 뒤 기준 읽기가 실패했으면(일시 오류) 여기서 다시 잡는다 — 그러지 않으면 다음
+        // 열기·저장 전까지 바깥 변경을 모두 "미저장 편집이 있다"로 묻는다(#279 리뷰).
+        if (baselineRevision !== diskRevision) {
+          const spec = parseDisk(snapshot.text);
+          if (spec !== null) { baselineJson = toJson(spec); baselineRevision = diskRevision; }
+        }
+        return;
+      }
+      if (snapshot.revision === keptRevision) return;
       // 같은 버전을 이미 묻고 있다 — 3초마다 다시 띄우지 않는다(#279 리뷰).
       const shown = useAgentEditStore.getState().diskNotice;
       if (shown?.kind === "diskChanged" && shown.revision === snapshot.revision) return;
@@ -121,7 +136,7 @@ export function startDiskWatch(): () => void {
         useAgentEditStore.setState({ diskNotice: { kind: "diskImported", fileName, spec: useEditorStore.getState().spec } });
         return;
       }
-      useAgentEditStore.setState({ diskNotice: { kind: "diskChanged", fileName, revision: snapshot.revision, spec } });
+      useAgentEditStore.setState({ diskNotice: { kind: "diskChanged", fileName, baseRevision: diskRevision, revision: snapshot.revision, spec } });
     } finally {
       checking = false;
     }
@@ -132,7 +147,8 @@ export function startDiskWatch(): () => void {
       const notice = useAgentEditStore.getState().diskNotice;
       if (notice?.kind !== "diskChanged") return;
       useAgentEditStore.setState({ diskNotice: null });
-      if (useDocumentStore.getState().fileName !== notice.fileName) return;
+      const doc = useDocumentStore.getState();
+      if (doc.fileName !== notice.fileName || doc.diskRevision !== notice.baseRevision) return;
       if (!load) { keptRevision = notice.revision; return; }
       adopt(notice.fileName, notice.spec, notice.revision);
     },

@@ -26,7 +26,12 @@ export type DiskChangeNotice =
   /** 열린 파일이 디스크에서 바뀌어 불러왔다(미저장 편집 없음) — Undo로 되돌릴 수 있다. */
   | { kind: "diskImported"; fileName: string; spec: ProjectSpec }
   /** 열린 파일이 디스크에서 바뀌었는데 미저장 편집이 있다 — 불러올지 묻는다. */
-  | { kind: "diskChanged"; fileName: string; revision: string; spec: ProjectSpec }
+  | {
+      kind: "diskChanged"; fileName: string;
+      /** 물을 때 문서가 가리키던 디스크 버전. 그 뒤 저장 등으로 바뀌었으면 이 질문은 낡았다. */
+      baseRevision: string | null;
+      revision: string; spec: ProjectSpec;
+    }
   /** 디스크의 새 내용이 검증에 실패해 불러오지 않았다. */
   | { kind: "diskInvalid"; fileName: string; issueCount: number };
 

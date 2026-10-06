@@ -182,5 +182,35 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
     expect(useAgentEditStore.getState().diskNotice).toBe(asked);
     expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "applied" });
   });
+
+  it("저장(충돌 덮어쓰기)으로 디스크 버전이 바뀌면 떠 있던 불러오기 질문은 지워지고, 낡은 질문으로 불러오지 않는다", async () => {
+    await watch();
+    useEditorStore.getState().setNodeField("headerTitle", "content", "내 편집");
+    setDisk(withTitle("에이전트 변경"), "rev-2");
+    await tick();
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskChanged", revision: "rev-2" });
+    const stale = useAgentEditStore.getState().diskNotice;
+
+    // 사용자가 무시하고 저장 → 충돌 대화상자에서 덮어쓰기: 디스크는 rev-3(내 편집)
+    setDisk(useEditorStore.getState().spec, "rev-3");
+    useDocumentStore.getState().setFileName("same.json", "rev-3");
+    expect(useAgentEditStore.getState().diskNotice).toBeNull();
+
+    // 낡은 질문이 어떻게든 남아 응답돼도 지난 버전을 불러오지 않는다
+    useAgentEditStore.setState({ diskNotice: stale });
+    useAgentEditStore.getState().resolveDiskChange(true);
+    expect(title()).toBe("내 편집");
+    expect(useDocumentStore.getState().diskRevision).toBe("rev-3");
+  });
+
+  it("열 때 기준 읽기가 실패해도 다음 감시에서 다시 잡아, 미저장 편집이 없으면 그대로 불러온다", async () => {
+    vi.mocked(readWorkspaceSpecSnapshot).mockImplementationOnce(async () => null); // 일시 오류
+    await watch();
+    await tick(); // 디스크는 그대로 — 여기서 기준을 다시 잡는다
+    setDisk(withTitle("에이전트 변경"), "rev-2");
+    await tick();
+    expect(title()).toBe("에이전트 변경");
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskImported" });
+  });
 });
 
