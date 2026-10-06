@@ -1,0 +1,93 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { REQUEST_LOCK_TTL_MS } from "@/features/workspace/protocol";
+import { acquireRequestLock, holdsRequestLock, releaseRequestLock, renewRequestLock } from "@/features/workspace/requestLock";
+
+/** 요청 파일 잠금의 임대 규칙(#273) — 기한·연장·해제. */
+let root: string;
+beforeEach(() => { root = mkdtempSync(join(tmpdir(), "visual-spec-lock-")); });
+afterEach(() => { rmSync(root, { recursive: true, force: true }); });
+
+it("기한 안의 남의 잠금은 못 잡고, 기한이 지나면 가져간다", () => {
+  const now = 1_000_000;
+  expect(acquireRequestLock(root, "nl", "a", now).ok).toBe(true);
+  expect(acquireRequestLock(root, "nl", "b", now + REQUEST_LOCK_TTL_MS - 1).ok).toBe(false);
+  expect(acquireRequestLock(root, "nl", "b", now + REQUEST_LOCK_TTL_MS).ok).toBe(true);
+  expect(holdsRequestLock(root, "nl", "a", now + REQUEST_LOCK_TTL_MS)).toBe(false);
+  expect(holdsRequestLock(root, "nl", "b", now + REQUEST_LOCK_TTL_MS)).toBe(true);
+});
+
+it("주인이 다시 잡으면 기한이 연장된다", () => {
+  const now = 1_000_000;
+  acquireRequestLock(root, "ticket", "a", now);
+  acquireRequestLock(root, "ticket", "a", now + REQUEST_LOCK_TTL_MS - 1);
+  expect(acquireRequestLock(root, "ticket", "b", now + REQUEST_LOCK_TTL_MS + 1).ok).toBe(false);
+});
+
+it("만료 뒤 다른 탭이 가져간 잠금은 이전 주인이 풀지 못한다", () => {
+  const now = 1_000_000;
+  acquireRequestLock(root, "nl", "a", now);
+  acquireRequestLock(root, "nl", "b", now + REQUEST_LOCK_TTL_MS);
+  releaseRequestLock(root, "nl", "a");
+  expect(holdsRequestLock(root, "nl", "b", now + REQUEST_LOCK_TTL_MS)).toBe(true);
+  releaseRequestLock(root, "nl", "b");
+  expect(acquireRequestLock(root, "nl", "c", now + REQUEST_LOCK_TTL_MS).ok).toBe(true);
+});
+
+it("다른 프로세스가 갱신 중(문지기가 있음)이면 판단하지 않고 실패한다", async () => {
+  const { mkdirSync } = await import("node:fs");
+  mkdirSync(join(root, "runtime"), { recursive: true });
+  mkdirSync(join(root, "runtime", ".nl-request.lock.mutex"));
+  expect(() => acquireRequestLock(root, "nl", "a")).toThrow();
+  expect(holdsRequestLock(root, "nl", "a")).toBe(false);
+});
+
+it("갱신 중 죽은 프로세스가 남긴 오래된 문지기는 치우고 진행한다", async () => {
+  const { mkdirSync, utimesSync } = await import("node:fs");
+  const mutex = join(root, "runtime", ".nl-request.lock.mutex");
+  mkdirSync(mutex, { recursive: true });
+  const old = new Date(Date.now() - 60_000);
+  utimesSync(mutex, old, old);
+  expect(acquireRequestLock(root, "nl", "a").ok).toBe(true);
+});
+
+it("잠금 주인이 풀면 id가 같은 요청 파일만 지운다", async () => {
+  const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
+  mkdirSync(join(root, "runtime"), { recursive: true });
+  const request = join(root, "runtime", "ticket-request.json");
+  acquireRequestLock(root, "ticket", "a");
+  writeFileSync(request, JSON.stringify({ id: "a" }));
+  releaseRequestLock(root, "ticket", "a");
+  expect(existsSync(request)).toBe(false);
+
+  acquireRequestLock(root, "ticket", "b");
+  writeFileSync(request, JSON.stringify({ id: "someone-else" }));
+  releaseRequestLock(root, "ticket", "b");
+  expect(existsSync(request)).toBe(true);
+});
+
+describe("연장은 새로 잡기와 다르다 (PR #296 리뷰)", () => {
+  const now = 1_000_000;
+  it("기한이 지났어도 아무도 가져가지 않았으면 연장된다", () => {
+    acquireRequestLock(root, "nl", "a", now);
+    expect(renewRequestLock(root, "nl", "a", now + REQUEST_LOCK_TTL_MS + 5_000).ok).toBe(true);
+  });
+  it("끊긴 사이 다른 탭이 가져갔다가 풀었으면, 잠금이 비어 있어도 연장을 거절한다", () => {
+    acquireRequestLock(root, "nl", "a", now);
+    acquireRequestLock(root, "nl", "b", now + REQUEST_LOCK_TTL_MS);
+    releaseRequestLock(root, "nl", "b");
+    expect(renewRequestLock(root, "nl", "a", now + REQUEST_LOCK_TTL_MS + 1).ok).toBe(false);
+    // 새로 잡기라면 허락됐을 상황이다 — 그래서 연장에 쓰면 안 된다.
+    expect(acquireRequestLock(root, "nl", "a", now + REQUEST_LOCK_TTL_MS + 1).ok).toBe(true);
+  });
+  it("다른 탭이 쥐고 있으면 연장을 거절한다", () => {
+    acquireRequestLock(root, "nl", "a", now);
+    acquireRequestLock(root, "nl", "b", now + REQUEST_LOCK_TTL_MS);
+    expect(renewRequestLock(root, "nl", "a", now + REQUEST_LOCK_TTL_MS + 1).ok).toBe(false);
+  });
+});
+

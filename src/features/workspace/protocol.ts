@@ -137,3 +137,24 @@ export const WORKSPACE_RENAME_ROUTE = `${WORKSPACE_API_PREFIX}/rename`;
 export const WORKSPACE_REVISION_HEADER = "x-visual-spec-revision";
 export const WORKSPACE_EXPECTED_REVISION_HEADER = "x-visual-spec-expected-revision";
 export const WORKSPACE_MISSING_REVISION = "missing";
+
+/**
+ * 에이전트 요청 파일 잠금(이슈 #273). `POST`로 잡거나 연장하고 `DELETE`로 푼다.
+ * 경로 끝이 종류다: `/__vs/request-lock/nl`, `/__vs/request-lock/ticket`.
+ * 잠금 주인(요청 id)은 헤더로 보내고, 요청 파일 PUT에도 같은 헤더가 있어야 한다.
+ */
+export const WORKSPACE_REQUEST_LOCK_ROUTE = `${WORKSPACE_API_PREFIX}/request-lock/`;
+export const WORKSPACE_REQUEST_OWNER_HEADER = "x-visual-spec-request-owner";
+/** `POST ...?renew=1`은 새로 잡지 않고, 주인이 여전히 나인 잠금만 연장한다(PR #296 리뷰). */
+export const WORKSPACE_REQUEST_LOCK_RENEW_PARAM = "renew";
+/** 연장 없이 잠금이 유지되는 시간. 탭이 사라져도 이 시간 뒤엔 다른 탭이 요청할 수 있다. */
+export const REQUEST_LOCK_TTL_MS = 30_000;
+/** 잠금으로 보호하는 요청 파일. 같은 종류의 요청은 작업공간에서 한 번에 하나만 기다린다. */
+export const REQUEST_LOCK_FILES = {
+  nl: "runtime/nl-request.json",
+  ticket: "runtime/ticket-request.json",
+} as const;
+export type RequestLockKind = keyof typeof REQUEST_LOCK_FILES;
+export function isRequestLockKind(value: string): value is RequestLockKind {
+  return Object.prototype.hasOwnProperty.call(REQUEST_LOCK_FILES, value);
+}

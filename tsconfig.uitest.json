@@ -28,5 +28,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["test/rename-project.test.ts", "test/spec-autosave.test.ts", "test/document-path.test.ts", "test/ticket-runner.test.ts", "test/home-projects.test.ts", "test/workspace-list-metadata.test.ts", "test/open-conflict.test.ts", "test/image-asset-import.test.ts", "test/reopen-draft.test.ts"]
+  "include": ["test/rename-project.test.ts", "test/spec-autosave.test.ts", "test/document-path.test.ts", "test/ticket-runner.test.ts", "test/home-projects.test.ts", "test/workspace-list-metadata.test.ts", "test/open-conflict.test.ts", "test/image-asset-import.test.ts", "test/reopen-draft.test.ts", "test/agent-request-lock.test.ts"]
 }
