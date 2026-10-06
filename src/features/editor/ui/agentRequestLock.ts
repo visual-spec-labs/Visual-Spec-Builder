@@ -25,11 +25,13 @@ export interface HeldRequestLock {
 export async function holdRequestLock(
   kind: RequestLockKind,
   owner: string,
+  isCancelled: () => boolean = () => false,
 ): Promise<HeldRequestLock | "busy" | "unavailable"> {
   let acquired = await acquireRequestLock(kind, owner);
   // 같은 탭에서 취소 직후 다시 요청하면 이전 폴링 루프가 다음 회차(최대 1초)에야
   // 잠금을 푼다. 그 사이를 다른 탭의 요청으로 안내하지 않도록 잠깐 다시 시도한다.
-  for (let retry = 0; acquired === "busy" && retry < BUSY_RETRIES; retry++) {
+  // 재시도 중 사용자가 취소하면 더 기다리지 않는다(PR #296 리뷰).
+  for (let retry = 0; acquired === "busy" && retry < BUSY_RETRIES && !isCancelled(); retry++) {
     await new Promise((resolve) => setTimeout(resolve, BUSY_RETRY_MS));
     acquired = await acquireRequestLock(kind, owner);
   }

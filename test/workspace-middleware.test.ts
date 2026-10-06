@@ -864,6 +864,7 @@ describe("project rename (#227)", () => {
   });
 });
 
+let lateRequests: (() => void)[] | undefined;
 describe("runtime/ 요청 파일 잠금(#273)", () => {
   const lock = (method: string, kind: string, owner?: string) =>
     fetch(`${baseUrl}/__vs/request-lock/${kind}`, {
@@ -966,6 +967,40 @@ describe("runtime/ 요청 파일 잠금(#273)", () => {
     await lock("POST", "nl", "tab-b");
     await lock("DELETE", "nl", "tab-b");
     expect((await renew("tab-a")).status).toBe(409);
+  });
+
+  it("본문이 늦게 도착하는 사이 잠금이 넘어가면 늦은 PUT은 거절되고 새 주인의 요청이 남는다 (PR #296 리뷰)", async () => {
+    for (const kind of ["nl", "ticket"] as const) {
+      const file = `${kind}-request.json`;
+      expect((await lock("POST", kind, "tab-a")).status).toBe(200);
+
+      // A의 PUT — 헤더와 본문 일부만 보내고 멈춘다.
+      const late = new Promise<{ status: number; text: string }>((resolve, reject) => {
+        const req = request({ host: "127.0.0.1", port, method: "PUT", path: `/__vs/file/runtime/${file}`,
+          headers: { "x-visual-spec-expected-revision": "missing", "x-visual-spec-request-owner": "tab-a", "content-type": "application/json" } }, (res) => {
+          let text = "";
+          res.setEncoding("utf8");
+          res.on("data", (chunk: string) => (text += chunk));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, text }));
+        });
+        req.on("error", reject);
+        req.write('{"protocol":1,');
+        (lateRequests ??= []).push(() => req.end('"id":"tab-a"}'));
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // 그 사이 A가 잠금을 풀고(탭 닫기 등) B가 잡아 자기 요청을 쓴다.
+      await lock("DELETE", kind, "tab-a");
+      expect((await lock("POST", kind, "tab-b")).status).toBe(200);
+      expect((await putRequest(file, "tab-b")).status).toBe(200);
+
+      // A의 남은 본문이 도착한다.
+      lateRequests!.shift()!();
+      const result = await late;
+      expect(result.status, kind).toBe(409);
+      expect(JSON.parse(readFileSync(join(workspaceRoot, "runtime", file), "utf8")).id, kind).toBe("tab-b");
+      await lock("DELETE", kind, "tab-b");
+    }
   });
 });
 

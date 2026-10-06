@@ -74,7 +74,7 @@ import { migrateToV03 } from "../editor/schema/migrate";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
 import { projectFileName } from "./projectName";
 import { checkRequestOrigin } from "./requestOrigin";
-import { acquireRequestLock, holdsRequestLock, releaseRequestLock, renewRequestLock } from "./requestLock";
+import { acquireRequestLock, holdsRequestLock, releaseRequestLock, renewRequestLock, writeIfLockHeld } from "./requestLock";
 import {
   isInsideWorkspace,
   matchWorkspaceRoute,
@@ -380,6 +380,8 @@ function handleWrite(
   workspaceRoot: string,
   absolutePath: string,
   relativePath: string,
+  // 잠금으로 보호되는 요청 파일(#273)이면 쓰기를 감싼다 — 잠금 주인일 때만 쓰고 true.
+  guardWrite?: (write: () => void) => boolean,
 ): void {
   readBody(req, (body) => {
     if (body === null) {
@@ -415,7 +417,14 @@ function handleWrite(
           return;
         }
       }
-      writeFileAtomic(absolutePath, body);
+      if (guardWrite) {
+        if (!guardWrite(() => writeFileAtomic(absolutePath, body))) {
+          sendError(res, 409, "본문을 받는 사이 이 요청의 잠금이 풀리거나 다른 탭으로 넘어갔습니다. 요청 파일을 쓰지 않았습니다.");
+          return;
+        }
+      } else {
+        writeFileAtomic(absolutePath, body);
+      }
       if (relativePath.startsWith("specs/")) res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
     } catch (error) {
       sendError(res, 500, error instanceof Error ? error.message : String(error));
@@ -692,7 +701,9 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
           sendError(res, 409, "다른 탭에서 보낸 요청이 아직 응답을 기다리고 있거나, 이 요청의 잠금이 만료됐습니다.");
           return;
         }
-        handleWrite(req, res, root, resolved.absolutePath, resolved.relativePath);
+        const ownerId = typeof owner === "string" ? owner : undefined;
+        handleWrite(req, res, root, resolved.absolutePath, resolved.relativePath,
+          lockKind === undefined ? undefined : (write) => writeIfLockHeld(root, lockKind, ownerId, write));
       }
       return;
     }

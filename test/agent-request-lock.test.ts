@@ -88,3 +88,28 @@ it("뒤로/앞으로 캐시에 들어가는 pagehide는 잠금을 풀지 않고,
   await vi.runAllTimersAsync();
   await outcome;
 });
+
+it("잠금 재시도 중 취소되면 잠금을 얻어도 요청 파일을 쓰지 않고 풀며 취소로 끝난다 (PR #296 리뷰)", async () => {
+  vi.mocked(acquireRequestLock).mockResolvedValueOnce("busy").mockResolvedValue("acquired");
+  const token = { cancelled: false };
+  const outcome = requestNlEdit(input, token);
+  await vi.advanceTimersByTimeAsync(10);
+  token.cancelled = true;
+  await vi.runAllTimersAsync();
+  expect(await outcome).toEqual({ kind: "cancelled" });
+  expect(writeWorkspaceFile).not.toHaveBeenCalled();
+  expect(releaseRequestLock).toHaveBeenCalledWith("nl", "req-b", false);
+});
+
+it("계속 사용 중인 잠금을 기다리다 취소하면 재시도를 멈추고 취소로 끝난다", async () => {
+  vi.mocked(acquireRequestLock).mockResolvedValue("busy");
+  const token = { cancelled: false };
+  const outcome = requestNlEdit(input, token);
+  await vi.advanceTimersByTimeAsync(10);
+  token.cancelled = true;
+  await vi.runAllTimersAsync();
+  expect(await outcome).toEqual({ kind: "cancelled" });
+  expect(vi.mocked(acquireRequestLock).mock.calls.length).toBeLessThanOrEqual(2);
+  expect(writeWorkspaceFile).not.toHaveBeenCalled();
+});
+

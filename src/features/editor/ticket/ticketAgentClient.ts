@@ -85,14 +85,18 @@ export async function requestTicketBatch(
   const request = buildTicketRequest(input);
 
   // 같은 작업공간의 다른 탭 요청을 덮어쓰지 않도록 요청 파일 잠금부터 잡는다(#273).
-  const lock = await holdRequestLock("ticket", request.id);
+  const lock = await holdRequestLock("ticket", request.id, () => cancel.cancelled);
   if (lock === "busy") {
+    if (cancel.cancelled) return { kind: "cancelled" };
     return {
       kind: "busy",
       message: "다른 탭(창)에서 보낸 티켓 실행 요청이 아직 응답을 기다리고 있습니다. 그 요청이 끝나거나 취소된 뒤 다시 시도하세요.",
     };
   }
   try {
+    // 잠금을 기다리는 사이 취소됐으면 요청 파일을 쓰지 않는다 — 쓰면 외부 에이전트가 정리 전에
+    // 읽고 실행할 수 있다(PR #296 리뷰). 잠금은 아래 finally가 푼다.
+    if (cancel.cancelled) return { kind: "cancelled" };
     return await waitForTicketResponse(request, cancel, lock === "unavailable" ? null : lock);
   } finally {
     if (lock !== "unavailable") lock.release();

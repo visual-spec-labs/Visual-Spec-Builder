@@ -150,6 +150,25 @@ export function releaseRequestLock(workspaceRoot: string, kind: RequestLockKind,
   });
 }
 
+/**
+ * 잠금 주인일 때만 `write`를 실행한다 — 확인과 쓰기를 잡기·풀기와 **같은 문지기 안에서**
+ * 한 번에 한다(PR #296 리뷰). 본문을 받기 전에 확인만 하고 받은 뒤 그냥 쓰면, 본문이 늦게
+ * 도착하는 사이 잠금이 풀리고 다른 탭이 새 요청을 쓴 경우 늦은 본문이 그 요청을 덮는다.
+ * 쓰지 않았으면 false.
+ */
+export function writeIfLockHeld(
+  workspaceRoot: string,
+  kind: RequestLockKind,
+  owner: string | undefined,
+  write: () => void,
+): boolean {
+  return withLockMutex(workspaceRoot, kind, () => {
+    if (!holdsRequestLock(workspaceRoot, kind, owner)) return false;
+    write();
+    return true;
+  });
+}
+
 /** 요청 파일 쓰기는 기한 안의 잠금 주인만 할 수 있다. */
 export function holdsRequestLock(
   workspaceRoot: string,
