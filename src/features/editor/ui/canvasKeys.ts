@@ -12,6 +12,7 @@ import {
   isSpacePanKey,
   nodeClipboardCommandForKey,
   nodeGroupCommandForKey,
+  shouldConsumeToolbarFocusHandoff,
   shouldDeleteSelection,
   siblingNavDirectionForKey,
   toolForKey,
@@ -50,9 +51,13 @@ export function useCanvasKeys(
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (useSaveConflictStore.getState().paused) return;
-      // 도구 모음이 막 포커스를 떼 간 다음의 keydown 한 번인가(#275 리뷰 대응,
-      // Toolbar.tsx의 같은 이름 신호 주석 참고). 읽는 동시에 꺼진다 — 1회성이다.
-      const toolbarFocusHandoff = useViewStore.getState().consumeToolbarFocusHandoffPending();
+      // 도구 모음이 막 포커스를 떼 간 다음의 Tab 한 번인가(#275 리뷰 대응,
+      // Toolbar.tsx의 같은 이름 신호 주석 참고). `Tab`에서만 읽고 끈다(1회성) —
+      // shouldConsumeToolbarFocusHandoff 주석 참고. 다른 키(Shift 단독 keydown
+      // 포함)에서는 신호를 그대로 남겨 둔다.
+      const toolbarFocusHandoff = shouldConsumeToolbarFocusHandoff(event.code)
+        ? useViewStore.getState().consumeToolbarFocusHandoffPending()
+        : false;
       const target = event.target as HTMLElement | null;
       const keyInput = {
         code: event.code,
@@ -144,15 +149,9 @@ export function useCanvasKeys(
 
       // 형제 이동(#151). Tab은 브라우저의 포커스 이동 키라 판정 자체가
       // "선택이 있을 때만"(hasSelection) 훔친다 — siblingNavDirectionForKey 주석 참고.
-      //
-      // `toolbarFocusHandoff`가 true면 이 keydown은 도구 모음이 숨으며 포커스를
-      // 뗀 바로 다음 Tab이다 — isActivationTarget 예외(버튼·링크에 포커스가 있을
-      // 때)와 같은 취지로 한 번 더 물러난다. `target`이 `body`라 태그 기준
-      // 예외는 못 받지만, 맥락은 "방금까지 컨트롤을 쓰고 있었다"와 같다(#151 §2:
-      // 패널·도구 모음 접근을 막으면 안 된다). 캔버스 클릭으로 고른 선택은 이
-      // 신호가 꺼져 있으니 형제 이동이 그대로 적용된다.
+      // `toolbarFocusHandoff`를 그대로 넘긴다 — 물러나는 판단은 그 함수 안에서 한다.
       const { selectedId: siblingTarget, select: selectSibling } = useEditorStore.getState();
-      const siblingDirection = toolbarFocusHandoff ? null : siblingNavDirectionForKey({
+      const siblingDirection = siblingNavDirectionForKey({
         code: event.code,
         ctrlKey: event.ctrlKey,
         metaKey: event.metaKey,
@@ -162,6 +161,7 @@ export function useCanvasKeys(
         contentEditable: target?.isContentEditable ?? false,
         role: target?.getAttribute("role") ?? undefined,
         hasSelection: siblingTarget !== null,
+        toolbarFocusHandoff,
       });
       if (siblingDirection !== null && siblingTarget !== null) {
         event.preventDefault();

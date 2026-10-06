@@ -172,6 +172,55 @@ vs `clientH` 665)를 만든 뒤:
 그대로 전부 통과 — `siblingNavDirectionForKey` 자체의 분기는 건드리지 않고
 호출 여부만 게이팅했기 때문이다.
 
+## 리뷰 3차 대응 — "모든 keydown에서 소비"가 실제 Shift+Tab 순서를 놓침 (2026-10-08)
+
+팀원이 수정된 HEAD(b632d43)를 직접 Node 격리 하네스(DOM·스토어는 mock)로 돌려
+회귀를 하나 더 찾았다: `canvasKeys.ts`가 `toolbarFocusHandoffPending`을 **모든
+keydown에서** 소비하고 있었는데, 실제 키보드로 Shift+Tab을 누르면 `ShiftLeft`/
+`ShiftRight` keydown이 `Tab` keydown보다 **먼저 따로** 들어온다. 그러면 그
+Shift keydown이 신호를 먼저 소비해 버려서, 바로 뒤에 오는 진짜 `Tab`
+(`shiftKey: true`)은 신호 없이 도착해 형제 이동(이전 형제)으로 그대로 넘어간다
+— 역방향(Shift+Tab)만 이 회귀에 걸리고, 정방향 Tab은 (보통 단독으로 눌려
+modifier keydown이 안 끼어서) 문제가 없었다.
+
+**원인**: "소비 시점"을 `handleKeyDown` 맨 앞, 모든 키에 대해 무조건 실행되게
+짰다 — "다른 키를 먼저 누르면 맥락이 낡은 것으로 본다"는 의도였는데, Shift
+단독 keydown까지 "다른 키"로 쳐버린 것이 문제였다.
+
+**수정**: 소비 시점을 `Tab` keydown으로만 좁혔다.
+- `canvasInput.ts`에 `shouldConsumeToolbarFocusHandoff(code): boolean`을
+  추가했다(`code === "Tab"`일 때만 true) — 순수 함수라 바로 단위 테스트할 수
+  있다.
+- `canvasKeys.ts`는 이제 `shouldConsumeToolbarFocusHandoff(event.code)`가
+  참일 때만 `consumeToolbarFocusHandoffPending()`을 부른다. Shift 단독
+  keydown을 포함한 다른 모든 키는 신호를 건드리지 않고 그대로 남긴다.
+- 겸사겸사 게이팅 로직 자체도 `canvasKeys.ts`의 삼항 연산자(`toolbarFocusHandoff
+  ? null : siblingNavDirectionForKey(...)`)에서 `SiblingNavKeyInput`의 새 필드
+  `toolbarFocusHandoff`로 옮겼다 — "물러나는 판단"은 전부 `canvasInput.ts`의
+  순수 함수 안에 모은다는 이 파일의 기존 원칙(`isActivationTarget`과 같은
+  자리)과 맞추고, 기존 `siblingNavDirectionForKey` 테스트 스위트에 바로
+  편입된다.
+
+**검증**: `test/canvas-input.test.ts`에 테스트 4개를 추가했다(92개로 증가,
+기존 88개는 무변경 통과):
+- `siblingNavDirectionForKey`가 `toolbarFocusHandoff: true`일 때 정방향·역방향
+  둘 다 `null`을 돌려주는지(형제 이동에서 물러나는지)
+- `shouldConsumeToolbarFocusHandoff`가 `"Tab"`에서만 `true`이고,
+  `ShiftLeft`/`ShiftRight`/`ControlLeft`/`AltLeft`/`MetaLeft`(단독 modifier)와
+  그 밖의 키(`KeyD`/`Escape`)에서는 `false`인지 — 이번 회귀의 정확한 재현
+  조건(“Shift 단독 keydown이 신호를 먼저 먹는가”)을 pure function 레벨에서
+  고정했다.
+
+**실제 브라우저의 "물리적으로 분리된 Shift→Tab keydown"은 이번에도 자동화로
+재현하지 않았다.** 팀원도 자신의 검증을 "DOM·스토어는 mock이고 실제 React
+렌더링/브라우저 재현은 아니다"라고 명시했듯, CDP 기반 자동화 키 입력은 보통
+"Shift+Tab"을 단일 합성 이벤트(`shiftKey: true`인 `Tab` 하나)로 보내 두
+keydown이 분리되는 실제 키보드 동작을 그대로 재현하기 어렵다(이 QA 문서에
+누적된 자동화 한계와 같은 종류). 대신 이 회귀의 근본 원인(소비 시점)을 pure
+function으로 명확히 분리하고 그 함수를 직접 테스트하는 쪽이, 이 저장소의
+실제 테스트 가능 경계 안에서 가장 결정적인 근거라고 판단했다 — 팀원이 쓴
+"Node 격리 하네스"와 같은 층위의 검증이다.
+
 ## 결론
 
 - 완료 조건 "숨긴 툴바에 Tab/Shift+Tab으로 진입하지 않는다" — `inert`로 보장됨을
@@ -189,3 +238,8 @@ vs `clientH` 665)를 만든 뒤:
   #151 주 경로는 그대로 두고, 실제 컴포넌트·실제 스크롤·실제 키 입력으로 두
   경로(도구 모음에서 떨어진 포커스 vs 캔버스 직접 클릭)가 서로 다르게 동작함을
   확인
+- 리뷰 3차 대응: "모든 keydown에서 소비"가 실제 키보드의 분리된 Shift→Tab
+  keydown 순서를 놓쳐 역방향(Shift+Tab)만 회귀시킨 것을 발견 — 소비 시점을
+  `Tab` keydown으로만 좁히고(`shouldConsumeToolbarFocusHandoff`), 물러나는
+  판단 자체도 `siblingNavDirectionForKey`(`canvasInput.ts`) 안으로 옮겨 기존
+  순수 함수 테스트 스위트에 편입(92개로 증가)

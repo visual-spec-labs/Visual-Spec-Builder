@@ -10,6 +10,7 @@ import {
   isSpacePanKey,
   isTypingTarget,
   nodeClipboardCommandForKey,
+  shouldConsumeToolbarFocusHandoff,
   shouldDeleteSelection,
   shouldSuppressContextMenu,
   siblingNavDirectionForKey,
@@ -440,6 +441,7 @@ function tabKey(patch: Partial<SiblingNavKeyInput> = {}): SiblingNavKeyInput {
     contentEditable: false,
     role: undefined,
     hasSelection: true,
+    toolbarFocusHandoff: false,
     ...patch,
   };
 }
@@ -473,6 +475,32 @@ describe("siblingNavDirectionForKey — Tab/Shift+Tab 형제 이동(#151)", () =
     expect(siblingNavDirectionForKey(tabKey({ tagName: "BUTTON" }))).toBeNull();
     expect(siblingNavDirectionForKey(tabKey({ tagName: "A" }))).toBeNull();
     expect(siblingNavDirectionForKey(tabKey({ role: "button" }))).toBeNull();
+  });
+
+  it("도구 모음에서 막 떨어진 포커스(toolbarFocusHandoff)면 받지 않는다 — 문서 탐색에 Tab을 돌려준다(#275 리뷰 2차 대응)", () => {
+    expect(siblingNavDirectionForKey(tabKey({ toolbarFocusHandoff: true }))).toBeNull();
+    expect(
+      siblingNavDirectionForKey(tabKey({ toolbarFocusHandoff: true, shiftKey: true })),
+    ).toBeNull();
+  });
+});
+
+describe("shouldConsumeToolbarFocusHandoff — Tab에서만 신호를 소비한다(#275 리뷰 3차 대응)", () => {
+  it("Tab(Shift+Tab 포함)은 소비한다", () => {
+    expect(shouldConsumeToolbarFocusHandoff("Tab")).toBe(true);
+  });
+
+  it("단독 modifier keydown은 소비하지 않는다 — 실제 키보드의 Shift+Tab은 ShiftLeft/ShiftRight가 Tab보다 먼저 따로 들어온다", () => {
+    expect(shouldConsumeToolbarFocusHandoff("ShiftLeft")).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff("ShiftRight")).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff("ControlLeft")).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff("AltLeft")).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff("MetaLeft")).toBe(false);
+  });
+
+  it("그 밖의 키도 소비하지 않는다", () => {
+    expect(shouldConsumeToolbarFocusHandoff("KeyD")).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff("Escape")).toBe(false);
   });
 });
 
