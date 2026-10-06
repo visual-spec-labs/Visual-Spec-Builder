@@ -39,9 +39,11 @@ fixture는 수동 작성한 입력이다. 실제 Claude Code/Codex 실행은 이
 
 검증 결과:
 
-- 관련 회귀 74개 통과, 반응형 코드 생성 회귀 4개 통과
+- 관련 회귀 74개 통과, 머지된 #269 회귀를 포함한 5개 suite 79개 통과
 - `pnpm run typecheck`, `pnpm run lint`, `pnpm run build` 통과
 - `pnpm run generate:types` 후 생성 타입 diff 없음
-- 전체 테스트: 1,481 통과, 1 skipped, 11 실패. 실패는 Windows에서 symlink 생성이 `EPERM`으로
-  거부되거나 chmod 기반 읽기 권한 테스트가 Windows 권한 모델에서 기대대로 재현되지 않은 항목이다.
-  전체 Linux CI 결과도 확인한다.
+- `develop` `957cf87` 기준 전체 테스트: 1,521 통과, 1 skipped, 14 실패. Windows에서 symlink
+  생성이 `EPERM`으로 거부되는 테스트와 chmod 기반 권한 테스트, 체크인된 검증기 번들과 재생성
+  결과를 byte 단위로 비교하는 테스트가 실패했다. 이들은 #270 변경 파일과 무관하며 Linux CI에서
+  다시 확인한다. 이후 `develop` `83ae682`로 rebase했으나 이 작업 환경에서 Vitest 실행 파일을
+  찾지 못해 재검증하지 못했다.
