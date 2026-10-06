@@ -50,6 +50,9 @@ export function useCanvasKeys(
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (useSaveConflictStore.getState().paused) return;
+      // 도구 모음이 막 포커스를 떼 간 다음의 keydown 한 번인가(#275 리뷰 대응,
+      // Toolbar.tsx의 같은 이름 신호 주석 참고). 읽는 동시에 꺼진다 — 1회성이다.
+      const toolbarFocusHandoff = useViewStore.getState().consumeToolbarFocusHandoffPending();
       const target = event.target as HTMLElement | null;
       const keyInput = {
         code: event.code,
@@ -141,8 +144,15 @@ export function useCanvasKeys(
 
       // 형제 이동(#151). Tab은 브라우저의 포커스 이동 키라 판정 자체가
       // "선택이 있을 때만"(hasSelection) 훔친다 — siblingNavDirectionForKey 주석 참고.
+      //
+      // `toolbarFocusHandoff`가 true면 이 keydown은 도구 모음이 숨으며 포커스를
+      // 뗀 바로 다음 Tab이다 — isActivationTarget 예외(버튼·링크에 포커스가 있을
+      // 때)와 같은 취지로 한 번 더 물러난다. `target`이 `body`라 태그 기준
+      // 예외는 못 받지만, 맥락은 "방금까지 컨트롤을 쓰고 있었다"와 같다(#151 §2:
+      // 패널·도구 모음 접근을 막으면 안 된다). 캔버스 클릭으로 고른 선택은 이
+      // 신호가 꺼져 있으니 형제 이동이 그대로 적용된다.
       const { selectedId: siblingTarget, select: selectSibling } = useEditorStore.getState();
-      const siblingDirection = siblingNavDirectionForKey({
+      const siblingDirection = toolbarFocusHandoff ? null : siblingNavDirectionForKey({
         code: event.code,
         ctrlKey: event.ctrlKey,
         metaKey: event.metaKey,
