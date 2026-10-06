@@ -18,7 +18,7 @@ description: Visual Spec Builder GUI가 `.visual-spec/runtime/nl-request.json`�
 | 트리거 | 파일을 콕 집어 "이 JSON 고쳐줘" | GUI가 `nl-request.json`을 써 둔 상태 |
 | Undo | 없음(파일을 덮어씀) | GUI의 Undo 스택에 한 단계로 들어감 |
 
-노드 타입 5종 제약, `examples/`가 지키는 관용구, `examples/invalid/`가 보여주는 자주 틀리는
+노드 타입 5종 제약, `examples/`(사용자 프로젝트에서는 함께 설치된 `../visual-spec/contract/examples/`)가 지키는 관용구, `examples/invalid/`가 보여주는 자주 틀리는
 지점 같은 **Visual Spec 자체의 지식은 여기서 다시 적지 않는다** —
 [visual-spec-authoring](../visual-spec-authoring/SKILL.md)이 이미 갖고 있고, 이 스킬이 만드는
 Command의 `node`/`layout`/`value` 필드도 결국 그 지식을 그대로 따라야 한다. 모르면 그 스킬을
@@ -54,7 +54,7 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 | `scope` | 적용 대상. `{ kind: "node" \| "screen", nodeId: string \| null, label: string }` — `kind`가 `"node"`면 `nodeId`가 그 노드, `"screen"`이면 `nodeId`는 `null`이고 화면 전체가 대상이다 |
 | `pageId` | 대상 페이지 id (참고용 — Command 자체에는 페이지 개념이 없다) |
 | `page` | 대상 페이지의 **현재 스펙 전체**(`ScreenSpec` — `name`·`size`·`root`·`nodes`). 노드 id와 현재 값은 전부 여기서 읽는다. **추측하지 않는다** |
-| `responsePath` | 응답을 써야 할 경로. 지금은 항상 `.visual-spec/runtime/nl-response.json`이지만, 문서 대신 이 값을 신뢰한다 |
+| `responsePath` | 응답을 써야 할 경로. **`.visual-spec/` 기준 상대 경로다** — 값은 `runtime/nl-response.json`이고 실제 파일은 `.visual-spec/runtime/nl-response.json`이다. 프로젝트 루트 기준으로 해석해 `runtime/`을 새로 만들지 않는다. 다른 값이 오면 쓰지 말고 사용자에게 알린다 |
 
 `scope.kind === "node"`면 요청은 그 노드(와 필요하면 그 자손)만 겨냥한다. `page.nodes`에서
 `scope.nodeId`를 찾아 지금 값을 확인하고 시작한다. `"screen"`이면 화면 전체가 대상이고,
@@ -63,8 +63,9 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 ## 응답 만들기 — Command 배열
 
 Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·`updateScreen`)의
-정확한 필드는 [09-command-schema-freeze.md](../../docs/09-command-schema-freeze.md)와
-`src/features/editor/command/types.ts`가 정본이다. 요약:
+정확한 필드는 Command 계약 문서와 스키마가 정본이다 — 사용자 프로젝트는 함께 설치된
+`../visual-spec/contract/docs/09-command-schema-freeze.md`·`../visual-spec/contract/schema/command.schema.json`,
+저장소 안은 `docs/09-command-schema-freeze.md`·`src/features/editor/command/types.ts`. 요약:
 
 | Command | 필드 | 언제 쓰나 |
 |---|---|---|
@@ -229,7 +230,8 @@ Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
 
 ## 응답 쓰기
 
-`responsePath`(보통 `.visual-spec/runtime/nl-response.json`)에 **덮어쓰기**로 쓴다. 파일
+`.visual-spec/runtime/nl-response.json`(요청의 `responsePath` 값 `runtime/nl-response.json`을 `.visual-spec/`
+기준으로 읽은 경로)에 **덮어쓰기**로 쓴다. 파일
 이름을 요청마다 바꾸지 않는다 — GUI는 `requestId`로 자기 요청의 답인지만 확인한다.
 
 **성공**
@@ -303,7 +305,7 @@ GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
 `page.nodes`에 `root`(빈 frame) 하나뿐. 현재 `examples/login-screen.json`의 7노드를
 Command 9개, 3종(`updateScreen`·`setLayout`·`createNode`)으로 만든다.
 이메일·비밀번호는 placeholder 표시만 하며 입력 타입·인증 동작을 추가하지 않는다.
-`docs/08-natural-language.md` 3.3의 4노드 분석은 확장 전 기록이다.
+`08-natural-language.md`(로컬 계약 `docs/`) 3.3의 4노드 분석은 확장 전 기록이다.
 
 ```json
 { "protocol": 1, "requestId": "req-xyz",

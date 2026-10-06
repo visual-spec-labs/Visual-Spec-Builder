@@ -9,6 +9,17 @@ let root: string;
 let project: string;
 let pkg: string;
 const relativeSkill = ".claude/skills/visual-spec/SKILL.md";
+const CONTRACT_SOURCES = [
+  "src/features/editor/schema/visual-spec.schema.json",
+  "src/features/editor/command/command.schema.json",
+  "src/features/editor/ticket/ticket.schema.json",
+  "docs/05-schema.md",
+  "docs/08-natural-language.md",
+  "docs/09-command-schema-freeze.md",
+  "docs/11-ticket-schema-freeze.md",
+  "docs/16-responsive-codegen-qa.md",
+  "examples/sample.json",
+];
 function run(args: string[] = []) {
   return spawnSync(process.execPath, [CLI, ...args], {
     cwd: project, encoding: "utf8",
@@ -26,6 +37,8 @@ beforeEach(() => {
   mkdirSync(project);
   write(join(pkg, "node_modules/vite/bin/vite.js"), 'console.log("GUI_STARTED");');
   write(join(pkg, "skills/visual-spec/SKILL.md"), "current package contents");
+  // 실제 패키지처럼 로컬 계약 원본(#278)도 둔다 — visual-spec 스킬과 함께 contract/로 설치된다.
+  for (const source of CONTRACT_SOURCES) write(join(pkg, source), `contract ${source}`);
 });
 afterEach(() => rmSync(root, {recursive: true, force: true}));
 
@@ -42,6 +55,24 @@ describe("GUI 시작 시 스킬 사본 경고 (#229)", () => {
     const result = run();
     expect(result.status).toBe(0); expect(result.stdout).toContain("GUI_STARTED");
     expect(result.stderr).toBe(""); expect(statSync(path).mtimeMs).toBe(before);
+  });
+  it("Codex 위치(.agents/skills) 사본의 차이도 같은 방식으로 경고만 한다 (#278)", () => {
+    expect(run(["skills"]).status).toBe(0);
+    const path = join(project, ".agents/skills/visual-spec/SKILL.md"); writeFileSync(path, "local edits");
+    const result = run();
+    expect(result.status).toBe(0); expect(result.stdout).toContain("GUI_STARTED");
+    expect(result.stderr).toContain("내용 다름: .agents/skills/visual-spec/SKILL.md");
+    expect(result.stderr).not.toContain(".claude/skills/visual-spec/SKILL.md");
+    expect(readFileSync(path, "utf8")).toBe("local edits");
+  });
+  it("기기별 LOCAL.md 내용 차이는 경고하지 않는다 (#278 PR 리뷰)", () => {
+    expect(run(["skills"]).status).toBe(0);
+    for (const target of [".claude/skills", ".agents/skills"]) {
+      writeFileSync(join(project, target, "visual-spec/contract/LOCAL.md"), "다른 기기의 CLI 경로");
+    }
+    const result = run();
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
   });
   it("내용 차이는 경고만 하고 명시적인 skills 실행에서만 즉시 갱신한다", () => {
     run(["skills"]);

@@ -9,7 +9,7 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ## 뼈대
 
-최소 유효 문서는 이 모양이다. 실물은 `examples/empty-title-screen.json` 이다.
+최소 유효 문서는 이 모양이다. 실물은 `examples/empty-title-screen.json` 이다(사용자 프로젝트에서는 함께 설치된 `../visual-spec/contract/examples/`).
 
 ```json
 {
@@ -113,7 +113,8 @@ v0.1 의 노드 타입은 **`frame`, `text`, `image`, `button`, `input` 다섯�
 `shadow`를 `text`에 넣지 않는다. 글자 모양을 따라가는 그림자는 성격이 달라 스키마에 없다.
 `button`·`input`에는 `shadow`·`opacity`·`blur`가 아직 없다(`border.align`·`radius`는 있다).
 실물은 `examples/card-effects.json`이다.
-필드 정의가 필요하면 정본 `src/features/editor/schema/visual-spec.schema.json` 을 읽는다.
+필드 정의가 필요하면 정본 스키마를 읽는다 — 사용자 프로젝트는 `../visual-spec/contract/schema/visual-spec.schema.json`,
+저장소 안은 `src/features/editor/schema/visual-spec.schema.json`.
 찾는 방법은 [../visual-spec-docs/SKILL.md](../visual-spec-docs/SKILL.md) 에 있다.
 
 ## 그라디언트 배경
@@ -222,8 +223,16 @@ source of truth라는 전제가 깨진다.
 
 **반드시 검증한다.** 검증 없이 완료라고 말하지 않는다.
 
-```ts
-import { validateVisualSpec } from "@/features/editor/schema";
-```
+검증은 앱이 스펙 파일을 열 때와 **같은 검증기**로 한다.
+
+- **사용자 프로젝트** — 함께 설치된 로컬 계약의 `validate` 명령을 쓴다. 이 설치본의 정확한 명령은
+  `../visual-spec/contract/LOCAL.md`에 있다(`node "<CLI 경로>" validate <파일>`). 그 파일이 없거나 경로가
+  없으면 추측하지 말고 사용자에게 CLI 경로를 묻는다(`../visual-spec/contract/README.md` "CLI 실행" 절). 유효하면 `✓`, 아니면 이슈마다 `[code] path: message` 한 줄을
+  출력하고 exit 1로 끝난다.
+- **이 저장소 안** — 같은 함수를 직접 불러도 된다.
+  ```ts
+  import { validateVisualSpec } from "@/features/editor/schema";
+  const { valid, issues } = validateVisualSpec(spec); // issues: { code, path, message }[]
+  ```
 
 `valid: false` 면 [../visual-spec-validate/SKILL.md](../visual-spec-validate/SKILL.md) 로 넘어간다.

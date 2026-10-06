@@ -147,7 +147,7 @@ async function waitForTicketResponse(
     if (Date.now() >= deadline) {
       return {
         kind: "timeout",
-        message: `${Math.round(TICKET_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 ${TICKET_REQUEST_PATH}를 읽고 ${TICKET_RESPONSE_PATH}에 결과를 쓰게 하세요.`,
+        message: `${Math.round(TICKET_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 .visual-spec/${TICKET_REQUEST_PATH}를 읽고 .visual-spec/${TICKET_RESPONSE_PATH}에 결과를 쓰게 하세요.`,
       };
     }
     await sleep(TICKET_POLL_INTERVAL_MS);

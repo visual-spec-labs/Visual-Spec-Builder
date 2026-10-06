@@ -21,6 +21,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "generate:types": "node scripts/generate-types.mjs",
+    "generate:contract": "node scripts/build-contract.mjs",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest run"
