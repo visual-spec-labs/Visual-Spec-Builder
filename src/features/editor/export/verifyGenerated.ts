@@ -31,6 +31,7 @@ import {
 } from "./generatedPaths";
 import {
   classifySpecifier,
+  assetImportName,
   packageNameOf,
   scanAssetReferences,
   scanImports,
@@ -159,6 +160,10 @@ export function verifyGenerated({ files, tickets, assetNames }: VerifyInput): Ve
         });
         continue;
       }
+
+      // `../assets/file.png` is an external bundler asset, not a generated TSX module.
+      // Its existence is checked below with the same asset set that the ZIP packages.
+      if (assetImportName(reference.specifier) !== null) continue;
 
       const target = resolveImportTarget(file.path, reference.specifier, existingPaths);
       if (target.kind === "escaped") {

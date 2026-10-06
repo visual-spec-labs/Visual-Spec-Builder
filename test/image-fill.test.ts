@@ -65,7 +65,10 @@ describe("image background rendering and editing", () => {
 
 describe("image background generated fixture → asset verification → bundle", () => {
   it("matches documented CSS and includes photo assets; missing assets fail", () => {
-    const content = `export default function ImagePage() { return <div style={{ backgroundImage: 'linear-gradient(180deg, #0F172A00 0%, #0F172ACC 100%), url("../assets/hero.png")', backgroundSize: 'auto, cover', backgroundPosition: 'center, center', backgroundRepeat: 'no-repeat, no-repeat', backgroundOrigin: 'border-box' }} />; }`;
+    const content = [
+      `import heroImageUrl from "../assets/hero.png";`,
+      `export default function ImagePage() { return <div style={{ backgroundImage: \`linear-gradient(180deg, #0F172A00 0%, #0F172ACC 100%), url(\${JSON.stringify(heroImageUrl)})\`, backgroundSize: "auto, cover", backgroundPosition: "center, center", backgroundRepeat: "no-repeat, no-repeat", backgroundOrigin: "border-box" }} />; }`,
+    ].join("\n");
     const files = [{ path: "pages/ImagePage.tsx", content }];
     const report = verifyGenerated({ files, tickets: [], assetNames: ["hero.png"] });
     expect(report.errorCount).toBe(0);
@@ -75,7 +78,8 @@ describe("image background generated fixture → asset verification → bundle",
     const entries = buildBundleEntries({ projectName: "photo", files, report, assets: [{ name: "hero.png", bytes }] });
     expect(entries).toContainEqual({ path: "photo/assets/hero.png", bytes });
     const skill = readFileSync(new URL("../skills/visual-spec-to-react/SKILL.md", import.meta.url), "utf8");
-    expect(skill).toContain('url("../assets/hero.png")');
+    expect(skill).toContain('import heroImageUrl from "../assets/hero.png";');
+    expect(skill).toContain("JSON.stringify(heroImageUrl)");
     expect(skill).toContain("backgroundSize: 'auto, cover'");
   });
   it("recognizes JS-escaped quotes, apostrophes and encoded URL filenames", () => {

@@ -173,6 +173,14 @@ describe("scanAssetReferences", () => {
     const source = `"../assets/a.png" "../assets/a.png" "../assets/b.png"`;
     expect(scanAssetReferences(source)).toEqual(["a.png", "b.png"]);
   });
+
+  it("정적 번들러 import를 이미지 참조로 찾고 파일명은 URL decode하지 않는다", () => {
+    const source = [
+      `import cover from "../assets/한글-사진 (1)+100%.svg";`,
+      `import logo from "../assets/hash-1.svg";`,
+    ].join("\n");
+    expect(scanAssetReferences(source)).toEqual(["한글-사진 (1)+100%.svg", "hash-1.svg"]);
+  });
 });
 
 describe("verifyGenerated", () => {
@@ -284,6 +292,19 @@ describe("verifyGenerated", () => {
     expect(report.usedAssets).toEqual(["hero.png"]);
     const missing = report.issues.find((issue) => issue.code === "missing-asset");
     expect(missing?.message).toContain("gone.png");
+  });
+
+  it("정적 이미지 import는 파일 존재를 검사하고 ZIP 자산 목록에 넣는다", () => {
+    const files = [file(
+      "pages/DashboardPage.tsx",
+      `import hero from "../assets/한글-사진 (1)+100%.svg";\nexport default function DashboardPage() { return <img src={hero} />; }`,
+    )];
+    const report = verifyGenerated({ files, tickets: [], assetNames: ["한글-사진 (1)+100%.svg"] });
+    expect(report.errorCount).toBe(0);
+    expect(report.usedAssets).toEqual(["한글-사진 (1)+100%.svg"]);
+
+    const missing = verifyGenerated({ files, tickets: [], assetNames: [] });
+    expect(missing.issues).toContainEqual(expect.objectContaining({ code: "missing-asset" }));
   });
 
   it("티켓에 없는 파일은 오류가 아니라 참고로 남는다", () => {

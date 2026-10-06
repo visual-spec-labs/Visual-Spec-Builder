@@ -98,24 +98,33 @@ export function packageNameOf(specifier: string): string {
 }
 
 /**
- * 소스 안의 assets 참조(`../assets/hero.png`)를 찾아 **파일 이름만** 돌려준다.
+ * CSS background URL과 정적 번들러 import에서 자산 파일명을 모은다.
  *
- * `../`가 몇 겹이든 받는다. SKILL.md는 `../assets/<파일명>`으로 정해 뒀지만 그
- * 문서 자신이 "정확한 경로 depth는 확정된 게 아니다"라고 단서를 달았고, 실제로
- * 작업공간에서는 `generated/pages/`에서 `.visual-spec/assets/`까지 두 단계다.
- * 어느 쪽으로 적혀 있든 가리키는 것은 작업공간의 같은 assets 폴더 하나뿐이라,
- * depth를 따지는 대신 파일 이름으로 맞춰 본다.
- *
- * **내보낸 폴더에서는 `../assets/`가 맞는 표기가 된다** — ZIP은 `pages/`·`components/`
- * 옆에 `assets/`를 나란히 담기 때문이다(`bundle.ts`).
+ * CSS URL은 URL 인코딩을 decode해 작업공간 원본 파일명과 비교한다. 모듈 import는
+ * URL이 아니라 파일 시스템 경로이므로 문자열을 그대로 둔다. Export 배치에서는
+ * `pages/`·`components/`와 `assets/`가 형제라 이미지 import는 `../assets/<파일명>`이다.
  */
 const ASSET_REFERENCE = /(?:\.\.\/)+assets\/([^"'`\s)\\]+)/g;
 
+/** An exported page/component imports an image from its sibling assets folder. */
+export function assetImportName(specifier: string): string | null {
+  const match = /^\.\.\/assets\/([^/]+)$/.exec(specifier);
+  if (match === null || !/\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(match[1])) return null;
+  return match[1];
+}
+
 export function scanAssetReferences(source: string): string[] {
   const names = new Set<string>();
+  const importedNames = new Set(scanImports(source)
+    .map(({ specifier }) => assetImportName(specifier))
+    .filter((name): name is string => name !== null));
+  const withoutAssetImports = source.replace(
+    /\bimport\s+[^;\r\n]*?\sfrom\s*(['"])\.\.\/assets\/[^'"]+\1\s*;?/g,
+    " ",
+  );
   // A generated JS string may escape CSS delimiters (url(\"…\")); the opposite
   // quote is a valid filename character. Match the same delimiter at both ends.
-  const remaining = source.replace(/url\(\s*(\\?["'])(.*?)\1\s*\)/g,
+  const remaining = withoutAssetImports.replace(/url\(\s*(\\?["'])(.*?)\1\s*\)/g,
     (_match, _quote: string, path: string) => {
       if (/^(?:\.\.\/)+assets\//.test(path)) {
         names.add(decodeAssetName(path.replace(/^(?:\.\.\/)+assets\//, "")));
@@ -125,7 +134,14 @@ export function scanAssetReferences(source: string): string[] {
   ASSET_REFERENCE.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = ASSET_REFERENCE.exec(remaining)) !== null) {
+    if (importedNames.has(match[1])) continue;
     names.add(decodeAssetName(match[1]));
+  }
+  // Static imports are the bundler contract. Keep their literal module path intact:
+  // unlike a URL in CSS, percent sequences in an import are filename characters.
+  for (const reference of scanImports(source)) {
+    const name = assetImportName(reference.specifier);
+    if (name !== null) names.add(name);
   }
   return [...names];
 }

@@ -159,6 +159,13 @@ describe("buildReadme", () => {
     expect(readme).toContain("`components/Card.tsx:1`");
     expect(readme).toContain("오류 1건");
   });
+
+  it("정적 자산 import와 Vite 하위 경로 배포 통합 방법을 안내한다", () => {
+    const readme = buildReadme("Photo", emptyReport);
+    expect(readme).toContain("src/visual-spec/");
+    expect(readme).toContain("정적 import");
+    expect(readme).toContain("base 설정(하위 경로 배포 포함)");
+  });
 });
 
 describe("buildBundleEntries", () => {
@@ -199,5 +206,24 @@ describe("buildBundleEntries", () => {
     });
 
     expect(entries[0].bytes).toEqual(bytes);
+  });
+
+  it("정적 import 경로와 특수문자 자산 파일명을 바꾸지 않고 ZIP에 나란히 담는다", () => {
+    const name = "한글-사진 (1)+100-.svg";
+    const content = `import imageUrl from "../assets/${name}"; export const image = imageUrl;`;
+    const report = verifyGenerated({
+      files: [{ path: "pages/ImagePage.tsx", content }],
+      tickets: [],
+      assetNames: [name],
+    });
+    const bytes = new Uint8Array([1, 2, 3]);
+    const entries = buildBundleEntries({
+      projectName: "Photo",
+      files: [{ path: "pages/ImagePage.tsx", content }],
+      assets: [{ name, bytes }],
+      report,
+    });
+    expect(entries).toContainEqual({ path: `photo/pages/ImagePage.tsx`, bytes: utf8Bytes(content) });
+    expect(entries).toContainEqual({ path: `photo/assets/${name}`, bytes });
   });
 });

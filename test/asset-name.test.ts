@@ -17,6 +17,10 @@ describe("sanitizeAssetFileName", () => {
     expect(sanitizeAssetFileName("my hero image.png")).toBe("my-hero-image.png");
   });
 
+  it("번들러 import 경로에서 fragment로 해석되는 #은 하이픈으로 바꾼다", () => {
+    expect(sanitizeAssetFileName("한글 #1 (사진)+100%.PNG")).toBe("한글-1-(사진)+100-.png");
+  });
+
   it("경로가 섞여 들어와도 파일 이름만 남긴다 — 폴더 업로드의 File.name", () => {
     expect(sanitizeAssetFileName("photos/2026/hero.png")).toBe("hero.png");
     expect(sanitizeAssetFileName("C:\\Users\\me\\hero.png")).toBe("hero.png");
