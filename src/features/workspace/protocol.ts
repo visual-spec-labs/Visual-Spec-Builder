@@ -153,6 +153,9 @@ export const REQUEST_LOCK_TTL_MS = 30_000;
 export const REQUEST_LOCK_FILES = {
   nl: "runtime/nl-request.json",
   ticket: "runtime/ticket-request.json",
+  // 외부 에이전트와 연결된 GUI 탭(#279). 한 번에 한 탭만 상태를 공개하고 편집 요청을 받는다 —
+  // 탭이 여럿이면 같은 편집이 두 번 적용된다. 탭을 닫으면 풀리며 gui-state.json도 정리된다.
+  gui: "runtime/gui-state.json",
 } as const;
 export type RequestLockKind = keyof typeof REQUEST_LOCK_FILES;
 export function isRequestLockKind(value: string): value is RequestLockKind {

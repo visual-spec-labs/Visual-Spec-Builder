@@ -1002,5 +1002,20 @@ describe("runtime/ 요청 파일 잠금(#273)", () => {
       await lock("DELETE", kind, "tab-b");
     }
   });
+
+  it("gui 잠금(#279): 연결된 탭만 gui-state.json을 쓰고, 풀면 그 탭의 상태 파일이 정리된다", async () => {
+    expect((await lock("POST", "gui", "tab-a")).status).toBe(200);
+    expect((await lock("POST", "gui", "tab-b")).status).toBe(409);
+    const write = (owner: string) => fetch(`${baseUrl}/__vs/file/runtime/gui-state.json`, {
+      method: "PUT",
+      headers: { "x-visual-spec-expected-revision": "missing", "x-visual-spec-request-owner": owner },
+      body: JSON.stringify({ protocol: 1, id: owner }),
+    });
+    expect((await write("tab-b")).status).toBe(409);
+    expect((await write("tab-a")).status).toBe(200);
+    await lock("DELETE", "gui", "tab-a");
+    expect(existsSync(join(workspaceRoot, "runtime", "gui-state.json"))).toBe(false);
+    expect((await lock("POST", "gui", "tab-b")).status).toBe(200);
+  });
 });
 
