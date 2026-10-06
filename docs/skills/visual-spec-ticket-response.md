@@ -8,8 +8,8 @@
 ## 사용 흐름
 
 1. 사용자 프로젝트에서 `visual-spec skills`로 스킬 사본을 설치/갱신한다. 설치 명령은
-   `.claude/skills/`(Claude Code)와 `.agents/skills/`(Codex)에 복사한다. 그 밖의 에이전트는
-   `--dir`로 위치를 지정하거나 설치된 SKILL.md 경로를 직접 알려준다.
+   `.claude/skills/`(Claude Code)와 `.agents/skills/`(Codex)에 복사한다. 그 밖의 에이전트에는
+   설치된 SKILL.md 경로를 직접 알려준다.
 2. `visual-spec`을 인자 없이 실행해 GUI를 열고, 티켓을 생성한 뒤 실행한다.
 3. 같은 프로젝트를 여는 외부 에이전트에게 현재 `ticket-request.json` 처리를 요청한다.
 4. 에이전트는 to-react 매핑을 참고하되 요청의 `filePath`에 해당하는 파일만 작성한다.

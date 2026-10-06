@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,7 +54,7 @@ describe("visual-spec skills — 에이전트별 위치 (#278)", () => {
     }
   });
 
-  it("--agent로 한 위치에만, --dir로 그 밖의 에이전트 폴더에 설치한다", () => {
+  it("--agent로 한 위치에만 설치한다", () => {
     expect(runCli(["skills", "--agent", "codex"], projectDir).exitCode).toBe(0);
     expect(existsSync(join(projectDir, ".agents/skills/visual-spec/SKILL.md"))).toBe(true);
     expect(existsSync(join(projectDir, ".claude"))).toBe(false);
@@ -62,13 +62,10 @@ describe("visual-spec skills — 에이전트별 위치 (#278)", () => {
     expect(runCli(["skills", "--agent=claude"], projectDir).exitCode).toBe(0);
     expect(existsSync(join(projectDir, ".claude/skills/visual-spec/SKILL.md"))).toBe(true);
 
-    expect(runCli(["skills", "--dir", "tools/agent-skills"], projectDir).exitCode).toBe(0);
-    expect(existsSync(join(projectDir, "tools/agent-skills/visual-spec", "contract/README.md"))).toBe(true);
   });
 
-  it("모르는 옵션·에이전트, 현재 폴더 밖 --dir는 아무것도 쓰지 않고 거절한다", () => {
-    for (const args of [["--agent", "cursor"], ["--force"], ["--dir", "../outside"], ["--dir", "/tmp/abs"], ["--dir", "/tmp/abs/"],
-      ["--dir", "."], ["--dir", "./"], ["--dir", "a/.."], ["--agent"]]) {
+  it("모르는 옵션·에이전트는 아무것도 쓰지 않고 거절한다 — --dir는 지원하지 않는다", () => {
+    for (const args of [["--agent", "cursor"], ["--force"], ["--dir", "tools/skills"], ["--agent"]]) {
       const result = runCli(["skills", ...args], projectDir);
       expect(result.exitCode, args.join(" ")).toBe(1);
     }
@@ -77,6 +74,34 @@ describe("visual-spec skills — 에이전트별 위치 (#278)", () => {
 });
 
 describe("설치 원자성·기기별 파일 (#278 PR 리뷰)", () => {
+  it("뒤 위치가 쓰기 금지(0555)여도 앞 위치에 쓰지 않는다 (PR #298 리뷰)", () => {
+    if (process.getuid?.() === 0) return; // root는 권한 검사를 건너뛴다
+    mkdirSync(join(projectDir, ".agents/skills"), { recursive: true });
+    chmodSync(join(projectDir, ".agents/skills"), 0o555);
+    try {
+      const result = runCli(["skills"], projectDir);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("쓰기 권한");
+      expect(existsSync(join(projectDir, ".claude"))).toBe(false);
+    } finally {
+      chmodSync(join(projectDir, ".agents/skills"), 0o755);
+    }
+  });
+
+  it("이미 최신인 읽기 전용 사본은 쓸 게 없으므로 권한 검사에 걸리지 않는다 (PR #298 셀프 리뷰)", () => {
+    if (process.getuid?.() === 0) return;
+    expect(runCli(["skills"], projectDir).exitCode).toBe(0);
+    const skill = join(projectDir, ".claude/skills/visual-spec/SKILL.md");
+    chmodSync(skill, 0o444);
+    try {
+      const rerun = runCli(["skills"], projectDir);
+      expect(rerun.exitCode).toBe(0);
+      expect(rerun.stdout).toContain("전부 최신 상태");
+    } finally {
+      chmodSync(skill, 0o644);
+    }
+  });
+
   it("한 위치라도 막히면 어느 위치에도 쓰지 않는다", () => {
     writeFileSync(join(projectDir, ".agents"), "not a directory");
     const result = runCli(["skills"], projectDir);
@@ -172,14 +197,3 @@ describe("visual-spec validate (#278)", () => {
     expect(runCli(["validate"], projectDir).exitCode).toBe(1);
   });
 });
-
-describe("패키지 구성 (#278)", () => {
-  it("package.json files가 로컬 계약 원본·예제·검증기 번들을 모두 싣는다", () => {
-    const { files } = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8")) as { files: string[] };
-    const shipped = (path: string) => files.some((entry) => path === entry || path.startsWith(`${entry}/`));
-    for (const [, source] of CONTRACT_FILES) expect(shipped(source), source).toBe(true);
-    expect(shipped("examples/login-screen.json")).toBe(true);
-    expect(shipped("bin/lib/schema.mjs")).toBe(true);
-  });
-});
-

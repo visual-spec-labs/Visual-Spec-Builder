@@ -227,7 +227,7 @@ source of truth라는 전제가 깨진다.
 
 - **사용자 프로젝트** — 함께 설치된 로컬 계약의 `validate` 명령을 쓴다. 이 설치본의 정확한 명령은
   `../visual-spec/contract/LOCAL.md`에 있다(`node "<CLI 경로>" validate <파일>`). 그 파일이 없거나 경로가
-  없으면 `npx visual-spec validate <파일>`을 쓴다(`../visual-spec/contract/README.md` "CLI 실행" 절). 유효하면 `✓`, 아니면 이슈마다 `[code] path: message` 한 줄을
+  없으면 추측하지 말고 사용자에게 CLI 경로를 묻는다(`../visual-spec/contract/README.md` "CLI 실행" 절). 유효하면 `✓`, 아니면 이슈마다 `[code] path: message` 한 줄을
   출력하고 exit 1로 끝난다.
 - **이 저장소 안** — 같은 함수를 직접 불러도 된다.
   ```ts

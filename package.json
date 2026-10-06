@@ -10,16 +10,7 @@
   },
   "files": [
     "bin",
-    "skills",
-    "src/features/editor/schema/visual-spec.schema.json",
-    "src/features/editor/command/command.schema.json",
-    "src/features/editor/ticket/ticket.schema.json",
-    "docs/05-schema.md",
-    "docs/08-natural-language.md",
-    "docs/09-command-schema-freeze.md",
-    "docs/11-ticket-schema-freeze.md",
-    "docs/16-responsive-codegen-qa.md",
-    "examples"
+    "skills"
   ],
   "packageManager": "pnpm@10.33.0",
   "engines": {

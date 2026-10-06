@@ -15,9 +15,9 @@
 // (에디터 소스가 사용자 프로젝트가 아니라 이 저장소 안에 있다), `PACKAGE_ROOT`를 cwd로
 // 쓴다 — 아래 runGui 참고.
 
-import { dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lstatSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { accessSync, constants as fsConstants, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 
 /** 이 파일 자신의 위치 기준 — 대상 프로젝트(cwd)가 아니라 이 패키지 자신의 skills/를 읽는다. */
@@ -31,7 +31,8 @@ const SKILLS_SRC_DIR = join(PACKAGE_ROOT, "skills");
 /**
  * 에이전트별 프로젝트 스킬 위치(#278). Claude Code는 `.claude/skills/`, Codex는
  * `.agents/skills/`에서 프로젝트 스킬을 찾는다. 사용자가 어느 쪽을 쓸지 알 수 없으므로
- * `visual-spec skills`는 기본으로 둘 다 설치한다. 다른 에이전트는 `--dir`로 위치를 고른다.
+ * `visual-spec skills`는 기본으로 둘 다 설치한다. 그 밖의 에이전트에는 설치된 SKILL.md 경로를
+ * 대화에서 직접 알려 준다.
  */
 const SKILL_TARGETS = { claude: ".claude/skills", codex: ".agents/skills" };
 
@@ -176,8 +177,8 @@ function contractReadme() {
     "",
     "## CLI 실행",
     "",
-    "`LOCAL.md`에 이 기기의 정확한 명령이 있다. 없거나 그 경로가 없으면 패키지를 설치한 프로젝트에서",
-    "`npx visual-spec <명령>`을 쓰고, 그것도 안 되면 사용자에게 `visual-spec skills`를 실행한 명령을 묻는다.",
+    "`LOCAL.md`에 이 기기의 정확한 명령이 있다. 없거나 그 경로가 없으면 추측하지 말고 사용자에게",
+    "`visual-spec skills`를 실행한 명령(도구 저장소의 `bin/visual-spec.mjs` 경로)을 묻는다.",
     "",
     "- 스펙 검증: `visual-spec validate <스펙 파일>...` — 앱이 파일을 열 때와 같은 검증(0.3으로 변환 →",
     "  스키마·구조 검사). 유효하면 `✓`, 아니면 이슈마다 `[code] path: message`를 출력하고 exit 1.",
@@ -243,7 +244,7 @@ function skillSources(name) {
  * 실제로 바뀐 스킬만 "갱신함"으로 보고한다.
  *
  * @param {string} cwd
- * @param {string} [target] cwd 기준 스킬 폴더(`SKILL_TARGETS` 또는 `--dir`)
+ * @param {string} [target] cwd 기준 스킬 폴더(`SKILL_TARGETS`)
  * @returns {{ targetRoot: string, installed: string[], updated: string[], unchanged: string[] }}
  */
 export function installSkills(cwd, target = SKILL_TARGETS.claude) {
@@ -302,7 +303,53 @@ export function planSkillInstall(cwd, target) {
     return { name, sources, local, obsolete, destExisted: existsAsDir(destDir) };
   });
 
+  // 쓰기 권한도 쓰기 전에 본다(PR #298 리뷰) — 폴더·파일 종류만 보면 권한 0555인 두 번째
+  // 위치에서 쓰다가 실패해 첫 위치만 바뀐 채 끝난다.
+  const unwritable = new Set();
+  const checkWritable = (path) => {
+    let probe = path;
+    while (!existsAsDir(probe) && !existsAsFile(probe)) {
+      const parent = dirname(probe);
+      if (parent === probe) return;
+      probe = parent;
+    }
+    try { accessSync(probe, fsConstants.W_OK); } catch { unwritable.add(relative(cwd, probe) || "."); }
+  };
+  for (const { sources, local, obsolete } of plans) {
+    for (const source of [...sources, ...local]) {
+      // 이미 같은 내용이면 쓰지 않으므로 권한도 필요 없다 — 읽기 전용 최신 사본은 통과한다.
+      const dest = join(targetRoot, source.path);
+      if (existsAsFile(dest) && readFileSync(dest).equals(source.read())) continue;
+      checkWritable(dest);
+    }
+    for (const path of obsolete) checkWritable(dirname(join(targetRoot, path)));
+  }
+  if (unwritable.size) {
+    throw new Error(`쓰기 권한이 없어 아무것도 설치하지 않았습니다: ${[...unwritable].join(", ")}. 권한을 확인한 뒤 다시 실행해주세요.`);
+  }
+
   return { cwd, target, targetRoot, plans };
+}
+
+/**
+ * 설치 중 바꾼 것을 되돌린다. 위치가 여럿일 때 뒤 위치에서 실패해도(검사 뒤에 생긴 권한
+ * 변화·디스크 가득 참 등) 앞 위치를 원래대로 돌려 반쪽 설치를 남기지 않는다(PR #298 리뷰).
+ *
+ * @param {{ files: { path: string, previous: Buffer | null }[], dirs: string[] }} journal
+ * @returns {string[]} 되돌리지 못한 경로. 비어 있어야 "모두 되돌렸다"고 말할 수 있다.
+ */
+export function rollbackSkillInstall(journal) {
+  const failed = [];
+  for (const { path, previous } of journal.files.reverse()) {
+    try {
+      if (previous === null) rmSync(path, { force: true });
+      else writeFileSync(path, previous);
+    } catch { failed.push(path); }
+  }
+  for (const dir of journal.dirs.reverse()) {
+    try { rmSync(dir, { recursive: true, force: true }); } catch { failed.push(dir); }
+  }
+  return failed;
 }
 
 /**
@@ -311,7 +358,7 @@ export function planSkillInstall(cwd, target) {
  * @param {ReturnType<typeof planSkillInstall>} plan
  * @returns {{ targetRoot: string, installed: string[], updated: string[], unchanged: string[] }}
  */
-export function applySkillInstall({ cwd, target, targetRoot, plans }) {
+export function applySkillInstall({ cwd, target, targetRoot, plans }, journal = { files: [], dirs: [] }) {
   const installed = [];
   const updated = [];
   const unchanged = [];
@@ -319,8 +366,12 @@ export function applySkillInstall({ cwd, target, targetRoot, plans }) {
   const writeIfChanged = (source) => {
     const destFile = join(targetRoot, source.path);
     const content = source.read();
-    if (existsAsFile(destFile) && readFileSync(destFile).equals(content)) return false;
-    mkdirSync(dirname(destFile), { recursive: true });
+    const exists = existsAsFile(destFile);
+    if (exists && readFileSync(destFile).equals(content)) return false;
+    // 이번 실행이 새로 만든 첫 폴더만 기록한다 — 되돌릴 때 그 아래는 전부 이번에 만든 것이다.
+    const created = mkdirSync(dirname(destFile), { recursive: true });
+    if (created) journal.dirs.push(created);
+    journal.files.push({ path: destFile, previous: exists ? readFileSync(destFile) : null });
     writeFileSync(destFile, content);
     return true;
   };
@@ -338,6 +389,7 @@ export function applySkillInstall({ cwd, target, targetRoot, plans }) {
       const status = inspectSkillPath(cwd, relativePath);
       if (status === "missing") continue;
       if (status !== "ok") throw new Error(`스킬 경로를 확인해주세요: ${relativePath} (${status})`);
+      journal.files.push({ path: join(targetRoot, path), previous: readFileSync(join(targetRoot, path)) });
       unlinkSync(join(targetRoot, path));
       changed = true;
     }
@@ -490,7 +542,6 @@ function printUsage() {
       "  skills    스킬과 로컬 계약을 설치·갱신한다",
       "            기본: .claude/skills/(Claude Code)와 .agents/skills/(Codex) 둘 다",
       "            --agent claude|codex|all  한 에이전트 위치에만 설치",
-      "            --dir <폴더>              그 밖의 에이전트가 읽는 폴더에 설치",
       "  validate  스펙 파일을 앱과 같은 검증기로 검사한다: validate <파일>...",
       "  help      이 사용법을 보여준다",
     ].join("\n"),
@@ -515,37 +566,25 @@ function runInit() {
 /**
  * `skills` 인자에서 설치 위치를 고른다(#278). 기본은 Claude Code·Codex 두 곳이다 —
  * 사용자가 어느 에이전트를 쓸지 이 CLI는 알 수 없다. 쓰지 않는 쪽 폴더는 읽히지 않을
- * 뿐이다. 그 밖의 에이전트는 `--dir`로 그 도구가 읽는 폴더를 지정한다.
+ * 뿐이다.
  *
  * @param {string[]} args
  * @returns {string[]} cwd 기준 스킬 폴더들
  */
 export function resolveSkillTargets(args) {
   let agent = "all";
-  const dirs = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     const value = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : args[index + 1];
     const name = arg.includes("=") ? arg.slice(0, arg.indexOf("=")) : arg;
-    if (name !== "--agent" && name !== "--dir") throw new Error(`알 수 없는 skills 옵션입니다: ${arg}`);
+    if (name !== "--agent") throw new Error(`알 수 없는 skills 옵션입니다: ${arg}`);
     if (value === undefined || value === "") throw new Error(`${name}에 값이 필요합니다.`);
     if (!arg.includes("=")) index += 1;
-    if (name === "--agent") {
-      if (value !== "all" && !Object.hasOwn(SKILL_TARGETS, value)) {
-        throw new Error(`--agent는 ${[...Object.keys(SKILL_TARGETS), "all"].join("|")} 중 하나입니다: ${value}`);
-      }
-      agent = value;
-    } else {
-      // 현재 폴더 자체(`.`)도 거절한다 — 스킬 폴더들이 프로젝트 루트에 바로 깔리고, 다음
-      // 갱신에서 이름이 겹치는 사용자 파일을 "패키지에 없는 파일"로 지울 수 있다(PR 리뷰, #278).
-      const dir = normalize(value).replace(/[\\/]+$/, "");
-      if (isAbsolute(value) || dir === "" || dir === "." || dir === ".." || dir.startsWith(`..${"/"}`) || dir.startsWith("..\\")) {
-        throw new Error(`--dir는 현재 폴더 안의 하위 폴더(상대 경로)여야 합니다: ${value}`);
-      }
-      dirs.push(dir);
+    if (value !== "all" && !Object.hasOwn(SKILL_TARGETS, value)) {
+      throw new Error(`--agent는 ${[...Object.keys(SKILL_TARGETS), "all"].join("|")} 중 하나입니다: ${value}`);
     }
+    agent = value;
   }
-  if (dirs.length) return dirs;
   return agent === "all" ? Object.values(SKILL_TARGETS) : [SKILL_TARGETS[agent]];
 }
 
@@ -553,9 +592,18 @@ function runSkills(args) {
   const targets = resolveSkillTargets(args);
   // 모든 위치를 검사한 뒤에만 쓴다 — 한 위치라도 막히면 아무것도 쓰지 않는다.
   const plans = targets.map((target) => planSkillInstall(process.cwd(), target));
-  for (const plan of plans) {
-    const { target } = plan;
-    const { targetRoot, installed, updated, unchanged } = applySkillInstall(plan);
+  const journal = { files: [], dirs: [] };
+  const results = [];
+  try {
+    for (const plan of plans) results.push({ target: plan.target, ...applySkillInstall(plan, journal) });
+  } catch (error) {
+    const failed = rollbackSkillInstall(journal);
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(failed.length === 0
+      ? `설치 중 실패해 이번 실행의 변경을 모두 되돌렸습니다: ${reason}`
+      : `설치 중 실패했고 일부를 되돌리지 못했습니다(${failed.map((path) => relative(process.cwd(), path)).join(", ")}). 이 경로를 확인한 뒤 다시 실행해주세요: ${reason}`);
+  }
+  for (const { target, targetRoot, installed, updated, unchanged } of results) {
 
     console.log(`${target}/ 설치 대상: ${targetRoot}`);
     for (const name of installed) {
@@ -734,4 +782,10 @@ async function main() {
   process.exitCode = 1;
 }
 
-await main();
+// 직접 실행했을 때만 명령을 처리한다 — 테스트가 함수를 import해도 GUI가 뜨지 않게 한다.
+// npx·pnpm은 bin을 링크로 부르므로 실제 경로끼리 비교한다.
+const invokedDirectly = (() => {
+  try { return realpathSync(process.argv[1] ?? "") === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; }
+})();
+if (invokedDirectly) await main();
