@@ -2,7 +2,7 @@ import type { Background, VisualSpec } from "@/features/editor/schema";
 import responsiveCards from "../../examples/responsive-cards.json";
 
 /** #224 스킬을 사람이 옮긴 검증 fixture다. 제품 변환기나 AI 생성 결과가 아니다. */
-export const responsiveCardsClasses = "flex flex-row items-start gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full h-full min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]";
+export const responsiveCardsClasses = "flex flex-row items-start gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full flex-[1_0_auto] min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]";
 
 const gradient: Background = [{ type: "linear", angle: 90, stops: [{ at: 0, color: "#FF000000" }, { at: 1, color: "#FF000080" }] }];
 
@@ -48,7 +48,7 @@ export const responsiveCardsCss = `
 .vsb-card-effects-root {
   display: flex; flex-direction: row; align-items: flex-start;
   box-sizing: border-box; justify-content: flex-start;
-  gap: 24px; padding: 48px; width: 100%; height: 100%;
+  gap: 24px; padding: 48px; width: 100%; flex: 1 0 auto;
   background-color: #F1F5F9; background-image: none; background-origin: padding-box;
 }
 @media (min-width: 768px) {

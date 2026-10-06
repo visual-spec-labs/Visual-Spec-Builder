@@ -157,7 +157,7 @@ import { Sidebar } from "../components/Sidebar";
 768px padding-left=32가 1024px에도 남고, 1024px에서 gap=32·배경 없음으로 바뀐다.
 
 ```tsx
-<div className="flex flex-row items-start gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full h-full min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]">{/* 자식들 */}</div>
+<div className="flex flex-row items-start gap-[24px] pt-[48px] pr-[48px] pb-[48px] pl-[48px] bg-[#F1F5F9] w-full flex-[1_0_auto] min-[768px]:pl-[32px] min-[1024px]:gap-[32px] min-[1024px]:bg-transparent min-[1024px]:bg-none min-[1024px]:[background-origin:padding-box]">{/* 자식들 */}</div>
 ```
 
 같은 root의 **호환성 미확인 대상 기본 출력**은 다음과 같다. 이 요소에는 기반/반응형
@@ -169,7 +169,7 @@ Tailwind 클래스를 중복 적용하지 않는다. `<style>`을 TSX에 포함�
 .vsb-card-effects-root {
   display: flex; flex-direction: row; align-items: flex-start;
   box-sizing: border-box; justify-content: flex-start;
-  gap: 24px; padding: 48px; width: 100%; height: 100%;
+  gap: 24px; padding: 48px; width: 100%; flex: 1 0 auto;
   background-color: #F1F5F9; background-image: none; background-origin: padding-box;
 }
 @media (min-width: 768px) {
@@ -467,7 +467,7 @@ shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
 자동 배치한다 — 특정 자식을 특정 셀에 지정하는 기능은 없다.
 
 ```tsx
-<div className="grid grid-cols-[2] gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full h-full">
+<div className="grid grid-cols-[2] gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
 ```
 
 grid 컨테이너의 직계 자식은 `flex-*`/`self-stretch` 같은 flex 전용 클래스를 붙이지 않는다 —
@@ -489,10 +489,10 @@ flex shrink/grow와 grid track sizing은 서로 대체 관계가 아니므로 �
 ```tsx
 export default function Login() {
   return (
-    <div className="flex flex-col gap-[16px] pt-[24px] pr-[20px] pb-[24px] pl-[20px] justify-start items-stretch bg-[#FFFFFF] w-full h-full">
-      <p className="self-stretch h-auto text-[#111111] [font-family:'Pretendard'] text-[24px] font-bold leading-[32px] tracking-[-0.5px] text-left">로그인</p>
-      <div className="flex flex-col gap-[12px] pt-[16px] pr-[16px] pb-[16px] pl-[16px] justify-center items-stretch bg-[#F5F5F5FF] border-[1px] border-[#00000020] rounded-[8px] self-stretch h-auto">
-        <p className="w-auto h-auto text-[#666666] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-center">계정 정보를 입력하세요</p>
+    <div className="flex flex-col gap-[16px] pt-[24px] pr-[20px] pb-[24px] pl-[20px] justify-start items-stretch bg-[#FFFFFF] w-full flex-[1_0_auto]">
+      <p className="self-stretch h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#111111] [font-family:'Pretendard'] text-[24px] font-bold leading-[32px] tracking-[-0.5px] text-left">로그인</p>
+      <div className="flex flex-col gap-[12px] pt-[16px] pr-[16px] pb-[16px] pl-[16px] justify-center items-stretch bg-[#F5F5F5FF] border-[1px] border-[#00000020] rounded-[8px] self-stretch h-auto flex-[0_0_auto] min-h-0">
+        <p className="w-auto h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#666666] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-center">계정 정보를 입력하세요</p>
       </div>
     </div>
   );
@@ -520,9 +520,9 @@ interface CardProps {
 
 export function Card({ label, value }: CardProps) {
   return (
-    <div className="flex flex-col gap-[8px] pt-[20px] pr-[20px] pb-[20px] pl-[20px] justify-start items-start bg-[#FFFFFF] border-[1px] border-[#E5E7EB] rounded-[12px] flex-1 h-auto">
-      <p className="w-auto h-auto text-[#6B7280] [font-family:'Pretendard'] text-[13px] font-medium leading-[18px] tracking-[0px] text-left">{label}</p>
-      <p className="w-auto h-auto text-[#111111] [font-family:'Pretendard'] text-[28px] font-bold leading-[36px] tracking-[-0.4px] text-left">{value}</p>
+    <div className="flex flex-col gap-[8px] pt-[20px] pr-[20px] pb-[20px] pl-[20px] justify-start items-start bg-[#FFFFFF] border-[1px] border-[#E5E7EB] rounded-[12px] flex-[1_1_0] min-w-0 h-auto">
+      <p className="w-auto h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#6B7280] [font-family:'Pretendard'] text-[13px] font-medium leading-[18px] tracking-[0px] text-left">{label}</p>
+      <p className="w-auto h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#111111] [font-family:'Pretendard'] text-[28px] font-bold leading-[36px] tracking-[-0.4px] text-left">{value}</p>
     </div>
   );
 }
@@ -534,7 +534,7 @@ import { Card } from "./Card";
 
 export function Content() {
   return (
-    <div className="flex flex-row gap-[16px] pt-[0px] pr-[0px] pb-[0px] pl-[0px] justify-start items-stretch self-stretch h-auto">
+    <div className="flex flex-row gap-[16px] pt-[0px] pr-[0px] pb-[0px] pl-[0px] justify-start items-stretch self-stretch h-auto flex-[0_0_auto] min-h-0">
       <Card label="총 방문자" value="12,480" />
       <Card label="전환율" value="3.7%" />
     </div>
@@ -546,8 +546,8 @@ export function Content() {
 // .visual-spec/generated/components/Header.tsx
 export function Header() {
   return (
-    <div className="flex flex-col gap-[0px] pt-[0px] pr-[0px] pb-[0px] pl-[0px] justify-start items-start self-stretch h-auto">
-      <p className="w-auto h-auto text-[#111111] [font-family:'Pretendard'] text-[28px] font-bold leading-[36px] tracking-[-0.6px] text-left">대시보드</p>
+    <div className="flex flex-col gap-[0px] pt-[0px] pr-[0px] pb-[0px] pl-[0px] justify-start items-start self-stretch h-auto flex-[0_0_auto] min-h-0">
+      <p className="w-auto h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#111111] [font-family:'Pretendard'] text-[28px] font-bold leading-[36px] tracking-[-0.6px] text-left">대시보드</p>
     </div>
   );
 }
@@ -560,7 +560,7 @@ import { Content } from "../components/Content";
 
 export default function DashboardPage() {
   return (
-    <div className="flex flex-col gap-[24px] pt-[32px] pr-[32px] pb-[32px] pl-[32px] justify-start items-stretch bg-[#F7F8FA] w-full h-full">
+    <div className="flex flex-col gap-[24px] pt-[32px] pr-[32px] pb-[32px] pl-[32px] justify-start items-stretch bg-[#F7F8FA] w-full flex-[1_0_auto]">
       <Header />
       <Content />
     </div>
@@ -581,13 +581,13 @@ export default function DashboardPage() {
 ```tsx
 export default function ImageHeroPage() {
   return (
-    <div className="flex flex-col gap-[16px] pt-[0px] pr-[0px] pb-[24px] pl-[0px] justify-start items-stretch bg-[#FFFFFF] w-full h-full">
+    <div className="flex flex-col gap-[16px] pt-[0px] pr-[0px] pb-[24px] pl-[0px] justify-start items-stretch bg-[#FFFFFF] w-full flex-[1_0_auto]">
       <img
         src="../assets/hero.png"
         alt=""
-        className="self-stretch h-[240px] object-cover"
+        className="self-stretch h-[240px] flex-[0_0_240px] shrink-0 object-cover"
       />
-      <p className="self-stretch h-auto text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">가져온 이미지 위에 설명 텍스트를 배치한다.</p>
+      <p className="self-stretch h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">가져온 이미지 위에 설명 텍스트를 배치한다.</p>
     </div>
   );
 }
@@ -604,13 +604,13 @@ export default function ImageHeroPage() {
 ```tsx
 export default function FormGridPage() {
   return (
-    <div className="grid grid-cols-[2] gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full h-full">
-      <p className="w-full h-auto text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이름</p>
+    <div className="grid grid-cols-[2] gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
+      <p className="w-full h-auto whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이름</p>
       <input
         placeholder="이름을 입력하세요"
         className="w-full h-[44px] text-[#111827] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left bg-[#F9FAFB] border-[1px] border-[#D1D5DB] rounded-[8px]"
       />
-      <p className="w-full h-auto text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이메일</p>
+      <p className="w-full h-auto whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이메일</p>
       <input
         placeholder="이메일을 입력하세요"
         className="w-full h-[44px] text-[#111827] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left bg-[#F9FAFB] border-[1px] border-[#D1D5DB] rounded-[8px]"
