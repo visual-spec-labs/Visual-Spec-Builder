@@ -260,22 +260,62 @@ describe("편집하지 않은 첫 실행 데모 문서는 묻지 않는다 (#297
     expect(confirm).toHaveBeenCalledOnce();
   });
 
-  it("넘겨받는 값은 바로 다음 재시작에만 쓰이고, 그 뒤 실행으로 새지 않는다", async () => {
-    const confirm = vi.mocked(window.confirm);
+  /**
+   * 넘겨받는 값의 만료만 따로 본다(PR #300 리뷰). 문서 바이트는 그대로 두고 저장소만 비워
+   * 저장소 기준 판정을 "편집 없음"으로 만든다 — 그래야 넘긴 값(편집 있음)이 쓰였는지가
+   * 결과(확인 여부)를 가른다. 문서를 바꾸면 내용 불일치만으로 통과해 만료를 검증하지 못한다.
+   */
+  async function restartWithEditedUntitledAndEmptyStorage(awaitCommitEnd: boolean) {
     firstRunDemo();
     stop = startSpecAutosave();
     editPageName("앞 실행의 편집");
     stop();
-    await Promise.resolve(); // 같은 커밋이 끝났다 — 이후 시작은 재시작이 아니다
+    if (awaitCommitEnd) await Promise.resolve(); // 같은 커밋이 끝났다 — 이후 시작은 재시작이 아니다
     stop = undefined;
-
-    useEditorStore.getState().loadSpec(seedSpec); // 새 페이지 로드처럼 데모로 시작
-    useDocumentStore.getState().clearFileName();
-    vi.stubGlobal("sessionStorage", storage()); // 새 페이지 — 저장된 것이 없다
+    vi.stubGlobal("sessionStorage", storage());
     vi.stubGlobal("localStorage", storage());
     stop = startSpecAutosave();
-    expect(await openHomeProject(login)).toBe(true);
+  }
+
+  it("대조: 같은 조건에서 즉시 재시작하면 넘겨받은 편집 여부로 묻는다", async () => {
+    const confirm = vi.mocked(window.confirm);
+    await restartWithEditedUntitledAndEmptyStorage(false);
+    confirm.mockReturnValueOnce(false);
+    expect(await newSpec()).toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
+  });
+
+  it("넘겨받는 값은 같은 커밋이 끝나면 버려져, 그 뒤 시작은 저장소 판정을 따른다", async () => {
+    const confirm = vi.mocked(window.confirm);
+    await restartWithEditedUntitledAndEmptyStorage(true);
+    expect(await newSpec()).toBe(true);
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 넘겨받는 값이 false인 경우를 직접 구분한다(PR #300 리뷰). 새로 연, 편집 없는 이름 있는
+   * 문서는 탭 복구에 기록되므로 저장소 기준으로는 "복원한 문서 = 편집 있음"이다. 잠금이 없는
+   * 브라우저에서 자동저장이 기록되지 않을 때 편집 여부가 전환 확인을 가르므로 그걸로 본다.
+   */
+  it("대조군: 편집 없이 연 이름 있는 문서는 즉시 재시작 때 false를 이어받고, 재시작이 아니면 저장소 판정을 따른다", async () => {
+    const confirm = vi.mocked(window.confirm);
+    vi.stubGlobal("navigator", {}); // 잠금 없음 — 자동저장이 기록되지 않는다
+    firstRunDemo();
+    stop = startSpecAutosave();
+    expect(await openHomeProject(login)).toBe(true); // 새로 연, 편집 없는 이름 있는 문서
+
+    stop();
+    stop = startSpecAutosave(); // 즉시 재시작 — false를 이어받는다
+    expect(await newSpec()).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+
+    expect(await openHomeProject(login)).toBe(true);
+    stop();
+    await Promise.resolve();
+    stop = startSpecAutosave(); // 재시작이 아니다 — 탭 복구에서 복원한 문서로 판단한다
+    confirm.mockReturnValueOnce(false);
+    expect(await newSpec()).toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
   });
 });
 
