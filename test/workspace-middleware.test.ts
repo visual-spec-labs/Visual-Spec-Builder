@@ -429,9 +429,15 @@ describe("화이트리스트 밖 경로는 거부한다 — 읽기도 쓰기도"
  */
 describe("runtime/ — 자연어 요청/응답 교환소(#155)", () => {
   it("GUI가 요청을 쓰고 에이전트가 쓴 응답을 다시 읽는다 — 한 바퀴", async () => {
+    // #273: 공유 요청 파일은 잠금 주인만 쓴다.
+    const lock = await fetch(`${baseUrl}/__vs/request-lock/nl`, {
+      method: "POST",
+      headers: { "x-visual-spec-request-owner": "req-1" },
+    });
+    expect(lock.status).toBe(200);
     const written = await fetch(`${baseUrl}/__vs/file/runtime/nl-request.json`, {
       method: "PUT",
-      headers: { "x-visual-spec-expected-revision": "missing" },
+      headers: { "x-visual-spec-expected-revision": "missing", "x-visual-spec-request-owner": "req-1" },
       body: JSON.stringify({ protocol: 1, id: "req-1", instruction: "간격을 24로 해줘" }),
     });
 
@@ -857,3 +863,66 @@ describe("project rename (#227)", () => {
     expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).name).toBe("old");
   });
 });
+
+describe("runtime/ 요청 파일 잠금(#273)", () => {
+  const lock = (method: string, kind: string, owner?: string) =>
+    fetch(`${baseUrl}/__vs/request-lock/${kind}`, {
+      method,
+      headers: owner === undefined ? {} : { "x-visual-spec-request-owner": owner },
+    });
+  const putRequest = (file: string, owner?: string) =>
+    fetch(`${baseUrl}/__vs/file/runtime/${file}`, {
+      method: "PUT",
+      headers: { "x-visual-spec-expected-revision": "missing", ...(owner === undefined ? {} : { "x-visual-spec-request-owner": owner }) },
+      body: JSON.stringify({ protocol: 1, id: owner ?? "none" }),
+    });
+
+  it("두 번째 탭은 잠금도 요청 파일 쓰기도 거절되고, 첫 탭의 요청이 그대로 남는다", async () => {
+    expect((await lock("POST", "nl", "tab-a")).status).toBe(200);
+    expect((await putRequest("nl-request.json", "tab-a")).status).toBe(200);
+
+    const busy = await lock("POST", "nl", "tab-b");
+    expect(busy.status).toBe(409);
+    expect((await putRequest("nl-request.json", "tab-b")).status).toBe(409);
+    expect((await putRequest("nl-request.json")).status).toBe(409);
+
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "runtime", "nl-request.json"), "utf8")).id).toBe("tab-a");
+  });
+
+  it("풀면 다음 탭이 잡는다. 남의 잠금은 풀지 못한다", async () => {
+    await lock("POST", "ticket", "tab-a");
+    await lock("DELETE", "ticket", "tab-b");
+    expect((await lock("POST", "ticket", "tab-b")).status).toBe(409);
+    await lock("DELETE", "ticket", "tab-a");
+    expect((await lock("POST", "ticket", "tab-b")).status).toBe(200);
+    expect((await putRequest("ticket-request.json", "tab-b")).status).toBe(200);
+  });
+
+  it("자연어와 티켓 잠금은 서로 독립이다", async () => {
+    await lock("POST", "nl", "tab-a");
+    expect((await lock("POST", "ticket", "tab-b")).status).toBe(200);
+  });
+
+  it("대소문자만 다른 경로로 잠금을 비켜가지 못한다", async () => {
+    await lock("POST", "nl", "tab-a");
+    expect((await putRequest("NL-Request.json", "tab-b")).status).toBe(409);
+  });
+
+  it("잠금 파일은 목록·파일 라우트로 보이지 않는다", async () => {
+    await lock("POST", "nl", "tab-a");
+    const listed = await (await fetch(`${baseUrl}/__vs/list/runtime`)).json();
+    expect(JSON.stringify(listed)).not.toContain("lock");
+    expect((await fetch(`${baseUrl}/__vs/file/runtime/.nl-request.lock`)).status).toBeGreaterThanOrEqual(400);
+  });
+
+  it("주인 헤더가 없거나 모르는 종류면 거절하고, 교차 출처는 잠금도 못 잡는다", async () => {
+    expect((await lock("POST", "nl")).status).toBe(400);
+    expect((await lock("POST", "spec", "tab-a")).status).toBe(404);
+    const crossOrigin = await rawRequest("POST", "/__vs/request-lock/nl", undefined, {
+      host: `localhost:${port}`, origin: "http://evil.example", "x-visual-spec-request-owner": "evil",
+    });
+    expect(crossOrigin.status).toBeGreaterThanOrEqual(400);
+    expect((await lock("POST", "nl", "tab-a")).status).toBe(200);
+  });
+});
+

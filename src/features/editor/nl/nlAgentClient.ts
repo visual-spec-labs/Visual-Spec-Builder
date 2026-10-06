@@ -19,6 +19,7 @@ import {
   readWorkspaceTextFile,
   writeWorkspaceFile,
 } from "@/features/editor/ui/workspaceClient";
+import { holdRequestLock, type HeldRequestLock } from "@/features/editor/ui/agentRequestLock";
 import { RUNTIME_DIR } from "@/features/workspace/protocol";
 
 import {
@@ -46,6 +47,8 @@ export const NL_TIMEOUT_MS = 180_000;
 
 export type NlRequestOutcome =
   | { kind: "unavailable"; message: string }
+  /** 같은 작업공간의 다른 탭 요청이 아직 응답을 기다린다(#273). 요청 파일을 쓰지 않았다. */
+  | { kind: "busy"; message: string }
   | { kind: "writeFailed"; message: string }
   | { kind: "timeout"; message: string }
   | { kind: "cancelled" }
@@ -87,10 +90,32 @@ export async function requestNlEdit(
 ): Promise<NlRequestOutcome> {
   const request = buildNlRequest(input);
 
+  // 같은 작업공간의 다른 탭 요청을 덮어쓰지 않도록 요청 파일 잠금부터 잡는다(#273).
+  const lock = await holdRequestLock("nl", request.id);
+  if (lock === "busy") {
+    return {
+      kind: "busy",
+      message: "다른 탭(창)에서 보낸 자연어 요청이 아직 응답을 기다리고 있습니다. 그 요청이 끝나거나 취소된 뒤 다시 시도하세요.",
+    };
+  }
+  try {
+    return await waitForNlResponse(request, cancel, lock === "unavailable" ? null : lock);
+  } finally {
+    if (lock !== "unavailable") lock.release();
+  }
+}
+
+async function waitForNlResponse(
+  request: ReturnType<typeof buildNlRequest>,
+  cancel: NlCancelToken,
+  lock: HeldRequestLock | null,
+): Promise<NlRequestOutcome> {
   const written = await writeWorkspaceFile(
     NL_REQUEST_PATH,
     JSON.stringify(request, null, 2),
     "application/json",
+    undefined,
+    request.id,
   );
   if (!written.ok) {
     // 작업공간이 없을 때가 가장 흔하다 — 그때는 고치는 방법까지 함께 말해 준다.
@@ -106,6 +131,12 @@ export async function requestNlEdit(
   const deadline = Date.now() + NL_TIMEOUT_MS;
   for (;;) {
     if (cancel.cancelled) return { kind: "cancelled" };
+    if (lock !== null && !await lock.renew()) {
+      return {
+        kind: "busy",
+        message: "응답을 기다리는 사이 요청 잠금이 만료돼 다른 탭의 요청으로 바뀌었습니다. 다시 요청하세요.",
+      };
+    }
 
     // 파일을 바로 GET하지 않고 **목록으로 있는지 먼저 본다.** 응답이 아직 없을 때
     // GET은 404이고, 초당 한 번씩 3분이면 개발자 도구 콘솔이 404로 가득 찬다 —

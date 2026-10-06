@@ -64,11 +64,16 @@ import {
   WORKSPACE_MARKER_HEADER,
   WORKSPACE_STATUS_ROUTE,
   WORKSPACE_RENAME_ROUTE,
+  WORKSPACE_REQUEST_LOCK_ROUTE,
+  WORKSPACE_REQUEST_OWNER_HEADER,
+  REQUEST_LOCK_FILES,
+  isRequestLockKind,
 } from "./protocol";
 import { migrateToV03 } from "../editor/schema/migrate";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
 import { projectFileName } from "./projectName";
 import { checkRequestOrigin } from "./requestOrigin";
+import { acquireRequestLock, holdsRequestLock, releaseRequestLock } from "./requestLock";
 import {
   isInsideWorkspace,
   matchWorkspaceRoute,
@@ -598,6 +603,27 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
       return;
     }
 
+    if (path.startsWith(WORKSPACE_REQUEST_LOCK_ROUTE)) {
+      const kind = path.slice(WORKSPACE_REQUEST_LOCK_ROUTE.length);
+      const owner = req.headers[WORKSPACE_REQUEST_OWNER_HEADER];
+      if (!isRequestLockKind(kind)) { sendError(res, 404, "알 수 없는 요청 종류입니다."); return; }
+      if (typeof owner !== "string" || owner === "" || owner.length > 200) {
+        sendError(res, 400, "요청 주인 헤더가 필요합니다."); return;
+      }
+      if (method !== "POST" && method !== "DELETE") { sendError(res, 405, "POST·DELETE만 받습니다."); return; }
+      try {
+        if (method === "DELETE") { releaseRequestLock(root, kind, owner); sendJson(res, 200, { ok: true }); return; }
+        const lock = acquireRequestLock(root, kind, owner);
+        if (lock.ok) sendJson(res, 200, { ok: true, expiresAt: lock.expiresAt });
+        else sendJson(res, 409, { ok: false, error: "다른 탭에서 보낸 요청이 아직 응답을 기다리고 있습니다.", expiresAt: lock.expiresAt });
+      } catch (error) {
+        // 다른 서버 프로세스가 같은 순간 잠금을 갱신 중이었다 — 잠금 상태를 모르므로 거절도
+        // 허락도 아닌 일시 장애로 답한다. 클라이언트는 다음 회차에 다시 시도한다.
+        sendError(res, 503, error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
     const route = matchWorkspaceRoute(path);
 
     if (route.kind === "list") {
@@ -651,6 +677,14 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
       if (method === "GET") {
         handleRead(res, resolved.absolutePath, resolved.relativePath.startsWith("specs/"));
       } else {
+        // 공유 요청 파일은 잠금 주인만 덮어쓴다(#273) — 기다리는 다른 탭의 요청을 지우지 않는다.
+        const lockKind = (Object.keys(REQUEST_LOCK_FILES) as (keyof typeof REQUEST_LOCK_FILES)[])
+          .find((kind) => REQUEST_LOCK_FILES[kind] === resolved.relativePath.toLowerCase());
+        const owner = req.headers[WORKSPACE_REQUEST_OWNER_HEADER];
+        if (lockKind !== undefined && !holdsRequestLock(root, lockKind, typeof owner === "string" ? owner : undefined)) {
+          sendError(res, 409, "다른 탭에서 보낸 요청이 아직 응답을 기다리고 있거나, 이 요청의 잠금이 만료됐습니다.");
+          return;
+        }
         handleWrite(req, res, root, resolved.absolutePath, resolved.relativePath);
       }
       return;

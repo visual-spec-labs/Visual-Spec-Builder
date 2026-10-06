@@ -24,6 +24,9 @@ import {
   WORKSPACE_STATUS_ROUTE,
   workspaceFileUrl,
   type WorkspaceDir,
+  WORKSPACE_REQUEST_LOCK_ROUTE,
+  WORKSPACE_REQUEST_OWNER_HEADER,
+  type RequestLockKind,
 } from "@/features/workspace/protocol";
 
 /**
@@ -158,6 +161,8 @@ export async function writeWorkspaceFile(
   body: BodyInit,
   contentType: string,
   expectedRevision?: string,
+  /** 잠금으로 보호되는 요청 파일(#273)에 쓸 때 잠금 주인. */
+  requestOwner?: string,
 ): Promise<WriteResult> {
   if (!(await isWorkspaceAvailable())) {
     return { ok: false, error: "작업공간에 연결돼 있지 않습니다." };
@@ -166,7 +171,9 @@ export async function writeWorkspaceFile(
   try {
     const response = await fetch(workspaceFileUrl(relativePath), {
       method: "PUT",
-      headers: { "content-type": contentType, ...(expectedRevision === undefined ? {} : { [WORKSPACE_EXPECTED_REVISION_HEADER]: expectedRevision }) },
+      headers: { "content-type": contentType,
+        ...(expectedRevision === undefined ? {} : { [WORKSPACE_EXPECTED_REVISION_HEADER]: expectedRevision }),
+        ...(requestOwner === undefined ? {} : { [WORKSPACE_REQUEST_OWNER_HEADER]: requestOwner }) },
       body,
     });
     if (!isWorkspaceResponse(response)) {
@@ -184,3 +191,36 @@ export async function writeWorkspaceFile(
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
+
+export type RequestLockOutcome = "acquired" | "busy" | "unavailable";
+
+/**
+ * 요청 파일 잠금을 잡거나 연장한다(#273). 다른 탭의 요청이 아직 기다리는 중이면
+ * `busy`다. 작업공간 미들웨어가 아니면 `unavailable`이다.
+ */
+export async function acquireRequestLock(kind: RequestLockKind, owner: string): Promise<RequestLockOutcome> {
+  try {
+    const response = await fetch(`${WORKSPACE_REQUEST_LOCK_ROUTE}${kind}`, {
+      method: "POST",
+      headers: { [WORKSPACE_REQUEST_OWNER_HEADER]: owner },
+    });
+    if (!isWorkspaceResponse(response)) return "unavailable";
+    if (response.status === 409) return "busy";
+    return response.ok ? "acquired" : "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
+/**
+ * 잠금을 푼다. 실패해도 기한이 지나면 풀리므로 결과를 돌려주지 않는다. `keepalive`는
+ * 탭을 닫는 중(pagehide)에도 요청이 끝까지 가게 한다.
+ */
+export function releaseRequestLock(kind: RequestLockKind, owner: string, keepalive = false): void {
+  void fetch(`${WORKSPACE_REQUEST_LOCK_ROUTE}${kind}`, {
+    method: "DELETE",
+    headers: { [WORKSPACE_REQUEST_OWNER_HEADER]: owner },
+    keepalive,
+  }).catch(() => undefined);
+}
+
