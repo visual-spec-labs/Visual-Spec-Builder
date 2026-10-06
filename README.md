@@ -29,6 +29,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [14-getting-started.md](docs/14-getting-started.md) | 설치 → GUI 편집·저장 → 외부 에이전트 → 코드 Export·앱 통합 |
 | [15-workflow-qa.md](docs/15-workflow-qa.md) | 전체 흐름의 실제 검증 기록과 한계 |
 | [16-responsive-codegen-qa.md](docs/16-responsive-codegen-qa.md) | 이슈 #224 반응형 React 코드 매핑 fixture 검증 기록과 한계 |
+| [17-codegen-layout-qa.md](docs/17-codegen-layout-qa.md) | 이슈 #269 크기·줄바꿈 DOM 실측과 수동 fixture 검증 기록 |
 | [EDITOR_STORE_CONTRACT.md](docs/EDITOR_STORE_CONTRACT.md) | 캔버스·레이어 트리·세부설정 패널이 공유하는 스토어 계약 |
 | [DESIGN-TOKEN-RULES.md](docs/DESIGN-TOKEN-RULES.md) | 디자인 토큰 네이밍·구조·참조 규칙 |
 | [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
