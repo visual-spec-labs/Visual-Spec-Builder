@@ -924,5 +924,35 @@ describe("runtime/ 요청 파일 잠금(#273)", () => {
     expect(crossOrigin.status).toBeGreaterThanOrEqual(400);
     expect((await lock("POST", "nl", "tab-a")).status).toBe(200);
   });
+
+  it("잠금을 풀면 자기 요청 파일을 지우고, 다른 탭이 새로 쓴 요청은 남긴다", async () => {
+    await lock("POST", "nl", "tab-a");
+    await putRequest("nl-request.json", "tab-a");
+    await lock("DELETE", "nl", "tab-a");
+    expect(existsSync(join(workspaceRoot, "runtime", "nl-request.json"))).toBe(false);
+
+    await lock("POST", "nl", "tab-b");
+    await putRequest("nl-request.json", "tab-b");
+    await lock("DELETE", "nl", "tab-a"); // 이미 끝난 탭 A의 늦은 해제
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "runtime", "nl-request.json"), "utf8")).id).toBe("tab-b");
+  });
+
+  it("runtime 이 바깥 폴더를 가리키는 링크면 잠금 기록을 그 너머에 쓰지 않는다", async (context) => {
+    const outside = mkdtempSync(join(tmpdir(), "visual-spec-outside-"));
+    rmSync(join(workspaceRoot, "runtime"), { recursive: true, force: true });
+    try {
+      symlinkSync(outside, join(workspaceRoot, "runtime"), "junction");
+    } catch {
+      rmSync(outside, { recursive: true, force: true });
+      context.skip();
+      return;
+    }
+
+    expect((await lock("POST", "nl", "tab-a")).status).toBe(403);
+    expect((await lock("DELETE", "nl", "tab-a")).status).toBe(403);
+    expect(fs.readdirSync(outside)).toEqual([]);
+    rmSync(join(workspaceRoot, "runtime"), { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  });
 });
 

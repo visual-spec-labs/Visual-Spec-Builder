@@ -20,7 +20,7 @@
 import { mkdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { REQUEST_LOCK_TTL_MS, RUNTIME_DIR, type RequestLockKind } from "./protocol";
+import { REQUEST_LOCK_FILES, REQUEST_LOCK_TTL_MS, RUNTIME_DIR, type RequestLockKind } from "./protocol";
 
 interface LockRecord {
   owner: string;
@@ -102,10 +102,23 @@ export function acquireRequestLock(
   });
 }
 
-/** 내 잠금일 때만 푼다. 이미 기한이 지나 다른 탭이 가져간 잠금은 건드리지 않는다. */
+/**
+ * 내 잠금일 때만 푼다. 이미 기한이 지나 다른 탭이 가져간 잠금은 건드리지 않는다.
+ *
+ * 끝난 요청(응답·취소·timeout·탭 닫기)의 요청 파일도 함께 지운다 — 남겨 두면 에이전트가
+ * 나중에 "현재 요청"으로 읽고 처리한다. 티켓이면 이미 취소된 요청으로 코드 파일을 쓴다.
+ * 요청 id가 잠금 주인과 같은 파일만 지우므로, 다른 탭이 이미 새로 쓴 요청은 남는다.
+ */
 export function releaseRequestLock(workspaceRoot: string, kind: RequestLockKind, owner: string): void {
   withLockMutex(workspaceRoot, kind, () => {
     if (readLock(workspaceRoot, kind)?.owner !== owner) return;
+    const requestPath = join(workspaceRoot, REQUEST_LOCK_FILES[kind]);
+    try {
+      const request = JSON.parse(readFileSync(requestPath, "utf8")) as { id?: unknown } | null;
+      if (request?.id === owner) unlinkSync(requestPath);
+    } catch {
+      /* 요청 파일이 없거나 읽을 수 없으면 지울 것도 없다. */
+    }
     try {
       unlinkSync(lockPath(workspaceRoot, kind));
     } catch {

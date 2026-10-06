@@ -54,3 +54,19 @@ it("갱신 중 죽은 프로세스가 남긴 오래된 문지기는 치우고 �
   utimesSync(mutex, old, old);
   expect(acquireRequestLock(root, "nl", "a").ok).toBe(true);
 });
+
+it("잠금 주인이 풀면 id가 같은 요청 파일만 지운다", async () => {
+  const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
+  mkdirSync(join(root, "runtime"), { recursive: true });
+  const request = join(root, "runtime", "ticket-request.json");
+  acquireRequestLock(root, "ticket", "a");
+  writeFileSync(request, JSON.stringify({ id: "a" }));
+  releaseRequestLock(root, "ticket", "a");
+  expect(existsSync(request)).toBe(false);
+
+  acquireRequestLock(root, "ticket", "b");
+  writeFileSync(request, JSON.stringify({ id: "someone-else" }));
+  releaseRequestLock(root, "ticket", "b");
+  expect(existsSync(request)).toBe(true);
+});
+

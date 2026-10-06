@@ -611,6 +611,11 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
         sendError(res, 400, "요청 주인 헤더가 필요합니다."); return;
       }
       if (method !== "POST" && method !== "DELETE") { sendError(res, 405, "POST·DELETE만 받습니다."); return; }
+      // 잠금 기록·문지기·요청 정리는 runtime/ 아래에 쓰고 지운다 — 파일 라우트와 같은
+      // 링크 검사를 건다. runtime 이 바깥 폴더를 가리키는 링크면 거기에 쓰지 않는다.
+      if (!realPathStaysInside(root, join(root, REQUEST_LOCK_FILES[kind]))) {
+        sendError(res, 403, "거부: traversal"); return;
+      }
       try {
         if (method === "DELETE") { releaseRequestLock(root, kind, owner); sendJson(res, 200, { ok: true }); return; }
         const lock = acquireRequestLock(root, kind, owner);
