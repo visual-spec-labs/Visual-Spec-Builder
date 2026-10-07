@@ -10,7 +10,8 @@
  * - **쓰기**: 에이전트가 `runtime/agent-edit.json`에 Command 배열과 자기가 읽은 상태 버전
  *   (`baseStateRevision`)을 쓴다. GUI는 상태가 그대로일 때만 자연어 경로와 같은 관문
  *   (G1 형태 검사 → G2·G3 `applyGuardedTransaction`)으로 Undo 한 단계로 적용한다.
- * - **결과**: GUI가 `runtime/agent-edit-result.json`에 적용·거절과 이유를 쓴다.
+ * - **결과**: GUI가 `runtime/agent-edit-result.json`에 적용·거절과 이유를 쓴다. 서버는 이 파일을
+ *   연결 잠금(`gui`)의 주인만 쓰게 한다 — 연결을 잃은 탭이 새 주인의 결과를 덮지 않게(PR #303 리뷰).
  *
  * 경로는 모두 `.visual-spec/` 기준이다(#278에서 확인한 혼동을 피하려고 필드로도 싣는다).
  * 이 파일은 순수하다 — 파일 입출력은 `ui/agentEditBridge.ts`가 맡는다.

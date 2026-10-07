@@ -101,10 +101,14 @@ export function startAgentEditBridge(): () => void {
   /** 에디터 화면일 때만 연결한다 — 홈에서는 보이지 않는 문서에 편집이 적용된다(#279 리뷰). */
   const onEditor = () => useNavigationStore.getState().screen === "editor";
 
+  /**
+   * 결과 파일은 서버가 연결 잠금의 주인일 때만 쓴다(PR #303 리뷰) — 연결을 잃은 줄 아직 모르는
+   * 탭이 옛 요청의 결과로 새 주인의 결과를 덮지 않게. 쓰지 못했으면 이 탭은 더 이상 주인이 아니다.
+   */
   async function writeResult(requestId: string, status: AgentEditStatus, message: string) {
     await writeWorkspaceFile(AGENT_EDIT_RESULT_PATH,
       JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision(tabId)), null, 2),
-      "application/json");
+      "application/json", undefined, tabId);
   }
 
   async function publish(force = false) {
@@ -128,27 +132,32 @@ export function startAgentEditBridge(): () => void {
    * 공유 결과 파일이 엇갈린다(#279 리뷰). 아직 연결의 주인일 때만 결과를 거절로 남긴다. 소유권을
    * 잃었으면 결과는 새 주인이 연결하며 정리한다(`claim`).
    */
-  function dropConfirm(writeRejected: boolean) {
+  async function dropConfirm(writeRejected: boolean) {
     const notice = useAgentEditStore.getState().notice;
     if (notice?.kind !== "confirm") return;
     const message = "GUI 연결이 끊겨(홈 이동·다른 탭·새로고침) 확인을 기다리던 이 편집을 적용하지 않았습니다. gui-state.json을 다시 읽고 새 id로 요청하세요.";
     useAgentEditStore.setState({ notice: { kind: "rejected", requestId: notice.requestId, message } });
-    if (writeRejected) void writeResult(notice.requestId, "rejected", message);
+    if (writeRejected) await writeResult(notice.requestId, "rejected", message);
   }
 
   /** 잠금이 다른 탭으로 넘어갔다 — 이 탭은 더 이상 결과를 쓰지 않는다. */
   function loseConnection() {
     holder = false;
     useAgentEditStore.setState({ connected: false });
-    dropConfirm(false);
+    void dropConfirm(false);
   }
 
+  /** 연결을 푸는 중(거절 결과를 쓰고 잠금을 푸는 사이). 다시 잡기는 이게 끝난 뒤에 한다. */
+  let releasing: Promise<void> | null = null;
   function disconnect() {
     if (!holder) return;
-    dropConfirm(true);
     holder = false;
-    releaseRequestLock("gui", tabId); // 서버가 이 탭의 gui-state.json을 정리한다
     useAgentEditStore.setState({ connected: false });
+    // 거절 결과를 **먼저** 쓰고 잠금을 푼다 — 서버가 쓰는 순간 주인인지 본다. 이미 다른 탭에
+    // 넘어갔으면 쓰기가 거부돼 새 주인의 결과를 덮지 않는다(PR #303 리뷰).
+    releasing = (async () => {
+      try { await dropConfirm(true); } finally { releaseRequestLock("gui", tabId); } // 서버가 이 탭의 gui-state.json을 정리한다
+    })().finally(() => { releasing = null; });
   }
 
   async function claim() {
@@ -158,6 +167,9 @@ export function startAgentEditBridge(): () => void {
     if (claiming) return;
     claiming = true;
     try {
+      // 방금 푼 연결의 해제가 끝나기 전에 다시 잡으면, 늦게 도착한 해제가 새로 잡은 잠금을 푼다.
+      if (releasing !== null) await releasing;
+      if (stopped || !onEditor()) return;
       const outcome = await acquireRequestLock("gui", tabId, holder);
       const nowHolder = outcome === "acquired" || (holder && outcome === "unavailable");
       if (nowHolder && !holder) {

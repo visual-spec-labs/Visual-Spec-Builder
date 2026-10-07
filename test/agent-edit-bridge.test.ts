@@ -8,7 +8,7 @@ import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { seedSpec } from "@/features/editor/store/seedSpec";
 import { startAgentEditBridge } from "@/features/editor/ui/agentEditBridge";
-import { acquireRequestLock, releaseRequestLock } from "@/features/editor/ui/workspaceClient";
+import { acquireRequestLock, releaseRequestLock, writeWorkspaceFile } from "@/features/editor/ui/workspaceClient";
 
 /**
  * 외부 에이전트 대화 → 열린 GUI 반영 통로(#279). 작업공간 파일 입출력은 메모리 지도로
@@ -94,6 +94,7 @@ describe("GUI 상태 공개 (#279)", () => {
     const tabId = state().id;
     stop!();
     stop = undefined;
+    await vi.advanceTimersByTimeAsync(0); // 확인 대기 결과를 쓴 뒤 푼다
     expect(releaseRequestLock).toHaveBeenCalledWith("gui", tabId);
     expect(useAgentEditStore.getState().connected).toBe(false);
   });
@@ -280,6 +281,50 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
     expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "rejected", requestId: "bg" });
+  });
+
+  it("연결이 넘어간 줄 모른 채 홈으로 가도 옛 요청의 거절이 새 주인의 결과를 덮지 않는다 — 결과는 주인만 쓴다", async () => {
+    await connect();
+    const tabId = state().id;
+    sendEdit({ id: "bg-old", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(result()).toMatchObject({ requestId: "bg-old", status: "pending" });
+
+    // A가 정지한 사이 잠금이 B로 넘어가고 B가 새 요청을 처리했다. A는 아직 다음 연장 전이다.
+    // 서버는 결과 파일을 잠금 주인(B)만 쓰게 한다 — 그 동작을 흉내 낸다.
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    writes.mockImplementation(async (path, body, type, rev, owner) =>
+      path === "runtime/agent-edit-result.json" && owner !== "tab-b"
+        ? { ok: false, error: "409" }
+        : serverWrite(path, body, type, rev, owner));
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "b-new", status: "applied" }));
+
+    useNavigationStore.getState().openHome(); // A는 아직 자기가 주인인 줄 안다
+    await vi.advanceTimersByTimeAsync(0);
+    writes.mockImplementation(serverWrite);
+    expect(result()).toMatchObject({ requestId: "b-new", status: "applied" });
+    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "rejected", requestId: "bg-old" });
+    // A는 결과를 자기 이름(잠금 주인 id)으로 쓰려 했고, 그 뒤에 잠금을 풀었다
+    const ownWrites = writes.mock.calls.flatMap(([path, , , , owner], index) => path === "runtime/agent-edit-result.json" && owner === tabId ? [index] : []);
+    const attempt = ownWrites[ownWrites.length - 1];
+    expect(attempt).toBeGreaterThanOrEqual(0);
+    expect(writes.mock.invocationCallOrder[attempt]).toBeLessThan(vi.mocked(releaseRequestLock).mock.invocationCallOrder.at(-1)!);
+  });
+
+  it("확인 대기 중 홈에 갔다 바로 돌아와도, 거절을 쓰고 잠금을 푼 뒤에 다시 잡는다", async () => {
+    await connect();
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    vi.mocked(acquireRequestLock).mockClear();
+    useNavigationStore.getState().openHome();
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(300);
+    const released = vi.mocked(releaseRequestLock).mock.invocationCallOrder.at(-1)!;
+    const reacquired = vi.mocked(acquireRequestLock).mock.invocationCallOrder[0];
+    expect(released).toBeLessThan(reacquired);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
   });
 
   it("확인 대기(pending)로 남은 요청은 새 연결이 거절로 끝낸다 — 새로고침하면 확인창이 사라지기 때문이다", async () => {
