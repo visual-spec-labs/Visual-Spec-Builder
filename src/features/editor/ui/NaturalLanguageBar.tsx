@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { useHomeDraftStore } from "@/features/editor/store/homeDraftStore";
+import { consumeHomeDraft } from "@/features/editor/store/homeDraft";
 import type { ProjectSpec } from "@/features/editor/schema";
 import {
   describeCommandIssues,
@@ -97,7 +97,7 @@ export function NaturalLanguageBar() {
   // 완전히 다른 서브트리로 마운트/언마운트하므로 이 effect는 에디터에 들어올
   // 때마다 정확히 한 번 실행된다.
   useEffect(() => {
-    const draft = useHomeDraftStore.getState().consumeDraft();
+    const draft = consumeHomeDraft();
     if (draft !== null) {
       setInstruction(draft);
       instructionInputRef.current?.focus();

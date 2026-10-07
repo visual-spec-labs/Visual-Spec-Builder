@@ -124,7 +124,7 @@
 `screen` 세 갈래 분기로 에디터 서브트리를 통째로 마운트/언마운트하므로 매번
 새로 실행된다) 아래를 한 번 확인한다.
 
-1. 새로 만든 `homeDraftStore`에서 보류 중인 문구를 꺼낸다(꺼내면 즉시 비운다 —
+1. 새로 만든 `store/homeDraft.ts`에서 보류 중인 문구를 꺼낸다(꺼내면 즉시 비운다 —
    같은 문구가 다음에 에디터를 다시 열 때 또 채워지지 않도록).
 2. 있으면 `instruction` state를 그 값으로 설정하고 입력창에 포커스한다.
 3. 없으면(홈에서 "빈 캔버스로 시작"으로 들어왔거나, 기존 화면을 열었거나,
@@ -137,12 +137,15 @@
 
 ### 컴포넌트/모듈 계획
 
-- `src/features/editor/store/homeDraftStore.ts` — `navigationStore.ts`와 같은
-  크기의 작은 zustand 스토어. `draft: string | null` 하나와
-  `setDraft(text)`/`consumeDraft(): string | null`(읽으면서 비운다) 두
-  동작뿐이다. 홈 화면과 에디터가 서로 다른 마운트 트리라 React state로는
-  못 넘기므로(`App.tsx`의 `screen === "home" ? <HomeScreen/> : <EditorLayout/>`
-  이 완전히 다른 서브트리다) 모듈 바깥의 공유 상태가 필요하다.
+- `src/features/editor/store/homeDraft.ts` — 모듈 스코프 변수 하나(`draft:
+  string | null`)와 `setHomeDraft(text)`/`consumeHomeDraft(): string | null`
+  (읽으면서 비운다) 두 함수뿐인 순수 모듈(자체 code-review 대응으로 zustand
+  스토어에서 바꿨다 — 두 호출부 모두 반응형 훅이 아니라 명령형 호출만 쓰므로
+  zustand의 구독 장치가 필요 없다, `ticketRunner.ts`의 모듈 스코프
+  `activeCancel`과 같은 자리). 홈 화면과 에디터가 서로 다른 마운트 트리라
+  React state로는 못 넘기므로(`App.tsx`의 `screen === "home" ?
+  <HomeScreen/> : <EditorLayout/>`이 완전히 다른 서브트리다) 모듈 바깥의
+  공유 상태가 필요하다.
 - `src/features/editor/ui/homeDraftExamples.ts` — 위 세 예시 문자열만 담는
   순수 배열(`HOME_DRAFT_EXAMPLES: { label: string; text: string }[]`). UI와
   분리해 두면 문구만 바꿀 때 JSX를 안 건드려도 되고, 배열 내용 자체를
@@ -167,9 +170,10 @@
 
 `pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
 `pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1564개
-통과/2개 건너뜀 — 신규 `test/home-draft-store.test.ts`(3개)·
+통과/2개 건너뜀 — 신규 `test/home-draft.test.ts`(3개)·
 `test/home-draft-examples.test.ts`(2개)가 더해진 수치다. 둘 다 순수 로직
-(zustand 스토어의 `setDraft`/`consumeDraft`, 예시 배열의 모양)만 검증한다 —
+(`store/homeDraft.ts`의 `setHomeDraft`/`consumeHomeDraft`, 예시 배열의 모양)만
+검증한다 —
 이 저장소에 React 컴포넌트 렌더 테스트(React Testing Library 등)가 없어
 `HomeScreen.tsx`/`NaturalLanguageBar.tsx`의 JSX 배선 자체는 테스트로 고정하지
 못했다. 그 부분은 아래 브라우저 실측으로 대신했다.
@@ -195,17 +199,47 @@
   원인이 아니라, 홈 → 에디터로 넘어가는 전환 자체(두 경로가 공유하는
   `openEditor()`/`EditorLayout` 마운트)가 이 Chrome 확장 세션에서 막히는
   **기존 증상**이다.
-- 그래서 "`homeDraftStore`에 적재한 문구가 실제로 `NaturalLanguageBar`의
+- 그래서 "`store/homeDraft.ts`에 적재한 문구가 실제로 `NaturalLanguageBar`의
   입력칸에 나타나고 포커스되는지"는 **코드 추적으로만** 확인했다 —
-  `HomeScreen.tsx`의 `handleCreateDraft`가 `setDraft(text)` 뒤 `openEditor()`를
-  부르고, `App.tsx`가 그 즉시 `EditorLayout`(과 그 안의 `NaturalLanguageBar`)을
-  새로 마운트하며, `NaturalLanguageBar`의 신규 effect가 마운트 시 정확히
-  한 번 `consumeDraft()`를 불러 `instruction`을 설정하고
+  `HomeScreen.tsx`의 `handleCreateDraft`가 `setHomeDraft(text)` 뒤
+  `openEditor()`를 부르고, `App.tsx`가 그 즉시 `EditorLayout`(과 그 안의
+  `NaturalLanguageBar`)을 새로 마운트하며, `NaturalLanguageBar`의 신규
+  effect가 마운트 시 정확히 한 번 `consumeHomeDraft()`를 불러 `instruction`을
+  설정하고
   `instructionInputRef.current?.focus()`를 부른다. 이 effect의 의존성 배열이
   `[]`이고 `App.tsx`가 홈↔에디터를 완전히 다른 서브트리로 마운트/언마운트하는
   것은 기존 코드(이 PR이 바꾸지 않음)이므로, "에디터에 들어올 때마다 정확히
   한 번 실행된다"는 전제가 깨질 경로가 없다. 다음 세션에서 이 Chrome 확장
   증상이 풀리면 실제 화면으로 다시 확인해야 한다.
+
+## 자체 code-review 대응 (2026-10-08, 커밋 bfe00e2 이후)
+
+`/code-review`를 돌려 두 건을 찾아 고쳤다.
+
+1. **`handleCreateDraft`에 중복 제출 가드가 없었다.** `handleRename`은 이미
+   `renaming` 가드로 같은 문제를 막고 있는데, "초안 만들기"는 가드가 없어서
+   Enter 두 번을 빠르게 누르거나 Enter·클릭이 겹치면 `newSpec()`(안의
+   `settle()` 대기 구간)이 끝나기 전에 `handleCreateDraft`가 다시 들어와
+   `newSpec()`+`setHomeDraft()`+`openEditor()`가 두 번 겹쳐 실행될 수 있었다.
+   오늘은 두 동작이 멱등이라 눈에 보이는 증상이 없지만, `renaming`과 같은
+   자리의 가드가 빠진 것 자체가 결함이었다. `submittingDraft` state를
+   추가해 재진입을 막고, "뒤로"·"초안 만들기" 둘 다 제출 중엔 비활성화했다.
+2. **`store/homeDraftStore.ts`가 zustand `create()`를 썼지만 아무도 반응형
+   훅으로 구독하지 않았다.** 두 호출부(`HomeScreen.tsx`·
+   `NaturalLanguageBar.tsx`) 모두 `getState()`류의 명령형 호출만 썼다 —
+   `useHomeDraftStore(selector)` 형태의 호출은 저장소 전체에 하나도 없었다.
+   리렌더를 구독할 곳이 없으면 zustand가 더하는 구독 장치는 불필요한
+   간접 비용이다. `store/homeDraft.ts`로 이름을 바꾸고 zustand 없이 모듈
+   스코프 변수 하나 + `setHomeDraft`/`consumeHomeDraft` 두 함수로 다시
+   짰다 — `ticketRunner.ts`의 모듈 스코프 `activeCancel`과 같은 자리의
+   상태다. 공개 동작(적재·소비 규칙)은 그대로다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1564개
+통과/2개 건너뜀 — 테스트 수는 그대로다(`test/home-draft-store.test.ts`를
+`test/home-draft.test.ts`로 바꾸고 새 함수형 API에 맞게 고쳐 썼을 뿐이다).
 
 ## 범위 밖
 

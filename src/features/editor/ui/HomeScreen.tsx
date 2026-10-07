@@ -7,7 +7,7 @@ import type {
   ScreenSpec,
 } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { useHomeDraftStore } from "@/features/editor/store/homeDraftStore";
+import { setHomeDraft } from "@/features/editor/store/homeDraft";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
 import { HOME_DRAFT_EXAMPLES } from "@/features/editor/ui/homeDraftExamples";
@@ -48,7 +48,7 @@ const PREVIEW_HEIGHT = 140;
  * **"자연어로 초안 만들기"는 홈 화면 안에서 먼저 작성한다**(#286). 상태 2(빈
  * 목록)에서 그 타일을 고르면 입력창·초안 예시·수동 에이전트 안내를 보여주는
  * 인라인 패널(`draftMode`)로 바뀐다. "초안 만들기"를 누르면 빈 프로젝트를 열고
- * 그 문구를 `homeDraftStore`에 적재한다 — 새로 마운트되는
+ * 그 문구를 `store/homeDraft.ts`에 적재한다 — 새로 마운트되는
  * `ui/NaturalLanguageBar.tsx`가 그 문구를 한 번 읽어 입력칸에 채우고 포커스한다.
  * **전송("요청")은 보내지 않는다** — 에이전트가 아직 안 켜져 있으면 3분 뒤
  * timeout으로 끝나므로, #283이 확립한 "수동 전달" 원칙과 같은 이유로 사용자가
@@ -79,6 +79,7 @@ export function HomeScreen() {
   // 있거나 로딩 중)에서는 쓰이지 않는다.
   const [draftMode, setDraftMode] = useState(false);
   const [draftText, setDraftText] = useState("");
+  const [submittingDraft, setSubmittingDraft] = useState(false);
   const draftInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -100,16 +101,25 @@ export function HomeScreen() {
   }
 
   // 상태 2-nl의 "초안 만들기"(#286). 빈 프로젝트를 여는 동작은 handleNewScreen과
-  // 같지만, 작성한 문구를 homeDraftStore에 적재해 새로 마운트될
+  // 같지만, 작성한 문구를 store/homeDraft.ts에 적재해 새로 마운트될
   // NaturalLanguageBar가 입력칸에 채워 넣게 한다. 요청을 대신 보내지는 않는다
   // (docs/21-home-screen-nl-draft.md "결정" 참고).
+  //
+  // handleRename의 renaming 가드와 같은 이유로 submittingDraft를 둔다(자체
+  // code-review 대응) — Enter와 클릭이 겹치거나 Enter를 빠르게 두 번 누르면
+  // newSpec()의 await 구간(settle()이 포함된다) 동안 handleCreateDraft가 다시
+  // 들어와 newSpec()+setHomeDraft()+openEditor()가 겹쳐 실행될 수 있다.
   async function handleCreateDraft() {
+    if (submittingDraft) return;
     const text = draftText.trim();
     if (text === "") return;
+    setSubmittingDraft(true);
     if (await newSpec()) {
-      useHomeDraftStore.getState().setDraft(text);
+      setHomeDraft(text);
       openEditor();
+      return;
     }
+    setSubmittingDraft(false);
   }
 
   async function handleOpenProject(project: HomeProject) {
@@ -207,17 +217,18 @@ export function HomeScreen() {
           <div className="flex items-center justify-end gap-2">
             <button
               type="button"
+              disabled={submittingDraft}
               onClick={() => {
                 setDraftMode(false);
                 setDraftText("");
               }}
-              className="rounded-control border border-line px-3 py-1.5 text-sm text-content hover:bg-hover"
+              className="rounded-control border border-line px-3 py-1.5 text-sm text-content hover:bg-hover disabled:opacity-50"
             >
               뒤로
             </button>
             <button
               type="submit"
-              disabled={draftText.trim() === ""}
+              disabled={draftText.trim() === "" || submittingDraft}
               className="rounded-control bg-primary px-3 py-1.5 text-sm font-medium text-text-on-accent hover:opacity-90 disabled:opacity-50"
             >
               초안 만들기
