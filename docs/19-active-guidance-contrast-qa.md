@@ -99,12 +99,17 @@ override 안내 — 2곳), `NaturalLanguageBar.tsx`(입력 placeholder),
 
 ### 회귀 테스트 — `test/design-token-contrast.test.ts`
 
-jsdom에 CSS 커스텀 프로퍼티를 읽어올 방법이 없어, 원시값을 테스트 파일에
-그대로 옮겨 적고 WCAG 공식으로 계산한다. `colors.css`의 값이 바뀌면 이 상수도
-같이 고쳐야 한다는 점을 파일 머리에 주석으로 남겼다. 다섯 surface(라이트)·
-다섯 surface(다크) 각각에서 `content-muted` ≥ 4.5:1을 확인하고(10개),
-`content-subtle`이 `bg-surface` 기준으로 AA 밑(= 일반 텍스트에 쓰면 안 된다는
-뜻)임을 두 테마에서 고정했다(2개) — 총 12개.
+jsdom에 CSS 커스텀 프로퍼티를 읽어올 방법이 없다. 1차 버전은 원시값을 테스트
+파일 안에 상수로 옮겨 적고 WCAG 공식으로 계산했는데, 리뷰(81bcfba) 3차
+대응에서 지적됐듯 그러면 `colors.css`의 실제 연결이 바뀌어도(예:
+`content-muted`를 예전 값으로 되돌리거나 `neutral-600` 선언 자체를 지워도)
+테스트는 복사해 둔 옛 상수만 보고 계속 "통과"한다 — 아래 "리뷰 대응" 절
+참고. `primitives/colors.css`·`semantic/colors.css`를 `fs.readFileSync`로
+직접 읽어 선언을 파싱하고 `var(--color-*)` 체인을 해석해서 hex로 바꾸는
+쪽으로 다시 짰다. 다섯 surface(라이트)·다섯 surface(다크) 각각에서
+`content-muted` ≥ 4.5:1을 확인하고(10개), `content-subtle`이 `bg-surface`
+기준으로 AA 밑(= 일반 텍스트에 쓰면 안 된다는 뜻)임을 두 테마에서
+고정했다(2개) — 총 12개.
 
 ### 실제 컴포넌트 + 실제 테마로 확인(라이브 브라우저)
 
@@ -120,6 +125,52 @@ jsdom에 CSS 커스텀 프로퍼티를 읽어올 방법이 없어, 원시값을 
 실측으로 갈음했다. 다크 테마는 원시값을 아예 바꾸지 않아(사용처 재배정만
 있음) 위험이 라이트보다 낮다.
 
+## 리뷰 대응 — 테스트가 production 값을 읽지 않고 복사본만 본다 (2026-10-09)
+
+팀원이 커밋 a2c7e5(색상 수정 자체는 소스 기준 계산으로 재확인해 문제없다고
+확인)에 P2를 남겼다: `test/design-token-contrast.test.ts`의 1차 버전은 전경·
+배경 hex를 테스트 파일 안에 상수로 복사해 두고 있어서, `semantic/colors.css`
+의 `--content-muted` 연결을 예전 값(`neutral-500` 이하)으로 되돌리거나
+`primitives/colors.css`의 `--color-neutral-600` 선언 자체를 지워도 12개
+테스트가 그대로 통과한다는 지적이었다 — QA 문서의 "원시값이 다시 낮아지면
+실패하도록 고정"이라는 설명과 실제가 달랐다.
+
+**지적이 맞다.** 테스트가 지키는 대상은 "현재 커밋 시점의 올바른 숫자"였지
+"지금 커밋된 CSS 파일의 실제 선언"이 아니었다 — 둘은 작성 시점엔 같아
+보이지만, 둘 중 하나만 바뀌는 순간(파일은 바뀌고 테스트 상수는 안 바뀌는
+경우) 같은 숫자가 아니게 된다.
+
+**수정**: `fs.readFileSync`로 `primitives/colors.css`·`semantic/colors.css`를
+직접 읽어, `:root`/`[data-theme="dark"]` 블록의 `--name: value;` 선언을
+정규식으로 파싱하고 `var(--color-*)` 참조를 Primitive 맵에서 찾아 hex로
+바꾸는 작은 파서를 추가했다(`extractBlock`·`parseDeclarations`·
+`resolvePrimitive`·`resolveSemanticVar`). 다섯 surface와 `content-muted`/
+`content-subtle`을 두 테마 모두 이 파서로 읽은 값에서 계산하도록 바꿨다 —
+이제 "복사해 둔 숫자"가 아니라 "지금 커밋된 CSS가 실제로 선언한 값"을 본다.
+참조를 못 찾거나(예: primitive가 지워짐) 지원하지 않는 형식(채도가 있는
+oklch 등)이면 조용히 틀린 값으로 넘어가지 않고 곧장 던진다.
+
+**변이 검증**: 리뷰가 제안한 대로, 실제로 production 토큰을 낮춰서 테스트가
+정말 깨지는지 직접 확인했다 — `semantic/colors.css`의 라이트
+`--content-muted`를 `var(--color-neutral-600)`에서 `var(--color-neutral-400)`
+(= `content-subtle`과 같은 값)로 임시로 바꾸고 테스트를 돌리니 5개(`surface`·
+`surface-raised`·`surface-sunken`·`surface-inset`·`surface-canvas`)가
+예상대로 실패했다(`surface-canvas`는 2.05:1까지 떨어짐). 확인 후 파일을
+원상 복구했고(`git diff` 결과 없음을 확인), 이 변이 시도는 커밋하지
+않았다 — 이 QA 문서에 과정만 남긴다.
+
+팀원이 독립 계산한 수치(라이트 최소 6.194:1, 다크 최소 5.923:1)도 이
+PR의 결과값과 일치해, "색상 수정 자체에는 결함이 없다"는 리뷰의 결론과
+이번 대응이 어긋나지 않는다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한, 무관)/1536개
+통과/1개 건너뜀 — `design-token-contrast.test.ts`는 파서로 다시 짰어도
+같은 12개 케이스를 같은 결과로 통과한다(파서가 읽어낸 값이 1차 버전의
+복사본 상수와 일치한다는 뜻이기도 하다).
+
 ## 결론
 
 - 완료 조건 "활성 일반 안내 텍스트는 두 테마에서 WCAG AA 4.5:1 이상을 확보한다"
@@ -131,3 +182,7 @@ jsdom에 CSS 커스텀 프로퍼티를 읽어올 방법이 없어, 원시값을 
   수작업으로 재분류
 - 회귀 테스트(`test/design-token-contrast.test.ts`) 12개 추가 — 원시값이
   다시 낮아지면 실패하도록 고정
+- 리뷰 대응: 1차 버전은 값을 테스트에 복사해 둬 실제 CSS가 바뀌어도 통과하는
+  허울뿐인 회귀였다는 지적을 받아, `colors.css`를 직접 읽어 파싱하는 구조로
+  다시 짜고 production 토큰을 실제로 낮춰 테스트가 깨지는 것까지 변이
+  검증으로 확인
