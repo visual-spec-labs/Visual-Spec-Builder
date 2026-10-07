@@ -12,13 +12,18 @@ const FEEDBACK_MS = 2000;
 export function CopyButton({ text, label = "지시 복사" }: { text: string; label?: string }) {
   const [feedback, setFeedback] = useState<"idle" | "copied" | "failed">("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 복사 중(클립보드 권한 대기 등) 패널이 닫히는 레이스를 막는다(#283 리뷰
+  // 대응) — TicketPanel의 작업공간 확인 effect와 같은 패턴.
+  const mountedRef = useRef(true);
 
   useEffect(() => () => {
+    mountedRef.current = false;
     if (timerRef.current !== null) clearTimeout(timerRef.current);
   }, []);
 
   async function handleClick() {
     const ok = await copyToClipboard(text);
+    if (!mountedRef.current) return;
     setFeedback(ok ? "copied" : "failed");
     if (timerRef.current !== null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setFeedback("idle"), FEEDBACK_MS);

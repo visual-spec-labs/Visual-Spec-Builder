@@ -19,6 +19,12 @@ interface TicketState {
   /** 마지막 웨이브의 전송·타임아웃 오류(개별 티켓 실패가 아니라 배치 자체의 실패). */
   runError: string | null;
   /**
+   * `runError`가 timeout이라 "위쪽 전달 버튼을 다시 눌러 새 요청을 만들라"는
+   * 안내가 뜻이 있는가(#283 리뷰 대응). timeout이 아닌 다른 원인(작업공간 연결
+   * 끊김·다른 탭 잠금 등)은 같은 안내를 붙이면 엉뚱한 해결책을 가리키게 된다.
+   */
+  runErrorRetryable: boolean;
+  /**
    * `compile`이 불릴 때마다 하나씩 늘어난다(이슈 #184). `ui/ticketRunner.ts`가 웨이브를
    * 시작할 때 이 값을 함께 들고 있다가, 응답을 받은 뒤 값이 달라졌으면(그 사이
    * 재컴파일됐으면) 응답을 버린다. `sourcePage` 참조 비교가 아니라 이 값을 쓰는
@@ -54,6 +60,7 @@ export const useTicketStore = create<TicketState>((set) => ({
   isOpen: false,
   running: false,
   runError: null,
+  runErrorRetryable: false,
   generation: 0,
   compile: (pageId, page) =>
     set((state) => ({
@@ -64,6 +71,7 @@ export const useTicketStore = create<TicketState>((set) => ({
       isOpen: true,
       running: false,
       runError: null,
+      runErrorRetryable: false,
       generation: state.generation + 1,
     })),
   markStatus: (id, status) =>

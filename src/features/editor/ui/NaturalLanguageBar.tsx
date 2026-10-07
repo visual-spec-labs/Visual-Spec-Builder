@@ -19,6 +19,7 @@ import { changedBackgroundNodes } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
 import { buildNlAgentInstruction } from "@/features/editor/ui/agentHandoff";
 import { CopyButton } from "@/features/editor/ui/CopyButton";
+import { WORKSPACE_DIR_NAME } from "@/features/workspace/protocol";
 
 /**
  * 캔버스 아래 전폭 행에 붙는 자연어 입력창 (이슈 #155).
@@ -48,7 +49,17 @@ import { CopyButton } from "@/features/editor/ui/CopyButton";
 type Feedback =
   | { kind: "none" }
   | { kind: "pending" }
-  | { kind: "error"; message: string }
+  | {
+      kind: "error";
+      message: string;
+      /**
+       * timeout일 때만 true다(#283 리뷰 대응) — 그때만 "위쪽 요청을 다시 눌러
+       * 새 요청을 만든 뒤 전달하라"는 안내가 맞다. 다른 실패(작업공간 연결
+       * 끊김·다른 탭 잠금·Command 검증 실패 등)는 폴링이 아예 없었거나 이미
+       * 정상 종료된 뒤라 같은 안내가 엉뚱한 해결책을 가리킨다.
+       */
+      retryable?: boolean;
+    }
   | {
       kind: "confirmation";
       spec: ProjectSpec;
@@ -133,7 +144,10 @@ export function NaturalLanguageBar() {
       return;
     }
     if (outcome.kind !== "response") {
-      setFeedback({ kind: "error", message: outcome.message });
+      // timeout일 때만 재전달 안내를 붙인다 — unavailable·busy·writeFailed는
+      // 애초에 요청이 안 쓰였거나 다른 탭이 잠금을 쥐고 있어, "다시 눌러 새
+      // 요청을 만들라"는 문구가 실제 원인과 안 맞는다(#283 리뷰 대응).
+      setFeedback({ kind: "error", message: outcome.message, retryable: outcome.kind === "timeout" });
       return;
     }
 
@@ -299,14 +313,17 @@ export function NaturalLanguageBar() {
         {shown.kind === "error" && (
           <div className="flex flex-col gap-1">
             <span className="text-error">{shown.message}</span>
-            {/* timeout이면 GUI 폴링은 이미 끝나고 요청 잠금도 풀렸다 — 지금 지시를
-                복사해 에이전트에 줘도 GUI가 응답을 받을 리스너가 없다(#283 리뷰
-                대응). 입력칸의 문구는 그대로 남아 있으니 "요청"을 다시 누르면
-                새 요청으로 다시 기다리기 시작한다 — 그때 지시 복사 버튼이 뜬다. */}
-            <span className="text-content-muted">
-              다시 보내려면 위쪽 "요청"을 다시 눌러 새 요청을 만든 뒤 그 지시를
-              에이전트에 전달하세요.
-            </span>
+            {/* timeout일 때만 보여준다 — 그때만 GUI 폴링이 이미 끝나고 요청 잠금도
+                풀려서, 지금 지시를 복사해 에이전트에 줘도 GUI가 응답을 받을
+                리스너가 없다(#283 리뷰 대응). 입력칸의 문구는 그대로 남아 있으니
+                "요청"을 다시 누르면 같은 내용으로 새 요청이 되고, 그때 지시 복사
+                버튼(= `pending` 분기)이 뜬다. */}
+            {shown.retryable && (
+              <span className="text-content-muted">
+                다시 보내려면 위쪽 "요청"을 다시 눌러 새 요청을 만든 뒤 그 지시를
+                에이전트에 전달하세요.
+              </span>
+            )}
             {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, nlAgentClient.ts) —
                 실패 상태에서도 "자세히"로 같은 정보를 볼 수 있어야 한다. */}
             <NlHandoffDetails />
@@ -338,8 +355,8 @@ function NlHandoffDetails() {
     <details className="text-content-subtle">
       <summary className="cursor-pointer select-none">자세히</summary>
       <p className="mt-1">
-        요청: <code>.visual-spec/{NL_REQUEST_PATH}</code> · 응답:{" "}
-        <code>.visual-spec/{NL_RESPONSE_PATH}</code>
+        요청: <code>{WORKSPACE_DIR_NAME}/{NL_REQUEST_PATH}</code> · 응답:{" "}
+        <code>{WORKSPACE_DIR_NAME}/{NL_RESPONSE_PATH}</code>
       </p>
     </details>
   );

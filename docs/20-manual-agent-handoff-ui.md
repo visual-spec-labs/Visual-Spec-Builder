@@ -223,6 +223,49 @@ GUI는 LLM을 직접 실행하지 않는다(#219, A안으로 확정) — 요청 
 `exportStore`를 거치므로 `test/ticket-runner.test.ts`와 같은 이유로
 `tsconfig.uitest.json`(DOM 타입)에 넣고 `tsconfig.node.json`에서는 뺐다.
 
+## 자체 code-review 대응 2차 (2026-10-09, 커밋 46403b7 이후)
+
+리뷰 대응을 push하기 전에 `/code-review`를 한 번 더 돌려 다섯 건을 고쳤다.
+
+1. **재전달 안내가 모든 실패에 똑같이 붙었다.** 바로 앞 라운드에서 추가한
+   "위쪽 버튼을 다시 눌러 새 요청을 만들라"는 문구를 `NaturalLanguageBar`·
+   `TicketPanel`의 **모든** `error`/`runError` 상태에 붙였는데, 그 문구가
+   맞는 경우는 timeout(폴링이 끝나고 요청 잠금도 풀린 경우)뿐이다. 작업공간
+   연결 끊김·다른 탭 잠금·Command 검증 실패 같은 다른 원인에는 같은 문구가
+   엉뚱한 해결책을 가리킨다. `Feedback`(NL)·`ticketStore`(티켓)에
+   `retryable`/`runErrorRetryable` 플래그를 추가해 timeout일 때만(
+   `outcome.kind === "timeout"`) true로 세우고, 문구도 그 조건에서만 보여준다.
+2. **`TicketPanel`이 `ticketStatus.isAllDone`을 안 쓰고 같은 로직을 또 적었다.**
+   `isAllDone`은 이미 있던(이번 PR이 만들지 않은) 공유 헬퍼인데 아무도 안
+   쓰고 있었다 — `TicketPanel`도 `tickets.length > 0 && tickets.every(...)`을
+   직접 적었다. 게다가 `isAllDone([])`은 `Array.every`의 공허 참 때문에
+   `true`를 돌려주는 잠재 버그가 있었다(티켓이 하나도 없는 걸 "전부 완료"로
+   오판). 헬퍼 자체를 `tickets.length > 0 &&` 가드로 고치고, `TicketPanel`은
+   그 헬퍼를 쓰도록 바꿔 중복을 없앴다. `test/ticket-status.test.ts`에 빈
+   배열 케이스를 추가했다.
+3. **"자세히" 패널이 `.visual-spec/`를 하드코딩했다.** `agentHandoff.ts`는
+   "경로가 바뀌면 문서와 GUI가 같이 바뀐다"며 `WORKSPACE_DIR_NAME` 상수를
+   쓰는데, 같은 라운드에 추가한 `NlHandoffDetails`·`TicketHandoffDetails`는
+   정작 리터럴 문자열 `.visual-spec/`를 그대로 적어 뒀다. 둘 다
+   `WORKSPACE_DIR_NAME`을 쓰도록 고쳤다.
+4. **`CopyButton`이 언마운트 레이스를 안 막았다.** 클립보드 권한 대기 등으로
+   `copyToClipboard`가 늦게 끝나는 사이 패널이 닫히면, 사라진 컴포넌트에
+   `setFeedback`을 불러 React 경고가 난다. 같은 PR의 `TicketPanel` 작업공간
+   확인 effect는 이미 `cancelled` 플래그로 이 레이스를 막고 있었다 — 같은
+   패턴(`mountedRef`)을 `CopyButton`에도 더했다.
+5. **`workspaceClient.ts`의 캐시 변수 두 개(`available`·`cachedRoot`)가 손으로
+   맞춰야 했다.** 한쪽만 갱신하는 수정이 나중에 들어오면 둘이 어긋날 수
+   있었다. `/__vs/status` 응답 하나를 캐시하는 변수(`cachedStatus`) 하나로
+   합치고, `isWorkspaceAvailable`·`getWorkspaceRoot` 둘 다 그 결과에서
+   파생하도록 다시 짰다 — 공개 동작(캐싱 규칙·반환 타입)은 그대로다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한, 무관)/1553개
+통과/1개 건너뜀 — `test/ticket-status.test.ts`에 추가한 빈 배열 케이스 1개가
+늘었다.
+
 ## 검증
 
 `pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.

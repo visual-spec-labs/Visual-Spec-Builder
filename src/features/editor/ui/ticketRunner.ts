@@ -86,7 +86,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   // 매번 계산해 보여준다.
   if (isTicketPlanStale()) {
     activeCancel = null;
-    useTicketStore.setState({ running: false, runError: null });
+    useTicketStore.setState({ running: false, runError: null, runErrorRetryable: false });
     return;
   }
 
@@ -100,6 +100,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     ),
     running: true,
     runError: null,
+    runErrorRetryable: false,
   }));
 
   const outcome = await requestTicketBatch(
@@ -118,7 +119,14 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
 
   if (outcome.kind !== "response") {
     revertToPending(waveTickets);
-    useTicketStore.setState({ running: false, runError: outcome.message });
+    // timeout일 때만 "재시도" 안내가 뜻이 있다(#283 리뷰 대응) — unavailable·busy·
+    // writeFailed는 애초에 요청이 안 쓰였거나 다른 탭이 잠금을 쥐고 있어, "다시
+    // 눌러 새 요청을 만들라"는 문구가 실제 원인과 안 맞는다.
+    useTicketStore.setState({
+      running: false,
+      runError: outcome.message,
+      runErrorRetryable: outcome.kind === "timeout",
+    });
     activeCancel = null;
     return;
   }
@@ -129,6 +137,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
       running: false,
       runError:
         outcome.result.kind === "malformed" ? outcome.result.message : "이번 요청의 응답이 아닙니다.",
+      runErrorRetryable: false,
     });
     activeCancel = null;
     return;

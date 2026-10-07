@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH } from "@/features/editor/ticket/ticketProtocol";
-import { isReady, readyTickets } from "@/features/editor/ticket/ticketStatus";
+import { isAllDone, isReady, readyTickets } from "@/features/editor/ticket/ticketStatus";
 import type { TicketStatus } from "@/features/editor/ticket/types";
 import { buildTicketAgentInstruction } from "@/features/editor/ui/agentHandoff";
 import { CopyButton } from "@/features/editor/ui/CopyButton";
@@ -16,6 +16,7 @@ import {
   STALE_TICKET_MESSAGE,
 } from "@/features/editor/ui/ticketRunner";
 import { getWorkspaceRoot, isWorkspaceAvailable } from "@/features/editor/ui/workspaceClient";
+import { WORKSPACE_DIR_NAME } from "@/features/workspace/protocol";
 
 const STATUS_LABEL: Record<TicketStatus, string> = {
   pending: "대기",
@@ -52,6 +53,7 @@ export function TicketPanel() {
   const sourceDocumentId = useTicketStore((state) => state.sourceDocumentId);
   const running = useTicketStore((state) => state.running);
   const runError = useTicketStore((state) => state.runError);
+  const runErrorRetryable = useTicketStore((state) => state.runErrorRetryable);
   const compile = useTicketStore((state) => state.compile);
   const markStatus = useTicketStore((state) => state.markStatus);
   const close = useTicketStore((state) => state.close);
@@ -81,7 +83,6 @@ export function TicketPanel() {
   const isStale = sourceDocumentId !== documentId || sourcePageId !== pageId || sourcePage !== page;
   const canExecute = workspaceAvailable === true && !isStale;
   const readyWave = readyTickets(tickets);
-  const allDone = tickets.length > 0 && tickets.every((ticket) => ticket.status === "done");
 
   return (
     <aside className="flex flex-col overflow-hidden border-l border-line bg-surface [grid-area:props]">
@@ -216,15 +217,20 @@ export function TicketPanel() {
         ) : runError !== null && !isStale ? (
           <div className="flex flex-col gap-1">
             <span className="text-error">{runError}</span>
-            {/* timeout이면 GUI 폴링은 이미 끝나고 요청 잠금도 풀렸다 — 지금 지시를
-                복사해 에이전트에 줘도 GUI가 응답을 받을 리스너가 없다(#283 리뷰
-                대응). 위쪽 "에이전트에 전달"을 다시 눌러 새 요청을 만들어야(그때
-                readyWave가 되돌아간 티켓을 다시 포함한다) 그다음 지시 복사가 뜻이
-                있다 — 그 복사 버튼은 `running` 분기에 있다. */}
-            <span className="text-content-muted">
-              다시 전달하려면 위쪽 "에이전트에 전달"을 다시 눌러 새 요청을 만든
-              뒤 그 지시를 에이전트에 전달하세요.
-            </span>
+            {/* timeout일 때만 보여준다(#283 리뷰 대응) — timeout이면 GUI 폴링은
+                이미 끝나고 요청 잠금도 풀려서, 지금 지시를 복사해 에이전트에 줘도
+                GUI가 응답을 받을 리스너가 없다. unavailable·busy처럼 애초에 요청이
+                안 쓰였거나 다른 탭이 잠금을 쥔 경우는 이 안내가 실제 원인과 안
+                맞아 보여주지 않는다(`ticketRunner.ts`의 `runErrorRetryable` 참고).
+                위쪽 "에이전트에 전달"을 다시 눌러야 readyWave가 되돌아간 티켓을
+                다시 포함한 새 요청이 생기고, 그다음 지시 복사(= `running` 분기의
+                복사 버튼)가 뜻이 있다. */}
+            {runErrorRetryable && (
+              <span className="text-content-muted">
+                다시 전달하려면 위쪽 "에이전트에 전달"을 다시 눌러 새 요청을 만든
+                뒤 그 지시를 에이전트에 전달하세요.
+              </span>
+            )}
             {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, ticketAgentClient.ts) —
                 실패 상태에서도 "자세히"로 같은 정보를 볼 수 있어야 한다. */}
             <TicketHandoffDetails workspaceRoot={workspaceRoot} />
@@ -238,7 +244,7 @@ export function TicketPanel() {
             </span>
             <TicketHandoffDetails workspaceRoot={workspaceRoot} />
           </div>
-        ) : tickets.length === 0 ? null : allDone && !isStale ? (
+        ) : tickets.length === 0 ? null : isAllDone(tickets) && !isStale ? (
           <span className="text-content-muted">
             모든 티켓이 완료됐습니다. 다음:{" "}
             <button type="button" onClick={openExportPanel} className="underline hover:text-content">
@@ -270,8 +276,8 @@ function TicketHandoffDetails({ workspaceRoot }: { workspaceRoot: string | null 
     <details className="text-content-subtle">
       <summary className="cursor-pointer select-none">자세히</summary>
       <p className="mt-1">
-        요청: <code>.visual-spec/{TICKET_REQUEST_PATH}</code> · 응답:{" "}
-        <code>.visual-spec/{TICKET_RESPONSE_PATH}</code>
+        요청: <code>{WORKSPACE_DIR_NAME}/{TICKET_REQUEST_PATH}</code> · 응답:{" "}
+        <code>{WORKSPACE_DIR_NAME}/{TICKET_RESPONSE_PATH}</code>
         {workspaceRoot !== null && (
           <>
             {" "}
