@@ -149,15 +149,29 @@ export function startAgentEditBridge(): () => void {
 
   /** 연결을 푸는 중(거절 결과를 쓰고 잠금을 푸는 사이). 다시 잡기는 이게 끝난 뒤에 한다. */
   let releasing: Promise<void> | null = null;
+  /**
+   * 잠금을 푼다 — 해제 요청(DELETE)이 끝날 때까지 `releasing`에 올려 둔다. 끝나기 전에 같은 탭이
+   * 다시 잡으면 늦게 도착한 해제가 새 잠금과 gui-state.json을 지운다(PR #303 리뷰). 잠금을 푸는
+   * 모든 경로(연결 종료, 최초 연결 취소)가 이걸 지난다. `before`는 해제 전에 끝낼 일이다.
+   */
+  function releaseLock(before?: () => Promise<void>): Promise<void> {
+    const previous = releasing;
+    const run = (async () => {
+      if (previous !== null) await previous;
+      try { await before?.(); } finally { await releaseRequestLock("gui", tabId); } // 서버가 이 탭의 gui-state.json을 정리한다
+    })();
+    releasing = run;
+    void run.finally(() => { if (releasing === run) releasing = null; });
+    return run;
+  }
+
   function disconnect() {
     if (!holder) return;
     holder = false;
     useAgentEditStore.setState({ connected: false });
     // 거절 결과를 **먼저** 쓰고 잠금을 푼다 — 서버가 쓰는 순간 주인인지 본다. 이미 다른 탭에
     // 넘어갔으면 쓰기가 거부돼 새 주인의 결과를 덮지 않는다(PR #303 리뷰).
-    releasing = (async () => {
-      try { await dropConfirm(true); } finally { await releaseRequestLock("gui", tabId); } // 서버가 이 탭의 gui-state.json을 정리한다
-    })().finally(() => { releasing = null; });
+    void releaseLock(() => dropConfirm(true));
   }
 
   async function claim() {
@@ -192,7 +206,7 @@ export function startAgentEditBridge(): () => void {
         // 요청 파일의 요청이 우선이다 — 결과 파일은 하나라 마지막에 쓴 결과만 남는다.
         const waiting = "id" in pending && pending.id !== handled ? pending.id : unfinished;
         lastHandledId = waiting ?? handled;
-        if (stopped || !onEditor()) { releaseRequestLock("gui", tabId); return; }
+        if (stopped || !onEditor()) { void releaseLock(); return; } // 복원을 읽는 사이 홈으로 갔다
         holder = true;
         useAgentEditStore.setState({ connected: true });
         await publish(true);

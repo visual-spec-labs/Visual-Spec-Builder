@@ -8,7 +8,7 @@ import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { seedSpec } from "@/features/editor/store/seedSpec";
 import { startAgentEditBridge } from "@/features/editor/ui/agentEditBridge";
-import { acquireRequestLock, releaseRequestLock, writeWorkspaceFile } from "@/features/editor/ui/workspaceClient";
+import { acquireRequestLock, readWorkspaceTextFile, releaseRequestLock, writeWorkspaceFile } from "@/features/editor/ui/workspaceClient";
 
 /**
  * 외부 에이전트 대화 → 열린 GUI 반영 통로(#279). 작업공간 파일 입출력은 메모리 지도로
@@ -331,6 +331,32 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(acquiredAfterRelease.every(Boolean)).toBe(true);
     expect(useAgentEditStore.getState().connected).toBe(true);
     expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
+  });
+
+  it("최초 연결의 복원 읽기 중 홈에 갔다 돌아와도, 늦게 끝나는 해제를 기다린 뒤 다시 잡는다", async () => {
+    // 잠금을 잡은 뒤 이전 결과를 읽는 동안(느림) 사용자가 홈으로 간다
+    const read = vi.mocked(readWorkspaceTextFile);
+    const serverRead = read.getMockImplementation()!;
+    read.mockImplementationOnce((path) => new Promise((resolve) => { setTimeout(() => resolve(serverRead(path)), 50); }));
+    // 해제 요청(DELETE)도 늦게 끝난다. 끝나면 서버는 이 탭의 상태 파일을 지운다
+    let releaseDone = false;
+    vi.mocked(releaseRequestLock).mockImplementationOnce(() => new Promise((resolve) => {
+      setTimeout(() => { releaseDone = true; files.delete("runtime/gui-state.json"); resolve(); }, 200);
+    }));
+    const acquiredAfterRelease: boolean[] = [];
+    vi.mocked(acquireRequestLock).mockImplementation(async () => { acquiredAfterRelease.push(releaseDone); return "acquired"; });
+
+    stop = startAgentEditBridge();
+    await vi.advanceTimersByTimeAsync(10);
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(60); // 복원 읽기가 끝나며 연결을 취소하고 해제를 보낸다
+    expect(releaseRequestLock).toHaveBeenCalled();
+    useNavigationStore.getState().openEditor(); // 해제가 끝나기 전에 돌아온다
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(acquiredAfterRelease).toEqual([false, true]); // 처음 잡기, 해제가 끝난 뒤 다시 잡기
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(state()).not.toBeNull(); // 늦은 해제가 새로 공개한 상태 파일을 지우지 않았다
   });
 
   it("확인 대기(pending)로 남은 요청은 새 연결이 거절로 끝낸다 — 새로고침하면 확인창이 사라지기 때문이다", async () => {
