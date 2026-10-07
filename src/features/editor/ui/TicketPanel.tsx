@@ -217,6 +217,9 @@ export function TicketPanel() {
           <div className="flex flex-col gap-1">
             <span className="text-error">{runError}</span>
             <CopyButton text={buildTicketAgentInstruction()} label="지시 다시 복사" />
+            {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, ticketAgentClient.ts) —
+                실패 상태에서도 "자세히"로 같은 정보를 볼 수 있어야 한다. */}
+            <TicketHandoffDetails workspaceRoot={workspaceRoot} />
           </div>
         ) : running ? (
           <div className="flex flex-col gap-1 text-content-muted">
@@ -227,7 +230,7 @@ export function TicketPanel() {
             </span>
             <TicketHandoffDetails workspaceRoot={workspaceRoot} />
           </div>
-        ) : allDone ? (
+        ) : tickets.length === 0 ? null : allDone && !isStale ? (
           <span className="text-content-muted">
             모든 티켓이 완료됐습니다. 다음:{" "}
             <button type="button" onClick={openExportPanel} className="underline hover:text-content">
