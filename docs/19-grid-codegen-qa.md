@@ -29,9 +29,11 @@ Chrome headless 실측에서 620px 그리드의 콘텐츠 트랙은 1열 596px, 
 GUI의 `frameStyle` 좌표와 같았다. `fill` 및 `auto` 자식의 좌표·크기도 모든 비교에서
 일치했다.
 
-반응형 fixture는 699→700→899→900→901→699px 순서로 확인했다. 700px에서 2열/center,
-900px에서 3열/stretch로 바뀌고 699px로 돌아왔을 때 다시 1열/start가 됐다. 트랙 정의와
-자식 배치 모두 대응하는 GUI style 결과와 같았다.
+반응형 fixture는 요청 viewport 699→700→899→900→901→699px 순서로 별도의 headless
+Chromium 프로세스/profile에서 열어 확인했다. 같은 페이지에서 viewport를 왕복 리사이즈한
+검증은 아니다. 700px에서 2열/center/gap 12px, 900px에서 3열/stretch/gap 20px로 바뀌고,
+699px 실행은 1열/start/gap 8px를 반환했다. 각 viewport에서 트랙 정의·간격·자식 배치가
+대응하는 GUI style 결과와 같았다.
 
 검증 결과: `responsive-codegen.test.ts` 6개 통과, Chrome 브라우저 비교 1개 통과,
 typecheck/lint/build 통과. 실제 외부 AI 코드 생성은 실행하지 않았다. 브라우저 비교는

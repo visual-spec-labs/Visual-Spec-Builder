@@ -27,7 +27,7 @@ const browser = browserCandidates.find(existsSync);
 
 // Opt-in actual browser QA: VSB_GRID_BROWSER=1 CHROME_BIN=<Chromium executable>.
 
-function gridNode(columns: number, crossAxis: Axis): FrameNode {
+function gridNode(columns: number, crossAxis: Axis, gap = 12): FrameNode {
   return {
     type: "frame",
     name: "Grid",
@@ -35,7 +35,7 @@ function gridNode(columns: number, crossAxis: Axis): FrameNode {
     layout: {
       direction: "grid",
       columns,
-      gap: 12,
+      gap,
       padding: { top: 12, right: 12, bottom: 12, left: 12 },
       mainAxis: "start",
       crossAxis,
@@ -57,9 +57,9 @@ function cards(id: string, className: string, style?: CSSProperties, canvas = fa
   }));
 }
 
-function rootStyle(columns: number, axis: Axis): CSSProperties {
+function rootStyle(columns: number, axis: Axis, gap = 12): CSSProperties {
   return {
-    ...frameStyle(gridNode(columns, axis), undefined),
+    ...frameStyle(gridNode(columns, axis, gap), undefined),
     width: 620,
     height: 220,
     boxSizing: "border-box",
@@ -73,8 +73,6 @@ function classFor(columns: number, axis: Axis): string {
 const harnessStyle: CSSProperties = {
   width: 620,
   height: 220,
-  gap: 12,
-  padding: 12,
   boxSizing: "border-box",
 };
 
@@ -88,7 +86,7 @@ it.runIf(process.env.VSB_GRID_BROWSER === "1")(
         "grid-cols-[repeat(1,1fr)]", "items-start",
         "min-[700px]:grid-cols-[repeat(2,1fr)]", "min-[700px]:items-center",
         "min-[900px]:grid-cols-[repeat(3,1fr)]", "min-[900px]:items-stretch",
-        "grid", "gap-[12px]", "p-[12px]",
+        "grid", "gap-[8px]", "min-[700px]:gap-[12px]", "min-[900px]:gap-[20px]", "p-[12px]",
         "w-full", "h-full", "h-auto", "p-[4px]",
       ];
       const classes = [
@@ -103,9 +101,9 @@ it.runIf(process.env.VSB_GRID_BROWSER === "1")(
         ...[1, 2, 3].flatMap((columns) => AXES.map((axis) =>
           cards(`canvas-${columns}-${axis}`, "", rootStyle(columns, axis), true))),
         cards("responsive", breakpointClasses.join(" "), harnessStyle),
-        cards("responsive-base", "", rootStyle(1, "start"), true),
-        cards("responsive-tablet", "", rootStyle(2, "center"), true),
-        cards("responsive-desktop", "", rootStyle(3, "stretch"), true),
+        cards("responsive-base", "", rootStyle(1, "start", 8), true),
+        cards("responsive-tablet", "", rootStyle(2, "center", 12), true),
+        cards("responsive-desktop", "", rootStyle(3, "stretch", 20), true),
       ];
       const html = `<!doctype html><meta charset="utf-8"><style>
         *{box-sizing:border-box} body{margin:0;overflow:hidden} ${css}
