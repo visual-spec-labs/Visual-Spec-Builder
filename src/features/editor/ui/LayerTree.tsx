@@ -530,7 +530,7 @@ export function LayerTree() {
           <button
             type="button"
             onClick={() => useEditorStore.getState().addPage()}
-            className="flex w-full items-center gap-1.5 rounded-control py-1 pr-1 pl-2 text-left text-content-subtle hover:bg-hover hover:text-content"
+            className="flex w-full items-center gap-1.5 rounded-control py-1 pr-1 pl-2 text-left text-content-muted hover:bg-hover hover:text-content"
           >
             <Plus size={13} className="shrink-0" aria-hidden="true" />
             <span>새 페이지</span>
@@ -567,7 +567,7 @@ export function LayerTree() {
             <Redo2 className="size-4" aria-hidden="true" />
           </button>
         </div>
-        <span className="font-mono text-xs text-content-subtle">{nodeCount} layers</span>
+        <span className="font-mono text-xs text-content-muted">{nodeCount} layers</span>
       </footer>
     </aside>
   );

@@ -203,7 +203,7 @@ export function MenuBar() {
       </div>
 
       <span
-        className="min-w-0 flex-1 truncate text-center text-xs text-content-subtle"
+        className="min-w-0 flex-1 truncate text-center text-xs text-content-muted"
         title={formatDocumentTitle(projectName, pageName, fileName)}
       >
         {formatDocumentTitle(projectName, pageName, fileName)}

@@ -60,7 +60,7 @@ export function ResponsivePanel() {
     <label className="flex items-center justify-between gap-2 text-xs text-content-muted">미리보기 폭 (px)
       <input aria-label="미리보기 폭" className={`${inputClass} w-24`} type="number" min="0.01" step="any" value={width} onChange={(event) => setWidth(pageId, Number(event.target.value))} />
     </label>
-    <p className="text-2xs text-content-subtle">폭은 문서 크기와 별개입니다. {breakpoint ? `${breakpoint} 이상에서 적용할 값 편집` : "모든 폭의 기반 값 편집"}. 더 큰 폭은 아래 폭의 값을 상속합니다.</p>
+    <p className="text-2xs text-content-muted">폭은 문서 크기와 별개입니다. {breakpoint ? `${breakpoint} 이상에서 적용할 값 편집` : "모든 폭의 기반 값 편집"}. 더 큰 폭은 아래 폭의 값을 상속합니다.</p>
     <div className="flex gap-1">
       <input aria-label="새 breakpoint ID" placeholder="새 ID" className={`${inputClass} flex-1`} value={newId} onChange={(event) => setNewId(event.target.value)} />
       <input aria-label="새 breakpoint 최소 폭" type="number" min="0.01" step="any" className={`${inputClass} w-20`} value={newWidth} onChange={(event) => setNewWidth(event.target.value)} />
@@ -82,7 +82,7 @@ export function ResponsivePanel() {
         <button type="button" className={buttonClass} onClick={pin}>현재 표현값 고정</button>
         <button type="button" className={buttonClass} disabled={!paths.length} onClick={() => save(removeResponsiveOverride(responsive, breakpoint, selectedId))}>이 노드 override 삭제</button>
       </div>
-      <p className="text-2xs text-content-subtle">이름·내용·트리·그림자는 기본값에서 편집합니다. 캔버스 크기 변경은 아래 속성 패널을 사용하세요. 복제는 반응형 값을 보존하고 복사·붙여넣기는 기존 기본값만 옮깁니다.</p>
+      <p className="text-2xs text-content-muted">이름·내용·트리·그림자는 기본값에서 편집합니다. 캔버스 크기 변경은 아래 속성 패널을 사용하세요. 복제는 반응형 값을 보존하고 복사·붙여넣기는 기존 기본값만 옮깁니다.</p>
     </div>}
     {error && <p role="alert" className="whitespace-pre-wrap text-2xs text-error">{error}</p>}
   </section>;

@@ -36,8 +36,15 @@
   /* Content (텍스트) */
   --content-strong: var(--color-neutral-900); /* 강조 텍스트 */
   --content: var(--color-neutral-800); /* 기본 텍스트 */
-  --content-muted: var(--color-neutral-500); /* 보조 텍스트 */
-  --content-subtle: var(--color-neutral-400); /* 흐린 텍스트 */
+  /* 보조 텍스트 — 활성 상태의 안내·라벨에 쓰는 선. bg-surface류 다섯 배경
+     (surface/-sunken/-canvas/-raised/-inset) 전부에서 WCAG AA 4.5:1 이상을
+     보장해야 한다(#276) — neutral-500(흰 배경 4.74:1)은 -sunken/-inset에서
+     4.35:1, -canvas에서 3.76:1로 그중 둘을 못 넘겨 neutral-600(모든 배경에서
+     최소 6.2:1)으로 올렸다. */
+  --content-muted: var(--color-neutral-600);
+  /* 흐린 텍스트 — disabled·장식(아이콘 등) 전용. 일반 텍스트에는 쓰지 않는다
+     (#276) — AA 대상이 아니므로 낮은 대비를 그대로 둔다. */
+  --content-subtle: var(--color-neutral-400);
 
   /* Border / interaction 오버레이 (라이트 = 검정 알파) */
   --border-subtle: var(--color-black-a08);
@@ -64,8 +71,8 @@
 
   --content-strong: var(--color-white); /* #ffffff */
   --content: var(--color-gray-250); /* #e0e0e2 */
-  --content-muted: var(--color-gray-400); /* #a9aab0 */
-  --content-subtle: var(--color-gray-600); /* #6b6c72 */
+  --content-muted: var(--color-gray-400); /* #a9aab0 — 다섯 배경 전부에서 이미 최소 5.92:1(#276), 라이트와 달리 바꿀 필요 없음 */
+  --content-subtle: var(--color-gray-600); /* #6b6c72 — disabled·장식 전용(#276) */
 
   /* Border / interaction 오버레이 (다크 = 흰색 알파) */
   --border-subtle: var(--color-white-a08);

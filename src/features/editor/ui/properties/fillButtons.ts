@@ -9,4 +9,4 @@ export const iconButtonClass =
 
 /** 목록에 하나를 더하는 버튼. LayerTree의 "새 페이지"와 같다. */
 export const addButtonClass =
-  "flex w-full items-center gap-1.5 rounded-control py-1 pr-1 pl-2 text-left text-xs text-content-subtle hover:bg-hover hover:text-content";
+  "flex w-full items-center gap-1.5 rounded-control py-1 pr-1 pl-2 text-left text-xs text-content-muted hover:bg-hover hover:text-content";

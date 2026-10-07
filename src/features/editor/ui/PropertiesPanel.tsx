@@ -70,7 +70,7 @@ export function PropertiesPanel() {
         {showPage && !breakpoint ? <PageProperties /> : null}
 
         {node === undefined || selectedId === null ? (
-          <p className="p-4 text-sm text-content-subtle">
+          <p className="p-4 text-sm text-content-muted">
             노드를 선택하면 그 노드의 속성이 여기에 표시됩니다.
           </p>
         ) : (

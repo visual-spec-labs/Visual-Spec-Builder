@@ -249,7 +249,7 @@ export function NaturalLanguageBar() {
           disabled={pending}
           aria-label="자연어 편집 요청"
           placeholder={`${scope.label} — 어떻게 변경할까요? (예: 간격을 24로 해줘)`}
-          className="min-w-0 flex-1 rounded-control border border-line bg-surface-raised px-3 py-2 text-sm text-content placeholder:text-content-subtle disabled:opacity-60"
+          className="min-w-0 flex-1 rounded-control border border-line bg-surface-raised px-3 py-2 text-sm text-content placeholder:text-content-muted disabled:opacity-60"
         />
         <button
           type="submit"

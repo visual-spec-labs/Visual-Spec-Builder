@@ -116,7 +116,7 @@ export function HomeScreen() {
 
   if (state.kind === "loading") {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-surface-sunken text-sm text-content-subtle">
+      <div className="flex h-screen w-screen items-center justify-center bg-surface-sunken text-sm text-content-muted">
         불러오는 중…
       </div>
     );
@@ -139,7 +139,7 @@ export function HomeScreen() {
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
         <div className="text-center">
           <p className="text-lg font-semibold text-content-strong">첫 화면을 만들어 봅시다</p>
-          <p className="mt-1 text-sm text-content-subtle">어떻게 시작하시겠습니까?</p>
+          <p className="mt-1 text-sm text-content-muted">어떻게 시작하시겠습니까?</p>
         </div>
         <div className="flex w-full max-w-sm flex-col divide-y divide-line overflow-hidden rounded-panel border border-line bg-surface">
           <button
@@ -148,7 +148,7 @@ export function HomeScreen() {
             className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
           >
             <span className="text-sm font-medium text-content-strong">자연어로 초안 만들기</span>
-            <span className="text-xs text-content-subtle">설명을 입력하면 구조를 생성합니다</span>
+            <span className="text-xs text-content-muted">설명을 입력하면 구조를 생성합니다</span>
           </button>
           <button
             type="button"
@@ -156,7 +156,7 @@ export function HomeScreen() {
             className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
           >
             <span className="text-sm font-medium text-content-strong">빈 캔버스에서 시작</span>
-            <span className="text-xs text-content-subtle">직접 요소를 배치합니다</span>
+            <span className="text-xs text-content-muted">직접 요소를 배치합니다</span>
           </button>
           <button
             type="button"
@@ -164,7 +164,7 @@ export function HomeScreen() {
             className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
           >
             <span className="text-sm font-medium text-content-strong">기존 화면 불러오기</span>
-            <span className="text-xs text-content-subtle">JSON 파일을 엽니다</span>
+            <span className="text-xs text-content-muted">JSON 파일을 엽니다</span>
           </button>
         </div>
       </div>
@@ -191,7 +191,7 @@ export function HomeScreen() {
 
       <div className="flex-1 overflow-auto p-6">
         {message && <p role="alert" className="mb-4 text-sm">{message}</p>}
-        <p className="mb-4 text-sm text-content-subtle">
+        <p className="mb-4 text-sm text-content-muted">
           프로젝트 {cards.length}개
         </p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(208px,1fr))] gap-4">
@@ -233,7 +233,7 @@ function ProjectCard({
         <p className="truncate text-sm font-medium text-content-strong">
           {spec.name}
         </p>
-        <p className="text-xs text-content-subtle">
+        <p className="text-xs text-content-muted">
           페이지 {spec.pageOrder.length}개 · {coverPage.size.width}×
           {coverPage.size.height}
         </p>

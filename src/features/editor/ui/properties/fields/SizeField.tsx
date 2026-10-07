@@ -81,7 +81,7 @@ export function SizeField({ label, value, onChange, measured }: SizeFieldProps) 
             onChange={(event) => handleChange(event.target.value)}
             onBlur={handleBlur}
           />
-          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-subtle">
+          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-muted">
             px
           </span>
         </div>
