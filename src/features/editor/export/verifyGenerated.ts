@@ -26,6 +26,7 @@
 import type { Ticket } from "@/features/editor/ticket/types";
 
 import {
+  resolveRelativePath,
   resolveImportTarget,
   ticketFilePath,
 } from "./generatedPaths";
@@ -161,9 +162,44 @@ export function verifyGenerated({ files, tickets, assetNames }: VerifyInput): Ve
         continue;
       }
 
-      // `../assets/file.png` is an external bundler asset, not a generated TSX module.
-      // Its existence is checked below with the same asset set that the ZIP packages.
-      if (assetImportName(reference.specifier) !== null) continue;
+      // Static asset imports must resolve from this generated file to the ZIP root's
+      // assets directory. A matching spelling alone is insufficient for nested paths.
+      const assetName = assetImportName(reference.specifier);
+      if (assetName !== null) {
+        const assetPath = resolveRelativePath(file.path, reference.specifier);
+        if (assetPath === null) {
+          issues.push({
+            code: "escaping-import",
+            severity: "error",
+            file: file.path,
+            line: reference.line,
+            message: `결과 폴더 밖을 가리킵니다: ${reference.specifier}`,
+          });
+          continue;
+        }
+        if (assetPath === `assets/${assetName}`) {
+          if (assets.has(assetName)) {
+            usedAssets.add(assetName);
+          } else {
+            issues.push({
+              code: "missing-asset",
+              severity: "error",
+              file: file.path,
+              line: reference.line,
+              message: `.visual-spec/assets/에 없는 이미지입니다: ${assetName}`,
+            });
+          }
+          continue;
+        }
+        issues.push({
+          code: "unresolved-import",
+          severity: "error",
+          file: file.path,
+          line: reference.line,
+          message: `ZIP의 assets/ 디렉터리를 가리키지 않습니다: ${reference.specifier}`,
+        });
+        continue;
+      }
 
       const target = resolveImportTarget(file.path, reference.specifier, existingPaths);
       if (target.kind === "escaped") {
@@ -185,7 +221,7 @@ export function verifyGenerated({ files, tickets, assetNames }: VerifyInput): Ve
       }
     }
 
-    for (const name of scanAssetReferences(file.content)) {
+    for (const name of scanAssetReferences(file.content, { includeStaticImports: false })) {
       if (assets.has(name)) {
         usedAssets.add(name);
       } else {

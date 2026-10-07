@@ -121,6 +121,17 @@ describe("scanImports", () => {
     expect(scanImports(source)).toEqual([{ specifier: "./Card", line: 1 }]);
   });
 
+  it("따옴표 종류가 다른 파일명 문자와 이스케이프된 따옴표를 보존한다", () => {
+    const source = [
+      `import apostrophe from "../assets/hero's.png";`,
+      `import quotation from '../assets/hero\\\"s.png';`,
+    ].join("\n");
+    expect(scanImports(source).map((reference) => reference.specifier)).toEqual([
+      "../assets/hero's.png",
+      "../assets/hero\"s.png",
+    ]);
+  });
+
   it("줄 번호는 1부터 센다", () => {
     const source = `const a = 1;\n\nimport { B } from "./B";\n`;
     expect(scanImports(source)[0].line).toBe(3);
@@ -180,6 +191,11 @@ describe("scanAssetReferences", () => {
       `import logo from "../assets/hash-1.svg";`,
     ].join("\n");
     expect(scanAssetReferences(source)).toEqual(["한글-사진 (1)+100%.svg", "hash-1.svg"]);
+  });
+
+  it("여러 줄 정적 import 전체를 제외해 한글 파일명을 잘못 나누지 않는다", () => {
+    const source = `import image\n  from "../assets/한글 사진 (1).svg";`;
+    expect(scanAssetReferences(source)).toEqual(["한글 사진 (1).svg"]);
   });
 });
 
@@ -305,6 +321,57 @@ describe("verifyGenerated", () => {
 
     const missing = verifyGenerated({ files, tickets: [], assetNames: [] });
     expect(missing.issues).toContainEqual(expect.objectContaining({ code: "missing-asset" }));
+  });
+
+  it("정적 import 경로에서 작은따옴표가 있는 자산 파일명을 보존한다", () => {
+    const report = verifyGenerated({
+      files: [file("pages/DashboardPage.tsx", `import hero from "../assets/hero's.png";`)],
+      tickets: [],
+      assetNames: ["hero's.png"],
+    });
+
+    expect(report.errorCount).toBe(0);
+    expect(report.usedAssets).toEqual(["hero's.png"]);
+  });
+
+  it("중첩 페이지의 잘못된 ../assets 경로는 root assets 자산으로 통과시키지 않는다", () => {
+    const report = verifyGenerated({
+      files: [file("pages/nested/Home.tsx", `import hero from "../assets/hero.png";`)],
+      tickets: [],
+      assetNames: ["hero.png"],
+    });
+
+    expect(report.issues).toContainEqual(expect.objectContaining({
+      code: "unresolved-import",
+      file: "pages/nested/Home.tsx",
+    }));
+    expect(report.usedAssets).toEqual([]);
+  });
+
+  it("generated root에서 ZIP 밖을 향하는 자산 경로는 escaping으로 남긴다", () => {
+    const report = verifyGenerated({
+      files: [file("Home.tsx", `import hero from "../assets/hero.png";`)],
+      tickets: [],
+      assetNames: ["hero.png"],
+    });
+
+    expect(report.issues).toContainEqual(expect.objectContaining({
+      code: "escaping-import",
+      file: "Home.tsx",
+    }));
+    expect(report.usedAssets).toEqual([]);
+  });
+
+  it("여러 줄 이미지 import는 검사와 usedAssets에 한 번만 포함된다", () => {
+    const name = "한글 사진 (1).svg";
+    const report = verifyGenerated({
+      files: [file("pages/Home.tsx", `import image\n  from "../assets/${name}";`)],
+      tickets: [],
+      assetNames: [name],
+    });
+
+    expect(report.errorCount).toBe(0);
+    expect(report.usedAssets).toEqual([name]);
   });
 
   it("티켓에 없는 파일은 오류가 아니라 참고로 남는다", () => {

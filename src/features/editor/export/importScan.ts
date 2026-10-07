@@ -24,18 +24,27 @@ export interface ImportRef {
   line: number;
 }
 
+interface LocatedImport extends ImportRef {
+  start: number;
+  end: number;
+}
+
 /**
  * `import ... from "x"` · `export ... from "x"` · `import "x"` · `import("x")`.
  *
- * 가운데를 `[^'"();]*`로 묶어 **따옴표·세미콜론·괄호를 건너뛰지 못하게** 했다.
- * `[\s\S]*?`로 두면 한참 아래 줄의 엉뚱한 문자열까지 한 구문으로 이어 붙인다.
- * 줄바꿈은 허용해야 한다 — 여러 줄에 걸친 `import { A, B } from "x"`가 흔하다.
+ * import 절은 따옴표·세미콜론·괄호를 넘어가지 않게 하고, 모듈 문자열은 시작한
+ * 따옴표와 같은 문자로 닫히게 한다. 따옴표 종류가 다른 파일명 문자와 escape도
+ * 허용하면서 여러 줄 import의 specifier를 정확히 읽는다.
  */
 const IMPORT_PATTERNS = [
-  /\b(?:import|export)\b[^'"();]*?\bfrom\s*['"]([^'"]+)['"]/g,
-  /\bimport\s*['"]([^'"]+)['"]/g,
-  /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  /\b(?:import|export)\b[^'"();]*?\bfrom\s*("|')((?:\\.|(?!\1)[^\\\r\n])*)\1/g,
+  /\bimport\s*("|')((?:\\.|(?!\1)[^\\\r\n])*)\1/g,
+  /\bimport\s*\(\s*("|')((?:\\.|(?!\1)[^\\\r\n])*)\1\s*\)/g,
 ];
+
+function unescapeSpecifier(specifier: string): string {
+  return specifier.replace(/\\(["'\\])/g, "$1");
+}
 
 /** 문자열 시작부터 `index`까지의 줄 수(1부터). */
 function lineAt(source: string, index: number): number {
@@ -51,20 +60,29 @@ function lineAt(source: string, index: number): number {
  * (`import "x"` 패턴은 `import x from "y"`의 뒷부분과 겹치지 않지만, 앞으로 패턴을
  * 늘릴 때를 대비해 위치 기준으로 접어 둔다).
  */
-export function scanImports(source: string): ImportRef[] {
-  const byIndex = new Map<number, ImportRef>();
+function scanLocatedImports(source: string): LocatedImport[] {
+  const byIndex = new Map<number, LocatedImport>();
 
   for (const pattern of IMPORT_PATTERNS) {
     pattern.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(source)) !== null) {
-      byIndex.set(match.index, { specifier: match[1], line: lineAt(source, match.index) });
+      byIndex.set(match.index, {
+        specifier: unescapeSpecifier(match[2]),
+        line: lineAt(source, match.index),
+        start: match.index,
+        end: match.index + match[0].length,
+      });
     }
   }
 
   return [...byIndex.entries()]
     .sort(([a], [b]) => a - b)
     .map(([, ref]) => ref);
+}
+
+export function scanImports(source: string): ImportRef[] {
+  return scanLocatedImports(source).map(({ specifier, line }) => ({ specifier, line }));
 }
 
 /**
@@ -113,15 +131,20 @@ export function assetImportName(specifier: string): string | null {
   return match[1];
 }
 
-export function scanAssetReferences(source: string): string[] {
+export function scanAssetReferences(
+  source: string,
+  options: { includeStaticImports?: boolean } = {},
+): string[] {
   const names = new Set<string>();
-  const importedNames = new Set(scanImports(source)
-    .map(({ specifier }) => assetImportName(specifier))
-    .filter((name): name is string => name !== null));
-  const withoutAssetImports = source.replace(
-    /\bimport\s+[^;\r\n]*?\sfrom\s*(['"])\.\.\/assets\/[^'"]+\1\s*;?/g,
-    " ",
-  );
+  const assetImports = scanLocatedImports(source).filter(({ specifier }) => assetImportName(specifier) !== null);
+  const withoutAssetImports = assetImports
+    .slice()
+    .sort((a, b) => b.start - a.start)
+    .reduce((remaining, reference) => {
+      const statement = remaining.slice(reference.start, reference.end)
+        .replace(/[^\r\n]/g, " ");
+      return remaining.slice(0, reference.start) + statement + remaining.slice(reference.end);
+    }, source);
   // A generated JS string may escape CSS delimiters (url(\"…\")); the opposite
   // quote is a valid filename character. Match the same delimiter at both ends.
   const remaining = withoutAssetImports.replace(/url\(\s*(\\?["'])(.*?)\1\s*\)/g,
@@ -134,14 +157,15 @@ export function scanAssetReferences(source: string): string[] {
   ASSET_REFERENCE.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = ASSET_REFERENCE.exec(remaining)) !== null) {
-    if (importedNames.has(match[1])) continue;
     names.add(decodeAssetName(match[1]));
   }
   // Static imports are the bundler contract. Keep their literal module path intact:
   // unlike a URL in CSS, percent sequences in an import are filename characters.
-  for (const reference of scanImports(source)) {
-    const name = assetImportName(reference.specifier);
-    if (name !== null) names.add(name);
+  if (options.includeStaticImports !== false) {
+    for (const reference of assetImports) {
+      const name = assetImportName(reference.specifier);
+      if (name !== null) names.add(name);
+    }
   }
   return [...names];
 }
