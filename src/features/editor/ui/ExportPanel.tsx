@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { compileTickets } from "@/features/editor/ticket/compileTickets";
 import type { VerifyIssue, VerifyReport } from "@/features/editor/export/verifyGenerated";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useExportStore } from "@/features/editor/store/exportStore";
@@ -61,18 +62,35 @@ export function ExportPanel() {
   const close = useExportStore((state) => state.close);
 
   const [isDownloading, setIsDownloading] = useState(false);
+  const [assetFailure, setAssetFailure] = useState<{
+    report: VerifyReport;
+    target: NonNullable<typeof target>;
+    names: string[];
+  } | null>(null);
+  const unavailableAssets = assetFailure?.report === report && assetFailure.target === target
+    ? assetFailure.names
+    : [];
 
   // 티켓 누락(`missing-file`)은 바로 위 커버리지 목록이 이미 줄마다 보여준다 —
   // 아래 목록에 또 늘어놓으면 그 4줄에 밀려 정작 고칠 문제가 화면 밖으로 나간다.
   // README에는 둘 다 실린다(거기선 표가 하나뿐이라 겹치지 않는다).
   const otherIssues = report?.issues.filter((issue) => issue.code !== "missing-file") ?? [];
 
-  function handleDownload() {
+  async function handleDownload(allowPartial = false) {
     if (report === null || target === null) return;
     setIsDownloading(true);
-    void downloadGeneratedBundle(target.projectName, files, report).finally(() =>
-      setIsDownloading(false),
-    );
+    try {
+      const result = await downloadGeneratedBundle(
+        target.projectName,
+        files,
+        report,
+        compileTickets(page),
+        allowPartial,
+      );
+      setAssetFailure(result.missing.length === 0 ? null : { report, target, names: result.missing });
+    } finally {
+      setIsDownloading(false);
+    }
   }
 
   return (
@@ -87,6 +105,7 @@ export function ExportPanel() {
         <button
           type="button"
           onClick={() => {
+            setAssetFailure(null);
             const { documentId, activePageId, spec } = useEditorStore.getState();
             void rescan({
               documentId,
@@ -186,9 +205,31 @@ export function ExportPanel() {
               </section>
             )}
 
+            {unavailableAssets.length > 0 && (
+              <section role="alert" className="rounded-panel border border-error/40 bg-surface-raised p-3">
+                <h3 className="text-xs font-semibold text-error">이미지 자산을 읽지 못했습니다</h3>
+                <p className="mt-1 text-xs text-content-muted">
+                  전체 ZIP을 만들지 않았습니다. 자산을 복구한 뒤 다시 시도하거나, 누락 이미지를
+                  README에 기록한 부분 ZIP을 받을 수 있습니다. 부분 ZIP은 이미지 import가 해결되지
+                  않아 그대로 실행하면 이미지가 표시되지 않습니다.
+                </p>
+                <ul className="mt-2 list-inside list-disc text-xs text-content-strong">
+                  {unavailableAssets.map((name) => <li key={name} className="font-mono">{name}</li>)}
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => void handleDownload(true)}
+                  disabled={isDownloading}
+                  className="mt-2 rounded-control border border-line px-2 py-1 text-xs text-content-strong hover:bg-hover disabled:opacity-50"
+                >
+                  이미지 없이 부분 ZIP 받기
+                </button>
+              </section>
+            )}
+
             <button
               type="button"
-              onClick={handleDownload}
+              onClick={() => void handleDownload(false)}
               disabled={report.fileCount === 0 || isDownloading}
               // 오류 없이 준비된 상태의 주 동작이다(#283) — 강조색을 쓴다. 오류가
               // 남아 있으면(아직 "받아도 되는" 상태가 아니므로) 중립 스타일로 물러난다.
@@ -198,7 +239,11 @@ export function ExportPanel() {
                   : "border border-line bg-surface-raised text-content-strong hover:bg-hover"
               }`}
             >
-              {isDownloading ? "만드는 중…" : "결과 폴더 ZIP 내려받기"}
+              {isDownloading
+                ? "자산 확인 및 ZIP 만드는 중…"
+                : unavailableAssets.length > 0
+                  ? "전체 ZIP 다시 시도"
+                  : "결과 폴더 ZIP 내려받기"}
             </button>
           </div>
         )}
