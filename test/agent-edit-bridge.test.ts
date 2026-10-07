@@ -820,6 +820,33 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(releaseRequestLock).toHaveBeenCalledWith("gui", firstOwner, true);
   });
 
+  it("시간 초과된 잡기가 서버에선 잡혔는데 홈으로 가면, 다시 잡지 않으므로 그 잠금을 푼다", async () => {
+    const server = ownerAwareServer({});
+    const ownerAware = vi.mocked(acquireRequestLock).getMockImplementation()!;
+    vi.mocked(acquireRequestLock).mockImplementationOnce((kind, who, renew) => {
+      void ownerAware(kind, who, renew);
+      return new Promise(() => undefined);
+    });
+    stop = startAgentEditBridge();
+    await vi.advanceTimersByTimeAsync(10);
+    useNavigationStore.getState().openHome(); // 잡기가 오가는 중 — 응답을 받은 쪽이 푼다
+    await vi.advanceTimersByTimeAsync(BRIDGE_IO_TIMEOUT_MS + 100);
+    expect(server.owner()).toBeNull();
+
+    // 잡기가 끝난(응답은 실패) 뒤 에디터에서 홈으로 가는 경우 — disconnect가 푼다
+    vi.mocked(acquireRequestLock).mockImplementation(async (kind, who, renew) => {
+      await ownerAware(kind, who, renew); // 서버는 잡았지만
+      return "unavailable"; // 응답은 실패로 왔다(예: 응답 중 연결 끊김)
+    });
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    expect(server.owner()).not.toBeNull();
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(server.owner()).toBeNull();
+  });
+
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
     const read = vi.mocked(readWorkspaceTextFileStrict);
     const serverRead = read.getMockImplementation()!;

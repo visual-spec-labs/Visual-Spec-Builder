@@ -297,7 +297,13 @@ export function startAgentEditBridge(): () => void {
   }
 
   function disconnect() {
-    if (!holder) return;
+    if (!holder) {
+      // 연결은 못 했지만 시간 초과된 잡기가 서버에선 잡혔을 수 있다 — 홈으로 가면 다시 잡지 않으므로
+      // 여기서 풀어야 30초 동안 아무 탭도 연결하지 못하는 일이 없다(PR #303 셀프 리뷰). 잡기가 오가는
+      // 중이면 그 응답을 받은 쪽(claim)이 푼다.
+      if (lockMaybeHeld && !claiming) releaseLock();
+      return;
+    }
     holder = false;
     useAgentEditStore.setState({ connected: false });
     // 거절 결과를 **먼저** 쓰고 잠금을 푼다 — 서버가 쓰는 순간 주인인지 본다. 이미 다른 탭에
@@ -317,6 +323,8 @@ export function startAgentEditBridge(): () => void {
       if (!holder) lockMaybeHeld = true;
       const outcome = await timed((signal) => acquireRequestLock("gui", owner, holder, signal), "unavailable" as const);
       if (!holder && outcome === "busy" && epoch === epochBefore) lockMaybeHeld = false;
+      // 잡기가 오가는 사이 홈으로 갔거나 멈췄는데 잡혔을 수 있다(시간 초과) — 다시 잡지 않으므로 푼다.
+      if (!holder && outcome !== "acquired" && lockMaybeHeld && (stopped || !onEditor())) { releaseLock(); return; }
       // 잡는 요청이 오가는 사이 연결을 풀었다(홈 이동) — 해제가 아직 오가든 이미 끝났든 이 응답은
       // 지난 연결의 것이다. 다음 회차가 새 주인 id로 다시 잡는다(PR #303 리뷰).
       if (epoch !== epochBefore) return;
