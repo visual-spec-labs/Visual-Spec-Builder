@@ -83,4 +83,34 @@ describe("반응형 to-react 매핑 fixture (#224)", () => {
     expect(css).toContain("background-origin: border-box;");
     expect(css).toContain("background-image: linear-gradient(");
   });
+
+  it("grid 열은 유효한 repeat 트랙으로 컴파일되고 교차축·auto/fill이 보존된다", async () => {
+    const columns = [1, 2, 3];
+    const axes = ["start", "center", "end", "stretch"];
+    const classes = [
+      ...columns.map((count) => `grid-cols-[repeat(${count},1fr)]`),
+      ...axes.map((axis) => `items-${axis}`),
+      "w-full", "h-full", "w-auto", "h-auto",
+      "min-[700px]:grid-cols-[repeat(2,1fr)]",
+      "min-[900px]:grid-cols-[repeat(3,1fr)]",
+      "min-[700px]:items-center",
+      "min-[900px]:items-stretch",
+    ];
+    const compiler = await compile("@tailwind utilities;");
+    const css = compiler.build(classes);
+
+    for (const count of columns) {
+      expect(css).toContain(`grid-template-columns: repeat(${count},1fr);`);
+    }
+    expect(css).toContain("align-items: flex-start;");
+    expect(css).toContain("align-items: center;");
+    expect(css).toContain("align-items: flex-end;");
+    expect(css).toContain("align-items: stretch;");
+    expect(css).toContain("width: 100%;");
+    expect(css).toContain("height: 100%;");
+    expect(css).toContain("width: auto;");
+    expect(css).toContain("height: auto;");
+    expect(css).toContain("@media (width >= 700px)");
+    expect(css).toContain("@media (width >= 900px)");
+  });
 });
