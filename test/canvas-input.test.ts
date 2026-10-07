@@ -22,6 +22,7 @@ import {
   type DeleteKeyInput,
   type NodeDragStartInput,
   type SiblingNavKeyInput,
+  type ToolbarFocusHandoffConsumeInput,
   type ToolKeyInput,
 } from "@/features/editor/ui/canvasInput";
 
@@ -485,22 +486,35 @@ describe("siblingNavDirectionForKey — Tab/Shift+Tab 형제 이동(#151)", () =
   });
 });
 
-describe("shouldConsumeToolbarFocusHandoff — Tab에서만 신호를 소비한다(#275 리뷰 3차 대응)", () => {
-  it("Tab(Shift+Tab 포함)은 소비한다", () => {
-    expect(shouldConsumeToolbarFocusHandoff("Tab")).toBe(true);
+/** Ctrl/Cmd/Alt가 안 눌린 Tab keydown. 케이스마다 필요한 칸만 덮어쓴다. */
+function handoffKey(
+  patch: Partial<ToolbarFocusHandoffConsumeInput> = {},
+): ToolbarFocusHandoffConsumeInput {
+  return { code: "Tab", ctrlKey: false, metaKey: false, altKey: false, ...patch };
+}
+
+describe("shouldConsumeToolbarFocusHandoff — Ctrl/Cmd/Alt가 안 눌린 Tab에서만 신호를 소비한다(#275 리뷰 3·6차 대응)", () => {
+  it("Tab(Shift+Tab 포함)은 소비한다 — Shift는 소비 대상에서 빼지 않는다", () => {
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey())).toBe(true);
   });
 
   it("단독 modifier keydown은 소비하지 않는다 — 실제 키보드의 Shift+Tab은 ShiftLeft/ShiftRight가 Tab보다 먼저 따로 들어온다", () => {
-    expect(shouldConsumeToolbarFocusHandoff("ShiftLeft")).toBe(false);
-    expect(shouldConsumeToolbarFocusHandoff("ShiftRight")).toBe(false);
-    expect(shouldConsumeToolbarFocusHandoff("ControlLeft")).toBe(false);
-    expect(shouldConsumeToolbarFocusHandoff("AltLeft")).toBe(false);
-    expect(shouldConsumeToolbarFocusHandoff("MetaLeft")).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ code: "ShiftLeft" }))).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ code: "ShiftRight" }))).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ code: "ControlLeft" }))).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ code: "AltLeft" }))).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ code: "MetaLeft" }))).toBe(false);
   });
 
   it("그 밖의 키도 소비하지 않는다", () => {
-    expect(shouldConsumeToolbarFocusHandoff("KeyD")).toBe(false);
-    expect(shouldConsumeToolbarFocusHandoff("Escape")).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ code: "KeyD" }))).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ code: "Escape" }))).toBe(false);
+  });
+
+  it("Ctrl/Cmd/Alt가 눌린 Tab은 소비하지 않는다(#275 리뷰 6차 대응) — siblingNavDirectionForKey가 애초에 그 조합을 제외하므로, 여기서 소비하면 다음 평범한 Tab이 신호를 잃는다", () => {
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ ctrlKey: true }))).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ metaKey: true }))).toBe(false);
+    expect(shouldConsumeToolbarFocusHandoff(handoffKey({ altKey: true }))).toBe(false);
   });
 });
 

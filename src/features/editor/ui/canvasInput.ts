@@ -266,9 +266,17 @@ export function siblingNavDirectionForKey(
   return input.shiftKey ? "prev" : "next";
 }
 
+/** `shouldConsumeToolbarFocusHandoff`가 보는 것 — KeyboardEvent에서 필요한 값만 추린 모양. */
+export interface ToolbarFocusHandoffConsumeInput {
+  code: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+}
+
 /**
  * `viewStore`의 `toolbarFocusHandoffPending`을 이 keydown에서 소비해야 하는가
- * (#275 리뷰 3차 대응). **`Tab`일 때만** true다.
+ * (#275 리뷰 3·6차 대응). **Ctrl/Cmd/Alt가 안 눌린 `Tab`일 때만** true다.
  *
  * 처음엔 모든 keydown에서 소비했는데, 실제 키보드의 Shift+Tab은 `ShiftLeft`/
  * `ShiftRight` keydown이 `Tab` keydown보다 **먼저 따로** 들어온다 — 아무 키에서나
@@ -276,9 +284,19 @@ export function siblingNavDirectionForKey(
  * `Tab`(`shiftKey: true`)은 신호 없이 형제 이동으로 넘어간다. `Tab` 자체에서만
  * 소비하면 이 순서 문제를 아예 피한다 — modifier만 눌린 keydown은 신호를
  * 건드리지 않고 그대로 남긴다.
+ *
+ * Shift는 그대로 소비 대상이다(`siblingNavDirectionForKey`가 역방향에도 이
+ * 신호로 물러나야 하므로) — 하지만 Ctrl/Cmd/Alt가 눌린 Tab(브라우저 탭 전환
+ * 등)은 애초에 `siblingNavDirectionForKey`가 그 조합을 형제 이동 후보에서
+ * 아예 제외한다(260행). 그런데도 여기서 소비해 버리면, 그 Tab 바로 다음에
+ * 오는 "진짜" 평범한 Tab(사용자가 의도한 탈출)이 이미 꺼진 신호를 만나 다시
+ * 형제 이동에 잡힌다 — 필요 없는 소비가 정작 필요한 소비 기회를 가로채는
+ * 셈이라 Ctrl/Cmd/Alt가 눌려 있으면 아예 건드리지 않는다.
  */
-export function shouldConsumeToolbarFocusHandoff(code: string): boolean {
-  return code === "Tab";
+export function shouldConsumeToolbarFocusHandoff(
+  input: ToolbarFocusHandoffConsumeInput,
+): boolean {
+  return input.code === "Tab" && !input.ctrlKey && !input.metaKey && !input.altKey;
 }
 
 /** `isContextMenuKey`가 보는 것 — KeyboardEvent에서 필요한 값만 추린 모양. */

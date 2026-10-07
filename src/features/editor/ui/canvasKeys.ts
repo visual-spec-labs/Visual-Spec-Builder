@@ -52,10 +52,16 @@ export function useCanvasKeys(
     function handleKeyDown(event: KeyboardEvent) {
       if (useSaveConflictStore.getState().paused) return;
       // 도구 모음이 막 포커스를 떼 간 다음의 Tab 한 번인가(#275 리뷰 대응,
-      // Toolbar.tsx의 같은 이름 신호 주석 참고). `Tab`에서만 읽고 끈다(1회성) —
-      // shouldConsumeToolbarFocusHandoff 주석 참고. 다른 키(Shift 단독 keydown
-      // 포함)에서는 신호를 그대로 남겨 둔다.
-      const toolbarFocusHandoff = shouldConsumeToolbarFocusHandoff(event.code)
+      // Toolbar.tsx의 같은 이름 신호 주석 참고). Ctrl/Cmd/Alt가 안 눌린 `Tab`
+      // 에서만 읽고 끈다(1회성) — shouldConsumeToolbarFocusHandoff 주석 참고.
+      // 다른 키(Shift 단독 keydown 포함)와 Ctrl/Cmd/Alt가 눌린 Tab에서는 신호를
+      // 그대로 남겨 둔다.
+      const toolbarFocusHandoff = shouldConsumeToolbarFocusHandoff({
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+      })
         ? useViewStore.getState().consumeToolbarFocusHandoffPending()
         : false;
       const target = event.target as HTMLElement | null;

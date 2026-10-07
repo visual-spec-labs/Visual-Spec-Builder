@@ -23,8 +23,14 @@ import { clickBoundary, resolveClickTarget, resolveInsertParent } from "./select
  * 다음 Tab에 잘못 붙어 방금 새로 고른 선택의 정상적인 형제 이동(#151)을
  * 가로막는다. 클릭으로 선택이 안 바뀌어도(같은 노드 재클릭, 배경 클릭으로
  * 선택 해제 등) 포인터 조작 자체가 "재개"의 신호이므로 무조건 끈다.
+ *
+ * export한다 — 같은 "캔버스 포인터 조작 재개" 신호가 이 파일의 네 핸들러
+ * 밖에서도 필요하다(노드 끌기는 `useNodeDrag.ts`, 리사이즈 핸들 끌기는
+ * `CanvasResizeHandles.tsx`). 호출부마다 `setToolbarFocusHandoffPending(false)`를
+ * 따로 적으면 다음에 끄는 조건이 바뀔 때 한 곳을 빠뜨리기 쉽다(#275 리뷰
+ * 6차 대응).
  */
-function clearToolbarFocusHandoff() {
+export function clearToolbarFocusHandoff() {
   useViewStore.getState().setToolbarFocusHandoffPending(false);
 }
 

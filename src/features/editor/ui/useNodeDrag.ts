@@ -4,12 +4,12 @@ import { useEffect, useState, type RefObject } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
-import { useViewStore } from "@/features/editor/store/viewStore";
 import type { NodeId } from "@/features/editor/schema";
 
 import { resolveCanvasDrop, type CanvasDropTarget } from "./canvasDrop";
 import { canStartNodeDrag, hasPassedDragThreshold } from "./canvasInput";
 import { measureNodeRects } from "./canvasOverlays";
+import { clearToolbarFocusHandoff } from "./canvasSelection";
 import { resolveDragTarget } from "./selection";
 import { sameRect, type Rect } from "./selectionRect";
 
@@ -159,9 +159,9 @@ export function useNodeDrag(
       // 않는 이유는 선택 표시를 문서 트리 밖에 그리는 이유(#90)와 같다.
       useEditorStore.getState().select(session.dragId);
       // 드래그로 바뀐 선택 뒤에 합성 click이 억제돼(아래 suppressClick)
-      // handleNodeClick의 handoff 무효화를 못 거친다 — 여기서 직접 끈다
-      // (#275 리뷰 4차 대응, canvasSelection.ts의 clearToolbarFocusHandoff와 같은 이유).
-      useViewStore.getState().setToolbarFocusHandoffPending(false);
+      // handleNodeClick의 handoff 무효화를 못 거친다 — 여기서 직접 부른다
+      // (#275 리뷰 5차 대응).
+      clearToolbarFocusHandoff();
       // 임계값을 넘기 전에 시작된 글자 선택이 남아 있으면 지운다.
       window.getSelection()?.removeAllRanges();
       // 놓은 뒤 브라우저가 합성하는 click 은 누른 곳과 뗀 곳의 공통 조상에서 터진다 —

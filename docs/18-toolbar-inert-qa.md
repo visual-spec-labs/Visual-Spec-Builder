@@ -344,6 +344,46 @@ keydown부터는 다시 꺼진 상태다. */` 등 "next keydown" 표현도 3차 
 `useNodeDrag.ts`의 이벤트 핸들러만 건드리고 `canvasInput.ts`의 순수 함수는
 그대로 둬서 수정 없이 전부 통과했다.
 
+## 자체 code-review 대응 — 6차, push 전 `/code-review`로 찾은 세 건 (2026-10-09)
+
+PR에 push하기 전 `/code-review`를 돌려 사람 리뷰 없이 세 가지를 더 찾았다.
+외부 리뷰(Yumesa2025) 라운드가 아니라 이번 세션에서 스스로 돌린 점검이지만,
+번호는 이어서 6차로 적는다.
+
+1. **(P2) `shouldConsumeToolbarFocusHandoff`가 Ctrl/Cmd/Alt+Tab도 소비했다.**
+   `siblingNavDirectionForKey`는 Ctrl/Cmd/Alt가 눌린 Tab을 애초에 형제 이동
+   후보에서 제외하는데(260행), 소비 쪽은 `code === "Tab"`만 봐서 그런 조합도
+   신호를 꺼 버렸다. 눌러도 득 될 게 없는 소비가 그 직후에 오는 "진짜" 평범한
+   Tab(사용자가 의도한 탈출)의 신호를 먼저 가로채 다시 형제 이동에 잡히게
+   한다. `shouldConsumeToolbarFocusHandoff`가 `ctrlKey`/`metaKey`/`altKey`도
+   받아 그중 하나라도 눌려 있으면 소비하지 않도록 좁혔다(`canvasInput.ts`).
+   Shift는 그대로 소비 대상이다 — 역방향 형제 이동에도 이 신호가 필요하므로.
+   `test/canvas-input.test.ts`에 Ctrl/Cmd/Alt+Tab 케이스를 추가해 93개로
+   증가(기존 92개 무변경 통과).
+2. **(P2) 리사이즈 핸들을 끌어도 handoff가 안 지워졌다.** 5차 대응이 캔버스
+   포인터 조작의 네 클릭 진입점(`canvasSelection.ts`)과 드래그 선택
+   (`useNodeDrag.ts`)에서는 handoff를 끄게 했지만, `CanvasResizeHandles.tsx`의
+   `startResize`(리사이즈 핸들 `mousedown`)는 선택을 바꾸지 않아 그 목록에서
+   빠졌다. 그런데 핸들은 이미 선택된 노드에만 뜨므로, 재표시 뒤 클릭 없이
+   바로 핸들을 끄는 것도 "캔버스 포인터 조작 재개"의 또 다른 경로다 —
+   `startResize` 맨 앞에서도 `clearToolbarFocusHandoff()`를 부르게 했다.
+3. **(정리) 핸들러 세 곳이 같은 한 줄
+   (`setToolbarFocusHandoffPending(false)`)을 따로 적고 있었다.** 다음에 끄는
+   조건이 또 바뀌면 한 곳을 빠뜨리기 쉽다 — `canvasSelection.ts`의
+   `clearToolbarFocusHandoff`를 export해 `useNodeDrag.ts`·
+   `CanvasResizeHandles.tsx`가 재사용하게 했다.
+
+`pnpm run typecheck` · `pnpm run lint` 모두 통과했다. `pnpm test`는 기존과
+동일한 17개 실패(Windows 심링크·권한, 무관)/1524개 통과/1개 건너뜀 —
+`test/canvas-input.test.ts`는 93개(새 Ctrl/Cmd/Alt+Tab 테스트 1개 추가, 기존
+92개 무변경) 전부 통과.
+
+라이브 브라우저 재검증은 하지 않았다 — 1번은 `siblingNavDirectionForKey`가
+이미 Ctrl/Cmd/Alt를 제외하는 순수 함수 조합이라 단위 테스트로 결정적으로
+증명되고, 2·3번은 코드 경로가 5차 대응과 완전히 같은 모양(핸들러 진입점에서
+같은 함수를 한 번 더 부름)이라 5차 때의 실측(§"재표시 → 클릭 → Tab")이 같은
+근거로 적용된다고 판단했다.
+
 ## 결론
 
 - 완료 조건 "숨긴 툴바에 Tab/Shift+Tab으로 진입하지 않는다" — `inert`로 보장됨을
@@ -383,3 +423,7 @@ keydown부터는 다시 꺼진 상태다. */` 등 "next keydown" 표현도 3차 
   실제 스크롤·실제 Tab 입력으로 "재표시 → 클릭 → Tab"(형제 이동으로 복귀)과
   "재표시 → 클릭 없이 Tab"(네이티브 탐색 유지, 4차 대응 결과 그대로)이 서로
   다르게 동작함을 라이브 브라우저에서 확인
+- 자체 code-review 대응(6차, push 전 `/code-review`): Ctrl/Cmd/Alt+Tab도
+  handoff를 불필요하게 소비하던 것, 리사이즈 핸들 끌기가 5차 대응의 클릭·
+  드래그 목록에서 빠졌던 것, 같은 한 줄이 세 곳에 중복돼 있던 것 — 세 건을
+  찾아 고치고 `clearToolbarFocusHandoff`를 export해 재사용하도록 정리
