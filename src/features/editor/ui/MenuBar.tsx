@@ -51,10 +51,15 @@ function handleCompileTickets() {
  * ZIP을 만든다(#157). 바로 위 `handleExport`(스펙 JSON 다운로드)와 **다른 기능**이다.
  */
 function handleExportCode() {
-  const { spec, activePageId } = useEditorStore.getState();
+  const { spec, activePageId, documentId } = useEditorStore.getState();
   const view = useViewStore.getState();
   if (!view.showPanels) view.togglePanels();
-  void useExportStore.getState().open(spec.pages[activePageId]);
+  void useExportStore.getState().open({
+    documentId,
+    pageId: activePageId,
+    page: spec.pages[activePageId],
+    projectName: spec.name,
+  });
 }
 
 /**

@@ -50,11 +50,11 @@ function Summary({ report }: { report: VerifyReport }) {
  * TicketPanel과 같은 우측 영역을 쓴다 — 기존 배치를 바꾸지 않는다.
  */
 export function ExportPanel() {
-  const projectName = useEditorStore((state) => state.spec.name);
   const page = useEditorStore((state) => state.spec.pages[state.activePageId]);
   const status = useExportStore((state) => state.status);
   const files = useExportStore((state) => state.files);
   const report = useExportStore((state) => state.report);
+  const target = useExportStore((state) => state.target);
   const rescan = useExportStore((state) => state.rescan);
   const close = useExportStore((state) => state.close);
 
@@ -66,9 +66,9 @@ export function ExportPanel() {
   const otherIssues = report?.issues.filter((issue) => issue.code !== "missing-file") ?? [];
 
   function handleDownload() {
-    if (report === null) return;
+    if (report === null || target === null) return;
     setIsDownloading(true);
-    void downloadGeneratedBundle(projectName, files, report).finally(() =>
+    void downloadGeneratedBundle(target.projectName, files, report).finally(() =>
       setIsDownloading(false),
     );
   }
@@ -84,7 +84,15 @@ export function ExportPanel() {
         </div>
         <button
           type="button"
-          onClick={() => void rescan(page)}
+          onClick={() => {
+            const { documentId, activePageId, spec } = useEditorStore.getState();
+            void rescan({
+              documentId,
+              pageId: activePageId,
+              page: spec.pages[activePageId],
+              projectName: spec.name,
+            });
+          }}
           disabled={status === "scanning"}
           className="rounded-control border border-line px-2 py-1 text-xs text-content hover:bg-hover disabled:opacity-50"
         >
@@ -107,6 +115,13 @@ export function ExportPanel() {
           <p className="text-sm text-content-subtle">
             작업공간에 연결돼 있지 않습니다. <code>npx visual-spec</code>으로 띄운 개발 서버에서만
             생성된 코드를 읽을 수 있습니다.
+          </p>
+        )}
+
+        {status === "idle" && (
+          <p className="text-sm text-content-subtle">
+            스펙이 수정되거나 문서·페이지가 바뀌어 이전 검사 결과를 지웠습니다. 현재 페이지를 다시
+            검사해 주세요.
           </p>
         )}
 
