@@ -146,12 +146,11 @@ export default function App() {
 
 대상 Vite 앱은 React 플러그인과 `@tailwindcss/vite`가 설정돼 있고 앱이 읽는 CSS에 `@import "tailwindcss";`가 있어야 한다. 복사한 TSX의 유틸리티가 CSS 생성 대상에 포함되는지 확인한다. 이미 설정된 앱이라면 중복 설정하지 않는다.
 
-이미지가 있는 결과는 특히 경로를 확인한다. 생성 코드의 `src="../assets/hero.png"`는 브라우저가 현재 페이지 URL 기준으로 해석하므로 Vite에서 그대로 표시되지 않을 수 있다. 대상 앱에 통합할 때 실제 파일을 가리키는 정적 import 또는 다음처럼 번들러가 해석하는 URL로 바꾼다.
+이미지가 있는 결과는 `assets/`의 파일을 **정적 import**로 참조한다(#270). Vite 같은 번들러가 개발 중 파일을 제공하고 production build에서 출력 URL로 바꾸므로, `pages/`·`components/`·`assets/`의 상대 위치만 유지하면 경로를 고칠 필요가 없다. 대체 텍스트는 스펙에 없어 보통 `alt=""`(장식용)이다 — 의미 있는 이미지라면 통합할 때 채운다.
 
 ```tsx
-const heroUrl = new URL("../assets/hero.png", import.meta.url).href;
-// pages/ 또는 components/ 안의 파일에서 사용
-// <img src={heroUrl} alt="" />
+import heroImageUrl from "../assets/hero.png";
+// <img src={heroImageUrl} alt="" />
 ```
 
 Login 예제에는 이미지가 없다. 폰트도 자동 설치되지 않으므로 예제의 Pretendard를 그대로 재현하려면 대상 앱에 폰트를 준비한다.
