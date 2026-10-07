@@ -260,13 +260,16 @@ export function TicketPanel() {
             </button>
           </span>
         ) : canExecute && readyWave.length > 0 ? (
-          <div className="flex flex-col gap-1 text-content-muted">
-            <span>
-              웨이브 {readyWave.length}개 티켓이 전달 준비됐습니다.
-              {workspaceRoot !== null && <> 작업공간: <code>{workspaceRoot}</code>.</>}
-            </span>
-            <CopyButton text={buildTicketAgentInstruction()} label="지시 미리 복사" />
-          </div>
+          // 지시 복사 버튼을 여기 두지 않는다(#283 리뷰 대응) — 이 지시문은
+          // "현재 ticket-request.json을 처리해 줘"라고 말하는데, 이 분기는 그
+          // 파일을 아직 쓰기 전(또는 이전 웨이브 분이 잠금 해제로 이미 지워진
+          // 뒤)이다. 지금 복사해 에이전트에 먼저 붙여 넣으면 에이전트가 없는
+          // 파일을 찾는다. "에이전트에 전달"을 눌러야(= 파일을 쓴 뒤) `running`
+          // 분기의 복사 버튼이 뜻이 있다.
+          <span className="text-content-muted">
+            웨이브 {readyWave.length}개 티켓이 전달 준비됐습니다.
+            {workspaceRoot !== null && <> 작업공간: <code>{workspaceRoot}</code>.</>}
+          </span>
         ) : !isStale ? (
           // 원인을 하나로 단정하지 않는다(#283 리뷰 대응) — readyWave가 비는 건
           // 의존 중인 선행 티켓이 남아서일 수도, 의존이 없는 티켓이 실패해서일

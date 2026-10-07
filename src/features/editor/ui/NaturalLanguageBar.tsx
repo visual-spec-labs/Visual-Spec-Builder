@@ -144,10 +144,15 @@ export function NaturalLanguageBar() {
       return;
     }
     if (outcome.kind !== "response") {
-      // timeout일 때만 재전달 안내를 붙인다 — unavailable·busy·writeFailed는
-      // 애초에 요청이 안 쓰였거나 다른 탭이 잠금을 쥐고 있어, "다시 눌러 새
-      // 요청을 만들라"는 문구가 실제 원인과 안 맞는다(#283 리뷰 대응).
-      setFeedback({ kind: "error", message: outcome.message, retryable: outcome.kind === "timeout" });
+      // timeout·lockLost일 때만 재전달 안내를 붙인다 — 둘 다 요청 파일은 이미
+      // 썼는데 더 이상 누구도 응답을 기다리지 않는 상태다. unavailable·
+      // busy(요청 전 잠금 충돌)·writeFailed는 애초에 요청이 안 쓰였거나 다른
+      // 탭이 잠금을 쥐고 있어, 같은 문구가 실제 원인과 안 맞는다(#283 리뷰 대응).
+      setFeedback({
+        kind: "error",
+        message: outcome.message,
+        retryable: outcome.kind === "timeout" || outcome.kind === "lockLost",
+      });
       return;
     }
 

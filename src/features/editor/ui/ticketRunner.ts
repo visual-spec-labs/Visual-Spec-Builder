@@ -122,13 +122,15 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
 
   if (outcome.kind !== "response") {
     revertToPending(waveTickets);
-    // timeout일 때만 "재시도" 안내가 뜻이 있다(#283 리뷰 대응) — unavailable·busy·
-    // writeFailed는 애초에 요청이 안 쓰였거나 다른 탭이 잠금을 쥐고 있어, "다시
-    // 눌러 새 요청을 만들라"는 문구가 실제 원인과 안 맞는다.
+    // timeout·lockLost일 때만 "재시도" 안내가 뜻이 있다(#283 리뷰 대응) — 둘 다
+    // 요청 파일은 이미 썼는데 더 이상 누구도 응답을 기다리지 않는 상태라 "다시
+    // 눌러 새 요청을 만들라"가 맞다. unavailable·busy(요청 전 잠금 충돌)·
+    // writeFailed는 애초에 요청이 안 쓰였거나 다른 탭이 잠금을 쥐고 있어, 같은
+    // 문구가 실제 원인과 안 맞는다.
     useTicketStore.setState({
       running: false,
       runError: outcome.message,
-      runErrorRetryable: outcome.kind === "timeout",
+      runErrorRetryable: outcome.kind === "timeout" || outcome.kind === "lockLost",
     });
     activeCancel = null;
     return;
