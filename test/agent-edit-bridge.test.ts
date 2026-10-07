@@ -483,6 +483,26 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(useEditorStore.getState().history).toBe(history); // 다시 적용하지 않는다
   });
 
+  it("못 쓴 결과를 다시 쓰는 일은 그 연결 안에서만 한다 — 다시 연결한 뒤 다른 요청의 새 결과를 덮지 않는다", async () => {
+    await connect();
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    writes.mockImplementation(async (path, body, type, rev, owner) =>
+      path === "runtime/agent-edit-result.json" ? { ok: false, error: "fetch failed" } : serverWrite(path, body, type, rev, owner));
+    sendEdit({ id: "a", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("A") });
+    await vi.advanceTimersByTimeAsync(1100); // A 적용, 결과는 일시 오류로 못 썼다
+    writes.mockImplementation(serverWrite);
+    useNavigationStore.getState().openHome(); // 다시 쓰기 전에 연결을 푼다
+    await vi.advanceTimersByTimeAsync(10);
+    // 그 사이 다른 탭이 B를 처리했다
+    sendEdit({ id: "b", baseStateRevision: "other-tab", pageId: "page1", commands: retitle("B") });
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "b", status: "applied" }));
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(11_000); // 다시 연결하고 연장 회차를 여러 번 지난다
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(result()).toMatchObject({ requestId: "b", status: "applied" });
+  });
+
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
     const read = vi.mocked(readWorkspaceTextFile);
     const serverRead = read.getMockImplementation()!;

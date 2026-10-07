@@ -127,7 +127,12 @@ export function startAgentEditBridge(): () => void {
    * "적용하지 않음"으로 알리면 에이전트가 같은 편집을 다시 보내 두 번 적용된다(PR #303 셀프 리뷰).
    */
   let lastResult: { requestId: string; status: AgentEditStatus; message: string } | null = null;
-  /** 마지막 결과를 일시 오류로 쓰지 못했다 — 연결된 동안 다음 회차가 다시 쓴다(PR #303 셀프 리뷰). */
+  /**
+   * 마지막 결과를 일시 오류로 쓰지 못했다 — 연결된 동안 다음 회차가 다시 쓴다(PR #303 셀프 리뷰).
+   * **한 연결 안에서만** 뜻이 있다. 연결을 맺거나 잃을 때 지운다 — 남겨 두면 다시 연결한 뒤 지난
+   * 연결의 옛 결과가 그 사이 다른 탭이 쓴 새 요청의 결과를 덮는다. 같은 탭이 다시 잡을 때 자기
+   * 요청의 결과를 다시 쓰는 일은 `lastResult`로 따로 한다.
+   */
   let lastResultUnsent = false;
   async function writeResult(requestId: string, status: AgentEditStatus, message: string): Promise<boolean> {
     lastResult = { requestId, status, message };
@@ -173,6 +178,7 @@ export function startAgentEditBridge(): () => void {
   /** 잠금이 다른 탭으로 넘어갔다 — 이 탭은 더 이상 결과를 쓰지 않는다. */
   function loseConnection() {
     epoch += 1;
+    lastResultUnsent = false;
     holder = false;
     lockMaybeHeld = false; // 잠금은 이미 다른 탭 것이다 — 닫을 때 풀면 그 탭의 잠금을 건드린다
     useAgentEditStore.setState({ connected: false });
@@ -259,6 +265,7 @@ export function startAgentEditBridge(): () => void {
         lastHandledId = own?.requestId ?? waiting ?? handled;
         if (stopped || !onEditor()) { void releaseLock(); return; } // 복원을 읽는 사이 홈으로 갔다
         epoch += 1;
+        lastResultUnsent = false;
         holder = true;
         useAgentEditStore.setState({ connected: true });
         await publish(true);
