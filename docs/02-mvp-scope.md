@@ -92,6 +92,13 @@ Codex를 직접 실행하고 인증한다. GUI는 요청 파일을 작성하고 
 
 - 자연어: `runtime/nl-request.json` → 외부 에이전트의 Command 응답 → GUI 검증·Undo 한 단계.
 - 티켓: `runtime/ticket-request.json` → 외부 에이전트의 `generated/` 코드 작성·결과 응답.
+- 외부 대화 편집(#279): 사용자가 GUI 입력창이 아니라 에이전트 대화에서 바로 화면 수정을 요청한 경우다.
+  GUI가 `runtime/gui-state.json`에 지금 문서·페이지·선택·상태 버전(`stateRevision`)을 공개하고(열린 동안
+  10초마다 갱신), 에이전트는 스펙 파일 대신 `runtime/agent-edit.json`에 Command 배열과 읽은 상태 버전
+  (`baseStateRevision`)을 쓴다. GUI는 상태가 그대로일 때만 자연어 경로와 같은 관문(G1~G3)으로 Undo 한
+  단계로 적용하고, 배경을 바꾸면 사용자 확인을 받는다. 결과(`applied`·`pending`·`rejected`·`invalid`와
+  이유)는 `runtime/agent-edit-result.json`에 쓰고 GUI에도 알린다. 한 작업공간에서 GUI 탭 하나만
+  연결된다(`/__vs/request-lock/gui`) — 연결된 탭을 닫으면 `gui-state.json`이 정리되고 다른 탭이 이어받는다.
 - 위 경로는 `.visual-spec/` 기준이다. GUI의 중지는 응답 대기만 중단하므로 실행 중인
   외부 에이전트에는 사용자가 별도로 중지를 지시해야 한다.
 - 두 요청 파일은 작업공간마다 한 자리이므로 **종류별로 한 번에 한 요청만 기다린다**(#273).

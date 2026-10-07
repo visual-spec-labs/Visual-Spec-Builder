@@ -153,8 +153,25 @@ export const REQUEST_LOCK_TTL_MS = 30_000;
 export const REQUEST_LOCK_FILES = {
   nl: "runtime/nl-request.json",
   ticket: "runtime/ticket-request.json",
+  // 외부 에이전트와 연결된 GUI 탭(#279). 한 번에 한 탭만 상태를 공개하고 편집 요청을 받는다 —
+  // 탭이 여럿이면 같은 편집이 두 번 적용된다. 탭을 닫으면 풀리며 gui-state.json도 정리된다.
+  gui: "runtime/gui-state.json",
 } as const;
 export type RequestLockKind = keyof typeof REQUEST_LOCK_FILES;
 export function isRequestLockKind(value: string): value is RequestLockKind {
   return Object.prototype.hasOwnProperty.call(REQUEST_LOCK_FILES, value);
+}
+/**
+ * 잠금 주인만 쓰지만 잠금을 풀 때 **지우지 않는** 파일. 에이전트 편집 결과(#279)는 연결된 탭만
+ * 써야 한다 — 연결을 잃은 줄 모르는 탭이 옛 요청의 결과로 새 주인의 결과를 덮으면 에이전트가
+ * 자기 결과를 잃는다(PR #303 리뷰). 연결이 끝나도 에이전트가 마지막 결과를 읽어야 하므로 남긴다.
+ */
+export const REQUEST_LOCK_GUARDED_FILES: Readonly<Record<string, RequestLockKind>> = {
+  "runtime/agent-edit-result.json": "gui",
+};
+/** 이 경로를 쓰려면 쥐어야 하는 잠금. 보호되지 않는 경로면 undefined. */
+export function requestLockKindForPath(relativePath: string): RequestLockKind | undefined {
+  const path = relativePath.toLowerCase();
+  const kind = (Object.keys(REQUEST_LOCK_FILES) as RequestLockKind[]).find((key) => REQUEST_LOCK_FILES[key] === path);
+  return kind ?? (Object.prototype.hasOwnProperty.call(REQUEST_LOCK_GUARDED_FILES, path) ? REQUEST_LOCK_GUARDED_FILES[path] : undefined);
 }

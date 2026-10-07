@@ -69,6 +69,7 @@ import {
   WORKSPACE_REQUEST_LOCK_RENEW_PARAM,
   REQUEST_LOCK_FILES,
   isRequestLockKind,
+  requestLockKindForPath,
 } from "./protocol";
 import { migrateToV03 } from "../editor/schema/migrate";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
@@ -349,12 +350,13 @@ function handleRead(res: ServerResponse, absolutePath: string, isSpec: boolean):
   let stats;
   try {
     stats = statSync(absolutePath);
-  } catch {
-    sendError(res, 404, "파일이 없습니다.");
+  } catch (error) {
+    const missing = (error as NodeJS.ErrnoException).code === "ENOENT";
+    sendError(res, missing ? 404 : 500, missing ? "파일이 없습니다." : "파일을 확인하지 못했습니다.");
     return;
   }
   if (!stats.isFile()) {
-    sendError(res, 404, "파일이 아닙니다.");
+    sendError(res, 400, "파일이 아닙니다.");
     return;
   }
 
@@ -370,7 +372,9 @@ function handleRead(res: ServerResponse, absolutePath: string, isSpec: boolean):
       res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
       res.setHeader("content-length", body.length);
       res.end(body);
-    } catch { sendError(res, 404, "파일을 읽지 못했습니다."); }
+    } catch (error) {
+      sendError(res, (error as NodeJS.ErrnoException).code === "ENOENT" ? 404 : 500, "파일을 읽지 못했습니다.");
+    }
   } else createReadStream(absolutePath).pipe(res);
 }
 
@@ -694,8 +698,8 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
         handleRead(res, resolved.absolutePath, resolved.relativePath.startsWith("specs/"));
       } else {
         // 공유 요청 파일은 잠금 주인만 덮어쓴다(#273) — 기다리는 다른 탭의 요청을 지우지 않는다.
-        const lockKind = (Object.keys(REQUEST_LOCK_FILES) as (keyof typeof REQUEST_LOCK_FILES)[])
-          .find((kind) => REQUEST_LOCK_FILES[kind] === resolved.relativePath.toLowerCase());
+        // 에이전트 편집 결과도 연결된 탭만 쓴다(#279).
+        const lockKind = requestLockKindForPath(resolved.relativePath);
         const owner = req.headers[WORKSPACE_REQUEST_OWNER_HEADER];
         if (lockKind !== undefined && !holdsRequestLock(root, lockKind, typeof owner === "string" ? owner : undefined)) {
           sendError(res, 409, "다른 탭에서 보낸 요청이 아직 응답을 기다리고 있거나, 이 요청의 잠금이 만료됐습니다.");
