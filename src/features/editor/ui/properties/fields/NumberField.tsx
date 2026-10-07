@@ -80,7 +80,7 @@ export function NumberField({
           onBlur={handleBlur}
         />
         {unit ? (
-          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-subtle">
+          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-muted">
             {unit}
           </span>
         ) : null}

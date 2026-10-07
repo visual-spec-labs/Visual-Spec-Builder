@@ -80,7 +80,7 @@ export function ExportPanel() {
           <h2 className="text-xs font-semibold tracking-wide text-content-muted uppercase">
             Code export
           </h2>
-          <p className="truncate text-xs text-content-subtle">{page.name}</p>
+          <p className="truncate text-xs text-content-muted">{page.name}</p>
         </div>
         <button
           type="button"
@@ -109,17 +109,17 @@ export function ExportPanel() {
       </header>
 
       <div className="flex-1 overflow-auto p-3">
-        {status === "scanning" && <p className="text-sm text-content-subtle">훑는 중…</p>}
+        {status === "scanning" && <p className="text-sm text-content-muted">훑는 중…</p>}
 
         {status === "no-workspace" && (
-          <p className="text-sm text-content-subtle">
+          <p className="text-sm text-content-muted">
             작업공간에 연결돼 있지 않습니다. <code>npx visual-spec</code>으로 띄운 개발 서버에서만
             생성된 코드를 읽을 수 있습니다.
           </p>
         )}
 
         {status === "idle" && (
-          <p className="text-sm text-content-subtle">
+          <p className="text-sm text-content-muted">
             스펙이 수정되거나 문서·페이지가 바뀌어 이전 검사 결과를 지웠습니다. 현재 페이지를 다시
             검사해 주세요.
           </p>
@@ -139,7 +139,7 @@ export function ExportPanel() {
             <section>
               <h3 className="mb-1 text-xs font-semibold text-content-strong">티켓 커버리지</h3>
               {report.coverage.length === 0 ? (
-                <p className="text-xs text-content-subtle">구현 티켓이 없습니다.</p>
+                <p className="text-xs text-content-muted">구현 티켓이 없습니다.</p>
               ) : (
                 <ul className="flex flex-col gap-1">
                   {report.coverage.map((entry) => (
@@ -191,7 +191,7 @@ export function ExportPanel() {
         )}
       </div>
 
-      <p className="border-t border-line px-3 py-2 text-xs text-content-subtle">
+      <p className="border-t border-line px-3 py-2 text-xs text-content-muted">
         타입 검사·lint·화면 비교는 하지 않습니다. 대상 프로젝트 설정이 필요해 앱 안에서 답을 낼 수
         없습니다.
       </p>

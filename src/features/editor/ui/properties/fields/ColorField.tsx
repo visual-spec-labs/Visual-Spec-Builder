@@ -88,7 +88,7 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
             onChange={(event) => opacity.handleChange(event.target.value)}
             onBlur={opacity.handleBlur}
           />
-          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-subtle">
+          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-muted">
             %
           </span>
         </div>

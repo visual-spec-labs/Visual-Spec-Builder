@@ -73,7 +73,7 @@ export function TicketPanel() {
           <h2 className="text-xs font-semibold tracking-wide text-content-muted uppercase">
             Implementation tickets
           </h2>
-          <p className="truncate text-xs text-content-subtle">{page.name}</p>
+          <p className="truncate text-xs text-content-muted">{page.name}</p>
         </div>
         {workspaceAvailable === true && (
           <button
@@ -115,7 +115,7 @@ export function TicketPanel() {
 
       <div className="flex-1 overflow-auto p-3">
         {tickets.length === 0 ? (
-          <p className="text-sm text-content-subtle">생성할 구현 티켓이 없습니다.</p>
+          <p className="text-sm text-content-muted">생성할 구현 티켓이 없습니다.</p>
         ) : (
           <ol className="flex flex-col gap-2">
             {tickets.map((ticket) => {
@@ -127,7 +127,7 @@ export function TicketPanel() {
                       <p className="truncate text-sm font-semibold text-content-strong">
                         {ticket.componentName}
                       </p>
-                      <p className="text-xs text-content-subtle">
+                      <p className="text-xs text-content-muted">
                         {ticket.kind === "page" ? "Page" : "Component"} · 인스턴스{" "}
                         {ticket.instances.length}개
                       </p>
@@ -155,7 +155,7 @@ export function TicketPanel() {
                   </div>
 
                   {ticket.dependsOn.length > 0 && (
-                    <p className="mt-2 text-xs text-content-subtle">
+                    <p className="mt-2 text-xs text-content-muted">
                       선행: {ticket.dependsOn.join(", ")}
                     </p>
                   )}
@@ -192,13 +192,13 @@ export function TicketPanel() {
           runError !== null && !isStale ? (
             <span className="text-error">{runError}</span>
           ) : (
-            <span className="text-content-subtle">
+            <span className="text-content-muted">
               실행을 누르면 <code>.visual-spec/runtime/</code>에 요청을 쓰고, 에이전트가 응답을
               쓰면 상태가 자동으로 바뀝니다.
             </span>
           )
         ) : (
-          <span className="text-content-subtle">
+          <span className="text-content-muted">
             A안: 계획과 상태만 표시합니다. 실제 코드는 외부 에이전트가 생성합니다.
           </span>
         )}
