@@ -37,7 +37,7 @@ fixture는 수동 작성한 입력이다. 실제 Claude Code/Codex 실행은 이
 - `test/export-bundle.test.ts`: README 설명과 ZIP의 페이지·자산 경로
 - `test/image-fill.test.ts`: ImageNode·배경 이미지 생성 지침
 
-검증 결과:
+초기 구현 시 검증 결과 (2026-10-06):
 
 - 관련 회귀 74개 통과, 머지된 #269 회귀를 포함한 5개 suite 79개 통과
 - `pnpm run typecheck`, `pnpm run lint`, `pnpm run build` 통과
@@ -45,5 +45,10 @@ fixture는 수동 작성한 입력이다. 실제 Claude Code/Codex 실행은 이
 - `develop` `957cf87` 기준 전체 테스트: 1,521 통과, 1 skipped, 14 실패. Windows에서 symlink
   생성이 `EPERM`으로 거부되는 테스트와 chmod 기반 권한 테스트, 체크인된 검증기 번들과 재생성
   결과를 byte 단위로 비교하는 테스트가 실패했다. 이들은 #270 변경 파일과 무관하며 Linux CI에서
-  다시 확인한다. 이후 `develop` `83ae682`로 rebase했으나 이 작업 환경에서 Vitest 실행 파일을
-  찾지 못해 재검증하지 못했다.
+  다시 확인한다.
+
+PR 리뷰 반영 후 검증 (2026-10-07, `develop` `88bb530` rebase 기준):
+
+- 자산 이름·Export 검사·ZIP·이미지 지침 4개 suite, 80개 테스트 통과
+- `pnpm run typecheck`, `pnpm run lint`, `pnpm run build` 통과
+- 전체 테스트는 재실행하지 않았다.
