@@ -460,6 +460,28 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
   });
 
+  it("잠금이 만료돼 적용 결과를 못 쓴 뒤 같은 탭이 다시 잡으면, 그 요청을 거절이 아닌 적용으로 알린다", async () => {
+    await connect();
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    // 잠자기·서버 장애로 잠금이 만료됐다 — 다음 결과 쓰기 한 번은 409
+    let refused = false;
+    writes.mockImplementation(async (path, body, type, rev, owner) => {
+      if (path === "runtime/agent-edit-result.json" && !refused) { refused = true; return { ok: false, error: "만료", status: 409 }; }
+      return serverWrite(path, body, type, rev, owner);
+    });
+    sendEdit({ id: "e1", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("한 번 적용") });
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(title()).toBe("한 번 적용");
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    const history = useEditorStore.getState().history;
+    await vi.advanceTimersByTimeAsync(5000); // 같은 탭이 만료된 잠금을 새로 잡는다
+    writes.mockImplementation(serverWrite);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(result()).toMatchObject({ requestId: "e1", status: "applied" });
+    expect(useEditorStore.getState().history).toBe(history); // 다시 적용하지 않는다
+  });
+
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
     const read = vi.mocked(readWorkspaceTextFile);
     const serverRead = read.getMockImplementation()!;

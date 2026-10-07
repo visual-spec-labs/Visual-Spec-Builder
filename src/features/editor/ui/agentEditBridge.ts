@@ -114,14 +114,21 @@ export function startAgentEditBridge(): () => void {
    * 결과 쓰기는 **보낸 순서대로** 한 줄로 처리한다 — 확인 대기("pending")를 쓰는 사이 홈으로 가
    * 거절을 쓰면 두 요청이 경쟁해 결과가 pending으로 남을 수 있다(PR #303 셀프 리뷰).
    *
-   * 서버가 잠금 주인이 아니라고 거부했으면(409 — 이 쓰기는 버전 확인을 하지 않으므로 409는 잠금
-   * 거부뿐이다) 이 연결로는 결과를 알릴 수 없으므로 연결을 잃은 것으로 처리하고 떠 있는 확인창도
+   * 서버가 잠금 주인이 아니라고 거부했으면(409 — 이 쓰기는 버전 확인을 하지 않으므로 409는 잠금이
+   * 다른 탭에 넘어갔거나 만료된 경우다) 이 연결로는 결과를 알릴 수 없으므로 연결을 잃은 것으로 처리하고 떠 있는 확인창도
    * 거둔다. 일시 오류(네트워크·5xx)는 연결을 유지한다 — 잃은 것으로 치면 다시 잡을 때 이미 적용한
    * 요청을 "적용하지 않음"으로 알려 에이전트가 같은 편집을 다시 보낼 수 있다. 연장의
    * "unavailable"과 같은 정책이다(PR #303 셀프 리뷰).
    */
   let resultChain: Promise<unknown> = Promise.resolve();
+  /**
+   * 이 탭이 마지막으로 쓰려던 결과. 409로 연결을 잃은 뒤 **같은 탭이** 다시 잡으면(잠금 만료 —
+   * 잠자기·서버 장애가 30초를 넘김) 요청 파일엔 그 요청이 남아 있다. 이 탭이 이미 적용한 요청을
+   * "적용하지 않음"으로 알리면 에이전트가 같은 편집을 다시 보내 두 번 적용된다(PR #303 셀프 리뷰).
+   */
+  let lastResult: { requestId: string; status: AgentEditStatus; message: string } | null = null;
   async function writeResult(requestId: string, status: AgentEditStatus, message: string): Promise<boolean> {
+    lastResult = { requestId, status, message };
     const epochAt = epoch;
     const body = JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision(tabId)), null, 2);
     const run = resultChain.then(() => writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, tabId));
@@ -241,14 +248,20 @@ export function startAgentEditBridge(): () => void {
         } catch { handled = null; }
         const pending = parseAgentEdit(await readWorkspaceTextFile(AGENT_EDIT_PATH));
         // 요청 파일의 요청이 우선이다 — 결과 파일은 하나라 마지막에 쓴 결과만 남는다.
-        const waiting = "id" in pending && pending.id !== handled ? pending.id : unfinished;
-        lastHandledId = waiting ?? handled;
+        let waiting = "id" in pending && pending.id !== handled ? pending.id : unfinished;
+        // 이 탭이 이미 처리하고 결과만 못 알린 요청이면 거절 대신 그 결과를 다시 쓴다. 확인 대기였다면
+        // 확인창은 연결과 함께 사라졌으므로 거절이 맞다.
+        const own = lastResult !== null && lastResult.requestId === waiting && lastResult.status !== "pending" ? lastResult : null;
+        if (own !== null) waiting = null;
+        lastHandledId = own?.requestId ?? waiting ?? handled;
         if (stopped || !onEditor()) { void releaseLock(); return; } // 복원을 읽는 사이 홈으로 갔다
         epoch += 1;
         holder = true;
         useAgentEditStore.setState({ connected: true });
         await publish(true);
-        if (waiting !== null) {
+        if (own !== null) {
+          await writeResult(own.requestId, own.status, own.message);
+        } else if (waiting !== null) {
           await writeResult(waiting, "rejected",
             "GUI 연결이 새로 맺어져(새로고침·홈 이동·다른 탭) 이 요청을 적용하지 않았습니다. gui-state.json을 다시 읽고 새 id로 요청하세요.");
         }
