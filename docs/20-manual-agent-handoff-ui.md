@@ -266,6 +266,63 @@ GUI는 LLM을 직접 실행하지 않는다(#219, A안으로 확정) — 요청 
 통과/1개 건너뜀 — `test/ticket-status.test.ts`에 추가한 빈 배열 케이스 1개가
 늘었다.
 
+## 리뷰 대응 2차 (2026-10-09, 커밋 67f1e4a 검토) — StrictMode에서 mountedRef가 영영 false로 남음
+
+팀원이 P2 한 건을 남겼다 — 앞선 라운드에서 `CopyButton.tsx`에 더한 "복사 중
+언마운트 레이스 방지" effect가 `cleanup`에서만 `mountedRef.current = false`로
+두고 `setup`에서 `true`로 되돌리지 않았다. `src/main.tsx`가 루트를
+`<StrictMode>`로 감싸는데, React 18의 StrictMode는 **개발 모드에서 모든
+effect를 setup → cleanup → setup으로 한 번 더 왕복시킨다.** 그 왕복의 첫
+cleanup이 플래그를 끄고, 그걸 켜 줄 코드가 setup에 없으니 두 번째 setup이
+지나간 뒤에도 계속 꺼진 채로 남는다 — 즉 컴포넌트는 멀쩡히 마운트돼 있는데
+`isMounted()`에 해당하는 값은 영영 "언마운트됨"이다. 그러면 `handleClick`의
+`if (!mountedRef.current) return;`가 매번 조기 반환해 "복사됨"/"복사 실패"
+표시가 **한 번도 뜨지 않는다** — 클립보드 쓰기 자체는 되는데 사용자는 성공도
+실패(권한 거절 등)도 알 길이 없다. `bin/visual-spec.mjs`로 띄우는 `npx
+visual-spec`도 같은 Vite 개발 서버(= 같은 StrictMode)라 테스트 환경이 아니라
+실사용 경로에서도 그대로 터지는 지적이었다.
+
+**원인.** "마운트 상태 추적"을 React 컴포넌트 안의 `useRef(true)` + cleanup만
+있는 `useEffect`로 짰다. 이 패턴 자체가 StrictMode를 가정하지 않은 흔한
+실수다 — setup이 "아무것도 안 하고 cleanup만 등록"하는 모양이라, 왕복의
+의미(다시 마운트됐다)를 표현할 자리가 없었다.
+
+**수정.** 마운트 상태 추적을 React와 무관한 작은 값 객체
+(`src/features/editor/ui/mountedGuard.ts`의 `createMountedGuard`)로 뽑았다 —
+`setup()`/`cleanup()`/`isMounted()` 세 메서드뿐이고, `useEffect`는 그 둘을
+부르는 배선만 한다:
+
+```ts
+useEffect(() => {
+  guardRef.current.setup();        // 최초 마운트 + StrictMode의 재마운트 둘 다
+  return () => {
+    guardRef.current.cleanup();
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+  };
+}, []);
+```
+
+React를 끌어들이지 않는 순수 객체로 뽑은 이유는 정확히 이 리뷰가 쓴 방식대로
+검증하기 위해서다 — "hook/lifecycle 모의 하네스"를 직접 짜지 않고도,
+`setup`/`cleanup`을 원하는 순서로 그냥 호출해 StrictMode의 왕복을 그대로
+재현할 수 있다.
+
+### 회귀 테스트 — `test/mounted-guard.test.ts`
+
+다섯 가지를 고정했다: setup 전엔 unmounted, setup 직후엔 mounted, cleanup
+뒤엔 unmounted, **setup→cleanup→setup(StrictMode 왕복) 뒤엔 다시
+mounted**(수정 전엔 여기서 `false`로 남는 게 버그였다), 그 왕복 뒤 진짜
+cleanup(마지막 언마운트)하면 다시 unmounted. 이 테스트는 수정 전 코드가
+가진 "cleanup만 있고 setup이 없는" 모양을 `createMountedGuard()`가
+`let mounted = false`로 시작해 `setup()`을 안 부르면 영영 `false`인 것과
+같은 결로 포착한다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한, 무관)/1558개
+통과/1개 건너뜀 — `test/mounted-guard.test.ts` 5개가 더해졌다.
+
 ## 검증
 
 `pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
