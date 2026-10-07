@@ -143,12 +143,19 @@ export function startAgentEditBridge(): () => void {
   /** 잠금이 다른 탭으로 넘어갔다 — 이 탭은 더 이상 결과를 쓰지 않는다. */
   function loseConnection() {
     holder = false;
+    lockMaybeHeld = false; // 잠금은 이미 다른 탭 것이다 — 닫을 때 풀면 그 탭의 잠금을 건드린다
     useAgentEditStore.setState({ connected: false });
     void dropConfirm(false);
   }
 
   /** 연결을 푸는 중(거절 결과를 쓰고 잠금을 푸는 사이). 다시 잡기는 이게 끝난 뒤에 한다. */
   let releasing: Promise<void> | null = null;
+  /**
+   * 서버 잠금을 쥐고 있을 수 있는가. `holder`보다 넓다 — 최초 연결의 복원을 읽는 동안과 연결을
+   * 풀며 거절 결과를 쓰는 동안에도 잠금은 이 탭 것이다. 그 사이 탭을 닫으면 해제를 보내야
+   * 다른 탭이 잠금 기한(30초)을 기다리지 않는다(PR #303 셀프 리뷰).
+   */
+  let lockMaybeHeld = false;
   /**
    * 잠금을 푼다 — 해제 요청(DELETE)이 끝날 때까지 `releasing`에 올려 둔다. 끝나기 전에 같은 탭이
    * 다시 잡으면 늦게 도착한 해제가 새 잠금과 gui-state.json을 지운다(PR #303 리뷰). 잠금을 푸는
@@ -158,7 +165,10 @@ export function startAgentEditBridge(): () => void {
     const previous = releasing;
     const run = (async () => {
       if (previous !== null) await previous;
-      try { await before?.(); } finally { await releaseRequestLock("gui", tabId); } // 서버가 이 탭의 gui-state.json을 정리한다
+      try { await before?.(); } finally {
+        lockMaybeHeld = false;
+        await releaseRequestLock("gui", tabId);
+      } // 서버가 이 탭의 gui-state.json을 정리한다
     })();
     releasing = run;
     void run.finally(() => { if (releasing === run) releasing = null; });
@@ -184,7 +194,12 @@ export function startAgentEditBridge(): () => void {
       // 방금 푼 연결의 해제가 끝나기 전에 다시 잡으면, 늦게 도착한 해제가 새로 잡은 잠금을 푼다.
       if (releasing !== null) await releasing;
       if (stopped || !onEditor()) return;
+      const releasingBefore = releasing;
       const outcome = await acquireRequestLock("gui", tabId, holder);
+      // 잡는 요청이 오가는 사이 연결을 풀기 시작했다(홈 이동) — 곧 도착할 해제가 이 잠금을 지우므로
+      // 잡은 것으로 치지 않는다. 다음 회차가 해제를 기다린 뒤 다시 잡는다(PR #303 셀프 리뷰).
+      if (releasing !== releasingBefore) return;
+      if (outcome === "acquired") lockMaybeHeld = true;
       const nowHolder = outcome === "acquired" || (holder && outcome === "unavailable");
       if (nowHolder && !holder) {
         // 이전 탭이 처리한 마지막 요청은 다시 적용하지 않는다. 연결 전부터 있던 다른 요청은 이
@@ -352,7 +367,7 @@ export function startAgentEditBridge(): () => void {
   }
 
   const onPageHide = (event: PageTransitionEvent) => {
-    if (!event.persisted && holder) releaseRequestLock("gui", tabId, true);
+    if (!event.persisted && (holder || lockMaybeHeld)) void releaseRequestLock("gui", tabId, true);
   };
   const unsubscribeEditor = useEditorStore.subscribe((s, prev) => {
     if (s.spec !== prev.spec || s.activePageId !== prev.activePageId || s.selectedId !== prev.selectedId) schedulePublish();

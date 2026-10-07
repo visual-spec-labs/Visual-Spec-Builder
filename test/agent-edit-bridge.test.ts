@@ -359,6 +359,36 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(state()).not.toBeNull(); // 늦은 해제가 새로 공개한 상태 파일을 지우지 않았다
   });
 
+  it("연장 요청이 오가는 사이 홈에 갔다 돌아오면, 그 응답으로 연결됐다고 치지 않는다 — 늦은 해제가 지운다", async () => {
+    await connect();
+    // 다음 연장(5초)은 100ms 걸리고, 그 사이 보낸 해제(DELETE)는 300ms 뒤 도착해 상태 파일을 지운다
+    vi.mocked(acquireRequestLock).mockImplementation(() => new Promise((resolve) => { setTimeout(() => resolve("acquired"), 100); }));
+    vi.mocked(releaseRequestLock).mockImplementationOnce(() => new Promise((resolve) => {
+      setTimeout(() => { files.delete("runtime/gui-state.json"); resolve(); }, 300);
+    }));
+    await vi.advanceTimersByTimeAsync(4710); // 연장 요청이 막 나갔다
+    useNavigationStore.getState().openHome();
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(400);
+    // 연결됐다고 표시하면서 상태 파일이 없는 상태는 없다
+    if (useAgentEditStore.getState().connected) expect(state()).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(5500); // 다음 회차가 해제를 기다린 뒤 다시 잡는다
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(state()).not.toBeNull();
+  });
+
+  it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
+    const read = vi.mocked(readWorkspaceTextFile);
+    const serverRead = read.getMockImplementation()!;
+    read.mockImplementationOnce((path) => new Promise((resolve) => { setTimeout(() => resolve(serverRead(path)), 50); }));
+    stop = startAgentEditBridge();
+    await vi.advanceTimersByTimeAsync(10); // 잠금은 잡았고 복원을 읽는 중 — 아직 연결 표시 전
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    const onPageHide = vi.mocked(window.addEventListener).mock.calls.find(([type]) => type === "pagehide")![1] as unknown as (event: { persisted: boolean }) => void;
+    onPageHide({ persisted: false });
+    expect(releaseRequestLock).toHaveBeenCalledWith("gui", expect.any(String), true);
+  });
+
   it("확인 대기(pending)로 남은 요청은 새 연결이 거절로 끝낸다 — 새로고침하면 확인창이 사라지기 때문이다", async () => {
     files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "bg", status: "pending" }));
     sendEdit({ id: "bg", baseStateRevision: "old-tab", pageId: "page1", commands: background("#000000") });
