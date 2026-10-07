@@ -1,7 +1,8 @@
 import { create } from "zustand";
 
-import type { ScreenSpec } from "@/features/editor/schema";
+import type { PageId, ScreenSpec } from "@/features/editor/schema";
 import type { GeneratedFile, VerifyReport } from "@/features/editor/export/verifyGenerated";
+import { useEditorStore } from "@/features/editor/store/editorStore";
 import { scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
 
 /**
@@ -11,15 +12,24 @@ import { scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
  */
 export type ExportStatus = "idle" | "scanning" | "ready" | "no-workspace";
 
+/** 검사와 ZIP 다운로드가 함께 사용하는 편집기 스냅샷. */
+export interface ExportTarget {
+  documentId: number;
+  pageId: PageId;
+  page: ScreenSpec;
+  projectName: string;
+}
+
 interface ExportState {
   isOpen: boolean;
   status: ExportStatus;
   files: GeneratedFile[];
   report: VerifyReport | null;
+  target: ExportTarget | null;
   /** 패널을 열고 곧바로 훑는다. */
-  open: (page: ScreenSpec) => Promise<void>;
+  open: (target: ExportTarget) => Promise<void>;
   /** "다시 검사". 패널은 그대로 두고 결과만 갱신한다. */
-  rescan: (page: ScreenSpec) => Promise<void>;
+  rescan: (target: ExportTarget) => Promise<void>;
   close: () => void;
 }
 
@@ -29,15 +39,23 @@ interface ExportState {
  * ticketStore와 같은 이유로 editorStore에 넣지 않는다 — 훑기 결과는 IR도 Undo
  * 대상도 아니고 작업공간 파일에서 파생된 값이다.
  */
+let generation = 0;
+
+function clearResult(): Pick<ExportState, "status" | "files" | "report" | "target"> {
+  return { status: "idle", files: [], report: null, target: null };
+}
+
 export const useExportStore = create<ExportState>((set) => {
-  async function run(page: ScreenSpec): Promise<void> {
-    set({ status: "scanning" });
-    const scan = await scanGeneratedCode(page);
+  async function run(target: ExportTarget): Promise<void> {
+    const runGeneration = ++generation;
+    set({ status: "scanning", files: [], report: null, target });
+    const scan = await scanGeneratedCode(target.page);
+    if (runGeneration !== generation) return;
     if (scan.kind === "no-workspace") {
-      set({ status: "no-workspace", files: [], report: null });
+      set({ status: "no-workspace", files: [], report: null, target });
       return;
     }
-    set({ status: "ready", files: scan.files, report: scan.report });
+    set({ status: "ready", files: scan.files, report: scan.report, target });
   }
 
   return {
@@ -45,11 +63,28 @@ export const useExportStore = create<ExportState>((set) => {
     status: "idle",
     files: [],
     report: null,
-    open: async (page) => {
+    target: null,
+    open: async (target) => {
       set({ isOpen: true });
-      await run(page);
+      await run(target);
     },
     rescan: run,
-    close: () => set({ isOpen: false }),
+    close: () => {
+      generation += 1;
+      set({ isOpen: false, ...clearResult() });
+    },
   };
+});
+
+// 편집·페이지 전환·문서 전환은 기존 결과와 진행 중인 응답을 무효화한다(#272).
+// 패널은 계속 열어 두어 사용자가 현재 페이지로 다시 검사할 수 있게 한다.
+useEditorStore.subscribe((next, previous) => {
+  if (
+    next.documentId !== previous.documentId ||
+    next.activePageId !== previous.activePageId ||
+    next.spec !== previous.spec
+  ) {
+    generation += 1;
+    useExportStore.setState(clearResult());
+  }
 });
