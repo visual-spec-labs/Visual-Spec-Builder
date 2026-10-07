@@ -299,6 +299,14 @@ export function NaturalLanguageBar() {
         {shown.kind === "error" && (
           <div className="flex flex-col gap-1">
             <span className="text-error">{shown.message}</span>
+            {/* timeout이면 GUI 폴링은 이미 끝나고 요청 잠금도 풀렸다 — 지금 지시를
+                복사해 에이전트에 줘도 GUI가 응답을 받을 리스너가 없다(#283 리뷰
+                대응). 입력칸의 문구는 그대로 남아 있으니 "요청"을 다시 누르면
+                새 요청으로 다시 기다리기 시작한다 — 그때 지시 복사 버튼이 뜬다. */}
+            <span className="text-content-muted">
+              다시 보내려면 위쪽 "요청"을 다시 눌러 새 요청을 만든 뒤 그 지시를
+              에이전트에 전달하세요.
+            </span>
             {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, nlAgentClient.ts) —
                 실패 상태에서도 "자세히"로 같은 정보를 볼 수 있어야 한다. */}
             <NlHandoffDetails />

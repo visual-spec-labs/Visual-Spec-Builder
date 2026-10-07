@@ -180,6 +180,49 @@ GUI는 LLM을 직접 실행하지 않는다(#219, A안으로 확정) — 요청 
    문구·활성 조건" ExportPanel 표 참고) — 다운로드를 막는 쪽은 범위 밖의
    새 제약이라 채택하지 않았다.
 
+## 리뷰 대응 (2026-10-09, 커밋 7ef88a9 검토)
+
+팀원이 P2 두 건을 남겼다.
+
+1. **Export의 "구현 티켓 열기"가 패널을 전환하지 않는다.** `EditorLayout.tsx`
+   는 `showExport`·`showTickets`가 둘 다 켜져 있으면 Export를 우선
+   렌더링한다(`showExport ? ExportPanel : showTickets ? TicketPanel : ...`).
+   `openTicketPanel()`은 `ticketStore.isOpen`만 켜고 `exportStore.isOpen`은
+   안 건드려서, Export가 열린 채로 그 버튼을 눌러도 화면은 그대로 Export이고
+   뒤에서 티켓 계획만 다시 생성됐다 — 클릭이 눈에 보이는 효과가 없었다.
+   `openTicketPanel()`이 Export가 열려 있으면 먼저 닫도록 고쳤다(반대 방향인
+   `openExportPanel()`은 안 건드렸다 — Export가 우선순위를 가지므로 티켓
+   패널을 안 닫아도 바로 보이고, "Export를 닫으면 티켓 패널로 돌아간다"는
+   `EditorLayout.tsx` 주석이 밝힌 의도된 동작이다). `test/panel-handoff.test.ts`
+   로 고정했다 — 수정 전 코드로 되돌려 이 테스트가 실제로 실패하는 것까지
+   확인한 뒤 복구했다.
+2. **timeout 뒤 "지시 다시 복사"가 재시도를 보장하지 않는다.** timeout이면
+   `ticketAgentClient.ts`/`nlAgentClient.ts`의 폴링 루프는 이미 끝났고 요청
+   잠금도 풀렸다 — GUI는 더 이상 응답을 기다리지 않는다. 그 상태에서 지시를
+   다시 복사해 에이전트에 줘도, 에이전트가 옛 요청 파일을 처리해 응답을 써도
+   GUI는 그 응답을 읽을 리스너가 없어 받지 못한다. `TicketPanel`의 실패
+   분기에 있던 "지시 다시 복사" 버튼과 `NaturalLanguageBar`가 애초에 복사
+   버튼이 없던 것(지적대로 실패 상태에서 복사 수단 자체가 없었다) 둘 다,
+   **먼저 GUI의 전달/요청 버튼을 다시 눌러 새 요청을 만들어야 복사가 뜻이
+   있다**는 순서를 안 지키고 있었다. 자동 재시도 구조를 새로 만들지 않고
+   (리뷰도 그렇게 요청했다), 두 실패 분기의 문구를 "위쪽 버튼을 다시 눌러
+   새 요청을 만든 뒤 지시를 전달하라"로 바꾸고 `TicketPanel`의 선복사
+   버튼은 지웠다 — 새 요청을 만들면 `running`/`pending` 분기로 넘어가고,
+   거기 있는 복사 버튼이 그때는 실제로 뜻이 있다. `TicketPanel`의 "에이전트에
+   전달" 헤더 버튼은 timeout 뒤 `revertToPending`이 해당 티켓을 `pending`
+   으로 되돌려 자동으로 다시 활성화된다 — 별도 버튼을 새로 안 만들어도 된다.
+   `NaturalLanguageBar`는 에러 상태에서도 입력칸 문구가 안 지워져 있어 "요청"
+   을 다시 누르면 같은 내용으로 새 요청이 된다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한, 무관)/1552개
+통과/1개 건너뜀 — 신규 `test/panel-handoff.test.ts` 2개가 더해졌다. 이
+테스트는 `ui/exportGeneratedCode.ts`(DOM `document`/`fetch`)를 거치는
+`exportStore`를 거치므로 `test/ticket-runner.test.ts`와 같은 이유로
+`tsconfig.uitest.json`(DOM 타입)에 넣고 `tsconfig.node.json`에서는 뺐다.
+
 ## 검증
 
 `pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.

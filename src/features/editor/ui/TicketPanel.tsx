@@ -216,7 +216,15 @@ export function TicketPanel() {
         ) : runError !== null && !isStale ? (
           <div className="flex flex-col gap-1">
             <span className="text-error">{runError}</span>
-            <CopyButton text={buildTicketAgentInstruction()} label="지시 다시 복사" />
+            {/* timeout이면 GUI 폴링은 이미 끝나고 요청 잠금도 풀렸다 — 지금 지시를
+                복사해 에이전트에 줘도 GUI가 응답을 받을 리스너가 없다(#283 리뷰
+                대응). 위쪽 "에이전트에 전달"을 다시 눌러 새 요청을 만들어야(그때
+                readyWave가 되돌아간 티켓을 다시 포함한다) 그다음 지시 복사가 뜻이
+                있다 — 그 복사 버튼은 `running` 분기에 있다. */}
+            <span className="text-content-muted">
+              다시 전달하려면 위쪽 "에이전트에 전달"을 다시 눌러 새 요청을 만든
+              뒤 그 지시를 에이전트에 전달하세요.
+            </span>
             {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, ticketAgentClient.ts) —
                 실패 상태에서도 "자세히"로 같은 정보를 볼 수 있어야 한다. */}
             <TicketHandoffDetails workspaceRoot={workspaceRoot} />
