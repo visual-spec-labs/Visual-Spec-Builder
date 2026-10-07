@@ -91,6 +91,12 @@ export function startAgentEditBridge(): () => void {
     ? crypto.randomUUID() : `gui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   let stopped = false;
   let holder = false;
+  /**
+   * 연결 세대 — 연결을 맺거나 풀거나 잃을 때마다 오른다. 잠금 요청이 오가는 사이 세대가 바뀌었으면
+   * 그 응답은 지난 연결의 것이다. 해제가 이미 끝나 버린 뒤 도착한 연장 응답, 연결을 잃은 뒤 도착한
+   * 처리 직전 확인 응답으로 연결을 되살리거나 편집을 적용하지 않는다(PR #303 리뷰).
+   */
+  let epoch = 0;
   let lastPublished = "";
   let lastPublishedAt = 0;
   let lastHandledId: string | null = null;
@@ -142,6 +148,7 @@ export function startAgentEditBridge(): () => void {
 
   /** 잠금이 다른 탭으로 넘어갔다 — 이 탭은 더 이상 결과를 쓰지 않는다. */
   function loseConnection() {
+    epoch += 1;
     holder = false;
     lockMaybeHeld = false; // 잠금은 이미 다른 탭 것이다 — 닫을 때 풀면 그 탭의 잠금을 건드린다
     useAgentEditStore.setState({ connected: false });
@@ -162,6 +169,7 @@ export function startAgentEditBridge(): () => void {
    * 모든 경로(연결 종료, 최초 연결 취소)가 이걸 지난다. `before`는 해제 전에 끝낼 일이다.
    */
   function releaseLock(before?: () => Promise<void>): Promise<void> {
+    epoch += 1;
     const previous = releasing;
     const run = (async () => {
       if (previous !== null) await previous;
@@ -194,11 +202,11 @@ export function startAgentEditBridge(): () => void {
       // 방금 푼 연결의 해제가 끝나기 전에 다시 잡으면, 늦게 도착한 해제가 새로 잡은 잠금을 푼다.
       if (releasing !== null) await releasing;
       if (stopped || !onEditor()) return;
-      const releasingBefore = releasing;
+      const epochBefore = epoch;
       const outcome = await acquireRequestLock("gui", tabId, holder);
-      // 잡는 요청이 오가는 사이 연결을 풀기 시작했다(홈 이동) — 곧 도착할 해제가 이 잠금을 지우므로
-      // 잡은 것으로 치지 않는다. 다음 회차가 해제를 기다린 뒤 다시 잡는다(PR #303 셀프 리뷰).
-      if (releasing !== releasingBefore) return;
+      // 잡는 요청이 오가는 사이 연결을 풀었다(홈 이동) — 해제가 아직 오가든 이미 끝났든 이 응답은
+      // 지난 연결의 것이다. 다음 회차가 해제를 기다린 뒤 다시 잡는다(PR #303 리뷰).
+      if (epoch !== epochBefore) return;
       if (outcome === "acquired") lockMaybeHeld = true;
       const nowHolder = outcome === "acquired" || (holder && outcome === "unavailable");
       if (nowHolder && !holder) {
@@ -222,6 +230,7 @@ export function startAgentEditBridge(): () => void {
         const waiting = "id" in pending && pending.id !== handled ? pending.id : unfinished;
         lastHandledId = waiting ?? handled;
         if (stopped || !onEditor()) { void releaseLock(); return; } // 복원을 읽는 사이 홈으로 갔다
+        epoch += 1;
         holder = true;
         useAgentEditStore.setState({ connected: true });
         await publish(true);
@@ -274,9 +283,14 @@ export function startAgentEditBridge(): () => void {
   async function handle(text: string | null) {
     const parsed = parseAgentEdit(text);
     if (parsed.kind === "none" || parsed.kind === "unreadable") return;
-    if (parsed.id === lastHandledId) return;
+    if (parsed.id === lastHandledId || !holder) return;
     // 처리 직전에 연결이 아직 이 탭인지 확인한다 — 연장이 늦어 잠금이 넘어갔다면 새 탭이 처리한다.
-    if (await acquireRequestLock("gui", tabId, true) === "busy") {
+    const epochBefore = epoch;
+    const outcome = await acquireRequestLock("gui", tabId, true);
+    // 확인을 기다리는 사이 연결이 바뀌었다(주기 연장이 잃음을 먼저 확인, 홈 이동) — 이 응답이
+    // 성공이어도 지난 연결의 것이다. 적용하지 않는다(PR #303 리뷰).
+    if (stopped || epoch !== epochBefore || !holder) return;
+    if (outcome === "busy") {
       loseConnection();
       return;
     }
@@ -345,12 +359,15 @@ export function startAgentEditBridge(): () => void {
     if (!holder) { dropConfirm(false); return; }
     // 확인을 기다리는 사이 잠금이 다른 탭으로 넘어갔을 수 있다(정지·연장 지연) — 쓰기 직전에 다시 본다.
     resolving = true;
+    const epochBefore = epoch;
+    let outcome;
     try {
-      if (await acquireRequestLock("gui", tabId, true) === "busy") { loseConnection(); return; }
+      outcome = await acquireRequestLock("gui", tabId, true);
     } finally {
       resolving = false;
     }
-    if (stopped || !holder || useAgentEditStore.getState().notice !== notice) return;
+    if (stopped || epoch !== epochBefore || !holder || useAgentEditStore.getState().notice !== notice) return;
+    if (outcome === "busy") { loseConnection(); return; }
     if (!accept) {
       const message = "사용자가 GUI에서 이 편집을 적용하지 않기로 했습니다.";
       useAgentEditStore.setState({ notice: { kind: "rejected", requestId: notice.requestId, message } });

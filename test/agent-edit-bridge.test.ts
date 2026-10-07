@@ -377,6 +377,42 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(state()).not.toBeNull();
   });
 
+  it("해제가 이미 끝난 뒤 도착한 지난 연장 응답으로 연결을 되살리지 않는다", async () => {
+    await connect();
+    // 다음 연장(5초)의 응답은 500ms 뒤 도착한다. 그 사이 홈 이동 → 해제(DELETE)가 곧바로 끝나고 → 복귀
+    vi.mocked(acquireRequestLock).mockImplementation(() => new Promise((resolve) => { setTimeout(() => resolve("acquired"), 500); }));
+    vi.mocked(releaseRequestLock).mockImplementationOnce(async () => { files.delete("runtime/gui-state.json"); });
+    await vi.advanceTimersByTimeAsync(4710); // 연장 요청이 막 나갔다
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(10); // 해제가 끝났다
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(600); // 지난 연장 응답(acquired)이 도착했다
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    expect(state()).toBeNull();
+    await vi.advanceTimersByTimeAsync(5000); // 다음 회차가 새로 잡는다
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(state()).not.toBeNull();
+  });
+
+  it("처리 직전 확인 응답이 오기 전에 연결을 잃었으면, 그 응답이 성공이어도 편집을 적용하지 않는다", async () => {
+    await connect();
+    const before = title();
+    // poll의 처리 직전 확인은 6초 걸려 성공으로 돌아오고, 그 사이 주기 연장은 잠금이 B에 넘어간 걸 본다
+    let calls = 0;
+    vi.mocked(acquireRequestLock).mockImplementation(() => {
+      calls += 1;
+      return calls === 1
+        ? new Promise((resolve) => { setTimeout(() => resolve("acquired"), 6000); })
+        : Promise.resolve("busy");
+    });
+    sendEdit({ id: "late", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("잃은 뒤 적용") });
+    await vi.advanceTimersByTimeAsync(5000); // poll이 확인을 보냈고, 주기 연장이 busy로 연결을 잃었다
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    await vi.advanceTimersByTimeAsync(2500); // 지난 확인 응답(acquired)이 도착했다
+    expect(title()).toBe(before);
+    expect(result()).toBeNull();
+  });
+
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
     const read = vi.mocked(readWorkspaceTextFile);
     const serverRead = read.getMockImplementation()!;
