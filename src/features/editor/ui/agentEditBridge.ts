@@ -112,9 +112,13 @@ export function startAgentEditBridge(): () => void {
    * 탭이 옛 요청의 결과로 새 주인의 결과를 덮지 않게.
    *
    * 결과 쓰기는 **보낸 순서대로** 한 줄로 처리한다 — 확인 대기("pending")를 쓰는 사이 홈으로 가
-   * 거절을 쓰면 두 요청이 경쟁해 결과가 pending으로 남을 수 있다(PR #303 셀프 리뷰). 쓰지 못했으면
-   * (잠금 만료·인계, 일시 오류) 이 연결로는 결과를 알릴 수 없으므로 연결을 잃은 것으로 처리한다 —
-   * 떠 있는 확인창도 거둔다. 일시 오류였다면 다음 회차가 다시 잡는다.
+   * 거절을 쓰면 두 요청이 경쟁해 결과가 pending으로 남을 수 있다(PR #303 셀프 리뷰).
+   *
+   * 서버가 잠금 주인이 아니라고 거부했으면(409 — 이 쓰기는 버전 확인을 하지 않으므로 409는 잠금
+   * 거부뿐이다) 이 연결로는 결과를 알릴 수 없으므로 연결을 잃은 것으로 처리하고 떠 있는 확인창도
+   * 거둔다. 일시 오류(네트워크·5xx)는 연결을 유지한다 — 잃은 것으로 치면 다시 잡을 때 이미 적용한
+   * 요청을 "적용하지 않음"으로 알려 에이전트가 같은 편집을 다시 보낼 수 있다. 연장의
+   * "unavailable"과 같은 정책이다(PR #303 셀프 리뷰).
    */
   let resultChain: Promise<unknown> = Promise.resolve();
   async function writeResult(requestId: string, status: AgentEditStatus, message: string): Promise<boolean> {
@@ -123,7 +127,7 @@ export function startAgentEditBridge(): () => void {
     const run = resultChain.then(() => writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, tabId));
     resultChain = run.catch(() => undefined);
     const written = await run;
-    if (!written.ok && holder && epoch === epochAt) loseConnection();
+    if (!written.ok && written.status === 409 && holder && epoch === epochAt) loseConnection();
     return written.ok;
   }
 

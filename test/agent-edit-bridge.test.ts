@@ -419,12 +419,27 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     const serverWrite = writes.getMockImplementation()!;
     // 처리 직전 확인 뒤 잠금이 넘어가(만료·인계) 서버가 결과 쓰기를 거부한다
     writes.mockImplementation(async (path, body, type, rev, owner) =>
-      path === "runtime/agent-edit-result.json" ? { ok: false, error: "409" } : serverWrite(path, body, type, rev, owner));
+      path === "runtime/agent-edit-result.json" ? { ok: false, error: "잠금 거부", status: 409 } : serverWrite(path, body, type, rev, owner));
     sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
     await vi.advanceTimersByTimeAsync(1100);
     writes.mockImplementation(serverWrite);
     expect(useAgentEditStore.getState().connected).toBe(false);
     expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "rejected", requestId: "bg" });
+  });
+
+  it("결과 쓰기의 일시 오류(네트워크·5xx)로는 연결을 놓지 않는다 — 다시 잡으며 적용한 요청을 거절로 알리지 않게", async () => {
+    await connect();
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    writes.mockImplementation(async (path, body, type, rev, owner) =>
+      path === "runtime/agent-edit-result.json" ? { ok: false, error: "fetch failed" } : serverWrite(path, body, type, rev, owner));
+    sendEdit({ id: "e1", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("적용됨") });
+    await vi.advanceTimersByTimeAsync(1100);
+    writes.mockImplementation(serverWrite);
+    expect(title()).toBe("적용됨");
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    await vi.advanceTimersByTimeAsync(10_000); // 다음 회차들 — 다시 잡으며 e1을 거절로 쓰지 않는다
+    expect(result()?.status).not.toBe("rejected");
   });
 
   it("확인 대기(pending)를 쓰는 중 홈으로 가도 거절이 그 뒤에 쓰여 결과가 pending으로 남지 않는다", async () => {
