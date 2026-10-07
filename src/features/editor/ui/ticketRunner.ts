@@ -35,7 +35,10 @@ import type { Ticket } from "@/features/editor/ticket/types";
 /** 진행 중인 웨이브의 취소 토큰. 없으면(null) 아무 웨이브도 돌고 있지 않다. */
 let activeCancel: TicketCancelToken | null = null;
 
-export const STALE_TICKET_MESSAGE = "화면이 바뀌었습니다. 현재 스펙으로 티켓을 다시 생성해야 실행할 수 있습니다.";
+// "실행"이 아니라 "전달"이다(#283 리뷰 대응) — GUI는 에이전트를 실행하지 않고
+// 요청을 전달할 뿐이다. 패널의 다른 문구는 이미 "전달"로 바뀌었는데 이 상수만
+// 옛 "실행" 표현이 남아 있었다.
+export const STALE_TICKET_MESSAGE = "화면이 바뀌었습니다. 현재 스펙으로 티켓을 다시 생성해야 전달할 수 있습니다.";
 
 /**
  * 티켓을 만든 뒤 편집·페이지 전환·문서 전환이 있었으면 true다(이슈 #271).
@@ -86,7 +89,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   // 매번 계산해 보여준다.
   if (isTicketPlanStale()) {
     activeCancel = null;
-    useTicketStore.setState({ running: false, runError: null });
+    useTicketStore.setState({ running: false, runError: null, runErrorRetryable: false });
     return;
   }
 
@@ -100,6 +103,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     ),
     running: true,
     runError: null,
+    runErrorRetryable: false,
   }));
 
   const outcome = await requestTicketBatch(
@@ -118,7 +122,16 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
 
   if (outcome.kind !== "response") {
     revertToPending(waveTickets);
-    useTicketStore.setState({ running: false, runError: outcome.message });
+    // timeout·lockLost일 때만 "재시도" 안내가 뜻이 있다(#283 리뷰 대응) — 둘 다
+    // 요청 파일은 이미 썼는데 더 이상 누구도 응답을 기다리지 않는 상태라 "다시
+    // 눌러 새 요청을 만들라"가 맞다. unavailable·busy(요청 전 잠금 충돌)·
+    // writeFailed는 애초에 요청이 안 쓰였거나 다른 탭이 잠금을 쥐고 있어, 같은
+    // 문구가 실제 원인과 안 맞는다.
+    useTicketStore.setState({
+      running: false,
+      runError: outcome.message,
+      runErrorRetryable: outcome.kind === "timeout" || outcome.kind === "lockLost",
+    });
     activeCancel = null;
     return;
   }
@@ -129,6 +142,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
       running: false,
       runError:
         outcome.result.kind === "malformed" ? outcome.result.message : "이번 요청의 응답이 아닙니다.",
+      runErrorRetryable: false,
     });
     activeCancel = null;
     return;

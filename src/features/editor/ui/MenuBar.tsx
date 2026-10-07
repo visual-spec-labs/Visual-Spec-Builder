@@ -2,9 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { useExportStore } from "@/features/editor/store/exportStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
-import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { formatDocumentTitle } from "@/features/editor/ui/documentTitle";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
@@ -13,7 +11,9 @@ import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
 import { insertControl } from "@/features/editor/ui/insertControl";
 import { MenuList, type MenuEntry } from "@/features/editor/ui/menu";
 import { newSpec } from "@/features/editor/ui/newSpec";
+import { openExportPanel } from "@/features/editor/ui/openExportPanel";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
+import { openTicketPanel } from "@/features/editor/ui/openTicketPanel";
 
 type MenuKey = "file" | "insert" | "view";
 
@@ -37,29 +37,6 @@ function handleSaveAs() {
 }
 function handleOpen() {
   void openSpec();
-}
-
-function handleCompileTickets() {
-  const { spec, activePageId } = useEditorStore.getState();
-  const view = useViewStore.getState();
-  if (!view.showPanels) view.togglePanels();
-  useTicketStore.getState().compile(activePageId, spec.pages[activePageId]);
-}
-
-/**
- * File ▸ Export Code — `.visual-spec/generated/`의 코드를 훑어 검증하고 결과 폴더
- * ZIP을 만든다(#157). 바로 위 `handleExport`(스펙 JSON 다운로드)와 **다른 기능**이다.
- */
-function handleExportCode() {
-  const { spec, activePageId, documentId } = useEditorStore.getState();
-  const view = useViewStore.getState();
-  if (!view.showPanels) view.togglePanels();
-  void useExportStore.getState().open({
-    documentId,
-    pageId: activePageId,
-    page: spec.pages[activePageId],
-    projectName: spec.name,
-  });
 }
 
 /**
@@ -110,7 +87,7 @@ export function MenuBar() {
     { kind: "separator" },
     { kind: "action", label: "Import", onSelect: importImageFromFile },
     { kind: "action", label: "Export", onSelect: handleExport },
-    { kind: "action", label: "Export Code", onSelect: handleExportCode },
+    { kind: "action", label: "Export Code", onSelect: openExportPanel },
   ];
 
   const INSERT_MENU: MenuEntry[] = [
@@ -195,7 +172,7 @@ export function MenuBar() {
         />
         <button
           type="button"
-          onClick={handleCompileTickets}
+          onClick={openTicketPanel}
           className="rounded-control px-2 py-1 text-content-muted hover:bg-hover hover:text-content"
         >
           구현 티켓

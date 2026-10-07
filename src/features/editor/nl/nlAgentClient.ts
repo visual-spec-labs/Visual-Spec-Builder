@@ -49,6 +49,13 @@ export type NlRequestOutcome =
   | { kind: "unavailable"; message: string }
   /** 같은 작업공간의 다른 탭 요청이 아직 응답을 기다린다(#273). 요청 파일을 쓰지 않았다. */
   | { kind: "busy"; message: string }
+  /**
+   * 요청 파일은 썼지만 폴링 중 잠금을 잃었다(#283 리뷰 대응) — `busy`와 구분하는
+   * 이유는 재시도 안내가 맞는 쪽이 이쪽뿐이라서다. `busy`는 요청 자체를 안 썼으니
+   * "다른 탭이 끝나길 기다려라"가 맞고, 이쪽은 이미 쓴 요청이 더 이상 누구도
+   * 기다리지 않는 상태라 timeout과 똑같이 "다시 전달해야" 뜻이 있다.
+   */
+  | { kind: "lockLost"; message: string }
   | { kind: "writeFailed"; message: string }
   | { kind: "timeout"; message: string }
   | { kind: "cancelled" }
@@ -137,7 +144,7 @@ async function waitForNlResponse(
     if (cancel.cancelled) return { kind: "cancelled" };
     if (lock !== null && !await lock.renew()) {
       return {
-        kind: "busy",
+        kind: "lockLost",
         message: "응답을 기다리는 사이 요청 잠금이 만료돼 다른 탭의 요청으로 바뀌었습니다. 다시 요청하세요.",
       };
     }
@@ -154,9 +161,11 @@ async function waitForNlResponse(
     if (result.kind !== "stale") return { kind: "response", result };
 
     if (Date.now() >= deadline) {
+      // 원시 경로는 더 이상 이 문구에 넣지 않는다(#283) — 입력창이 "자세히"로
+      // 같은 경로를 보여주고, 이 문구는 사람이 다음에 할 일만 말한다.
       return {
         kind: "timeout",
-        message: `${Math.round(NL_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 .visual-spec/${NL_REQUEST_PATH}를 읽고 .visual-spec/${NL_RESPONSE_PATH}에 답을 쓰게 하세요.`,
+        message: `${Math.round(NL_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 지시를 다시 복사해 전달하세요.`,
       };
     }
     await sleep(NL_POLL_INTERVAL_MS);

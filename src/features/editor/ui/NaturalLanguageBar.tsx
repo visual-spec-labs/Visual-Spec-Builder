@@ -17,6 +17,9 @@ import type { Command } from "@/features/editor/command/types";
 import { runTransactionGates } from "@/features/editor/command/transactionGate";
 import { changedBackgroundNodes } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
+import { buildNlAgentInstruction } from "@/features/editor/ui/agentHandoff";
+import { CopyButton } from "@/features/editor/ui/CopyButton";
+import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 
 /**
  * 캔버스 아래 전폭 행에 붙는 자연어 입력창 (이슈 #155).
@@ -46,7 +49,17 @@ import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
 type Feedback =
   | { kind: "none" }
   | { kind: "pending" }
-  | { kind: "error"; message: string }
+  | {
+      kind: "error";
+      message: string;
+      /**
+       * timeout일 때만 true다(#283 리뷰 대응) — 그때만 "위쪽 요청을 다시 눌러
+       * 새 요청을 만든 뒤 전달하라"는 안내가 맞다. 다른 실패(작업공간 연결
+       * 끊김·다른 탭 잠금·Command 검증 실패 등)는 폴링이 아예 없었거나 이미
+       * 정상 종료된 뒤라 같은 안내가 엉뚱한 해결책을 가리킨다.
+       */
+      retryable?: boolean;
+    }
   | {
       kind: "confirmation";
       spec: ProjectSpec;
@@ -131,7 +144,15 @@ export function NaturalLanguageBar() {
       return;
     }
     if (outcome.kind !== "response") {
-      setFeedback({ kind: "error", message: outcome.message });
+      // timeout·lockLost일 때만 재전달 안내를 붙인다 — 둘 다 요청 파일은 이미
+      // 썼는데 더 이상 누구도 응답을 기다리지 않는 상태다. unavailable·
+      // busy(요청 전 잠금 충돌)·writeFailed는 애초에 요청이 안 쓰였거나 다른
+      // 탭이 잠금을 쥐고 있어, 같은 문구가 실제 원인과 안 맞는다(#283 리뷰 대응).
+      setFeedback({
+        kind: "error",
+        message: outcome.message,
+        retryable: outcome.kind === "timeout" || outcome.kind === "lockLost",
+      });
       return;
     }
 
@@ -269,13 +290,19 @@ export function NaturalLanguageBar() {
         )}
       </form>
 
-      {/* 알림 한 자리(docs/08 4.3). role=status 라 스크린 리더도 같은 줄을 읽는다. */}
-      <p role="status" aria-live="polite" className="min-h-4 text-xs">
+      {/* 알림 한 자리(docs/08 4.3). role=status 라 스크린 리더도 같은 줄을 읽는다.
+          div로 두는 이유는 pending 상태의 <details>가 <p> 안에 못 들어가서다
+          (HTML이 <p> 안의 블록 요소를 만나면 <p>를 조기에 닫아 버린다). */}
+      <div role="status" aria-live="polite" className="min-h-4 text-xs">
         {shown.kind === "pending" && (
-          <span className="text-content-muted">
-            에이전트 응답을 기다리는 중… 에이전트에게 <code>.visual-spec/{NL_REQUEST_PATH}</code>를 읽고{" "}
-            <code>.visual-spec/{NL_RESPONSE_PATH}</code>에 Command 배열을 쓰게 하세요.
-          </span>
+          <div className="flex flex-col gap-1 text-content-muted">
+            <span className="flex flex-wrap items-center gap-2">
+              에이전트 응답 대기 중 — 아직 전달하지 않았다면 지시를 복사해 에이전트에
+              붙여 넣으세요.
+              <CopyButton text={buildNlAgentInstruction()} />
+            </span>
+            <HandoffDetails requestPath={NL_REQUEST_PATH} responsePath={NL_RESPONSE_PATH} />
+          </div>
         )}
         {shown.kind === "confirmation" && (
           <span className="text-content">
@@ -288,7 +315,25 @@ export function NaturalLanguageBar() {
             </button>
           </span>
         )}
-        {shown.kind === "error" && <span className="text-error">{shown.message}</span>}
+        {shown.kind === "error" && (
+          <div className="flex flex-col gap-1">
+            <span className="text-error">{shown.message}</span>
+            {/* timeout일 때만 보여준다 — 그때만 GUI 폴링이 이미 끝나고 요청 잠금도
+                풀려서, 지금 지시를 복사해 에이전트에 줘도 GUI가 응답을 받을
+                리스너가 없다(#283 리뷰 대응). 입력칸의 문구는 그대로 남아 있으니
+                "요청"을 다시 누르면 같은 내용으로 새 요청이 되고, 그때 지시 복사
+                버튼(= `pending` 분기)이 뜬다. */}
+            {shown.retryable && (
+              <span className="text-content-muted">
+                다시 보내려면 위쪽 "요청"을 다시 눌러 새 요청을 만든 뒤 그 지시를
+                에이전트에 전달하세요.
+              </span>
+            )}
+            {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, nlAgentClient.ts) —
+                실패 상태에서도 "자세히"로 같은 정보를 볼 수 있어야 한다. */}
+            <HandoffDetails requestPath={NL_REQUEST_PATH} responsePath={NL_RESPONSE_PATH} />
+          </div>
+        )}
         {shown.kind === "success" && (
           <span className="text-content-muted">
             {shown.message}{" "}
@@ -304,7 +349,7 @@ export function NaturalLanguageBar() {
             </button>
           </span>
         )}
-      </p>
+      </div>
     </section>
   );
 }

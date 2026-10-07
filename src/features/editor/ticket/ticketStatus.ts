@@ -59,7 +59,13 @@ export function readyTickets(tickets: Ticket[]): Ticket[] {
   return tickets.filter((ticket) => ticket.status === "pending" && isReady(tickets, ticket));
 }
 
-/** 전부 done이면 true. 하나라도 failed가 있으면 완료로 치지 않는다. */
+/**
+ * 전부 done이면 true. 하나라도 failed가 있으면 완료로 치지 않는다.
+ *
+ * 빈 배열은 false다(#283 리뷰 대응) — `Array.every`는 빈 배열에서 공허 참이라
+ * "티켓이 하나도 없음"이 "전부 완료"로 잘못 읽힐 뻔했다. 티켓이 없는 건 완료가
+ * 아니라 "아직 아무것도 없음"이다.
+ */
 export function isAllDone(tickets: Ticket[]): boolean {
-  return tickets.every((ticket) => ticket.status === "done");
+  return tickets.length > 0 && tickets.every((ticket) => ticket.status === "done");
 }

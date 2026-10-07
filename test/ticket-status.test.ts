@@ -85,6 +85,10 @@ describe("isAllDone", () => {
   it("하나라도 pending·in-progress면 false", () => {
     expect(isAllDone([ticket({ id: "A", status: "done" }), ticket({ id: "B" })])).toBe(false);
   });
+
+  it("빈 배열은 false다 — Array.every의 공허 참을 '티켓 없음 = 완료'로 잘못 읽지 않는다(#283)", () => {
+    expect(isAllDone([])).toBe(false);
+  });
 });
 
 describe("markTicketStatus", () => {

@@ -40,24 +40,42 @@ function isWorkspaceResponse(response: Response): boolean {
   return response.headers.get(WORKSPACE_MARKER_HEADER) === "1";
 }
 
-let available: boolean | undefined;
-
 /**
- * 작업공간이 연결돼 있는지 한 번 물어보고 결과를 기억한다.
- *
- * `true`만 캐시한다 — 개발 서버가 잠깐 안 떠 있어서 실패한 경우까지 기억해 버리면
- * 새로고침 전에는 영영 폴백만 쓰게 된다.
+ * `/__vs/status` 응답. `isWorkspaceAvailable`·`getWorkspaceRoot` 둘이 같은
+ * 캐시 하나를 쓴다(#283 리뷰 대응) — 따로 캐시 변수 두 개를 두면 한쪽만 갱신
+ * 하는 수정이 들어왔을 때 서로 어긋날 수 있다. `ok`인 결과만 캐시한다 —
+ * 개발 서버가 잠깐 안 떠 있어서 실패한 경우까지 기억해 버리면 새로고침
+ * 전에는 영영 폴백만 쓰게 된다.
  */
-export async function isWorkspaceAvailable(): Promise<boolean> {
-  if (available === true) return true;
+let cachedStatus: { ok: true; root: string | null } | undefined;
+
+/** `/__vs/status`를 한 번 묻는다. 실패해도 예외를 던지지 않는다. */
+async function fetchWorkspaceStatus(): Promise<{ ok: boolean; root: string | null }> {
+  if (cachedStatus !== undefined) return cachedStatus;
 
   try {
     const response = await fetch(WORKSPACE_STATUS_ROUTE, { method: "GET" });
-    available = response.ok && isWorkspaceResponse(response);
+    if (!response.ok || !isWorkspaceResponse(response)) return { ok: false, root: null };
+    const body: unknown = await response.json();
+    const root =
+      typeof body === "object" && body !== null && typeof (body as { root?: unknown }).root === "string"
+        ? (body as { root: string }).root
+        : null;
+    cachedStatus = { ok: true, root };
+    return cachedStatus;
   } catch {
-    available = false;
+    return { ok: false, root: null };
   }
-  return available;
+}
+
+/** 작업공간이 연결돼 있는지 한 번 물어보고 결과를 기억한다. */
+export async function isWorkspaceAvailable(): Promise<boolean> {
+  return (await fetchWorkspaceStatus()).ok;
+}
+
+/** 작업공간의 절대 경로. 작업공간이 없거나 서버가 안 돌려줬으면 `null`(#283). */
+export async function getWorkspaceRoot(): Promise<string | null> {
+  return (await fetchWorkspaceStatus()).root;
 }
 
 /**

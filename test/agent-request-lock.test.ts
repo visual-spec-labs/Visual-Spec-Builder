@@ -63,7 +63,9 @@ it("기다리는 사이 잠금을 잃으면 다른 탭 요청으로 바뀌었다
   vi.mocked(acquireRequestLock).mockResolvedValueOnce("acquired").mockResolvedValue("busy");
   const outcome = requestNlEdit(input, { cancelled: false });
   await vi.runAllTimersAsync();
-  expect(await outcome).toMatchObject({ kind: "busy", message: expect.stringContaining("만료") });
+  // 요청 전 잠금 충돌("busy")과 구분한다(#283 리뷰 대응) — 이쪽은 요청 파일을
+  // 이미 쓴 뒤라 재시도 안내가 뜻이 있다(NaturalLanguageBar.tsx의 retryable 참고).
+  expect(await outcome).toMatchObject({ kind: "lockLost", message: expect.stringContaining("만료") });
   // 연장은 새로 잡기가 아니라 renew로 보낸다(PR #296 리뷰).
   expect(acquireRequestLock).toHaveBeenLastCalledWith("nl", "req-b", true);
 });
