@@ -156,7 +156,7 @@ export function startAgentEditBridge(): () => void {
     // 거절 결과를 **먼저** 쓰고 잠금을 푼다 — 서버가 쓰는 순간 주인인지 본다. 이미 다른 탭에
     // 넘어갔으면 쓰기가 거부돼 새 주인의 결과를 덮지 않는다(PR #303 리뷰).
     releasing = (async () => {
-      try { await dropConfirm(true); } finally { releaseRequestLock("gui", tabId); } // 서버가 이 탭의 gui-state.json을 정리한다
+      try { await dropConfirm(true); } finally { await releaseRequestLock("gui", tabId); } // 서버가 이 탭의 gui-state.json을 정리한다
     })().finally(() => { releasing = null; });
   }
 

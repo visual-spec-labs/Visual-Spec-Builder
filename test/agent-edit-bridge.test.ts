@@ -316,13 +316,19 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     await connect();
     sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
     await vi.advanceTimersByTimeAsync(1100);
+    // 해제 요청(DELETE)은 늦게 끝난다 — 끝나기 전에 다시 잡으면 늦은 해제가 새 잠금을 지운다
+    let releaseDone = false;
+    vi.mocked(releaseRequestLock).mockImplementationOnce(() => new Promise((resolve) => {
+      setTimeout(() => { releaseDone = true; resolve(); }, 100);
+    }));
+    const acquiredAfterRelease: boolean[] = [];
     vi.mocked(acquireRequestLock).mockClear();
+    vi.mocked(acquireRequestLock).mockImplementation(async () => { acquiredAfterRelease.push(releaseDone); return "acquired"; });
     useNavigationStore.getState().openHome();
     useNavigationStore.getState().openEditor();
     await vi.advanceTimersByTimeAsync(300);
-    const released = vi.mocked(releaseRequestLock).mock.invocationCallOrder.at(-1)!;
-    const reacquired = vi.mocked(acquireRequestLock).mock.invocationCallOrder[0];
-    expect(released).toBeLessThan(reacquired);
+    expect(acquiredAfterRelease.length).toBeGreaterThan(0);
+    expect(acquiredAfterRelease.every(Boolean)).toBe(true);
     expect(useAgentEditStore.getState().connected).toBe(true);
     expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
   });

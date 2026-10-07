@@ -241,11 +241,12 @@ export async function acquireRequestLock(
  * 잠금을 푼다. 실패해도 기한이 지나면 풀리므로 결과를 돌려주지 않는다. `keepalive`는
  * 탭을 닫는 중(pagehide)에도 요청이 끝까지 가게 한다.
  */
-export function releaseRequestLock(kind: RequestLockKind, owner: string, keepalive = false): void {
-  void fetch(`${WORKSPACE_REQUEST_LOCK_ROUTE}${kind}`, {
+/** 해제 요청이 끝나면 풀리는 Promise를 돌려준다 — 같은 탭이 곧바로 다시 잡을 때 기다린다(#279). */
+export function releaseRequestLock(kind: RequestLockKind, owner: string, keepalive = false): Promise<void> {
+  return fetch(`${WORKSPACE_REQUEST_LOCK_ROUTE}${kind}`, {
     method: "DELETE",
     headers: { [WORKSPACE_REQUEST_OWNER_HEADER]: owner },
     keepalive,
-  }).catch(() => undefined);
+  }).then(() => undefined, () => undefined);
 }
 
