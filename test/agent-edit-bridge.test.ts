@@ -583,6 +583,78 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(result()).toMatchObject({ requestId: "c", status: "applied" });
   });
 
+  it("확인 대기 중 새 요청이 오면 앞 요청을 적용하지 않은 것으로 확정해 알리고 새 요청을 처리한다", async () => {
+    await connect();
+    sendEdit({ id: "bg1", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(result()).toMatchObject({ requestId: "bg1", status: "pending" });
+    sendEdit({ id: "e2", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("새 요청") });
+    await vi.advanceTimersByTimeAsync(1100);
+    const written = vi.mocked(writeWorkspaceFile).mock.calls
+      .filter(([path]) => path === "runtime/agent-edit-result.json").map(([, body]) => JSON.parse(body as string) as { requestId: string; status: string });
+    expect(written).toContainEqual(expect.objectContaining({ requestId: "bg1", status: "rejected" }));
+    expect(result()).toMatchObject({ requestId: "e2", status: "applied" });
+    expect(title()).toBe("새 요청");
+  });
+
+  it("처리 직전 소유권 확인이 일시 오류(unavailable)면 적용하지 않고 다음 폴링에서 다시 본다", async () => {
+    await connect();
+    vi.mocked(acquireRequestLock).mockResolvedValue("unavailable");
+    sendEdit({ id: "e1", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("확인 뒤 적용") });
+    await vi.advanceTimersByTimeAsync(2100);
+    expect(title()).not.toBe("확인 뒤 적용");
+    expect(result()).toBeNull();
+    vi.mocked(acquireRequestLock).mockResolvedValue("acquired");
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(title()).toBe("확인 뒤 적용");
+    expect(result()).toMatchObject({ requestId: "e1", status: "applied" });
+  });
+
+  it("확인창의 적용도 소유권 확인이 일시 오류면 적용하지 않고 확인창을 남긴다", async () => {
+    await connect();
+    const before = useEditorStore.getState().spec;
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    vi.mocked(acquireRequestLock).mockResolvedValue("unavailable");
+    useAgentEditStore.getState().resolveConfirm(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useEditorStore.getState().spec).toBe(before);
+    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "confirm", requestId: "bg" });
+  });
+
+  it("확인 불가(uncertain) 결과를 일시 오류로 못 써 다시 쓸 때도 uncertain을 유지한다", async () => {
+    sendEdit({ id: "before-connect", baseStateRevision: "anything", pageId: "page1", commands: retitle("옛 요청") });
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    let failed = false;
+    writes.mockImplementation(async (path, body, type, rev, who) => {
+      if (path === "runtime/agent-edit-result.json" && !failed) { failed = true; return { ok: false, error: "fetch failed" }; }
+      return serverWrite(path, body, type, rev, who);
+    });
+    await connect();
+    expect(result()).toBeNull();
+    await vi.advanceTimersByTimeAsync(5000); // 다음 회차가 다시 쓴다
+    writes.mockImplementation(serverWrite);
+    expect(result()).toMatchObject({ requestId: "before-connect", status: "rejected", uncertain: true });
+  });
+
+  it("확인 불가(uncertain) 결과를 409로 못 쓴 뒤 같은 탭이 다시 잡아 다시 쓸 때도 uncertain을 유지한다", async () => {
+    sendEdit({ id: "before-connect", baseStateRevision: "anything", pageId: "page1", commands: retitle("옛 요청") });
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    let refused = false;
+    writes.mockImplementation(async (path, body, type, rev, who) => {
+      if (path === "runtime/agent-edit-result.json" && !refused) { refused = true; return { ok: false, error: "만료", status: 409 }; }
+      return serverWrite(path, body, type, rev, who);
+    });
+    await connect();
+    expect(useAgentEditStore.getState().connected).toBe(false); // 409로 연결을 잃었다
+    await vi.advanceTimersByTimeAsync(5000); // 같은 탭이 다시 잡는다
+    writes.mockImplementation(serverWrite);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(result()).toMatchObject({ requestId: "before-connect", status: "rejected", uncertain: true });
+  });
+
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
     const read = vi.mocked(readWorkspaceTextFile);
     const serverRead = read.getMockImplementation()!;

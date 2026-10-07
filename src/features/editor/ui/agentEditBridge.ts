@@ -139,7 +139,7 @@ export function startAgentEditBridge(): () => void {
    * 잠자기·서버 장애가 30초를 넘김) 요청 파일엔 그 요청이 남아 있다. 이 탭이 이미 적용한 요청을
    * "적용하지 않음"으로 알리면 에이전트가 같은 편집을 다시 보내 두 번 적용된다(PR #303 셀프 리뷰).
    */
-  let lastResult: { requestId: string; status: AgentEditStatus; message: string } | null = null;
+  let lastResult: { requestId: string; status: AgentEditStatus; message: string; uncertain: boolean } | null = null;
   /**
    * 마지막 결과를 일시 오류로 쓰지 못했다 — 연결된 동안 다음 회차가 다시 쓴다(PR #303 셀프 리뷰).
    * **한 연결 안에서만** 뜻이 있다. 연결을 맺거나 잃을 때 지운다 — 남겨 두면 다시 연결한 뒤 지난
@@ -148,7 +148,7 @@ export function startAgentEditBridge(): () => void {
    */
   let lastResultUnsent = false;
   async function writeResult(requestId: string, status: AgentEditStatus, message: string, uncertain = false): Promise<boolean> {
-    lastResult = { requestId, status, message };
+    lastResult = { requestId, status, message, uncertain };
     const epochAt = epoch;
     const writeOwner = owner;
     const body = JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision(writeOwner), uncertain), null, 2);
@@ -299,7 +299,7 @@ export function startAgentEditBridge(): () => void {
         useAgentEditStore.setState({ connected: true });
         await publish(true);
         if (own !== null) {
-          await writeResult(own.requestId, own.status, own.message);
+          await writeResult(own.requestId, own.status, own.message, own.uncertain);
         } else if (waiting !== null && ownPending) {
           await writeResult(waiting, "rejected",
             "GUI 연결이 새로 맺어져(홈 이동 등) 확인을 기다리던 이 편집은 적용되지 않았습니다. gui-state.json을 다시 읽고 새 id로 요청하세요.");
@@ -314,7 +314,7 @@ export function startAgentEditBridge(): () => void {
         // 일시 오류로 못 쓴 결과를 다시 쓴다 — 요청은 이미 처리해 폴링이 다시 보지 않으므로, 그대로
         // 두면 에이전트가 결과를 못 받고 같은 편집을 다시 보낼 수 있다.
         if (lastResultUnsent && lastResult !== null && epoch === epochBefore) {
-          await writeResult(lastResult.requestId, lastResult.status, lastResult.message);
+          await writeResult(lastResult.requestId, lastResult.status, lastResult.message, lastResult.uncertain);
         }
       }
     } finally {
@@ -367,7 +367,18 @@ export function startAgentEditBridge(): () => void {
       loseConnection();
       return;
     }
+    // 소유권을 확인하지 못했으면(일시 오류) 이번엔 처리하지 않고 다음 폴링에서 다시 본다 — 그 사이
+    // 잠금이 다른 탭으로 넘어갔다면 그 탭과 함께 두 번 적용된다(PR #303 리뷰).
+    if (outcome !== "acquired") return;
     lastHandledId = parsed.id;
+    // 확인을 기다리던 앞 요청이 있으면 결과 없이 덮지 않는다 — 적용하지 않은 것으로 확정해 알린다.
+    // 그대로 덮으면 그 요청의 결과가 영원히 pending에 머문다(PR #303 리뷰).
+    const waitingConfirm = useAgentEditStore.getState().notice;
+    if (waitingConfirm?.kind === "confirm") {
+      const message = "확인을 기다리는 동안 새 편집 요청이 와서 이 편집은 적용하지 않았습니다. 필요하면 gui-state.json을 다시 읽고 새 id로 요청하세요.";
+      useAgentEditStore.setState({ notice: { kind: "rejected", requestId: waitingConfirm.requestId, message } });
+      void writeResult(waitingConfirm.requestId, "rejected", message);
+    }
 
     if (parsed.kind === "malformed") {
       useAgentEditStore.setState({ notice: { kind: "rejected", requestId: parsed.id, message: parsed.message } });
@@ -441,6 +452,9 @@ export function startAgentEditBridge(): () => void {
     }
     if (stopped || epoch !== epochBefore || !holder || useAgentEditStore.getState().notice !== notice) return;
     if (outcome === "busy") { loseConnection(); return; }
+    // 소유권을 확인하지 못했으면(일시 오류) 적용도 거절도 하지 않는다 — 확인창을 그대로 두고 사용자가
+    // 다시 누를 수 있게 한다. 그 사이 잠금이 넘어갔다면 두 탭에서 적용될 수 있다(PR #303 리뷰).
+    if (outcome !== "acquired") return;
     if (!accept) {
       const message = "사용자가 GUI에서 이 편집을 적용하지 않기로 했습니다.";
       useAgentEditStore.setState({ notice: { kind: "rejected", requestId: notice.requestId, message } });
