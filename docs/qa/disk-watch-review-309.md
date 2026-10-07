@@ -46,3 +46,18 @@ Vite를 `VISUAL_SPEC_WORKSPACE=/tmp/pr309-browser`로 띄워 Python Playwright�
 - opt-in Grid Chromium 테스트: 별도 실행 실패 (`spawnSync /usr/bin/chromium ETIMEDOUT`).
   writable XDG cache/config 경로를 지정한 재시도도 시간 초과. Grid 결과 정합성을 확인하지 못했으며,
   이 실패는 디스크 감시 브라우저 검증과 별개다. 이번 변경에서 Grid 구현·테스트를 수정하지 않았다.
+
+## develop retarget 이후 재통합
+
+2026-10-07, #311이 포함된 develop `82e052f1e2483b7c17dddb20238842dc6c28b721`를
+`dd9de4a6a6110a863277dcd1695ee0d533d7cd91` 위에 일반 merge했다.
+텍스트 충돌은 없었고, `docs/02`·`docs/14`에 Export의 현재 지원 범위와 디스크 감지 안내가
+함께 남는 것을 확인했다. 디스크 감시 구현·회귀 테스트·기존 QA 기록은 그대로 보존했다.
+
+- typecheck / lint / build: 재실행 통과. 기존 Vite 설정·번들 크기 경고 유지.
+- 디스크 감시 22개 + Export bundle 21개 관련 테스트: 43개 통과.
+- 전체 테스트: 101 files / 1668 tests 통과, opt-in 브라우저 2개 skip.
+- generate:types / generate:contract 뒤 `git diff --exit-code`: 통과.
+- 이번 재통합에서는 브라우저 검증을 다시 실행하지 않았다. 앞 절의 실행 결과와 한계를 유지한다.
+- CLI GitHub API는 계속 Forbidden이지만 연결된 GitHub 도구의 PR 조회는 성공했다.
+  푸시 뒤 새 HEAD의 CI 상태는 별도로 확인한다.
