@@ -36,7 +36,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [DESIGN-TOKEN-RULES.md](docs/DESIGN-TOKEN-RULES.md) | 디자인 토큰 네이밍·구조·참조 규칙 |
 | [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
 | [open-questions.md](docs/open-questions.md) | 미확정 항목 |
-| [qa/](docs/qa/) | 개별 기능 QA 기록 ([탭 저장 충돌](docs/qa/tab-save-conflicts.md), [프로젝트 이름·파일명 변경](docs/qa/project-file-rename-qa.md)) |
+| [qa/](docs/qa/) | 개별 기능 QA 기록 ([탭 저장 충돌](docs/qa/tab-save-conflicts.md), [프로젝트 이름·파일명 변경](docs/qa/project-file-rename-qa.md), [Export 이미지 자산 정합성](docs/qa/export-asset-integrity.md)) |
 | [skills/](docs/skills/) | 배포 스킬 7종(`skills/`)의 사람용 설명 |
 
 설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 있다.
