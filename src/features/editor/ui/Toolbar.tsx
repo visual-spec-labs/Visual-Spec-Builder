@@ -54,7 +54,7 @@ export function Toolbar() {
   // `event.target`의 태그만 본다 — `body`는 버튼·링크가 아니라서 예외를 못 받는다.
   // 방금까지 도구 버튼을 쓰고 있었다는 맥락(=패널·도구 모음으로 계속 이동하려던
   // 참이었을 가능성)을 `canvasKeys.ts`는 알 길이 없으므로, `viewStore`의
-  // `toolbarFocusHandoffPending`을 켜서 "다음 keydown 한 번은 형제 이동을 비켜서라"
+  // `toolbarFocusHandoffPending`을 켜서 "다음 Tab 한 번은 형제 이동을 비켜서라"
   // 라고 알려준다(소비 쪽은 canvasKeys.ts 참고). 캔버스를 클릭해 선택하는 주
   // 사용 경로는 이 신호를 켜지 않으므로 형제 이동(#151 §2의 "캔버스 포커스에서만
   // 가로챈다")은 그대로 동작한다 — #151의 주 사용 경로를 넓히는 게 아니라, 도구
@@ -63,11 +63,22 @@ export function Toolbar() {
   // **다시 보이면** 포커스를 도구 모음으로 되돌리지 않는다 — 사용자는 스크롤했을
   // 뿐 도구를 쓰려던 게 아니라서, 포커스를 가로채면 방금 하던 입력(캔버스 조작 등)
   // 이 끊긴다. `inert`가 풀리면 버튼은 다시 탭 순서에 들어가는 것으로 충분하다.
-  // 신호가 아직 소비되지 않았다면 이 시점에 끈다 — 다시 보인 뒤에는 "막 떨어진
-  // 포커스" 맥락이 끝난 것으로 본다.
+  //
+  // **신호는 Tab을 누르기 전에 다시 보여도 지우지 않는다(#275 리뷰 4차 대응).**
+  // 처음엔 "다시 보인 뒤에는 막 떨어진 포커스 맥락이 끝난 것으로 본다"고 보고
+  // 여기서 무조건 껐는데, 그러면 포커스가 아직 `body`에 머물러 있고(= 사용자가
+  // Tab을 누르기 전에 스크롤만 되돌린 상태) `selectedId`도 그대로인 채 신호만
+  // 사라져 버린다. 다음 Tab/Shift+Tab은 신호 없이 `canvasKeys.ts`의 형제 이동
+  // (#151)에 다시 잡힌다 — 사용자는 캔버스를 다시 선택한 적이 없는데 도구
+  // 모음에서 시작된 문서 탐색 기회를 그냥 스크롤 때문에 잃는다. `activeElement`가
+  // `body`를 벗어났다면(Tab으로 이미 소비됐거나 다른 조작으로 포커스가 실제로
+  // 옮겨졌다면) 그때는 지워도 안전하다 — "막 떨어진 포커스" 맥락이 그 시점에는
+  // 이미 끝나 있다.
   useEffect(() => {
     if (!hidden) {
-      useViewStore.getState().setToolbarFocusHandoffPending(false);
+      if (document.activeElement !== document.body) {
+        useViewStore.getState().setToolbarFocusHandoffPending(false);
+      }
       return;
     }
     const root = rootRef.current;

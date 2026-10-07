@@ -221,6 +221,74 @@ function으로 명확히 분리하고 그 함수를 직접 테스트하는 쪽�
 실제 테스트 가능 경계 안에서 가장 결정적인 근거라고 판단했다 — 팀원이 쓴
 "Node 격리 하네스"와 같은 층위의 검증이다.
 
+## 리뷰 4차 대응 — "다시 보이면 무조건 지운다"가 Tab 누르기 전 재표시 경로를 놓침 (2026-10-09)
+
+팀원이 수정된 HEAD(2ebac50)를 Node 격리 하네스로 돌려 Shift 분리 keydown 수정은
+확인했지만, 1차 리뷰에서 요청했던 경로 하나가 아직 남아 있다고 지적했다: 노드
+선택 → 툴바 버튼 포커스 → 휠로 숨김(`toolbarFocusHandoffPending = true`) →
+**Tab을 누르기 전에** 다시 위로 스크롤해 툴바를 재표시. `Toolbar.tsx`의 표시
+분기가 "다시 보인 뒤에는 막 떨어진 포커스 맥락이 끝난 것으로 본다"며 신호를
+무조건 꺼 버리는데, 이 시점에 포커스는 여전히 `body`에 머물러 있고
+`selectedId`도 그대로다. 다음 Tab/Shift+Tab은 신호 없이 다시 형제 이동(#151)에
+잡힌다 — 사용자는 캔버스를 다시 선택한 적이 없는데 단지 스크롤을 되돌렸다는
+이유만으로 도구 모음에서 시작한 문서 탐색 기회를 잃는다.
+
+**원인**: 신호를 끄는 조건이 "소비됐는가"가 아니라 "숨김 상태가 풀렸는가"였다.
+이 둘은 보통 같이 일어나지만(숨김 상태에서 Tab을 눌러 소비한 뒤에 다시
+보이는 경우), **Tab을 누르기 전에 재표시되는 경우**에는 달라진다 — 포커스가
+아직 `body`에 멈춰 있는데 신호만 먼저 사라진다.
+
+**수정**: `Toolbar.tsx`의 표시 분기에서 `document.activeElement`가 아직
+`body`면 신호를 지우지 않는다. `body`를 벗어났다면(= Tab으로 이미 소비됐거나
+다른 조작으로 포커스가 실제로 옮겨갔다면) 그때는 지워도 안전하다 — "막 떨어진
+포커스" 맥락이 그 시점에는 이미 끝나 있다.
+
+```ts
+useEffect(() => {
+  if (!hidden) {
+    if (document.activeElement !== document.body) {
+      useViewStore.getState().setToolbarFocusHandoffPending(false);
+    }
+    return;
+  }
+  // ...
+}, [hidden]);
+```
+
+캔버스를 클릭해 선택하는 #151 주 경로는 애초에 이 신호를 켜지 않으므로
+영향받지 않는다.
+
+**실제 컴포넌트 + 실제 스크롤 + 실제 키 입력으로 검증(라이브 브라우저, CDP)**:
+아트보드 높이를 20000px로 설정해 진짜 overflow를 만든 뒤(`scrollHeight` 12746
+vs `clientHeight` 665):
+
+| 단계 | 동작 | 결과 |
+|---|---|---|
+| 1 | Screen 노드 클릭 선택 → Frame 도구 버튼 실제 클릭 | `activeElement` = Frame 버튼, 선택 유지 |
+| 2 | 실제 마우스 휠로 캔버스를 바닥까지 스크롤 | `toolbar[aria-hidden]="true"`, `inert === true`, `activeElement` = `BODY` |
+| 3 | **Tab을 누르기 전에** 실제 마우스 휠로 살짝 위로 스크롤해 재표시 | `toolbar[aria-hidden]="false"`, `inert === false`, `activeElement`는 여전히 `BODY`(신호가 지워지지 않았음을 간접 확인) |
+| 4 | 실제 Tab 키 입력 | `activeElement`가 `BODY`에서 다음 툴바 버튼(`Text (T)`)으로 **이동함** — 네이티브 탐색이 흘렀다는 뜻, 형제 이동에 먹히지 않았다. 선택("Screen")은 그대로 유지 |
+| 5(대조군) | 도구 모음을 거치지 않고 캔버스를 직접 클릭해 새 선택(`Frame` 자식 노드 생성·선택)을 만들고 실제 Tab 입력 | `activeElement`가 `BODY`에 그대로 **머무름**(네이티브 이동이 막힘 = `preventDefault()`가 걸렸다는 뜻) — #151의 형제 이동이 평소처럼 그대로 작동함 |
+
+4번과 5번의 대비가 이번 수정의 핵심을 실측으로 보여준다 — "숨김 → Tab 전 재표시"
+경로(4번)는 네이티브 탐색으로 흐르고, 캔버스를 직접 클릭한 경로(5번)는 여전히
+형제 이동이 가로챈다. 수정 전 코드로는(= 재표시 때 무조건 신호를 끔) 4번도
+5번과 같은 결과(제자리에 머무름)가 나왔을 것이다 — 신호가 재표시 시점에 이미
+꺼져 있었을 것이기 때문이다.
+
+곁다리로 지적된 `/** 신호를 읽고 동시에 끈다 — 한 번 소비하면 다음
+keydown부터는 다시 꺼진 상태다. */` 등 "next keydown" 표현도 3차 대응(소비
+시점을 Tab으로 좁힘) 이후로 사실과 달라져 있어 "next Tab"으로 함께 정리했다
+(`viewStore.ts`, `Toolbar.tsx`, `canvasInput.ts`).
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` 모두 통과했다. `pnpm test`는 기존과
+동일하게 17개 실패(Windows 심링크·권한, 이번 변경과 무관)/1523개 통과/1개
+건너뜀 — `test/canvas-input.test.ts`의 92개 테스트는 수정 없이 그대로 전부
+통과(이번 수정은 `Toolbar.tsx`의 React effect 안 조건문만 바꿨고, 순수 함수
+쪽은 건드리지 않았다).
+
 ## 결론
 
 - 완료 조건 "숨긴 툴바에 Tab/Shift+Tab으로 진입하지 않는다" — `inert`로 보장됨을
@@ -243,3 +311,10 @@ function으로 명확히 분리하고 그 함수를 직접 테스트하는 쪽�
   `Tab` keydown으로만 좁히고(`shouldConsumeToolbarFocusHandoff`), 물러나는
   판단 자체도 `siblingNavDirectionForKey`(`canvasInput.ts`) 안으로 옮겨 기존
   순수 함수 테스트 스위트에 편입(92개로 증가)
+- 리뷰 4차 대응: 재표시(`hidden`이 `false`로 바뀌는 순간) 분기가 포커스가 아직
+  `body`에 머물러 있어도(= Tab을 누르기 전) 신호를 무조건 꺼 버려, "숨김 →
+  Tab 전 재표시 → Tab" 경로가 다시 형제 이동에 잡히던 것을 발견 — `document.
+  activeElement !== document.body`일 때만 지우도록 좁혔다. 실제 컴포넌트·
+  실제 스크롤(휠)·실제 Tab 입력으로 "재표시 후 Tab"(네이티브 탐색으로 흐름)과
+  "캔버스 직접 클릭 후 Tab"(여전히 형제 이동에 가로채짐) 두 경로가 서로 다르게
+  동작함을 라이브 브라우저에서 확인

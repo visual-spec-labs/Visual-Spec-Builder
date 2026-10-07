@@ -40,7 +40,7 @@ export interface ViewState {
   setCanvasAtBottom: (atBottom: boolean) => void;
   /**
    * 도구 모음이 숨으며 포커스가 있던 컨트롤에서 포커스를 뗐다는 1회성 신호(#275
-   * 리뷰 대응). true인 동안 canvasKeys.ts의 형제 이동(#151)은 다음 keydown 한 번을
+   * 리뷰 대응). true인 동안 canvasKeys.ts의 형제 이동(#151)은 다음 Tab 한 번을
    * 비켜서서 브라우저 네이티브 포커스 이동이 일어나게 한다 — #151 §2가 요구하는
    * "키보드만 쓰는 사용자도 패널·도구 모음에 갈 수 있어야 한다"를 지키기 위함이다.
    * 캔버스를 클릭해 선택하는 주 사용 경로는 이 신호를 켜지 않으므로 형제 이동은
@@ -48,7 +48,7 @@ export interface ViewState {
    */
   toolbarFocusHandoffPending: boolean;
   setToolbarFocusHandoffPending: (pending: boolean) => void;
-  /** 신호를 읽고 동시에 끈다 — 한 번 소비하면 다음 keydown부터는 다시 꺼진 상태다. */
+  /** 신호를 읽고 동시에 끈다 — 한 번 소비하면 그다음 Tab부터는 다시 꺼진 상태다. */
   consumeToolbarFocusHandoffPending: () => boolean;
   setViewport: (viewport: Dimensions) => void;
   setContent: (content: Dimensions) => void;

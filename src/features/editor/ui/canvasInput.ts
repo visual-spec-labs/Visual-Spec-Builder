@@ -229,7 +229,8 @@ export interface SiblingNavKeyInput {
   /** 옮길 대상이 있는가 — 형제 이동은 지금 선택된 노드를 기준으로 한다. */
   hasSelection: boolean;
   /**
-   * 도구 모음이 숨으며 포커스를 뗀 바로 다음 keydown인가(#275 리뷰 2차 대응).
+   * 도구 모음이 숨으며 포커스를 뗀 바로 다음 Tab인가(#275 리뷰 2·3차 대응 —
+   * 소비 시점은 Tab keydown으로 좁혀져 있다, `shouldConsumeToolbarFocusHandoff` 참고).
    * `viewStore.consumeToolbarFocusHandoffPending()`을 읽은 값을 그대로 넣는다 —
    * true면 `isActivationTarget`과 같은 취지로 한 번 더 물러난다. `target`이
    * `body`라 태그 기준 예외는 못 받지만, 맥락은 "방금까지 컨트롤을 쓰고
