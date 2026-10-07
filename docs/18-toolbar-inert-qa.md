@@ -289,6 +289,61 @@ keydown부터는 다시 꺼진 상태다. */` 등 "next keydown" 표현도 3차 
 통과(이번 수정은 `Toolbar.tsx`의 React effect 안 조건문만 바꿨고, 순수 함수
 쪽은 건드리지 않았다).
 
+## 리뷰 5차 대응 — 재표시 뒤 캔버스를 다시 클릭해도 handoff가 안 지워짐 (2026-10-09)
+
+팀원이 HEAD(6d17766)를 Toolbar/store/key handler/predicate에 실제
+`handleNodeClick`·선택 resolver까지 함께 실행한 38개 격리 확인으로 돌려,
+4차 대응이 못 막은 경로를 하나 더 찾았다: 노드 선택 → Select 툴바 버튼 포커스
+→ 스크롤 숨김 → (선택적으로) 재표시 → **Tab을 누르기 전에 캔버스의 다른
+프레임을 클릭** → Tab/Shift+Tab. 클릭으로 새 프레임이 선택되지만
+`toolbarFocusHandoffPending`은 그대로 켜져 있어서, 첫 Tab이 방금 새로 고른
+선택의 정상적인 형제 이동(#151) 대신 다시 문서 탐색으로 빠진다 — `body`
+포커스만으로는 "스크롤로 떨어진 포커스"와 "캔버스를 다시 눌러 새로 선택"을
+구분할 수 없었다.
+
+**원인**: 4차 대응은 신호가 꺼지는 조건을 "소비(Tab)"와 "재표시 후 포커스가
+`body`를 벗어남" 둘로 좁혔지만, "캔버스를 다시 클릭해 새로 선택"은 그 어느
+쪽도 아니다 — 클릭해도 `body`는 포커스를 받지 않는 요소라(주석 참고)
+`activeElement`가 그대로 `body`에 머문다. 신호를 끝낼 세 번째 조건
+("포인터로 캔버스 조작을 재개했다")이 빠져 있었다.
+
+**수정**: `canvasSelection.ts`에 `clearToolbarFocusHandoff()`를 추가하고
+캔버스 포인터 조작의 네 진입점 — `handleNodeClick`·`handleNodeDoubleClick`·
+`handleNodeContextMenu`·`handleBackgroundClick` — 맨 앞에서 무조건 호출한다.
+선택이 실제로 바뀌는지와 무관하게(같은 노드 재클릭, 배경 클릭으로 선택
+해제 등) 포인터 조작 자체가 "재개"의 신호이므로 선택 로직보다 먼저 끈다.
+드래그로 선택이 바뀌는 경로(`useNodeDrag.ts`)는 드래그가 임계값을 넘으면
+합성 click을 `suppressClick`으로 죽여 `handleNodeClick`을 거치지 않으므로,
+`select(session.dragId)` 바로 다음에 같은 호출을 추가해 같은 간격이 생기지
+않게 했다. 레이어 트리 패널 클릭(`LayerTree.tsx`)은 팀원이 짚은 "캔버스
+포인터 조작"의 범위 밖이라 이번에는 건드리지 않았다 — 같은 종류의 잠재
+버그가 있을 수 있지만 재현도, 요청도 없었다.
+
+### 실제 컴포넌트 + 실제 클릭·스크롤·키 입력으로 검증(라이브 브라우저)
+
+아트보드 높이 20000px로 overflow를 만든 뒤:
+
+| 단계 | 동작 | 결과 |
+|---|---|---|
+| 1 | Screen 노드 클릭 선택 → Select 툴바 버튼 실제 클릭 | `activeElement` = Select 버튼, 선택 유지 |
+| 2 | 실제 마우스 휠로 캔버스를 바닥까지 스크롤 | `toolbar[aria-hidden]="true"`, `activeElement` = `BODY` |
+| 3 | 실제 마우스 휠로 살짝 위로 스크롤해 재표시 | `toolbar[aria-hidden]="false"`, `activeElement`는 여전히 `BODY`(4차 수정대로 신호 유지) |
+| 4 | **Tab을 누르기 전에** 캔버스의 Screen 프레임을 실제로 클릭 | 선택은 그대로 Screen(같은 노드 재클릭), `activeElement`는 여전히 `BODY`(클릭이 포커스를 주지 않음) |
+| 5 | 실제 Tab 키 입력 | `activeElement`가 `BODY`에 그대로 **머무름**(네이티브 이동이 막힘 = `preventDefault()`가 걸렸다는 뜻) — #151의 형제 이동이 정상적으로 가로챔. 수정 전이었다면 handoff가 남아 있어 다음 툴바 버튼으로 **이동**했을 것이다 |
+| 6(대조군) | 1~3을 다시 거친 뒤, **클릭 없이** 바로 Tab | `activeElement`가 `BODY`에서 다음 툴바 버튼(`Frame`)으로 **이동함** — 4차 대응이 고친 "재표시 후 바로 Tab" 경로는 이번 수정과 무관하게 그대로 네이티브 탐색으로 흐름 |
+
+5번과 6번의 대비가 이번 수정의 핵심이다 — 재표시까지는 같은 상태(`activeElement
+=== body`)인데, 그 사이에 캔버스를 다시 클릭했는가(5번, 형제 이동으로 복귀)
+아닌가(6번, 네이티브 탐색 유지)로 결과가 갈린다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` 모두 통과했다. `pnpm test`는 기존과
+동일한 17개 실패(Windows 심링크·권한, 무관)/1523개 통과/1개 건너뜀 —
+`test/canvas-input.test.ts`의 92개 테스트는 이번 수정이 `canvasSelection.ts`·
+`useNodeDrag.ts`의 이벤트 핸들러만 건드리고 `canvasInput.ts`의 순수 함수는
+그대로 둬서 수정 없이 전부 통과했다.
+
 ## 결론
 
 - 완료 조건 "숨긴 툴바에 Tab/Shift+Tab으로 진입하지 않는다" — `inert`로 보장됨을
@@ -318,3 +373,13 @@ keydown부터는 다시 꺼진 상태다. */` 등 "next keydown" 표현도 3차 
   실제 스크롤(휠)·실제 Tab 입력으로 "재표시 후 Tab"(네이티브 탐색으로 흐름)과
   "캔버스 직접 클릭 후 Tab"(여전히 형제 이동에 가로채짐) 두 경로가 서로 다르게
   동작함을 라이브 브라우저에서 확인
+- 리뷰 5차 대응: `body` 포커스만으로는 "스크롤로 떨어진 포커스"와 "캔버스를
+  다시 클릭해 새로 선택"을 구분 못 해, 재표시 뒤 Tab 전에 캔버스의 다른
+  프레임을 클릭해도 남은 handoff가 그 새 선택의 형제 이동을 가로막던 것을
+  발견 — 캔버스 포인터 조작의 네 진입점(`handleNodeClick`·
+  `handleNodeDoubleClick`·`handleNodeContextMenu`·`handleBackgroundClick`,
+  `canvasSelection.ts`)과 드래그 선택(`useNodeDrag.ts`)에서 포인터 조작 자체를
+  "재개" 신호로 보고 무조건 신호를 끄도록 추가 — 실제 컴포넌트·실제 클릭·
+  실제 스크롤·실제 Tab 입력으로 "재표시 → 클릭 → Tab"(형제 이동으로 복귀)과
+  "재표시 → 클릭 없이 Tab"(네이티브 탐색 유지, 4차 대응 결과 그대로)이 서로
+  다르게 동작함을 라이브 브라우저에서 확인
