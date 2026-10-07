@@ -570,8 +570,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         spec,
         activePageId,
-        selectedId: state.selectedId !== null && page.nodes[state.selectedId] ? state.selectedId : null,
-        focusRootId: state.focusRootId !== null && page.nodes[state.focusRootId] ? state.focusRootId : null,
+        selectedId: activePageId === state.activePageId && state.selectedId !== null && page.nodes[state.selectedId] ? state.selectedId : null,
+        focusRootId: activePageId === state.activePageId && state.focusRootId !== null && page.nodes[state.focusRootId] ? state.focusRootId : null,
         history: pushHistory(state.history, makeSnapshot(spec, activePageId)),
       };
     }),

@@ -28,10 +28,11 @@ import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore"
 import { SPEC_DIR } from "@/features/workspace/protocol";
 
 import { startTicker } from "./ticker";
-import { isWorkspaceAvailable, readWorkspaceSpecSnapshot } from "./workspaceClient";
+import { readWorkspaceSpecSnapshot } from "./workspaceClient";
 
 /** 디스크 버전을 확인하는 간격. 에이전트가 파일을 고친 뒤 GUI에 보이기까지의 지연이다. */
 export const DISK_WATCH_MS = 3000;
+export const DISK_READ_TIMEOUT_MS = 5000;
 
 export function startDiskWatch(): () => void {
   let stopped = false;
@@ -44,7 +45,35 @@ export function startDiskWatch(): () => void {
   let baselineRevision: string | null = null;
   /** 사용자가 "내 편집 유지"를 고른 디스크 버전 — 같은 버전으로 다시 묻지 않는다. */
   let keptRevision: string | null = null;
-  let stopTicker: (() => void) | undefined;
+  let generation = 0;
+  let noticeGeneration = -1;
+  const pending = new Set<AbortController>();
+  const eligible = () => useNavigationStore.getState().screen === "editor" && !useSaveConflictStore.getState().paused;
+  // 화면을 떠났다 돌아온 경우도 낡은 읽기·확인 질문을 다시 유효하게 만들지 않는다.
+  function invalidate() {
+    generation++;
+    for (const controller of pending) controller.abort();
+    useAgentEditStore.setState({ diskNotice: null });
+  }
+  // Abort the network request and settle even if a transport ignores cancellation.
+  async function read(fileName: string) {
+    const controller = new AbortController();
+    pending.add(controller);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cancelled = new Promise<null>((resolve) => {
+      controller.signal.addEventListener("abort", () => resolve(null), { once: true });
+      timer = setTimeout(() => controller.abort(), DISK_READ_TIMEOUT_MS);
+    });
+    try {
+      return await Promise.race([
+        readWorkspaceSpecSnapshot(`${SPEC_DIR}/${fileName}`, controller.signal).catch(() => null),
+        cancelled,
+      ]);
+    } finally {
+      clearTimeout(timer);
+      pending.delete(controller);
+    }
+  }
 
   const toJson = (spec: ProjectSpec) => JSON.stringify(spec);
   function parseDisk(text: string): ProjectSpec | null {
@@ -60,9 +89,10 @@ export function startDiskWatch(): () => void {
     keptRevision = null;
     const { fileName, diskRevision } = useDocumentStore.getState();
     if (fileName === null || diskRevision === null) return;
-    const snapshot = await readWorkspaceSpecSnapshot(`${SPEC_DIR}/${fileName}`);
+    const requestGeneration = generation;
+    const snapshot = await read(fileName);
     const now = useDocumentStore.getState();
-    if (stopped || snapshot === null || now.fileName !== fileName || now.diskRevision !== diskRevision) return;
+    if (stopped || requestGeneration !== generation || !eligible() || snapshot === null || now.fileName !== fileName || now.diskRevision !== diskRevision) return;
     if (snapshot.revision !== diskRevision) return; // 그 사이 디스크가 또 바뀌었다 — 감시가 처리한다
     const spec = parseDisk(snapshot.text);
     if (spec === null) return;
@@ -72,14 +102,26 @@ export function startDiskWatch(): () => void {
   // 열기·저장·이름 변경·불러오기는 모두 파일명이나 디스크 버전을 새로 정한다.
   const unsubscribeDocument = useDocumentStore.subscribe((s, prev) => {
     if (s.fileName !== prev.fileName || s.diskRevision !== prev.diskRevision) {
-      // 문서나 디스크 버전이 바뀌었으면(저장·충돌 덮어쓰기·다른 파일 열기) 떠 있던 "불러올까요"는
-      // 낡았다 — 그대로 두면 지난 버전을 불러와 화면과 버전이 디스크와 어긋난다(#279 리뷰).
-      const shown = useAgentEditStore.getState().diskNotice;
-      if (shown?.kind === "diskChanged" && (shown.fileName !== s.fileName || shown.baseRevision !== s.diskRevision)) {
-        useAgentEditStore.setState({ diskNotice: null });
-      }
+      invalidate();
       if (baselineRevision !== s.diskRevision || s.fileName !== prev.fileName) void refreshBaseline();
     }
+  });
+
+  const unsubscribeEditor = useEditorStore.subscribe((s, prev) => {
+    if (s.documentId !== prev.documentId) {
+      invalidate();
+      void refreshBaseline();
+    }
+  });
+  const unsubscribeNavigation = useNavigationStore.subscribe((s, prev) => {
+    if (s.screen !== prev.screen) {
+      invalidate();
+      // Home에서 Open은 문서를 먼저 바꾸고 화면을 옮긴다. 취소된 기준 읽기를 다시 시작한다.
+      if (s.screen === "editor" && baselineJson === null) void refreshBaseline();
+    }
+  });
+  const unsubscribeConflict = useSaveConflictStore.subscribe((s, prev) => {
+    if (s.paused !== prev.paused) invalidate();
   });
 
   function adopt(fileName: string, spec: ProjectSpec, revision: string) {
@@ -98,8 +140,9 @@ export function startDiskWatch(): () => void {
     if (useSaveConflictStore.getState().paused) return; // 충돌 대화상자가 이미 사용자에게 묻고 있다
     checking = true;
     try {
-      const snapshot = await readWorkspaceSpecSnapshot(`${SPEC_DIR}/${fileName}`);
-      if (stopped || snapshot === null) return;
+      const requestGeneration = generation;
+      const snapshot = await read(fileName);
+      if (stopped || requestGeneration !== generation || !eligible() || snapshot === null) return;
       // 기다리는 사이 다른 문서로 옮겼거나 저장으로 버전이 바뀌었으면 이번 결과는 쓰지 않는다.
       const now = useDocumentStore.getState();
       if (now.fileName !== fileName || now.diskRevision !== diskRevision) return;
@@ -136,6 +179,7 @@ export function startDiskWatch(): () => void {
         useAgentEditStore.setState({ diskNotice: { kind: "diskImported", fileName, spec: useEditorStore.getState().spec } });
         return;
       }
+      noticeGeneration = generation;
       useAgentEditStore.setState({ diskNotice: { kind: "diskChanged", fileName, baseRevision: diskRevision, revision: snapshot.revision, spec } });
     } finally {
       checking = false;
@@ -148,20 +192,22 @@ export function startDiskWatch(): () => void {
       if (notice?.kind !== "diskChanged") return;
       useAgentEditStore.setState({ diskNotice: null });
       const doc = useDocumentStore.getState();
-      if (doc.fileName !== notice.fileName || doc.diskRevision !== notice.baseRevision) return;
+      if (stopped || !eligible() || noticeGeneration !== generation || doc.fileName !== notice.fileName || doc.diskRevision !== notice.baseRevision) return;
       if (!load) { keptRevision = notice.revision; return; }
       adopt(notice.fileName, notice.spec, notice.revision);
     },
   });
 
-  void (async () => {
-    if (!await isWorkspaceAvailable() || stopped) return;
-    stopTicker = startTicker(DISK_WATCH_MS, () => { void check(); });
-  })();
+  // Snapshot reads include the availability probe; every tick retries transient failures.
+  const stopTicker = startTicker(DISK_WATCH_MS, () => { void check(); });
 
   return () => {
     stopped = true;
-    stopTicker?.();
+    invalidate();
+    stopTicker();
     unsubscribeDocument();
+    unsubscribeEditor();
+    unsubscribeNavigation();
+    unsubscribeConflict();
   };
 }

@@ -7,7 +7,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { seedSpec } from "@/features/editor/store/seedSpec";
-import { startDiskWatch } from "@/features/editor/ui/diskWatch";
+import { DISK_READ_TIMEOUT_MS, startDiskWatch } from "@/features/editor/ui/diskWatch";
 import { readWorkspaceSpecSnapshot } from "@/features/editor/ui/workspaceClient";
 
 /**
@@ -214,3 +214,92 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
   });
 });
 
+
+
+describe("감시 실패와 비동기 응답 회귀", () => {
+  it("Home에서 파일을 연 직후에도 기준을 잡아 외부 변경을 자동으로 불러온다", async () => {
+    useNavigationStore.getState().openHome();
+    stop = startDiskWatch();
+    useEditorStore.getState().loadSpec(structuredClone(base));
+    useDocumentStore.getState().setFileName("same.json", "rev-1");
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(10);
+    setDisk(withTitle("열기 직후 디스크 변경"), "rev-2");
+    await tick();
+    expect(title()).toBe("열기 직후 디스크 변경");
+  });
+
+  it("읽기가 멈춰도 취소하고 다음 주기에 다시 읽는다", async () => {
+    await watch();
+    let late!: (value: typeof disk) => void;
+    let signal: AbortSignal | undefined;
+    vi.mocked(readWorkspaceSpecSnapshot).mockImplementationOnce((_path, requestSignal) => {
+      signal = requestSignal;
+      return new Promise((resolve) => { late = resolve; });
+    });
+    await tick();
+    await vi.advanceTimersByTimeAsync(DISK_READ_TIMEOUT_MS);
+    expect(signal?.aborted).toBe(true);
+    setDisk(withTitle("재시도 결과"), "rev-3");
+    await tick();
+    expect(title()).toBe("재시도 결과");
+    late({ text: JSON.stringify(withTitle("낡은 응답")), revision: "rev-2" });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(title()).toBe("재시도 결과");
+  });
+
+  it.each(["home", "reopen", "paused"])("읽는 동안 %s 전환 후 돌아와도 옛 결과를 버린다", async (change) => {
+    await watch();
+    const before = title();
+    let late!: (value: typeof disk) => void;
+    vi.mocked(readWorkspaceSpecSnapshot).mockImplementationOnce(() => new Promise((resolve) => { late = resolve; }));
+    await tick();
+    if (change === "home") {
+      useNavigationStore.getState().openHome();
+      useNavigationStore.getState().openEditor();
+    } else if (change === "reopen") {
+      useEditorStore.getState().loadSpec(structuredClone(base));
+      useDocumentStore.getState().setFileName("same.json", "rev-1");
+    } else {
+      useSaveConflictStore.setState({ paused: true });
+      useSaveConflictStore.setState({ paused: false });
+    }
+    const history = useEditorStore.getState().history;
+    late({ text: JSON.stringify(withTitle("낡은 응답")), revision: "rev-2" });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(title()).toBe(before);
+    expect(useEditorStore.getState().history).toBe(history);
+    expect(useDocumentStore.getState().diskRevision).toBe("rev-1");
+    expect(useAgentEditStore.getState().diskNotice).toBeNull();
+    setDisk(withTitle("새 응답"), "rev-3");
+    await tick();
+    expect(title()).toBe("새 응답");
+  });
+
+  it("동일 파일을 다시 열면 옛 확인 질문을 적용하지 않는다", async () => {
+    await watch();
+    useEditorStore.getState().setNodeField("headerTitle", "content", "내 편집");
+    setDisk(withTitle("디스크 편집"), "rev-2");
+    await tick();
+    const stale = useAgentEditStore.getState().diskNotice;
+    useEditorStore.getState().loadSpec(structuredClone(base));
+    useAgentEditStore.setState({ diskNotice: stale });
+    useAgentEditStore.getState().resolveDiskChange(true);
+    expect(title()).toBe((base.pages.page1.nodes.headerTitle as { content: string }).content);
+    expect(useDocumentStore.getState().diskRevision).toBe("rev-1");
+  });
+
+  it("활성 페이지가 사라지면 다른 페이지의 같은 ID를 선택·포커스로 쓰지 않는다", async () => {
+    await watch();
+    const previous = useEditorStore.getState().spec;
+    useEditorStore.setState({ selectedId: "headerTitle", focusRootId: base.pages.page1.root });
+    const replacement: ProjectSpec = structuredClone({ ...base, pageOrder: ["page2"], pages: { page2: base.pages.page1 } });
+    setDisk(replacement, "rev-2");
+    await tick();
+    expect(useEditorStore.getState()).toMatchObject({ activePageId: "page2", selectedId: null, focusRootId: null });
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().spec).toEqual(previous);
+    useEditorStore.getState().redo();
+    expect(useEditorStore.getState().spec).toEqual(replacement);
+  });
+});
