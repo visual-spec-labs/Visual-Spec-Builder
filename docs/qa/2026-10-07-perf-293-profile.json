@@ -1,0 +1,745 @@
+{
+ "note": "#293 CPU 프로파일(자기 시간 상위 15). 측정: node scripts/perf/measure.mjs --reps 1 --scenario <S> --profile [--node-env production]. 프로파일은 측정 반복과 분리된 별도 반복에서 100µs 간격으로 잡았다.",
+ "dev": {
+  "when": "2026-10-07T14:36:37.202Z",
+  "node": "v26.4.0",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "browser": "Chrome/154.0.8037.98",
+  "results": [
+   {
+    "key": "S3",
+    "label": "프로젝트 10 · 노드 1000",
+    "reps": 1,
+    "imageBytes": 0,
+    "nodeEnv": "development",
+    "profiles": {
+     "home": [
+      {
+       "name": "(idle) :0",
+       "ms": 68.7,
+       "share": 17.6
+      },
+      {
+       "name": "(program) :0",
+       "ms": 64.3,
+       "share": 16.5
+      },
+      {
+       "name": "exports.jsxDEV /node_modules/.vite/deps/react_jsx-dev-runtime.js:191",
+       "ms": 31.9,
+       "share": 8.2
+      },
+      {
+       "name": "setValueForStyle /node_modules/.vite/deps/react-dom_client.js:1802",
+       "ms": 30.9,
+       "share": 7.9
+      },
+      {
+       "name": "logComponentRender /node_modules/.vite/deps/react-dom_client.js:2459",
+       "ms": 22.8,
+       "share": 5.8
+      },
+      {
+       "name": "ReactElement /node_modules/.vite/deps/react_jsx-dev-runtime.js:104",
+       "ms": 13.8,
+       "share": 3.5
+      },
+      {
+       "name": "parseSpecJson /src/features/editor/store/loadSpec.ts:20",
+       "ms": 13.8,
+       "share": 3.5
+      },
+      {
+       "name": "(garbage collector) :0",
+       "ms": 12.7,
+       "share": 3.3
+      },
+      {
+       "name": "validate23 :3",
+       "ms": 6.3,
+       "share": 1.6
+      },
+      {
+       "name": "exports.unstable_now /node_modules/.vite/deps/react-dom_client.js:125",
+       "ms": 5.5,
+       "share": 1.4
+      },
+      {
+       "name": "runWithFiberInDEV /node_modules/.vite/deps/react-dom_client.js:846",
+       "ms": 4.8,
+       "share": 1.2
+      },
+      {
+       "name": "validateScreenReferences /src/features/editor/schema/validate.ts:56",
+       "ms": 4.6,
+       "share": 1.2
+      },
+      {
+       "name": "PreviewNode /src/features/editor/ui/HomeScreen.tsx:403",
+       "ms": 3,
+       "share": 0.8
+      },
+      {
+       "name": "validate24 :3",
+       "ms": 2.9,
+       "share": 0.8
+      },
+      {
+       "name": "validate46 :3",
+       "ms": 2.4,
+       "share": 0.6
+      }
+     ],
+     "editUndo": [
+      {
+       "name": "addObjectDiffToProperties /node_modules/.vite/deps/react-dom_client.js:2407",
+       "ms": 1061.4,
+       "share": 27
+      },
+      {
+       "name": "(idle) :0",
+       "ms": 447,
+       "share": 11.4
+      },
+      {
+       "name": "ReactElement /node_modules/.vite/deps/react.js:132",
+       "ms": 228.7,
+       "share": 5.8
+      },
+      {
+       "name": "ReactElement /node_modules/.vite/deps/react_jsx-dev-runtime.js:104",
+       "ms": 190.3,
+       "share": 4.8
+      },
+      {
+       "name": "exports.createElement /node_modules/.vite/deps/react.js:591",
+       "ms": 175.9,
+       "share": 4.5
+      },
+      {
+       "name": "(garbage collector) :0",
+       "ms": 159.2,
+       "share": 4
+      },
+      {
+       "name": "(program) :0",
+       "ms": 138.4,
+       "share": 3.5
+      },
+      {
+       "name": "run :0",
+       "ms": 131.8,
+       "share": 3.3
+      },
+      {
+       "name": "updateProperties /node_modules/.vite/deps/react-dom_client.js:9924",
+       "ms": 105.7,
+       "share": 2.7
+      },
+      {
+       "name": "exports.jsxDEV /node_modules/.vite/deps/react_jsx-dev-runtime.js:191",
+       "ms": 93.5,
+       "share": 2.4
+      },
+      {
+       "name": "now :0",
+       "ms": 84.6,
+       "share": 2.1
+      },
+      {
+       "name": "useStore /node_modules/.vite/deps/zustand.js:35",
+       "ms": 69.9,
+       "share": 1.8
+      },
+      {
+       "name": "validateProperty /node_modules/.vite/deps/react-dom_client.js:1873",
+       "ms": 53,
+       "share": 1.3
+      },
+      {
+       "name": "warnUnknownProperties /node_modules/.vite/deps/react-dom_client.js:1991",
+       "ms": 52.2,
+       "share": 1.3
+      },
+      {
+       "name": "runWithFiberInDEV /node_modules/.vite/deps/react-dom_client.js:846",
+       "ms": 49.8,
+       "share": 1.3
+      }
+     ]
+    },
+    "home": {
+     "median": 334.7,
+     "max": 334.7
+    },
+    "open": {
+     "median": 297.3,
+     "max": 297.3
+    },
+    "edit": {
+     "median": 148.6,
+     "max": 148.6
+    },
+    "undo": {
+     "median": 151.9,
+     "max": 151.9
+    },
+    "editFrame": {
+     "median": 167.7,
+     "max": 167.7
+    },
+    "undoFrame": {
+     "median": 184.1,
+     "max": 184.1
+    },
+    "export": {
+     "median": 22.6,
+     "max": 22.6
+    },
+    "zipKB": 16,
+    "generatedFiles": 53,
+    "heapMB": {
+     "home": {
+      "median": 31.1,
+      "max": 31.1
+     },
+     "open": {
+      "median": 39.8,
+      "max": 39.8
+     },
+     "end": {
+      "median": 60.1,
+      "max": 60.1
+     }
+    },
+    "domNodes": {
+     "home": {
+      "median": 17519,
+      "max": 17519
+     },
+     "open": {
+      "median": 25084,
+      "max": 25084
+     }
+    },
+    "raw": [
+     {
+      "homeMs": 334.69999998807907,
+      "openMs": 297.2999999523163,
+      "editMs": 148.5999999642372,
+      "editFrameMs": 167.69999998807907,
+      "undoMs": 151.89999997615814,
+      "undoFrameMs": 184.10000002384186,
+      "exportMs": 22.599999964237213,
+      "zipBytes": 15880,
+      "files": 53,
+      "homeRes": {
+       "heapMB": 31.1,
+       "domNodes": 17519
+      },
+      "openRes": {
+       "heapMB": 39.8,
+       "domNodes": 25084
+      },
+      "endRes": {
+       "heapMB": 60.1,
+       "domNodes": 25084
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "prod": {
+  "when": "2026-10-07T14:36:51.350Z",
+  "node": "v26.4.0",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "browser": "Chrome/154.0.8037.98",
+  "results": [
+   {
+    "key": "S3",
+    "label": "프로젝트 10 · 노드 1000",
+    "reps": 1,
+    "imageBytes": 0,
+    "nodeEnv": "production",
+    "profiles": {
+     "home": [
+      {
+       "name": "(program) :0",
+       "ms": 54.4,
+       "share": 25.8
+      },
+      {
+       "name": "(idle) :0",
+       "ms": 40.9,
+       "share": 19.3
+      },
+      {
+       "name": "setValueForStyle /node_modules/.vite/deps/react-dom_client.js:1144",
+       "ms": 24.6,
+       "share": 11.6
+      },
+      {
+       "name": "parseSpecJson /src/features/editor/store/loadSpec.ts:20",
+       "ms": 6.6,
+       "share": 3.1
+      },
+      {
+       "name": "(garbage collector) :0",
+       "ms": 6.3,
+       "share": 3
+      },
+      {
+       "name": "compileSchema /node_modules/.vite/deps/ajv_dist_2020.js:2520",
+       "ms": 3.6,
+       "share": 1.7
+      },
+      {
+       "name": "validateScreenReferences /src/features/editor/schema/validate.ts:56",
+       "ms": 3.5,
+       "share": 1.7
+      },
+      {
+       "name": "validate23 :3",
+       "ms": 2.6,
+       "share": 1.2
+      },
+      {
+       "name": "appendChild :0",
+       "ms": 2.4,
+       "share": 1.1
+      },
+      {
+       "name": "__exportAll /node_modules/.vite/deps/rolldown-runtime-DC62tzP2.js:9",
+       "ms": 2.3,
+       "share": 1.1
+      },
+      {
+       "name": "addNames /node_modules/.vite/deps/ajv_dist_2020.js:892",
+       "ms": 2.1,
+       "share": 1
+      },
+      {
+       "name": "setTextContent /node_modules/.vite/deps/react-dom_client.js:1133",
+       "ms": 2,
+       "share": 1
+      },
+      {
+       "name": "validate57 :3",
+       "ms": 1.9,
+       "share": 0.9
+      },
+      {
+       "name": "validate46 :3",
+       "ms": 1.7,
+       "share": 0.8
+      },
+      {
+       "name": "validate22 :3",
+       "ms": 1.4,
+       "share": 0.7
+      }
+     ],
+     "editUndo": [
+      {
+       "name": "(idle) :0",
+       "ms": 178.6,
+       "share": 24.5
+      },
+      {
+       "name": "(program) :0",
+       "ms": 81.2,
+       "share": 11.1
+      },
+      {
+       "name": "(garbage collector) :0",
+       "ms": 59.4,
+       "share": 8.1
+      },
+      {
+       "name": "useStore /node_modules/.vite/deps/zustand.js:35",
+       "ms": 33.7,
+       "share": 4.6
+      },
+      {
+       "name": "updateProperties /node_modules/.vite/deps/react-dom_client.js:8116",
+       "ms": 31.7,
+       "share": 4.3
+      },
+      {
+       "name": "commitHostUpdate /node_modules/.vite/deps/react-dom_client.js:5380",
+       "ms": 26.5,
+       "share": 3.6
+      },
+      {
+       "name": "(anonymous) /node_modules/.vite/deps/lucide-react.js:109",
+       "ms": 24.4,
+       "share": 3.3
+      },
+      {
+       "name": "setProp /node_modules/.vite/deps/react-dom_client.js:7735",
+       "ms": 19.6,
+       "share": 2.7
+      },
+      {
+       "name": "exports.createElement /node_modules/.vite/deps/react.js:265",
+       "ms": 13.5,
+       "share": 1.8
+      },
+      {
+       "name": "createWorkInProgress /node_modules/.vite/deps/react-dom_client.js:1926",
+       "ms": 11.1,
+       "share": 1.5
+      },
+      {
+       "name": "setItem :0",
+       "ms": 10.9,
+       "share": 1.5
+      },
+      {
+       "name": "writeRecovery /src/features/editor/store/specStorage.ts:110",
+       "ms": 10.2,
+       "share": 1.4
+      },
+      {
+       "name": "performUnitOfWork /node_modules/.vite/deps/react-dom_client.js:6815",
+       "ms": 9.8,
+       "share": 1.3
+      },
+      {
+       "name": "renderWithHooks /node_modules/.vite/deps/react-dom_client.js:3027",
+       "ms": 7.9,
+       "share": 1.1
+      },
+      {
+       "name": "commitHookEffectListUnmount /node_modules/.vite/deps/react-dom_client.js:5280",
+       "ms": 7.7,
+       "share": 1.1
+      }
+     ]
+    },
+    "home": {
+     "median": 179.3,
+     "max": 179.3
+    },
+    "open": {
+     "median": 125.7,
+     "max": 125.7
+    },
+    "edit": {
+     "median": 23.3,
+     "max": 23.3
+    },
+    "undo": {
+     "median": 23.7,
+     "max": 23.7
+    },
+    "editFrame": {
+     "median": 33.3,
+     "max": 33.3
+    },
+    "undoFrame": {
+     "median": 33.3,
+     "max": 33.3
+    },
+    "export": {
+     "median": 22,
+     "max": 22
+    },
+    "zipKB": 16,
+    "generatedFiles": 53,
+    "heapMB": {
+     "home": {
+      "median": 20.9,
+      "max": 20.9
+     },
+     "open": {
+      "median": 29.3,
+      "max": 29.3
+     },
+     "end": {
+      "median": 40.5,
+      "max": 40.5
+     }
+    },
+    "domNodes": {
+     "home": {
+      "median": 17516,
+      "max": 17516
+     },
+     "open": {
+      "median": 25081,
+      "max": 25081
+     }
+    },
+    "raw": [
+     {
+      "homeMs": 179.30000001192093,
+      "openMs": 125.69999998807907,
+      "editMs": 23.30000001192093,
+      "editFrameMs": 33.30000001192093,
+      "undoMs": 23.69999998807907,
+      "undoFrameMs": 33.30000001192093,
+      "exportMs": 22,
+      "zipBytes": 15880,
+      "files": 53,
+      "homeRes": {
+       "heapMB": 20.9,
+       "domNodes": 17516
+      },
+      "openRes": {
+       "heapMB": 29.3,
+       "domNodes": 25081
+      },
+      "endRes": {
+       "heapMB": 40.5,
+       "domNodes": 25081
+      }
+     }
+    ]
+   },
+   {
+    "key": "S4",
+    "label": "프로젝트 100 · 노드 1000",
+    "reps": 1,
+    "imageBytes": 0,
+    "nodeEnv": "production",
+    "profiles": {
+     "home": [
+      {
+       "name": "(program) :0",
+       "ms": 352.3,
+       "share": 31.9
+      },
+      {
+       "name": "setValueForStyle /node_modules/.vite/deps/react-dom_client.js:1144",
+       "ms": 286.7,
+       "share": 26
+      },
+      {
+       "name": "parseSpecJson /src/features/editor/store/loadSpec.ts:20",
+       "ms": 62.4,
+       "share": 5.7
+      },
+      {
+       "name": "(idle) :0",
+       "ms": 41.3,
+       "share": 3.7
+      },
+      {
+       "name": "(garbage collector) :0",
+       "ms": 39.8,
+       "share": 3.6
+      },
+      {
+       "name": "validate23 :3",
+       "ms": 19.3,
+       "share": 1.7
+      },
+      {
+       "name": "appendChild :0",
+       "ms": 17.7,
+       "share": 1.6
+      },
+      {
+       "name": "validateScreenReferences /src/features/editor/schema/validate.ts:56",
+       "ms": 16.1,
+       "share": 1.5
+      },
+      {
+       "name": "setTextContent /node_modules/.vite/deps/react-dom_client.js:1133",
+       "ms": 16.1,
+       "share": 1.5
+      },
+      {
+       "name": "previewFrameStyle /src/features/editor/ui/homePreview.ts:49",
+       "ms": 10.5,
+       "share": 0.9
+      },
+      {
+       "name": "validate24 :3",
+       "ms": 10.4,
+       "share": 0.9
+      },
+      {
+       "name": "validate22 :3",
+       "ms": 10,
+       "share": 0.9
+      },
+      {
+       "name": "validate25 :3",
+       "ms": 9.6,
+       "share": 0.9
+      },
+      {
+       "name": "validate46 :3",
+       "ms": 9.4,
+       "share": 0.9
+      },
+      {
+       "name": "PreviewNode /src/features/editor/ui/HomeScreen.tsx:250",
+       "ms": 8.9,
+       "share": 0.8
+      }
+     ],
+     "editUndo": [
+      {
+       "name": "(idle) :0",
+       "ms": 188.1,
+       "share": 24.7
+      },
+      {
+       "name": "(program) :0",
+       "ms": 86.9,
+       "share": 11.4
+      },
+      {
+       "name": "(garbage collector) :0",
+       "ms": 63.7,
+       "share": 8.4
+      },
+      {
+       "name": "useStore /node_modules/.vite/deps/zustand.js:35",
+       "ms": 41.8,
+       "share": 5.5
+      },
+      {
+       "name": "updateProperties /node_modules/.vite/deps/react-dom_client.js:8116",
+       "ms": 34.7,
+       "share": 4.6
+      },
+      {
+       "name": "commitHostUpdate /node_modules/.vite/deps/react-dom_client.js:5380",
+       "ms": 30.7,
+       "share": 4
+      },
+      {
+       "name": "(anonymous) /node_modules/.vite/deps/lucide-react.js:109",
+       "ms": 22.4,
+       "share": 2.9
+      },
+      {
+       "name": "setProp /node_modules/.vite/deps/react-dom_client.js:7735",
+       "ms": 19.2,
+       "share": 2.5
+      },
+      {
+       "name": "exports.createElement /node_modules/.vite/deps/react.js:265",
+       "ms": 15.1,
+       "share": 2
+      },
+      {
+       "name": "performUnitOfWork /node_modules/.vite/deps/react-dom_client.js:6815",
+       "ms": 13.3,
+       "share": 1.7
+      },
+      {
+       "name": "createWorkInProgress /node_modules/.vite/deps/react-dom_client.js:1926",
+       "ms": 10.9,
+       "share": 1.4
+      },
+      {
+       "name": "setItem :0",
+       "ms": 10.3,
+       "share": 1.3
+      },
+      {
+       "name": "writeRecovery /src/features/editor/store/specStorage.ts:110",
+       "ms": 10.2,
+       "share": 1.3
+      },
+      {
+       "name": "(anonymous) /node_modules/.vite/deps/lucide-react.js:122",
+       "ms": 10.1,
+       "share": 1.3
+      },
+      {
+       "name": "commitBeforeMutationEffects /node_modules/.vite/deps/react-dom_client.js:5434",
+       "ms": 8.2,
+       "share": 1.1
+      }
+     ]
+    },
+    "home": {
+     "median": 1063.9,
+     "max": 1063.9
+    },
+    "open": {
+     "median": 301,
+     "max": 301
+    },
+    "edit": {
+     "median": 24.3,
+     "max": 24.3
+    },
+    "undo": {
+     "median": 22.3,
+     "max": 22.3
+    },
+    "editFrame": {
+     "median": 33.3,
+     "max": 33.3
+    },
+    "undoFrame": {
+     "median": 34.7,
+     "max": 34.7
+    },
+    "export": {
+     "median": 21.4,
+     "max": 21.4
+    },
+    "zipKB": 16,
+    "generatedFiles": 53,
+    "heapMB": {
+     "home": {
+      "median": 97.1,
+      "max": 97.1
+     },
+     "open": {
+      "median": 29.3,
+      "max": 29.3
+     },
+     "end": {
+      "median": 40.5,
+      "max": 40.5
+     }
+    },
+    "domNodes": {
+     "home": {
+      "median": 174746,
+      "max": 174746
+     },
+     "open": {
+      "median": 25081,
+      "max": 25081
+     }
+    },
+    "raw": [
+     {
+      "homeMs": 1063.8999999761581,
+      "openMs": 301,
+      "editMs": 24.30000001192093,
+      "editFrameMs": 33.299999952316284,
+      "undoMs": 22.30000001192093,
+      "undoFrameMs": 34.69999998807907,
+      "exportMs": 21.400000035762787,
+      "zipBytes": 15880,
+      "files": 53,
+      "homeRes": {
+       "heapMB": 97.1,
+       "domNodes": 174746
+      },
+      "openRes": {
+       "heapMB": 29.3,
+       "domNodes": 25081
+      },
+      "endRes": {
+       "heapMB": 40.5,
+       "domNodes": 25081
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

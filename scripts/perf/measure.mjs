@@ -2,6 +2,10 @@
 // 프로젝트·노드·이미지 규모별 성능 실측(#293).
 //
 //   node scripts/perf/measure.mjs [--reps 5] [--scenario S1,S2] [--chrome <path>] [--json out.json]
+//                                 [--node-env production] [--profile]
+//   --node-env production  비교 실험: 개발 서버를 NODE_ENV=production으로 띄워 React production 빌드를 쓴다.
+//   --profile              측정 반복 뒤 별도 반복 하나에서 홈 진입·편집 구간 CPU 자기 시간 상위를 뽑는다
+//                          (결과 중앙값에는 섞지 않는다. --json이면 함께 저장한다).
 //
 // 사용자가 실제로 쓰는 방식 그대로 Vite 개발 서버(GUI)를 픽스처 작업공간으로 띄우고, 헤드리스
 // Chrome을 DevTools 프로토콜(Node 내장 WebSocket)로 몬다. 외부 패키지를 쓰지 않는다.
@@ -57,19 +61,27 @@ function findChrome(explicit) {
   return found;
 }
 
+/** DevTools 요청 하나의 최대 대기. 페이지 안 측정(열기 60초 제한 등)보다 넉넉하게. */
+const CDP_TIMEOUT_MS = 180_000;
 const sleep = (ms) => new Promise((done) => { setTimeout(done, ms); });
 
-function freePort() {
-  return new Promise((done, fail) => {
+/** 서로 다른 빈 포트 `count`개. 모두 잡아 둔 채 번호를 받은 뒤 함께 놓는다 — 둘이 겹치지 않게. */
+async function freePorts(count) {
+  const servers = await Promise.all(Array.from({ length: count }, () => new Promise((done, fail) => {
     const server = createServer();
     server.once("error", fail);
-    server.listen(0, "127.0.0.1", () => { const { port } = server.address(); server.close(() => done(port)); });
-  });
+    server.listen(0, "127.0.0.1", () => done(server));
+  })));
+  const ports = servers.map((server) => server.address().port);
+  await Promise.all(servers.map((server) => new Promise((done) => server.close(done))));
+  return ports;
 }
 
-async function waitHttp(url, timeoutMs = 60_000) {
+async function waitHttp(url, timeoutMs = 60_000, failed = () => null) {
   const until = Date.now() + timeoutMs;
   for (;;) {
+    const reason = failed();
+    if (reason !== null) throw new Error(reason);
     try { const response = await fetch(url); if (response.ok) return response; } catch { /* 아직 */ }
     if (Date.now() > until) throw new Error(`응답 없음: ${url}`);
     await sleep(200);
@@ -82,6 +94,13 @@ async function connectCdp(wsUrl) {
   await new Promise((done, fail) => { socket.onopen = done; socket.onerror = fail; });
   let nextId = 1;
   const pending = new Map();
+  // 브라우저가 죽으면(메모리 부족 등) 기다리는 요청을 모두 실패시킨다 — 무한 대기 대신 정리로 간다.
+  const failAll = (reason) => {
+    for (const { fail } of pending.values()) fail(new Error(reason));
+    pending.clear();
+  };
+  socket.onclose = () => failAll("DevTools 연결이 끊겼습니다(Chrome 종료)");
+  socket.onerror = () => failAll("DevTools 연결 오류");
   socket.onmessage = (event) => {
     const message = JSON.parse(event.data);
     if (message.id !== undefined && pending.has(message.id)) {
@@ -92,7 +111,9 @@ async function connectCdp(wsUrl) {
   };
   const send = (method, params = {}, sessionId) => new Promise((done, fail) => {
     const id = nextId++;
-    pending.set(id, { done, fail });
+    const timer = setTimeout(() => { pending.delete(id); fail(new Error(`DevTools 응답 시간 초과: ${method}`)); }, CDP_TIMEOUT_MS);
+    pending.set(id, { done: (value) => { clearTimeout(timer); done(value); }, fail: (error) => { clearTimeout(timer); fail(error); } });
+    if (socket.readyState !== WebSocket.OPEN) { pending.get(id).fail(new Error("DevTools 연결이 닫혀 있습니다")); pending.delete(id); return; }
     socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
   });
   return { send, close: () => socket.close() };
@@ -209,23 +230,28 @@ function topSelfTime(profile, limit = 15) {
 async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
   const dir = mkdtempSync(join(tmpdir(), `vsb-perf-${key}-`));
   const { workspace, target, imageBytes } = writeWorkspace(dir, scenario);
-  const port = await freePort();
+  const [port, debugPort] = await freePorts(2);
   const vite = spawn(process.execPath, [join(REPO, "node_modules/vite/bin/vite.js"), "--port", String(port), "--strictPort", "--host", "127.0.0.1"], {
     cwd: REPO, env: { ...process.env, VISUAL_SPEC_WORKSPACE: workspace, ...(nodeEnv ? { NODE_ENV: nodeEnv } : {}) }, stdio: "ignore",
   });
-  const debugPort = await freePort();
+  let viteExit = null;
+  vite.once("exit", (code, signal) => { viteExit = `개발 서버가 종료됐습니다(code ${code}, signal ${signal})`; });
   const chromeProfile = mkdtempSync(join(tmpdir(), "vsb-perf-chrome-"));
   const browser = spawn(chrome, ["--headless=new", `--remote-debugging-port=${debugPort}`, `--user-data-dir=${chromeProfile}`,
     "--no-first-run", "--no-default-browser-check", "--window-size=1600,1000", "about:blank"], { stdio: "ignore" });
   const results = [];
+  const profiles = {};
   try {
     const base = `http://127.0.0.1:${port}`;
-    await waitHttp(`${base}/__vs/status`);
-    await waitHttp(`${base}/`); // 첫 요청의 의존성 최적화(pre-bundle)를 측정 밖으로 뺀다
-    const { webSocketDebuggerUrl } = await (await waitHttp(`http://127.0.0.1:${debugPort}/json/version`)).json();
+    await waitHttp(`${base}/__vs/status`, 60_000, () => viteExit);
+    await waitHttp(`${base}/`, 60_000, () => viteExit); // 첫 요청의 의존성 최적화(pre-bundle)를 측정 밖으로 뺀다
+    const { webSocketDebuggerUrl, Browser: browserVersion } = await (await waitHttp(`http://127.0.0.1:${debugPort}/json/version`)).json();
+    versions.browser = browserVersion;
     const cdp = await connectCdp(webSocketDebuggerUrl);
     // 워밍업 1회(개발 서버의 모듈 변환 캐시를 채운다) + 측정 reps회
-    for (let rep = -1; rep < reps; rep += 1) {
+    // 프로파일은 측정 반복 뒤 따로 한 번 더 돌린다 — 샘플링이 켜진 시간을 결과에 섞지 않는다.
+    const profileRep = profile ? reps : null;
+    for (let rep = -1; rep < reps + (profile ? 1 : 0); rep += 1) {
       const { browserContextId } = await cdp.send("Target.createBrowserContext");
       const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank", browserContextId });
       const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true });
@@ -233,7 +259,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
       await cdp.send("HeapProfiler.enable", {}, sessionId);
       await cdp.send("Runtime.enable", {}, sessionId);
       await cdp.send("Page.enable", {}, sessionId);
-      if (profile && rep === 0) {
+      if (rep === profileRep) {
         await cdp.send("Profiler.enable", {}, sessionId);
         await cdp.send("Profiler.setSamplingInterval", { interval: 100 }, sessionId);
         await cdp.send("Profiler.start", {}, sessionId);
@@ -246,30 +272,32 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
           `document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects} ? performance.now() : null`).catch(() => null);
         if (homeMs === null) { if (Date.now() > until) throw new Error("홈 시간 초과"); await sleep(10); }
       }
-      if (profile && rep === 0) {
+      if (rep === profileRep) {
         const { profile: cpu } = await cdp.send("Profiler.stop", {}, sessionId);
-        process.stderr.write(`  홈 첫 진입 CPU 자기 시간 상위:\n${topSelfTime(cpu).map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
+        profiles.home = topSelfTime(cpu);
+        process.stderr.write(`  홈 첫 진입 CPU 자기 시간 상위:\n${profiles.home.map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
       }
       const homeRes = await metrics(cdp, sessionId);
       await evaluate(cdp, sessionId, PAGE_HELPERS);
       const openMs = await evaluate(cdp, sessionId, `window.__perf.open(${JSON.stringify(target)})`);
       const openRes = await metrics(cdp, sessionId);
-      if (profile && rep === 0) {
+      if (rep === profileRep) {
         await cdp.send("Profiler.enable", {}, sessionId);
         await cdp.send("Profiler.setSamplingInterval", { interval: 100 }, sessionId);
         await cdp.send("Profiler.start", {}, sessionId);
       }
       const { edits, undos } = await evaluate(cdp, sessionId, "window.__perf.editAndUndo(10)");
-      if (profile && rep === 0) {
+      if (rep === profileRep) {
         const { profile: cpu } = await cdp.send("Profiler.stop", {}, sessionId);
-        process.stderr.write(`  편집·Undo 10회 CPU 자기 시간 상위:\n${topSelfTime(cpu).map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
+        profiles.editUndo = topSelfTime(cpu);
+        process.stderr.write(`  편집·Undo 10회 CPU 자기 시간 상위:\n${profiles.editUndo.map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
       }
       if (rep === -1) await evaluate(cdp, sessionId, `window.__perf.prepareExport(${scenario.image !== undefined})`);
       const exported = await evaluate(cdp, sessionId, "window.__perf.exportZip()");
       const endRes = await metrics(cdp, sessionId);
       await cdp.send("Target.closeTarget", { targetId });
       await cdp.send("Target.disposeBrowserContext", { browserContextId });
-      if (rep >= 0) {
+      if (rep >= 0 && rep !== profileRep) {
         results.push({ homeMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
           undoMs: median(undos.map((e) => e.task)), undoFrameMs: median(undos.map((e) => e.frame)), exportMs: exported.ms,
           zipBytes: exported.zipBytes, files: exported.files, homeRes, openRes, endRes });
@@ -285,7 +313,8 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
   }
   const summary = (pick) => ({ median: round(median(results.map(pick))), max: round(Math.max(...results.map(pick))) });
   return {
-    key, label: scenario.label, reps, imageBytes,
+    key, label: scenario.label, reps, imageBytes, nodeEnv: nodeEnv ?? "development",
+    ...(profile ? { profiles } : {}),
     home: summary((r) => r.homeMs), open: summary((r) => r.openMs), edit: summary((r) => r.editMs),
     undo: summary((r) => r.undoMs), editFrame: summary((r) => r.editFrameMs), undoFrame: summary((r) => r.undoFrameMs),
     export: summary((r) => r.exportMs),
@@ -296,6 +325,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
   };
 }
 
+const versions = { browser: null };
 const args = parseArgs(process.argv.slice(2));
 const chrome = findChrome(args.chrome);
 const out = [];
@@ -308,4 +338,4 @@ for (const key of args.scenarios) {
   const f = (s) => `${s.median} (최대 ${s.max})`;
   console.log(`| ${key} ${result.label} | ${f(result.home)} | ${f(result.open)} | ${f(result.edit)} / ${result.editFrame.median} | ${f(result.undo)} / ${result.undoFrame.median} | ${f(result.export)} | ${result.heapMB.home.median} / ${result.heapMB.open.median} / ${result.heapMB.end.median} | ${result.domNodes.home.median} / ${result.domNodes.open.median} |`);
 }
-if (args.json) writeFileSync(args.json, JSON.stringify({ when: new Date().toISOString(), node: process.version, chrome, results: out }, null, 2));
+if (args.json) writeFileSync(args.json, JSON.stringify({ when: new Date().toISOString(), node: process.version, chrome, browser: versions.browser, results: out }, null, 2));

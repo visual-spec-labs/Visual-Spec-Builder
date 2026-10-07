@@ -1,6 +1,6 @@
 # 규모별 성능 실측 (#293)
 
-측정일: 2026-10-07 · 기준: `develop` `411aa2b` · 원자료: [qa/2026-10-07-perf-293.json](qa/2026-10-07-perf-293.json)
+측정일: 2026-10-07 · 기준: `develop` `411aa2b` · 원자료: [qa/2026-10-07-perf-293.json](qa/2026-10-07-perf-293.json)(반복별 값 포함) · CPU 프로파일: [qa/2026-10-07-perf-293-profile.json](qa/2026-10-07-perf-293-profile.json)
 
 이 문서는 **병목을 입증하고 후속 우선순위를 정하는 기록**이다. 최적화 구현은 여기서 하지 않았다.
 측정은 헤드리스 Chrome 자동 실측이다. 실제 AI 실행이나 사람이 손으로 잰 값이 아니다.
@@ -9,14 +9,15 @@
 
 | 순위 | 후속 작업 | 근거 |
 |---|---|---|
-| **1** | **GUI를 React production 빌드로 실행한다** (`visual-spec` CLI가 개발 서버를 띄우는 방식 개선) | 사용자는 GUI를 Vite 개발 서버로 쓴다(02). 그래서 **React 개발 모드**로 돈다. 노드 1000개 문서에서 편집·Undo 한 번에 JS 작업이 약 **174ms**(개발) 대 **23ms**(production)다. CPU 프로파일에서 개발 모드 전용 작업(`addObjectDiffToProperties` 27%, `jsxDEV`·`warnUnknownProperties` 등)이 40% 안팎이다. 열기는 2.4~3.7배, 홈 진입은 1.4~2배 차이 난다 |
-| **2** | **홈 카드 미리보기를 가볍게 한다** (보이는 카드만 그리기, 노드 수 상한·축소 표현, 또는 썸네일 캐시) | 프로젝트 100 × 노드 1000에서 홈 첫 진입 **2.0초**(개발)·**1.1초**(production), DOM **17만 개**, 힙 **97~148MB**다. 프로파일상 인라인 스타일 적용(`setValueForStyle`) 26%와 레이아웃·스타일 계산(네이티브) 31%가 대부분이다. JSON 파싱·스키마 검증은 10~15%다. production 모드로도 남는 병목이다 |
-| 3 | 홈 목록 지연 읽기(보이는 프로젝트만 읽고 파싱) | 2의 나머지 10~15%(파싱·검증)를 줄인다. 2를 먼저 하면 효과를 다시 재서 정한다 |
-| 4 | 편집 시 캔버스 전체 재렌더 줄이기(노드 단위 memo) | production 모드에서 노드 1000개 편집은 약 23ms로 두 프레임(33ms) 안이다. 1을 한 뒤에는 연속 편집(드래그·타이핑)에서 필요한지 다시 잰다 |
-| 5 | 코드 분할(번들 548kB 경고) | 사용자는 개발 서버로 GUI를 써서 이 번들을 받지 않는다. 정적 빌드 배포를 할 때 다시 본다 |
-| — | 큰 이미지 | 11.5MB PNG는 Export ZIP 만들기에만 영향이 있다(약 6ms → 140ms). 홈·열기·편집에는 차이가 없다. 지금은 조치가 필요 없다 |
+| **1** | **GUI를 React production 빌드로 실행한다** (`visual-spec` CLI가 개발 서버를 띄우는 방식 개선) | 사용자는 GUI를 Vite 개발 서버로 쓴다(02). 그래서 **React 개발 모드**로 돈다. 노드 1000개 문서에서 편집·Undo 한 번에 JS 작업이 약 **174~180ms**(개발) 대 **23~25ms**(production)다. CPU 프로파일 자기 시간 상위 15개 중 개발 모드 전용 항목(`addObjectDiffToProperties` 27%, 개발용 `ReactElement`·`jsxDEV`·`validateProperty`·`warnUnknownProperties` 등)만 합쳐 **38%**다. 열기는 1.9~3.7배, 홈 진입은 1.4~2.2배 차이 난다 |
+| **2** | **홈 카드 미리보기를 가볍게 한다** (보이는 카드만 그리기, 노드 수 상한·축소 표현, 또는 썸네일 캐시) | 프로젝트 100 × 노드 1000에서 홈 첫 진입 **2.0초**(개발)·**1.1초**(production), DOM **17만 개**, 힙 **97~148MB**다. 프로파일상 인라인 스타일 적용(`setValueForStyle`) 26%와 네이티브 시간(`(program)` — 스타일·레이아웃 계산으로 보인다) 32%가 대부분이다. JSON 파싱·스키마 검증은 상위 항목 기준 약 12%다. production 모드로도 남는 병목이다 |
+| 3 | 홈 목록 지연 읽기(보이는 프로젝트만 읽고 파싱) | 2의 나머지 약 12%(파싱·검증)를 줄인다. 2를 먼저 하면 효과를 다시 재서 정한다 |
+| 4 | 편집 시 캔버스 전체 재렌더 줄이기(노드 단위 memo) | production 모드에서도 노드 1000개 편집은 JS 작업만 23~25ms로 **한 프레임(16.7ms)을 넘는다** — 편집마다 프레임 하나가 빠진다. 연속 편집(드래그·타이핑)에서 체감될 수 있어 1 다음으로 본다 |
+| 5 | 코드 분할(번들 548kB 경고) | 지금 사용자는 개발 서버로 GUI를 써서 이 번들을 받지 않는다. **1이 production 빌드를 쓰는 방식으로 정해지면 이 판단은 바뀐다** — 그때 다시 잰다 |
+| — | 큰 이미지 | 11.5MB PNG는 Export ZIP 만들기를 약 6ms → 140ms로 늘린다. 홈·열기·편집 **측정값**에는 차이가 없지만, 이미지는 CSS 배경으로 비동기 로드돼 **다운로드·디코딩·그리기는 이번 측정 범위 밖**이다. 이미지 표시까지의 시간과 비트맵 메모리는 재지 않았으므로 판단을 보류한다(후속 6) |
+| 6 | 이미지 표시 시간·메모리 측정 | 위 큰 이미지 판단을 위한 추가 측정. 측정 스크립트에 이미지 디코딩 완료 대기와 GPU/비트맵 메모리 항목을 더한다 |
 
-1~4는 각각 별도 이슈로 연다(이 문서 머지 뒤). 1은 사용자 실행 경로를 바꾸므로 HMR·StrictMode·에러 표시 차이와 CLI 동작을 함께 설계해야 한다.
+1~4·6은 각각 별도 이슈로 연다. 1은 사용자 실행 경로를 바꾸므로 HMR·StrictMode·에러 표시 차이와 CLI 동작을 함께 설계해야 한다.
 
 ## 측정 환경
 
@@ -73,38 +74,38 @@
 
 ## 병목 근거 (CPU 프로파일)
 
-`node scripts/perf/measure.mjs --scenario <S> --profile [--node-env production]` — 첫 측정 반복의 홈 진입과 편집·Undo 10회 구간을 100µs 간격으로 샘플링해 **자기 시간** 상위를 뽑았다. 프로파일 실행은 측정 반복과 따로 1회 돌렸다(프로파일러가 켜져 있어 시간 값은 위 표와 다르다).
+`node scripts/perf/measure.mjs --reps 1 --scenario <S> --profile [--node-env production]` — 측정 반복과 **분리된 별도 반복**에서 홈 진입과 편집·Undo 10회 구간을 100µs 간격으로 샘플링해 **자기 시간** 상위 15개를 뽑았다(프로파일러가 켜져 있어 시간 값은 위 표와 다르다). 전체 목록은 [프로파일 원자료](qa/2026-10-07-perf-293-profile.json)에 있다. `(program)`은 V8이 JS 함수로 나누지 못한 네이티브 시간이고, 스타일·레이아웃 계산이 큰 몫으로 보이지만 이 프로파일만으로는 더 나누지 않았다.
 
 **S3 편집·Undo 10회, 개발 모드** — 상위 항목
 
 | 자기 시간 | 비율 | 함수 |
 |---|---|---|
-| 1,071ms | 27.1% | `addObjectDiffToProperties` (react-dom 개발 모드 — 성능 트랙용 props 차이 기록) |
-| 233ms | 5.9% | `ReactElement` |
-| 205ms | 5.2% | `jsxDEVImpl` (개발 모드 JSX) |
-| 172ms | 4.3% | `createElement` |
-| 96ms | 2.4% | `jsxDEV` |
-| 57ms·50ms | 1.4%·1.3% | `warnUnknownProperties`·`validateProperty` (개발 모드 경고) |
+| 1,061ms | 27.0% | `addObjectDiffToProperties` (react-dom 개발 모드 — 성능 트랙용 props 차이 기록) |
+| 229ms | 5.8% | `ReactElement` (react) |
+| 190ms | 4.8% | `ReactElement` (react/jsx-dev-runtime — 개발 모드) |
+| 176ms | 4.5% | `createElement` |
+| 94ms | 2.4% | `jsxDEV` (개발 모드) |
+| 53ms·52ms·50ms | 1.3%·1.3%·1.3% | `validateProperty`·`warnUnknownProperties`·`runWithFiberInDEV` (개발 모드) |
 
-같은 구간을 production으로 돌리면 위 개발 모드 항목이 사라진다. 남는 것은 `useStore`(zustand 구독) 5.7%, DOM 갱신(`updateProperties`·`commitHostUpdate`) 9.5% 등이다. 편집 한 번마다 캔버스·레이어 트리가 크게 다시 그려지는 비용이고, 자동 저장 복구 사본 쓰기(`writeRecovery`·`setItem`)는 3% 미만이다.
+개발 모드 전용 항목(`addObjectDiffToProperties`, 개발용 `ReactElement`, `jsxDEV`, `validateProperty`, `warnUnknownProperties`, `runWithFiberInDEV`)만 합치면 **38.1%**다. 같은 구간을 production으로 돌리면 이 항목들이 사라진다. 남는 것은 `useStore`(zustand 구독) 4.6%, DOM 갱신(`updateProperties`·`commitHostUpdate`·`setProp`) 10.6% 등이다. 편집 한 번마다 캔버스·레이어 트리가 크게 다시 그려지는 비용이고, 자동 저장 복구 사본 쓰기(`writeRecovery`·`setItem`)는 2.9%다.
 
 **S4 홈 첫 진입, production** — 상위 항목
 
 | 자기 시간 | 비율 | 함수 |
 |---|---|---|
-| 372ms | 30.6% | (program) — 스타일·레이아웃 계산 등 네이티브 |
-| 313ms | 25.7% | `setValueForStyle` (react-dom 인라인 스타일 적용) |
-| 71ms | 5.9% | `parseSpecJson` |
-| 약 100ms | 약 8% | `validate*`(Ajv)·`validateScreenReferences` |
-| 14ms | 1.1% | `previewFrameStyle` (`ui/homePreview.ts`) |
+| 352ms | 31.9% | (program) — 네이티브(스타일·레이아웃 계산 등) |
+| 287ms | 26.0% | `setValueForStyle` (react-dom 인라인 스타일 적용) |
+| 62ms | 5.7% | `parseSpecJson` |
+| 75ms | 6.8% | 상위 15개 안의 `validate*`(Ajv)·`validateScreenReferences` 합 |
+| 11ms·9ms | 0.9%·0.8% | `previewFrameStyle` (`ui/homePreview.ts`)·`PreviewNode` |
 
 홈은 카드마다 페이지의 노드 트리를 축소 DOM으로 전부 그린다(`ui/homePreview.ts`). 그래서 DOM 노드 수가 프로젝트 수 × 노드 수에 비례하고(S4 17만 개), 시간도 대부분 그 DOM을 만드는 데 쓴다.
 
 ## 그 밖의 관찰
 
-- **메모리 누수 근거는 없다.** GC를 강제한 뒤 재면 S3에서 편집·Undo 10회와 Export 뒤 힙이 29MB → 41MB(production)로 늘어난다. 히스토리가 쌓이는 정도다. GC 없이 재면 같은 구간이 178MB까지 보여 누수처럼 보이지만 수거 전 쓰레기다. 에디터로 들어가면 홈 DOM이 정리된다(S4 DOM 17만 개 → 2.5만 개).
-- **production 번들**은 `pnpm build` 기준 JS 548.30kB(gzip 165.64kB)이고 500kB 경고가 난다. 이슈 작성 당시 533.46kB에서 늘었다. 사용자는 개발 서버로 GUI를 쓰므로 이 번들을 받지 않는다(우선순위 5).
-- **큰 이미지**는 홈 카드 측정 시점(카드 DOM 완료)에 영향이 없었다. 측정은 이미지 디코딩·그리기 완료를 기다리지 않으므로, 홈에서 이미지가 늦게 보이는 체감은 이 표에 없다.
+- **메모리 누수 여부는 판단하지 않았다.** GC를 강제한 뒤 재면 S3에서 편집·Undo 10회와 Export 뒤 힙이 열기 직후보다 약 11~20MB 크다(production 29 → 41MB, 개발 40 → 60MB). 편집 직후 Undo하므로 히스토리에는 스냅샷이 최대 하나뿐이라 히스토리 때문이라고 볼 수 없다. Export 단계에서 처음 불러오는 모듈, 측정 도우미, 자동 저장 직렬화 등이 섞여 있어 원인을 가르지 않았다. 한 번의 측정으로 누수가 없다고도 말할 수 없다. 에디터로 들어가면 홈 DOM은 정리된다(S4 DOM 17만 개 → 2.5만 개).
+- **production 번들**은 `pnpm build` 기준 JS 548.30kB(gzip 165.64kB)이고 500kB 경고가 난다. 이슈 작성 당시 533.46kB에서 늘었다. 지금 사용자는 개발 서버로 GUI를 쓰므로 이 번들을 받지 않는다(우선순위 5 — 1의 방식에 따라 다시 본다).
+- **큰 이미지**는 홈 카드 측정 시점(카드 DOM 완료)·열기(두 프레임)·JS 힙에 차이가 없었다. 이미지는 CSS 배경(`ui/homePreview.ts`·`ui/nodeStyles.ts`)으로 비동기 로드되므로 다운로드·디코딩(2400×1600이면 비트맵 약 15MB)·그리기는 재지 않았다. 판단은 후속 6의 추가 측정까지 보류한다.
 - 노드 100개 문서의 편집·Undo는 JS 작업 4~14ms로 한 프레임 안이다. 이 규모에서는 조치가 필요 없다.
 
 ## 한계
@@ -120,7 +121,9 @@
 # 저장소 루트에서. Chrome 경로는 자동으로 찾고, 없으면 --chrome 또는 CHROME_BIN.
 node scripts/perf/measure.mjs --reps 5 --json out.json                 # 지금(개발 모드)
 node scripts/perf/measure.mjs --reps 5 --node-env production           # 비교
-node scripts/perf/measure.mjs --reps 1 --scenario S3,S4 --profile      # 병목 프로파일
+node scripts/perf/measure.mjs --reps 1 --scenario S3,S4 --profile --json prof.json  # 병목 프로파일(별도 반복)
 ```
+
+표의 원자료는 이 문서의 스크립트로 쟀다. 그 뒤 리뷰에서 스크립트의 견고성(DevTools 연결 끊김·시간 초과 처리, 포트 충돌 방지, 개발 서버 조기 종료 감지)과 프로파일 반복 분리를 고쳤다 — 프로파일을 켜지 않은 측정의 타이밍 경로는 바뀌지 않았다.
 
 시나리오마다 임시 폴더에 작업공간을 만들고, 빈 포트로 개발 서버와 헤드리스 Chrome을 띄운 뒤 끝나면 지운다. 다섯 시나리오 5회는 이 기기에서 모드당 약 10분 걸린다.
