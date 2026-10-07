@@ -127,6 +127,8 @@ export function startAgentEditBridge(): () => void {
    * "적용하지 않음"으로 알리면 에이전트가 같은 편집을 다시 보내 두 번 적용된다(PR #303 셀프 리뷰).
    */
   let lastResult: { requestId: string; status: AgentEditStatus; message: string } | null = null;
+  /** 마지막 결과를 일시 오류로 쓰지 못했다 — 연결된 동안 다음 회차가 다시 쓴다(PR #303 셀프 리뷰). */
+  let lastResultUnsent = false;
   async function writeResult(requestId: string, status: AgentEditStatus, message: string): Promise<boolean> {
     lastResult = { requestId, status, message };
     const epochAt = epoch;
@@ -134,6 +136,7 @@ export function startAgentEditBridge(): () => void {
     const run = resultChain.then(() => writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, tabId));
     resultChain = run.catch(() => undefined);
     const written = await run;
+    if (lastResult?.requestId === requestId && lastResult.status === status) lastResultUnsent = !written.ok;
     if (!written.ok && written.status === 409 && holder && epoch === epochAt) loseConnection();
     return written.ok;
   }
@@ -270,6 +273,11 @@ export function startAgentEditBridge(): () => void {
       } else if (holder) {
         if (!onEditor()) { disconnect(); return; }
         await publish();
+        // 일시 오류로 못 쓴 결과를 다시 쓴다 — 요청은 이미 처리해 폴링이 다시 보지 않으므로, 그대로
+        // 두면 에이전트가 결과를 못 받고 같은 편집을 다시 보낼 수 있다.
+        if (lastResultUnsent && lastResult !== null && epoch === epochBefore) {
+          await writeResult(lastResult.requestId, lastResult.status, lastResult.message);
+        }
       }
     } finally {
       claiming = false;

@@ -427,7 +427,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "rejected", requestId: "bg" });
   });
 
-  it("결과 쓰기의 일시 오류(네트워크·5xx)로는 연결을 놓지 않는다 — 다시 잡으며 적용한 요청을 거절로 알리지 않게", async () => {
+  it("결과 쓰기의 일시 오류(네트워크·5xx)로는 연결을 놓지 않고, 다음 회차에 그 결과를 다시 쓴다", async () => {
     await connect();
     const writes = vi.mocked(writeWorkspaceFile);
     const serverWrite = writes.getMockImplementation()!;
@@ -438,8 +438,9 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     writes.mockImplementation(serverWrite);
     expect(title()).toBe("적용됨");
     expect(useAgentEditStore.getState().connected).toBe(true);
-    await vi.advanceTimersByTimeAsync(10_000); // 다음 회차들 — 다시 잡으며 e1을 거절로 쓰지 않는다
-    expect(result()?.status).not.toBe("rejected");
+    expect(result()).toBeNull(); // 아직 못 알렸다
+    await vi.advanceTimersByTimeAsync(5000); // 다음 회차가 못 쓴 결과를 다시 쓴다(거절이 아니라 적용)
+    expect(result()).toMatchObject({ requestId: "e1", status: "applied" });
   });
 
   it("확인 대기(pending)를 쓰는 중 홈으로 가도 거절이 그 뒤에 쓰여 결과가 pending으로 남지 않는다", async () => {
