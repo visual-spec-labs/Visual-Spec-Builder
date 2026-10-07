@@ -245,7 +245,7 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 | `box.width`/`height` = `"fill"`, 부모 교차축 방향 | `self-stretch`, 교차축 크기는 `auto` |
 | `box.width`/`height` = `"fill"`, root(부모 없음) | `w-full flex-[1_0_auto]`; page wrapper가 `min-height`를 제공한다 |
 | `layout.direction` = `"row"`/`"column"` | `flex flex-row` / `flex flex-col` |
-| `layout.direction` = `"grid"` | `grid grid-cols-[N]` (N은 `layout.columns`, 없으면 1). `mainAxis`는 무시하고 `crossAxis`는 `items-start`/`center`/`end`/`stretch`로 적용한다 — 아래 "grid 레이아웃" 참고 |
+| `layout.direction` = `"grid"` | `grid grid-cols-[repeat(N,1fr)]` (N은 `layout.columns`, 없으면 1). `mainAxis`는 무시하고 `crossAxis`는 `items-start`/`items-center`/`items-end`/`items-stretch`로 적용한다 — 아래 "grid 레이아웃" 참고 |
 | `layout.gap` | `gap-[Npx]` |
 | `layout.padding.*` | `pt-/pr-/pb-/pl-[Npx]` |
 | `layout.mainAxis` | `justify-start`/`center`/`end`/`between` |
@@ -481,16 +481,41 @@ import heroImageUrl from "../assets/hero.png";
 ### grid 레이아웃
 
 `layout.direction: "grid"`는 `layout.columns`(선택, 없으면 1)만큼의 열로 자식을 균등하게
-자동 배치한다 — 특정 자식을 특정 셀에 지정하는 기능은 없다.
+자동 배치한다 — 특정 자식을 특정 셀에 지정하는 기능은 없다. Tailwind의 `grid-cols-[N]`은
+열 수가 아니라 `grid-template-columns: N`을 출력해 유효한 트랙 정의가 아니다. 반드시
+`grid-cols-[repeat(N,1fr)]`처럼 반복 트랙을 그대로 적는다. 1·2·3열은 각각 아래 CSS가
+나와야 한다.
+
+| 열 수 | Tailwind 클래스 | `grid-template-columns` |
+|---:|---|---|
+| 1 | `grid-cols-[repeat(1,1fr)]` | `repeat(1, 1fr)` |
+| 2 | `grid-cols-[repeat(2,1fr)]` | `repeat(2, 1fr)` |
+| 3 | `grid-cols-[repeat(3,1fr)]` | `repeat(3, 1fr)` |
+
+`mainAxis`는 Grid 트랙 정렬 규칙이 아니므로 생략한다. `crossAxis`는 캔버스의 `alignItems`와
+같이 `start`→`items-start`, `center`→`items-center`, `end`→`items-end`, `stretch`→
+`items-stretch`로 적용한다. `start`일 때 콘텐츠 높이가 다른 auto 자식은 각자 높이를 유지하고,
+`stretch`일 때는 같은 행의 트랙 높이를 채운다. `center`/`end`도 셀 안에서 각각 가운데/끝에
+정렬한다.
 
 ```tsx
-<div className="grid grid-cols-[2] gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
+<div className="grid grid-cols-[repeat(2,1fr)] items-stretch gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
 ```
 
 grid 컨테이너의 직계 자식은 `flex-*`/`self-stretch` 같은 flex 전용 클래스를 붙이지 않는다 —
 grid 아이템에는 뜻이 없다. `fill`의 크기는 해당 grid track을 채우도록 `w-full`/`h-full`로,
 Fixed는 명시 크기로 표현한다. Hug는 지정 크기 없이 intrinsic 크기를 사용한다. row/column의
 flex shrink/grow와 grid track sizing은 서로 대체 관계가 아니므로 부모 방향별로 다시 판단한다.
+`fill` 자식은 해당 grid cell을 채우도록 `w-full`/`h-full`, `auto` 자식은 intrinsic 크기를
+유지하도록 `w-auto`/`h-auto`를 쓴다. 고정 크기는 픽셀 크기를 그대로 쓴다. `crossAxis`가
+`start`/`center`/`end`면 자식의 높이를 무조건 `h-full`로 덮지 않는다 — `auto` 높이 자식이
+콘텐츠에 맞는 높이와 정렬을 유지해야 한다.
+
+반응형에서 열 수·간격·`crossAxis` 또는 자식 크기가 바뀌면 각 breakpoint에서 누적된 전체
+레이아웃을 다시 계산한다. 변경된 열 수는 해당 경계의 `grid-template-columns`로 함께
+갱신하고, 직전 열 수를 남기지 않는다. 자식 순서는 유지되어 새 열 수에 따라 자연스럽게
+재배치된다. Tailwind 출력은 완전한 `grid-cols-[repeat(N,1fr)]` 문자열을 리터럴로 쓴다;
+미확인 대상 설정에는 위 반응형 절의 정적 CSS media query 대안을 따른다.
 
 ## 예제
 
@@ -623,7 +648,7 @@ export default function ImageHeroPage() {
 ```tsx
 export default function FormGridPage() {
   return (
-    <div className="grid grid-cols-[2] gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
+    <div className="grid grid-cols-[repeat(2,1fr)] items-stretch gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
       <p className="w-full h-auto whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이름</p>
       <input
         placeholder="이름을 입력하세요"

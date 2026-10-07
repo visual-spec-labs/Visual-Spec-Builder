@@ -306,6 +306,7 @@ describe("verifyGenerated", () => {
     });
 
     expect(report.usedAssets).toEqual(["hero.png"]);
+    expect(report.requiredAssets).toEqual(expect.arrayContaining(["hero.png", "gone.png"]));
     const missing = report.issues.find((issue) => issue.code === "missing-asset");
     expect(missing?.message).toContain("gone.png");
   });
@@ -321,6 +322,7 @@ describe("verifyGenerated", () => {
 
     const missing = verifyGenerated({ files, tickets: [], assetNames: [] });
     expect(missing.issues).toContainEqual(expect.objectContaining({ code: "missing-asset" }));
+    expect(missing.requiredAssets).toEqual(["한글-사진 (1)+100%.svg"]);
   });
 
   it("정적 import 경로에서 작은따옴표가 있는 자산 파일명을 보존한다", () => {

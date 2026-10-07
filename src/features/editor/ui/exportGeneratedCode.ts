@@ -28,6 +28,7 @@ import {
   type GeneratedFile,
   type VerifyReport,
 } from "@/features/editor/export/verifyGenerated";
+import type { Ticket } from "@/features/editor/ticket/types";
 import { createZip } from "@/features/editor/export/zip";
 import { compileTickets } from "@/features/editor/ticket/compileTickets";
 import {
@@ -69,14 +70,23 @@ export async function scanGeneratedCode(page: ScreenSpec): Promise<GeneratedScan
   };
 }
 
-/** 검증이 실제로 있다고 확인한 이미지만 가져온다. 못 읽으면 조용히 뺀다. */
-async function loadAssets(names: string[]): Promise<BundleAsset[]> {
+/** 최종 ZIP에 넣을 바이트를 읽고, 하나라도 실패하면 이름을 결과에 남긴다. */
+export async function loadBundleAssets(
+  names: string[],
+  readAsset: (path: string) => Promise<Uint8Array | null> = readWorkspaceBinaryFile,
+): Promise<{ assets: BundleAsset[]; missing: string[] }> {
   const assets: BundleAsset[] = [];
+  const missing: string[] = [];
   for (const name of names) {
-    const bytes = await readWorkspaceBinaryFile(`${ASSET_DIR}/${name}`);
-    if (bytes !== null) assets.push({ name, bytes });
+    try {
+      const bytes = await readAsset(`${ASSET_DIR}/${name}`);
+      if (bytes === null) missing.push(name);
+      else assets.push({ name, bytes });
+    } catch {
+      missing.push(name);
+    }
   }
-  return assets;
+  return { assets, missing };
 }
 
 function downloadBlob(filename: string, blob: Blob): void {
@@ -91,18 +101,39 @@ function downloadBlob(filename: string, blob: Blob): void {
 /**
  * 결과 폴더를 ZIP 하나로 내려받는다.
  *
- * **오류가 있어도 막지 않는다.** 스펙 JSON Export가 검증 실패 시 다운로드를 취소하는
- * 것과 다른데, 그쪽은 스키마를 어긴 파일이 나가면 다시 열 수조차 없기 때문이다.
- * 여기서 잡는 것은 "import가 한 군데 깨졌다" 같은 것이라 손으로 고치면 되고, 내려받지
- * 못하게 하면 고칠 파일을 꺼낼 방법이 없어진다. 대신 무엇이 문제인지는 패널과 함께
- * 담기는 README에 그대로 적는다.
+ * 코드 검증 오류는 기존처럼 README에 적어 Export를 허용한다. 다만 검사 후 실제 자산
+ * 바이트를 읽지 못하면 성공 ZIP을 만들지 않는다. 사용자가 명시적으로 부분 Export를
+ * 고른 경우에만 읽힌 자산으로 보고서를 다시 만들어 누락을 README에 기록한다.
  */
 export async function downloadGeneratedBundle(
   projectName: string,
   files: GeneratedFile[],
   report: VerifyReport,
-): Promise<void> {
-  const assets = await loadAssets(report.usedAssets);
-  const zip = createZip(buildBundleEntries({ projectName, files, assets, report }));
+  tickets: Ticket[],
+  allowPartial = false,
+): Promise<{ kind: "downloaded"; missing: string[] } | { kind: "missing-assets"; missing: string[] }> {
+  const requiredAssets = [...new Set([...report.requiredAssets, ...report.usedAssets])]
+    .sort((left, right) => left.localeCompare(right));
+  const { assets, missing } = await loadBundleAssets(requiredAssets);
+  if (missing.length > 0 && !allowPartial) return { kind: "missing-assets", missing };
+
+  // ZIP에 실제 들어갈 파일 집합으로 재검증한다. 부분 Export의 README에도 누락 자산
+  // 오류가 남아야 이후 사용자가 이미지가 없는 상태를 알아볼 수 있다.
+  const verifiedBundle = verifyGenerated({
+    files,
+    tickets,
+    assetNames: assets.map(({ name }) => name),
+  });
+  const bundleReport: VerifyReport = {
+    ...verifiedBundle,
+    issues: verifiedBundle.issues.map((issue) => issue.code === "missing-asset"
+      ? {
+          ...issue,
+          message: `ZIP에 포함되지 않은 이미지입니다: ${issue.message.split(": ").at(-1)}`,
+        }
+      : issue),
+  };
+  const zip = createZip(buildBundleEntries({ projectName, files, assets, report: bundleReport }));
   downloadBlob(bundleFileName(projectName), new Blob([zip], { type: "application/zip" }));
+  return { kind: "downloaded", missing };
 }

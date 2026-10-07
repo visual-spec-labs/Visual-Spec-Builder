@@ -31,11 +31,12 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [16-responsive-codegen-qa.md](docs/16-responsive-codegen-qa.md) | 이슈 #224 반응형 React 코드 매핑 fixture 검증 기록과 한계 |
 | [17-codegen-layout-qa.md](docs/17-codegen-layout-qa.md) | 이슈 #269 크기·줄바꿈 DOM 실측과 수동 fixture 검증 기록 |
 | [18-export-asset-bundler-qa.md](docs/18-export-asset-bundler-qa.md) | 이슈 #270 이미지 정적 import의 개발·production 브라우저 로딩 검증 |
+| [19-grid-codegen-qa.md](docs/19-grid-codegen-qa.md) | 이슈 #268 Grid 열·auto/fill·교차축 정렬의 Tailwind/브라우저 비교 |
 | [EDITOR_STORE_CONTRACT.md](docs/EDITOR_STORE_CONTRACT.md) | 캔버스·레이어 트리·세부설정 패널이 공유하는 스토어 계약 |
 | [DESIGN-TOKEN-RULES.md](docs/DESIGN-TOKEN-RULES.md) | 디자인 토큰 네이밍·구조·참조 규칙 |
 | [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
 | [open-questions.md](docs/open-questions.md) | 미확정 항목 |
-| [qa/](docs/qa/) | 개별 기능 QA 기록 ([탭 저장 충돌](docs/qa/tab-save-conflicts.md), [프로젝트 이름·파일명 변경](docs/qa/project-file-rename-qa.md)) |
+| [qa/](docs/qa/) | 개별 기능 QA 기록 ([탭 저장 충돌](docs/qa/tab-save-conflicts.md), [프로젝트 이름·파일명 변경](docs/qa/project-file-rename-qa.md), [Export 이미지 자산 정합성](docs/qa/export-asset-integrity.md)) |
 | [skills/](docs/skills/) | 배포 스킬 7종(`skills/`)의 사람용 설명 |
 
 설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 있다.
