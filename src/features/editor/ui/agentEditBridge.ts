@@ -141,7 +141,8 @@ export function startAgentEditBridge(): () => void {
     const run = resultChain.then(() => writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, tabId));
     resultChain = run.catch(() => undefined);
     const written = await run;
-    if (lastResult?.requestId === requestId && lastResult.status === status) lastResultUnsent = !written.ok;
+    // 지난 연결에서 보낸 쓰기가 늦게 끝났으면 이 연결의 표시를 건드리지 않는다(PR #303 셀프 리뷰).
+    if (epoch === epochAt && lastResult?.requestId === requestId && lastResult.status === status) lastResultUnsent = !written.ok;
     if (!written.ok && written.status === 409 && holder && epoch === epochAt) loseConnection();
     return written.ok;
   }

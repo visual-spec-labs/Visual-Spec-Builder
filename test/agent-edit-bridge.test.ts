@@ -503,6 +503,34 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(result()).toMatchObject({ requestId: "b", status: "applied" });
   });
 
+  it("지난 연결에서 보낸 결과 쓰기가 다시 연결한 뒤 실패해도, 그 옛 결과로 새 결과를 덮지 않는다", async () => {
+    await connect();
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    // A의 첫 결과 쓰기만 느린 네트워크에 걸려 3초 뒤 실패한다(그 뒤 쓰기는 정상)
+    let stalled = false;
+    writes.mockImplementation((path, body, type, rev, owner) => {
+      if (path === "runtime/agent-edit-result.json" && !stalled) {
+        stalled = true;
+        return new Promise((resolve) => { setTimeout(() => resolve({ ok: false, error: "fetch failed" }), 3000); });
+      }
+      return serverWrite(path, body, type, rev, owner);
+    });
+    sendEdit({ id: "a", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("A") });
+    await vi.advanceTimersByTimeAsync(710); // poll이 A를 적용하고 결과 쓰기가 걸려 있다
+    expect(title()).toBe("A");
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(10);
+    // 그 사이 다른 탭이 B를 처리했다
+    sendEdit({ id: "b", baseStateRevision: "other-tab", pageId: "page1", commands: retitle("B") });
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "b", status: "applied" }));
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(15_000); // 다시 연결 → A 쓰기가 실패로 끝남 → 연장 회차 여러 번
+    writes.mockImplementation(serverWrite);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(result()).toMatchObject({ requestId: "b", status: "applied" });
+  });
+
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
     const read = vi.mocked(readWorkspaceTextFile);
     const serverRead = read.getMockImplementation()!;
