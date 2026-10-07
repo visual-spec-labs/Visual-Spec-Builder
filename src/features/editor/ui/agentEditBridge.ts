@@ -123,8 +123,29 @@ export function startAgentEditBridge(): () => void {
     publishTimer = setTimeout(() => { void publish(); }, 200);
   };
 
+  /**
+   * 확인 대기 중인 편집을 무효로 한다 — 연결이 끊긴 탭의 확인창이 적용·취소되면 지금 연결된 탭과
+   * 공유 결과 파일이 엇갈린다(#279 리뷰). 아직 연결의 주인일 때만 결과를 거절로 남긴다. 소유권을
+   * 잃었으면 결과는 새 주인이 연결하며 정리한다(`claim`).
+   */
+  function dropConfirm(writeRejected: boolean) {
+    const notice = useAgentEditStore.getState().notice;
+    if (notice?.kind !== "confirm") return;
+    const message = "GUI 연결이 끊겨(홈 이동·다른 탭·새로고침) 확인을 기다리던 이 편집을 적용하지 않았습니다. gui-state.json을 다시 읽고 새 id로 요청하세요.";
+    useAgentEditStore.setState({ notice: { kind: "rejected", requestId: notice.requestId, message } });
+    if (writeRejected) void writeResult(notice.requestId, "rejected", message);
+  }
+
+  /** 잠금이 다른 탭으로 넘어갔다 — 이 탭은 더 이상 결과를 쓰지 않는다. */
+  function loseConnection() {
+    holder = false;
+    useAgentEditStore.setState({ connected: false });
+    dropConfirm(false);
+  }
+
   function disconnect() {
     if (!holder) return;
+    dropConfirm(true);
     holder = false;
     releaseRequestLock("gui", tabId); // 서버가 이 탭의 gui-state.json을 정리한다
     useAgentEditStore.setState({ connected: false });
@@ -144,12 +165,20 @@ export function startAgentEditBridge(): () => void {
         // 연결이 공개한 상태로 만든 것이 아니므로 적용하지 않되, 결과는 남긴다 — 숨기면 에이전트가
         // 30초 기다린 뒤 "GUI가 연결되지 않았다"고 잘못 안내한다(#279 리뷰). 복원을 **먼저** 끝내고
         // 연결로 바꾼다 — 그 사이 폴링이 같은 요청을 다시 처리하지 않게.
+        // 이전 결과가 "pending"(배경 변경 확인 대기)이면 끝난 요청이 아니다 — 그 확인창은 이전
+        // 연결과 함께 사라졌으므로 거절로 끝낸다. 처리 완료로 치면 결과가 영원히 pending에 머문다(#279 리뷰).
         const previous = await readWorkspaceTextFile(AGENT_EDIT_RESULT_PATH);
         let handled: string | null = null;
-        try { handled = previous ? (JSON.parse(previous) as { requestId?: string }).requestId ?? null : null; }
-        catch { handled = null; }
+        let unfinished: string | null = null;
+        try {
+          const body = previous ? JSON.parse(previous) as { requestId?: unknown; status?: unknown } : null;
+          const id = typeof body?.requestId === "string" ? body.requestId : null;
+          if (body?.status === "pending") unfinished = id;
+          else handled = id;
+        } catch { handled = null; }
         const pending = parseAgentEdit(await readWorkspaceTextFile(AGENT_EDIT_PATH));
-        const waiting = "id" in pending && pending.id !== handled ? pending.id : null;
+        // 요청 파일의 요청이 우선이다 — 결과 파일은 하나라 마지막에 쓴 결과만 남는다.
+        const waiting = "id" in pending && pending.id !== handled ? pending.id : unfinished;
         lastHandledId = waiting ?? handled;
         if (stopped || !onEditor()) { releaseRequestLock("gui", tabId); return; }
         holder = true;
@@ -160,8 +189,7 @@ export function startAgentEditBridge(): () => void {
             "GUI 연결이 새로 맺어져(새로고침·홈 이동·다른 탭) 이 요청을 적용하지 않았습니다. gui-state.json을 다시 읽고 새 id로 요청하세요.");
         }
       } else if (!nowHolder && holder) {
-        holder = false;
-        useAgentEditStore.setState({ connected: false });
+        loseConnection();
       } else if (holder) {
         if (!onEditor()) { disconnect(); return; }
         await publish();
@@ -208,8 +236,7 @@ export function startAgentEditBridge(): () => void {
     if (parsed.id === lastHandledId) return;
     // 처리 직전에 연결이 아직 이 탭인지 확인한다 — 연장이 늦어 잠금이 넘어갔다면 새 탭이 처리한다.
     if (await acquireRequestLock("gui", tabId, true) === "busy") {
-      holder = false;
-      useAgentEditStore.setState({ connected: false });
+      loseConnection();
       return;
     }
     lastHandledId = parsed.id;
@@ -267,24 +294,36 @@ export function startAgentEditBridge(): () => void {
   }
 
   useAgentEditStore.setState({
-    resolveConfirm: (accept) => {
-      const notice = useAgentEditStore.getState().notice;
-      if (notice?.kind !== "confirm") return;
-      if (!accept) {
-        const message = "사용자가 GUI에서 이 편집을 적용하지 않기로 했습니다.";
-        useAgentEditStore.setState({ notice: { kind: "rejected", requestId: notice.requestId, message } });
-        void writeResult(notice.requestId, "rejected", message);
-        return;
-      }
-      const reason = rejectReason(notice.baseStateRevision, notice.pageId);
-      if (reason !== null) {
-        useAgentEditStore.setState({ notice: { kind: "rejected", requestId: notice.requestId, message: reason } });
-        void writeResult(notice.requestId, "rejected", reason);
-        return;
-      }
-      apply(notice.requestId, notice.pageId, notice.commands, notice.message);
-    },
+    resolveConfirm: (accept) => { void resolveConfirm(accept); },
   });
+
+  let resolving = false;
+  async function resolveConfirm(accept: boolean) {
+    const notice = useAgentEditStore.getState().notice;
+    if (notice?.kind !== "confirm" || resolving) return;
+    if (!holder) { dropConfirm(false); return; }
+    // 확인을 기다리는 사이 잠금이 다른 탭으로 넘어갔을 수 있다(정지·연장 지연) — 쓰기 직전에 다시 본다.
+    resolving = true;
+    try {
+      if (await acquireRequestLock("gui", tabId, true) === "busy") { loseConnection(); return; }
+    } finally {
+      resolving = false;
+    }
+    if (stopped || !holder || useAgentEditStore.getState().notice !== notice) return;
+    if (!accept) {
+      const message = "사용자가 GUI에서 이 편집을 적용하지 않기로 했습니다.";
+      useAgentEditStore.setState({ notice: { kind: "rejected", requestId: notice.requestId, message } });
+      void writeResult(notice.requestId, "rejected", message);
+      return;
+    }
+    const reason = rejectReason(notice.baseStateRevision, notice.pageId);
+    if (reason !== null) {
+      useAgentEditStore.setState({ notice: { kind: "rejected", requestId: notice.requestId, message: reason } });
+      void writeResult(notice.requestId, "rejected", reason);
+      return;
+    }
+    apply(notice.requestId, notice.pageId, notice.commands, notice.message);
+  }
 
   const onPageHide = (event: PageTransitionEvent) => {
     if (!event.persisted && holder) releaseRequestLock("gui", tabId, true);

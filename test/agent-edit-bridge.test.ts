@@ -31,6 +31,7 @@ const title = () => (useEditorStore.getState().spec.pages.page1.nodes.headerTitl
 function sendEdit(edit: Record<string, unknown>) {
   files.set("runtime/agent-edit.json", JSON.stringify({ protocol: 1, ...edit }));
 }
+const background = (color: string) => [{ type: "updateNode", id: "root", path: "background", value: [{ type: "solid", color }] }];
 const retitle = (value: string) => [{ type: "updateNode", id: "headerTitle", path: "content", value }];
 
 let stop: (() => void) | undefined;
@@ -161,11 +162,13 @@ describe("에이전트 편집 적용 (#279)", () => {
     expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "confirm", requestId: "bg1" });
     expect(result()).toMatchObject({ requestId: "bg1", status: "pending" });
     useAgentEditStore.getState().resolveConfirm(true);
+    await vi.advanceTimersByTimeAsync(0); // 적용 직전 연결 소유권을 다시 확인한다
     expect(result()).toMatchObject({ requestId: "bg1", status: "applied" });
 
     sendEdit({ id: "bg2", baseStateRevision: currentRevision(), pageId: "page1", commands: [{ type: "updateNode", id: "root", path: "background", value: [{ type: "solid", color: "#FFFFFF" }] }] });
     await vi.advanceTimersByTimeAsync(1100);
     useAgentEditStore.getState().resolveConfirm(false);
+    await vi.advanceTimersByTimeAsync(0);
     expect(result()).toMatchObject({ requestId: "bg2", status: "rejected" });
   });
 
@@ -233,6 +236,66 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     await vi.advanceTimersByTimeAsync(1100);
     expect(title()).not.toBe("넘어간 뒤");
     expect(useAgentEditStore.getState().connected).toBe(false);
+  });
+
+  it("확인 대기 중 연결이 다른 탭으로 넘어가면 확인창을 무효로 하고, 적용·취소해도 공유 결과를 덮지 않는다", async () => {
+    for (const accept of [true, false]) {
+      vi.mocked(acquireRequestLock).mockResolvedValue("acquired");
+      files.clear();
+      useAgentEditStore.setState({ notice: null });
+      await connect();
+      const before = useEditorStore.getState().spec;
+      sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "confirm" });
+      // 정지·연장 지연으로 잠금이 B 탭에 넘어갔다. B가 결과를 쓴다
+      vi.mocked(acquireRequestLock).mockResolvedValue("busy");
+      files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "bg", status: "rejected", message: "B" }));
+
+      useAgentEditStore.getState().resolveConfirm(accept); // 다음 연장 전에 누른다 — 직전 확인이 잡는다
+      await vi.advanceTimersByTimeAsync(0);
+      expect(useEditorStore.getState().spec).toBe(before);
+      expect(result()).toMatchObject({ status: "rejected", message: "B" });
+      expect(useAgentEditStore.getState().connected).toBe(false);
+      expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "rejected", requestId: "bg" });
+      stop?.(); stop = undefined;
+    }
+  });
+
+  it("연장에서 연결을 잃으면 그 즉시 확인창을 무효로 한다", async () => {
+    await connect();
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    vi.mocked(acquireRequestLock).mockResolvedValue("busy");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "rejected", requestId: "bg" });
+  });
+
+  it("확인 대기 중 홈으로 가 연결을 풀면 확인창을 무효로 하고 결과를 거절로 남긴다", async () => {
+    await connect();
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
+    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "rejected", requestId: "bg" });
+  });
+
+  it("확인 대기(pending)로 남은 요청은 새 연결이 거절로 끝낸다 — 새로고침하면 확인창이 사라지기 때문이다", async () => {
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "bg", status: "pending" }));
+    sendEdit({ id: "bg", baseStateRevision: "old-tab", pageId: "page1", commands: background("#000000") });
+    await connect();
+    expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(result()).toMatchObject({ requestId: "bg", status: "rejected" }); // 다시 처리하지 않는다
+
+    // 요청 파일이 이미 지워졌어도 pending 결과는 끝낸다
+    stop?.(); stop = undefined;
+    files.clear();
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "bg2", status: "pending" }));
+    await connect();
+    expect(result()).toMatchObject({ requestId: "bg2", status: "rejected" });
   });
 
   it("상태 버전에 탭 id가 들어가 같은 문서·내용이어도 다른 연결과 값이 다르다", () => {
