@@ -9,10 +9,10 @@
 
 | 순위 | 후속 작업 | 근거 |
 |---|---|---|
-| **1** | **GUI를 React production 빌드로 실행한다** (`visual-spec` CLI가 개발 서버를 띄우는 방식 개선) | 사용자는 GUI를 Vite 개발 서버로 쓴다(02). 그래서 **React 개발 모드**로 돈다. 노드 1000개 문서에서 편집·Undo 한 번에 JS 작업이 약 **174~180ms**(개발) 대 **23~25ms**(production)다. CPU 프로파일 자기 시간 상위 15개 중 개발 모드 전용 항목(`addObjectDiffToProperties` 27%, 개발용 `ReactElement`·`jsxDEV`·`validateProperty`·`warnUnknownProperties` 등)만 합쳐 **38%**다. 열기는 1.9~3.7배, 홈 진입은 1.4~2.2배 차이 난다 |
+| **1** | **GUI를 React production 빌드로 실행한다** (`visual-spec` CLI가 개발 서버를 띄우는 방식 개선) | 사용자는 GUI를 Vite 개발 서버로 쓴다(02). 그래서 **React 개발 모드**로 돈다. 노드 1000개 문서에서 편집·Undo 한 번에 JS 작업이 약 **174~180ms**(개발) 대 **23~25ms**(production)다. CPU 프로파일에서 개발 모드 전용 항목(`addObjectDiffToProperties` 27%, 개발용 `ReactElement`·`jsxDEV`·`validateProperty`·`warnUnknownProperties` 등 — 상위 15개 안의 것만)이 샘플 전체 시간(idle 포함)의 **38%**다(idle을 빼면 43%). 열기는 1.9~3.7배, 홈 진입은 1.4~2.2배 차이 난다 |
 | **2** | **홈 카드 미리보기를 가볍게 한다** (보이는 카드만 그리기, 노드 수 상한·축소 표현, 또는 썸네일 캐시) | 프로젝트 100 × 노드 1000에서 홈 첫 진입 **2.0초**(개발)·**1.1초**(production), DOM **17만 개**, 힙 **97~148MB**다. 프로파일상 인라인 스타일 적용(`setValueForStyle`) 26%와 네이티브 시간(`(program)` — 스타일·레이아웃 계산으로 보인다) 32%가 대부분이다. JSON 파싱·스키마 검증은 상위 항목 기준 약 12%다. production 모드로도 남는 병목이다 |
 | 3 | 홈 목록 지연 읽기(보이는 프로젝트만 읽고 파싱) | 2의 나머지 약 12%(파싱·검증)를 줄인다. 2를 먼저 하면 효과를 다시 재서 정한다 |
-| 4 | 편집 시 캔버스 전체 재렌더 줄이기(노드 단위 memo) | production 모드에서도 노드 1000개 편집은 JS 작업만 23~25ms로 **한 프레임(16.7ms)을 넘는다** — 편집마다 프레임 하나가 빠진다. 연속 편집(드래그·타이핑)에서 체감될 수 있어 1 다음으로 본다 |
+| 4 | 편집 시 캔버스 전체 재렌더 줄이기(노드 단위 memo) | production 모드에서도 노드 1000개 편집은 JS 작업만 23~25ms로 **한 프레임 예산(16.7ms)을 넘는다**. 다만 이번 측정의 화면 반영(두 프레임 뒤)은 노드 100개와 같은 33ms 하한이라 지연은 보이지 않았다. 연속 편집(드래그·타이핑)에서 프레임이 밀리는지는 실제 입력 경로로 다시 재서 정한다 |
 | 5 | 코드 분할(번들 548kB 경고) | 지금 사용자는 개발 서버로 GUI를 써서 이 번들을 받지 않는다. **1이 production 빌드를 쓰는 방식으로 정해지면 이 판단은 바뀐다** — 그때 다시 잰다 |
 | — | 큰 이미지 | 11.5MB PNG는 Export ZIP 만들기를 약 6ms → 140ms로 늘린다. 홈·열기·편집 **측정값**에는 차이가 없지만, 이미지는 CSS 배경으로 비동기 로드돼 **다운로드·디코딩·그리기는 이번 측정 범위 밖**이다. 이미지 표시까지의 시간과 비트맵 메모리는 재지 않았으므로 판단을 보류한다(후속 6) |
 | 6 | 이미지 표시 시간·메모리 측정 | 위 큰 이미지 판단을 위한 추가 측정. 측정 스크립트에 이미지 디코딩 완료 대기와 GPU/비트맵 메모리 항목을 더한다 |
@@ -74,7 +74,7 @@
 
 ## 병목 근거 (CPU 프로파일)
 
-`node scripts/perf/measure.mjs --reps 1 --scenario <S> --profile [--node-env production]` — 측정 반복과 **분리된 별도 반복**에서 홈 진입과 편집·Undo 10회 구간을 100µs 간격으로 샘플링해 **자기 시간** 상위 15개를 뽑았다(프로파일러가 켜져 있어 시간 값은 위 표와 다르다). 전체 목록은 [프로파일 원자료](qa/2026-10-07-perf-293-profile.json)에 있다. `(program)`은 V8이 JS 함수로 나누지 못한 네이티브 시간이고, 스타일·레이아웃 계산이 큰 몫으로 보이지만 이 프로파일만으로는 더 나누지 않았다.
+`node scripts/perf/measure.mjs --reps 1 --scenario <S> --profile [--node-env production]` — 측정 반복과 **분리된 별도 반복**에서 홈 진입과 편집·Undo 10회 구간을 100µs 간격으로 샘플링해 **자기 시간** 상위 15개를 뽑았다(프로파일러가 켜져 있어 시간 값은 위 표와 다르다). **비율의 분모는 샘플 전체 시간이고 `(idle)`이 포함된다.** 전체 목록은 [프로파일 원자료](qa/2026-10-07-perf-293-profile.json)에 있다. `(program)`은 V8이 JS 함수로 나누지 못한 네이티브 시간이고, 스타일·레이아웃 계산이 큰 몫으로 보이지만 이 프로파일만으로는 더 나누지 않았다.
 
 **S3 편집·Undo 10회, 개발 모드** — 상위 항목
 
@@ -87,7 +87,7 @@
 | 94ms | 2.4% | `jsxDEV` (개발 모드) |
 | 53ms·52ms·50ms | 1.3%·1.3%·1.3% | `validateProperty`·`warnUnknownProperties`·`runWithFiberInDEV` (개발 모드) |
 
-개발 모드 전용 항목(`addObjectDiffToProperties`, 개발용 `ReactElement`, `jsxDEV`, `validateProperty`, `warnUnknownProperties`, `runWithFiberInDEV`)만 합치면 **38.1%**다. 같은 구간을 production으로 돌리면 이 항목들이 사라진다. 남는 것은 `useStore`(zustand 구독) 4.6%, DOM 갱신(`updateProperties`·`commitHostUpdate`·`setProp`) 10.6% 등이다. 편집 한 번마다 캔버스·레이어 트리가 크게 다시 그려지는 비용이고, 자동 저장 복구 사본 쓰기(`writeRecovery`·`setItem`)는 2.9%다.
+개발 모드 전용 항목(`addObjectDiffToProperties`, 개발용 `ReactElement`, `jsxDEV`, `validateProperty`, `warnUnknownProperties`, `runWithFiberInDEV`)만 합치면 샘플 전체의 **38.1%**(idle 11.4%를 빼면 43%)다. 같은 구간을 production으로 돌리면 이 항목들이 사라진다. 남는 것은 `useStore`(zustand 구독) 4.6%, DOM 갱신(`updateProperties`·`commitHostUpdate`·`setProp`) 10.6% 등이다. 편집 한 번마다 캔버스·레이어 트리가 크게 다시 그려지는 비용이고, 자동 저장 복구 사본 쓰기(`writeRecovery`·`setItem`)는 2.9%다.
 
 **S4 홈 첫 진입, production** — 상위 항목
 

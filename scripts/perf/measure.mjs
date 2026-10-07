@@ -109,9 +109,9 @@ async function connectCdp(wsUrl) {
       if (message.error) fail(new Error(`${message.error.message} ${message.error.data ?? ""}`)); else done(message.result);
     }
   };
-  const send = (method, params = {}, sessionId) => new Promise((done, fail) => {
+  const send = (method, params = {}, sessionId, timeoutMs = CDP_TIMEOUT_MS) => new Promise((done, fail) => {
     const id = nextId++;
-    const timer = setTimeout(() => { pending.delete(id); fail(new Error(`DevTools 응답 시간 초과: ${method}`)); }, CDP_TIMEOUT_MS);
+    const timer = setTimeout(() => { pending.delete(id); fail(new Error(`DevTools 응답 시간 초과: ${method}`)); }, timeoutMs);
     pending.set(id, { done: (value) => { clearTimeout(timer); done(value); }, fail: (error) => { clearTimeout(timer); fail(error); } });
     if (socket.readyState !== WebSocket.OPEN) { pending.get(id).fail(new Error("DevTools 연결이 닫혀 있습니다")); pending.delete(id); return; }
     socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
@@ -119,8 +119,8 @@ async function connectCdp(wsUrl) {
   return { send, close: () => socket.close() };
 }
 
-async function evaluate(cdp, sessionId, expression) {
-  const result = await cdp.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId);
+async function evaluate(cdp, sessionId, expression, timeoutMs) {
+  const result = await cdp.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId, timeoutMs);
   if (result.exceptionDetails) throw new Error(`페이지 오류: ${result.exceptionDetails.exception?.description ?? result.exceptionDetails.text}`);
   return result.result.value;
 }
@@ -269,7 +269,10 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
       const until = Date.now() + 120_000;
       while (homeMs === null) {
         homeMs = await evaluate(cdp, sessionId,
-          `document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects} ? performance.now() : null`).catch(() => null);
+          `document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects} ? performance.now() : null`,
+          Math.max(1000, until - Date.now()))
+          // 페이지를 바꾸는 중의 평가 실패(실행 컨텍스트 교체 등)만 넘긴다. 연결 끊김·시간 초과는 그대로 실패시킨다.
+          .catch((error) => { if (error.message.startsWith("DevTools")) throw error; return null; });
         if (homeMs === null) { if (Date.now() > until) throw new Error("홈 시간 초과"); await sleep(10); }
       }
       if (rep === profileRep) {
@@ -327,6 +330,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
 
 const versions = { browser: null };
 const args = parseArgs(process.argv.slice(2));
+if (!Number.isInteger(args.reps) || args.reps < 1) throw new Error("--reps는 1 이상의 정수여야 합니다.");
 const chrome = findChrome(args.chrome);
 const out = [];
 for (const key of args.scenarios) {
