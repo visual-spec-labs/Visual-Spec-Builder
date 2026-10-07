@@ -33,7 +33,7 @@ export const AGENT_EDIT_RESULT_PATH = `${RUNTIME_DIR}/agent-edit-result.json`;
 /** GUI가 공개하는 현재 상태. 에이전트는 이걸 읽고 Command를 만든다. */
 export interface GuiState {
   protocol: number;
-  /** 이 상태를 공개한 GUI 탭. 탭을 닫으면 작업공간 잠금 해제와 함께 이 파일이 지워진다. */
+  /** 이 상태를 공개한 GUI 연결(탭 id + 연결 순번 — 다시 연결하면 바뀐다). 연결을 풀면 잠금 해제와 함께 이 파일이 지워진다. */
   id: string;
   /**
    * 지금 문서·페이지·내용을 가리키는 값. 에이전트는 편집 요청에 그대로 돌려준다
@@ -160,8 +160,16 @@ export interface AgentEditResult {
   message: string;
   /** 적용 뒤(또는 거절 시점) GUI 상태 버전. 이어서 요청하려면 gui-state.json을 다시 읽는다. */
   stateRevision: string | null;
+  /**
+   * 이 요청이 적용됐는지 GUI가 확인할 수 없다(연결이 새로 맺어져 이전 연결의 처리 여부를 모름).
+   * `rejected`와 함께만 온다. 에이전트는 다시 보내기 전에 gui-state.json에 원하는 변경이 이미
+   * 반영됐는지 확인한다 — 그대로 다시 보내면 두 번 적용될 수 있다(PR #303 리뷰).
+   */
+  uncertain?: true;
 }
 
-export function buildAgentEditResult(requestId: string, status: AgentEditStatus, message: string, stateRevision: string | null): AgentEditResult {
-  return { protocol: AGENT_EDIT_PROTOCOL_VERSION, requestId, status, message, stateRevision };
+export function buildAgentEditResult(
+  requestId: string, status: AgentEditStatus, message: string, stateRevision: string | null, uncertain = false,
+): AgentEditResult {
+  return { protocol: AGENT_EDIT_PROTOCOL_VERSION, requestId, status, message, stateRevision, ...(uncertain ? { uncertain: true as const } : {}) };
 }

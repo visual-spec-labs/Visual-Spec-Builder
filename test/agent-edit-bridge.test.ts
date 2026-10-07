@@ -205,13 +205,14 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(releaseRequestLock).toHaveBeenCalledWith("gui", tabId);
   });
 
-  it("연결 전부터 있던 요청은 적용하지 않되, 다시 요청하라는 결과를 남긴다", async () => {
+  it("연결 전부터 있던 요청은 적용하지 않고, 이전 연결이 적용했는지 모른다고 정직하게 알린다", async () => {
     sendEdit({ id: "before-connect", baseStateRevision: "anything", pageId: "page1", commands: retitle("옛 요청") });
     await connect();
     await vi.advanceTimersByTimeAsync(2000);
     expect(title()).not.toBe("옛 요청");
-    expect(result()).toMatchObject({ requestId: "before-connect", status: "rejected" });
-    expect(result().message).toContain("gui-state.json을 다시 읽고");
+    // "적용하지 않았다"고 단정하지 않는다 — 다른 탭·새로고침 전 연결이 이미 적용했을 수 있다
+    expect(result()).toMatchObject({ requestId: "before-connect", status: "rejected", uncertain: true });
+    expect(result().message).toContain("이미 반영됐는지 먼저 확인");
   });
 
   it("연결 확인이 진행되는 도중 홈으로 가도 곧바로 연결을 푼다", async () => {
@@ -529,6 +530,57 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     writes.mockImplementation(serverWrite);
     expect(useAgentEditStore.getState().connected).toBe(true);
     expect(result()).toMatchObject({ requestId: "b", status: "applied" });
+  });
+
+  it("A→B→A로 다시 연결해도 지난 연결에서 늦게 도착한 결과 쓰기는 B의 결과를 덮지 못한다 — 연결마다 주인 id가 다르다", async () => {
+    // 서버의 잠금·결과 쓰기 소유권(쓰는 순간 대조)을 흉내 낸다
+    let lockOwner: string | null = null;
+    vi.mocked(acquireRequestLock).mockImplementation(async (_kind, who, renew) => {
+      if (renew) return lockOwner === who ? "acquired" : "busy";
+      if (lockOwner !== null && lockOwner !== who) return "busy";
+      lockOwner = who;
+      return "acquired";
+    });
+    vi.mocked(releaseRequestLock).mockImplementation(async (_kind, who) => { if (lockOwner === who) lockOwner = null; });
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    let landLate!: () => void;
+    writes.mockImplementation((path, body, type, rev, who) => {
+      const land = () => (path === "runtime/agent-edit-result.json" && who !== lockOwner
+        ? { ok: false as const, error: "잠금 거부", status: 409 }
+        : serverWrite(path, body, type, rev, who));
+      // A의 결과 쓰기는 본문이 늦게 도착한다
+      if (path === "runtime/agent-edit-result.json" && typeof body === "string" && body.includes('"old-a"')) {
+        return new Promise((resolve) => { landLate = () => resolve(land()); });
+      }
+      return Promise.resolve(land());
+    });
+
+    await connect();
+    const firstOwner = state().id;
+    sendEdit({ id: "old-a", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("A") });
+    await vi.advanceTimersByTimeAsync(1100); // A 적용, 결과 쓰기는 오가는 중
+    useNavigationStore.getState().openHome(); // A가 연결을 푼다
+    await vi.advanceTimersByTimeAsync(10);
+    expect(lockOwner).toBeNull();
+    // B가 연결해 new-b를 처리하고 푼다
+    lockOwner = "tab-b";
+    sendEdit({ id: "new-b", baseStateRevision: "b", pageId: "page1", commands: retitle("B") });
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "new-b", status: "applied" }));
+    lockOwner = null;
+    useNavigationStore.getState().openEditor(); // A가 다시 연결한다 — 새 주인 id로
+    await vi.advanceTimersByTimeAsync(300);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(lockOwner).not.toBe(firstOwner);
+    expect(result()).toMatchObject({ requestId: "new-b", status: "applied" });
+    // 지난 연결의 쓰기가 아직 응답이 없어도 새 연결의 결과는 막히지 않는다
+    sendEdit({ id: "c", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("C") });
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(result()).toMatchObject({ requestId: "c", status: "applied" });
+    landLate(); // 지난 연결의 쓰기가 이제 도착한다 — 지난 주인 id라 거부된다
+    await vi.advanceTimersByTimeAsync(11_000);
+    writes.mockImplementation(serverWrite);
+    expect(result()).toMatchObject({ requestId: "c", status: "applied" });
   });
 
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {

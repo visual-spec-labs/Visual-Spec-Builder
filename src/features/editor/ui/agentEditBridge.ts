@@ -86,9 +86,22 @@ export function currentStateRevision(tabId: string): string {
   });
 }
 
+/** 이 연결이 처리 여부를 알 수 없는 요청의 결과 문구. 결과에는 `uncertain: true`가 함께 실린다. */
+export const UNCERTAIN_MESSAGE =
+  "GUI 연결이 새로 맺어져(새로고침·홈 이동·다른 탭) 이 요청이 이전 연결에서 적용됐는지 확인할 수 없습니다. "
+  + "적용됐을 수 있으니 gui-state.json을 다시 읽어 원하는 변경이 이미 반영됐는지 먼저 확인하고, 반영되지 않았을 때만 새 id로 다시 요청하세요.";
+
 export function startAgentEditBridge(): () => void {
   const tabId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID() : `gui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  /**
+   * 지금 연결의 잠금 주인 id(fencing 토큰). 연결을 새로 맺을 때마다 바꾼다 — 탭 id를 그대로 쓰면
+   * A→B→A로 다시 연결했을 때 지난 연결에서 늦게 도착한 결과 쓰기를 서버가 "주인"으로 받아들여
+   * 그 사이 B가 쓴 결과를 덮는다(PR #303 리뷰). 서버는 쓰는 순간 잠금 주인과 이 값을 대조한다.
+   * 상태 버전(stateRevision)에도 들어가 지난 연결에서 읽은 상태로 만든 요청은 맞지 않는다.
+   */
+  let connectionSeq = 0;
+  let owner = `${tabId}:${connectionSeq}`;
   let stopped = false;
   let holder = false;
   /**
@@ -134,11 +147,16 @@ export function startAgentEditBridge(): () => void {
    * 요청의 결과를 다시 쓰는 일은 `lastResult`로 따로 한다.
    */
   let lastResultUnsent = false;
-  async function writeResult(requestId: string, status: AgentEditStatus, message: string): Promise<boolean> {
+  async function writeResult(requestId: string, status: AgentEditStatus, message: string, uncertain = false): Promise<boolean> {
     lastResult = { requestId, status, message };
     const epochAt = epoch;
-    const body = JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision(tabId)), null, 2);
-    const run = resultChain.then(() => writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, tabId));
+    const writeOwner = owner;
+    const body = JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision(writeOwner), uncertain), null, 2);
+    // 줄에서 기다리는 사이 다음 연결이 시작됐으면 지난 연결의 쓰기는 시작하지 않는다. 시작했더라도
+    // 서버가 지난 주인 id를 거부한다.
+    const run = resultChain.then(() => writeOwner === owner
+      ? writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, writeOwner)
+      : { ok: false as const, error: "지난 연결의 결과 쓰기" });
     resultChain = run.catch(() => undefined);
     const written = await run;
     // 지난 연결에서 보낸 쓰기가 늦게 끝났으면 이 연결의 표시를 건드리지 않는다(PR #303 셀프 리뷰).
@@ -149,10 +167,10 @@ export function startAgentEditBridge(): () => void {
 
   async function publish(force = false) {
     if (stopped || !holder) return;
-    const state = currentState(tabId);
+    const state = currentState(owner);
     const comparable = JSON.stringify({ ...state, updatedAt: "" });
     if (!force && comparable === lastPublished && Date.now() - lastPublishedAt < GUI_STATE_HEARTBEAT_MS) return;
-    const written = await writeWorkspaceFile(GUI_STATE_PATH, JSON.stringify(state, null, 2), "application/json", undefined, tabId);
+    const written = await writeWorkspaceFile(GUI_STATE_PATH, JSON.stringify(state, null, 2), "application/json", undefined, owner);
     if (written.ok) {
       lastPublished = comparable;
       lastPublishedAt = Date.now();
@@ -201,13 +219,14 @@ export function startAgentEditBridge(): () => void {
    */
   function releaseLock(before?: () => Promise<void>): Promise<void> {
     epoch += 1;
+    const releaseOwner = owner;
     const previous = releasing;
     const run = (async () => {
       if (previous !== null) await previous;
       try { await before?.(); } finally {
         lockMaybeHeld = false;
-        await releaseRequestLock("gui", tabId);
-      } // 서버가 이 탭의 gui-state.json을 정리한다
+        await releaseRequestLock("gui", releaseOwner);
+      } // 서버가 이 연결의 gui-state.json을 정리한다
     })();
     releasing = run;
     void run.finally(() => { if (releasing === run) releasing = null; });
@@ -233,8 +252,10 @@ export function startAgentEditBridge(): () => void {
       // 방금 푼 연결의 해제가 끝나기 전에 다시 잡으면, 늦게 도착한 해제가 새로 잡은 잠금을 푼다.
       if (releasing !== null) await releasing;
       if (stopped || !onEditor()) return;
+      // 새로 잡을 때는 새 주인 id로 — 지난 연결의 늦은 쓰기를 서버가 거부하게 한다.
+      if (!holder) { connectionSeq += 1; owner = `${tabId}:${connectionSeq}`; }
       const epochBefore = epoch;
-      const outcome = await acquireRequestLock("gui", tabId, holder);
+      const outcome = await acquireRequestLock("gui", owner, holder);
       // 잡는 요청이 오가는 사이 연결을 풀었다(홈 이동) — 해제가 아직 오가든 이미 끝났든 이 응답은
       // 지난 연결의 것이다. 다음 회차가 해제를 기다린 뒤 다시 잡는다(PR #303 리뷰).
       if (epoch !== epochBefore) return;
@@ -259,22 +280,31 @@ export function startAgentEditBridge(): () => void {
         const pending = parseAgentEdit(await readWorkspaceTextFile(AGENT_EDIT_PATH));
         // 요청 파일의 요청이 우선이다 — 결과 파일은 하나라 마지막에 쓴 결과만 남는다.
         let waiting = "id" in pending && pending.id !== handled ? pending.id : unfinished;
-        // 이 탭이 이미 처리하고 결과만 못 알린 요청이면 거절 대신 그 결과를 다시 쓴다. 확인 대기였다면
-        // 확인창은 연결과 함께 사라졌으므로 거절이 맞다.
-        const own = lastResult !== null && lastResult.requestId === waiting && lastResult.status !== "pending" ? lastResult : null;
+        // 이 탭이 이미 처리하고 결과만 못 알린 요청이면 거절 대신 그 결과를 다시 쓴다. 이 탭에서 확인을
+        // 기다리던 요청이면 확인창이 연결과 함께 사라졌고 적용하지 않은 게 확실하다(적용했다면 마지막
+        // 결과가 applied다). 그 밖의 요청은 이전 연결(다른 탭·새로고침 전)이 적용했는지 이 연결은 알 수
+        // 없다 — "적용하지 않았다"고 단정하면 에이전트가 다시 보내 두 번 적용된다(PR #303 리뷰).
+        const mine = lastResult !== null && lastResult.requestId === waiting ? lastResult : null;
+        const own = mine !== null && mine.status !== "pending" ? mine : null;
+        const ownPending = mine !== null && mine.status === "pending";
         if (own !== null) waiting = null;
         lastHandledId = own?.requestId ?? waiting ?? handled;
         if (stopped || !onEditor()) { void releaseLock(); return; } // 복원을 읽는 사이 홈으로 갔다
         epoch += 1;
         lastResultUnsent = false;
+        // 지난 연결의 쓰기를 기다리지 않는다 — 응답 없는 요청 하나가 새 연결의 결과를 묶지 않게.
+        // 지난 연결의 쓰기는 주인 id가 달라 서버가 거부하므로 순서가 섞여도 새 결과를 덮지 못한다.
+        resultChain = Promise.resolve();
         holder = true;
         useAgentEditStore.setState({ connected: true });
         await publish(true);
         if (own !== null) {
           await writeResult(own.requestId, own.status, own.message);
-        } else if (waiting !== null) {
+        } else if (waiting !== null && ownPending) {
           await writeResult(waiting, "rejected",
-            "GUI 연결이 새로 맺어져(새로고침·홈 이동·다른 탭) 이 요청을 적용하지 않았습니다. gui-state.json을 다시 읽고 새 id로 요청하세요.");
+            "GUI 연결이 새로 맺어져(홈 이동 등) 확인을 기다리던 이 편집은 적용되지 않았습니다. gui-state.json을 다시 읽고 새 id로 요청하세요.");
+        } else if (waiting !== null) {
+          await writeResult(waiting, "rejected", UNCERTAIN_MESSAGE, true);
         }
       } else if (!nowHolder && holder) {
         loseConnection();
@@ -314,7 +344,7 @@ export function startAgentEditBridge(): () => void {
     if (useSaveConflictStore.getState().paused) {
       return "GUI에 저장 충돌 대화상자가 열려 있습니다. 사용자가 먼저 해결한 뒤 다시 요청하세요.";
     }
-    if (baseStateRevision !== currentStateRevision(tabId)) {
+    if (baseStateRevision !== currentStateRevision(owner)) {
       return "요청을 만든 뒤 GUI 상태가 바뀌었습니다(편집·문서 또는 페이지 전환). gui-state.json을 다시 읽고 요청하세요.";
     }
     if (pageId !== useEditorStore.getState().activePageId) {
@@ -329,7 +359,7 @@ export function startAgentEditBridge(): () => void {
     if (parsed.id === lastHandledId || !holder) return;
     // 처리 직전에 연결이 아직 이 탭인지 확인한다 — 연장이 늦어 잠금이 넘어갔다면 새 탭이 처리한다.
     const epochBefore = epoch;
-    const outcome = await acquireRequestLock("gui", tabId, true);
+    const outcome = await acquireRequestLock("gui", owner, true);
     // 확인을 기다리는 사이 연결이 바뀌었다(주기 연장이 잃음을 먼저 확인, 홈 이동) — 이 응답이
     // 성공이어도 지난 연결의 것이다. 적용하지 않는다(PR #303 리뷰).
     if (stopped || epoch !== epochBefore || !holder) return;
@@ -405,7 +435,7 @@ export function startAgentEditBridge(): () => void {
     const epochBefore = epoch;
     let outcome;
     try {
-      outcome = await acquireRequestLock("gui", tabId, true);
+      outcome = await acquireRequestLock("gui", owner, true);
     } finally {
       resolving = false;
     }
@@ -427,7 +457,7 @@ export function startAgentEditBridge(): () => void {
   }
 
   const onPageHide = (event: PageTransitionEvent) => {
-    if (!event.persisted && (holder || lockMaybeHeld)) void releaseRequestLock("gui", tabId, true);
+    if (!event.persisted && (holder || lockMaybeHeld)) void releaseRequestLock("gui", owner, true);
   };
   const unsubscribeEditor = useEditorStore.subscribe((s, prev) => {
     if (s.spec !== prev.spec || s.activePageId !== prev.activePageId || s.selectedId !== prev.selectedId) schedulePublish();
