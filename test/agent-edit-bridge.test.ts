@@ -847,6 +847,15 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(server.owner()).toBeNull();
   });
 
+  it("첫 연결을 기다리는 사이 정리되면 주기 타이머를 만들지 않는다", async () => {
+    vi.mocked(acquireRequestLock).mockImplementationOnce(() => new Promise((resolve) => { setTimeout(() => resolve("busy"), 100); }));
+    const bridgeStop = startAgentEditBridge();
+    await vi.advanceTimersByTimeAsync(10);
+    bridgeStop();
+    await vi.advanceTimersByTimeAsync(200); // 첫 잡기가 끝난다
+    expect(vi.getTimerCount()).toBe(0); // 주기 타이머가 남지 않았다
+  });
+
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
     const read = vi.mocked(readWorkspaceTextFileStrict);
     const serverRead = read.getMockImplementation()!;

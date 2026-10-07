@@ -87,7 +87,6 @@ export function currentStateRevision(tabId: string): string {
   });
 }
 
-/** 이 연결이 처리 여부를 알 수 없는 요청의 결과 문구. 결과에는 `uncertain: true`가 함께 실린다. */
 /** 연결을 풀 때 확인창 거절 결과 쓰기를 기다리는 최대 시간. 그 뒤엔 기다리지 않고 잠금을 푼다. */
 export const RELEASE_WRITE_WAIT_MS = 3000;
 /**
@@ -123,6 +122,7 @@ async function checkLock(owner: string): Promise<"acquired" | "busy" | "unavaila
   return outcome === "acquired" && Date.now() - sentAt > LOCK_CHECK_FRESH_MS ? "unavailable" : outcome;
 }
 
+/** 이 연결이 처리 여부를 알 수 없는 요청의 결과 문구. 결과에는 `uncertain: true`가 함께 실린다. */
 export const UNCERTAIN_MESSAGE =
   "GUI 연결이 새로 맺어져(새로고침·홈 이동·다른 탭) 이 요청이 이전 연결에서 적용됐는지 확인할 수 없습니다. "
   + "적용됐을 수 있으니 gui-state.json을 다시 읽어 원하는 변경이 이미 반영됐는지 먼저 확인하고, 반영되지 않았을 때만 새 id로 다시 요청하세요.";
@@ -564,6 +564,7 @@ export function startAgentEditBridge(): () => void {
     if (!await isWorkspaceAvailable() || stopped) return;
     if (typeof window !== "undefined") window.addEventListener("pagehide", onPageHide);
     await claim();
+    if (stopped) return; // 첫 연결을 기다리는 사이 정리됐다 — 타이머(Worker)를 새로 만들지 않는다
     tickers.push(startTicker(AGENT_CLAIM_MS, () => { void claim(); }));
     tickers.push(startTicker(AGENT_EDIT_POLL_MS, () => { void poll(); }));
   })();
