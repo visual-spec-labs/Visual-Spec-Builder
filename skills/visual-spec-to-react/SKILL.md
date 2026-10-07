@@ -429,17 +429,34 @@ shadow-[0_0_0_2px_#6366F1,0px_8px_24px_-4px_#0F172A26]
 `ImageNode`는 `background`·`border`·`children`이 없는 leaf 노드다 — `text`와 같은 성격으로
 다룬다(부모의 `layout.direction` 기준으로 `box`의 주축/교차축을 판단).
 
-`src`는 그대로 쓰지 않는다. 생성 파일(`pages/` 또는 `components/`, 둘 다
-`.visual-spec/generated/` 바로 아래)에서 워크스페이스 assets까지의 상대 경로로 바꾼다.
-`../assets/<파일명>` 형태로 쓴다 — `export/bundle.ts`(#157)가 내보낸 ZIP 안에서
-`pages/`·`components/` 옆에 `assets/`를 나란히 두므로, **결과물 기준으로는** 이 표기가
-그대로 맞는 경로다. 작업공간 안(`.visual-spec/generated/pages/…`)에서는 실제로 두 단계
-(`../../assets/`)지만, `export/importScan.ts`의 `scanAssetReferences`가 `../`
-개수를 따지지 않고 파일명으로만 맞춰보므로 양쪽 다 받아들인다 — 이 코드가 생성하는
-`../assets/`도 그중 하나다.
+작업공간 자산 경로(`assets/hero.png`)는 브라우저의 URL이 아니다. 이를 `<img src>`에 문자열로
+넣으면 앱 URL 기준으로 요청되어 개발 서버·production build 모두에서 깨질 수 있다. 대상 앱의
+번들러가 파일을 모듈 그래프에 넣도록 **정적 import**를 만든다. Export 결과의 `pages/`·
+`components/`와 `assets/`는 형제이므로 모듈 경로는 항상 `../assets/<파일명>`이다. 파일명은
+각 import마다 리터럴로 쓴다(런타임 조립 금지). 스펙 경로가 `assets/`를 포함하면 접두어를
+제거하고, `assetId`면 Export의 같은 파일 확인을 통과하는 실제 자산 파일명을 쓴다.
 
 ```tsx
-<img src="../assets/hero.png" alt="" className="..." />
+import heroImageUrl from "../assets/hero.png";
+
+<img src={heroImageUrl} alt="" className="..." />
+```
+
+이 파일과 `assets/`를 같은 소스 디렉터리 아래 둔다(예: `src/visual-spec/pages/`와
+`src/visual-spec/assets/`). Vite는 개발 중 자산을 제공하고 production build에서 출력 URL로
+바꾸며 `base` 설정을 반영한다. 정적 import 경로는 URL이 아니라 파일 시스템 기준 모듈 경로이므로
+`encodeURIComponent`로 인코딩하지 않는다. 현재 Import는 공백을 하이픈으로 바꾸고 `#`를
+하이픈으로 정규화한다. `%`도 URL escape로 오해되지 않도록 하이픈으로 바꾼다. 한글·괄호·`+`는
+실제 파일명 그대로 쓸 수 있다.
+
+data URI는 기존 스펙 호환을 위해 그대로 쓴다. `http:`, `https:`, `blob:` 또는 앱의 public 경로인
+`/…`는 자산 모듈 import로 바꾸지 않고 외부 URL로 보존한다. 스펙 경로가 실제 자산 파일과
+일치하는지 모르면 파일명을 지어내지 말고 확인을 요청한다.
+
+```tsx
+import heroImageUrl from "../assets/hero.png";
+
+<img src={heroImageUrl} alt="" className="..." />
 ```
 
 `className`은 다른 노드와 똑같이 위 `box`/`fit` 규칙으로 채운다(§ 아래 "image 노드
@@ -579,11 +596,13 @@ export default function DashboardPage() {
 `examples/image-hero.json`을 위 "image 노드" 규칙대로 변환하면 이런 모양이 나와야 한다.
 
 ```tsx
+import heroImageUrl from "../assets/hero.png";
+
 export default function ImageHeroPage() {
   return (
     <div className="flex flex-col gap-[16px] pt-[0px] pr-[0px] pb-[24px] pl-[0px] justify-start items-stretch bg-[#FFFFFF] w-full flex-[1_0_auto]">
       <img
-        src="../assets/hero.png"
+        src={heroImageUrl}
         alt=""
         className="self-stretch h-[240px] flex-[0_0_240px] shrink-0 object-cover"
       />
@@ -657,11 +676,13 @@ grid 컨테이너 바로 아래라 자식들은 `flex-1`/`self-stretch`가 아�
 공유하지만 ImageNode의 box나 object-fit이 아닌 아래 CSS background 속성을 쓴다.
 
 - 배열 순서 그대로 URL/gradient/solid 이미지 목록을 만든다. 맨 아래 solid만 color로 뺀다.
-- 이미지 URL은 따옴표로 감싸고 CSS 문자열의 역슬래시·따옴표·개행을 escape한다.
-  ImageNode와 같은 자산 계약으로 `assets/a.png` → `../assets/a.png`를 사용한다. 파일명 세그먼트는 URL encode한다
-  (`hero#1.png` → `hero%231.png`, `%` → `%25`). Export 자산 검사는 이를 decode해 원본 이름과 맞춘다.
-  앱 전용 `/__visual-spec/...` URL을 생성 결과에 넣지 않는다. data URI는 보존한다.
-  `assetId`는 실제 파일 경로로 해석되는지 확인하고, 없는 이미지를 성공으로 보고하지 않는다.
+- 이미지 파일은 ImageNode와 같은 정적 import 계약을 쓴다. 파일 상단에
+  `import heroImageUrl from "../assets/hero.png";`를 만들고, CSS 값은
+  `url(${JSON.stringify(heroImageUrl)})`처럼 출력 URL을 안전하게 인용한다. 반응형 scoped CSS의
+  `<style>` 문자열에도 같은 import 변수의 JSON 문자열 값을 넣는다. 경로는 URL encode하지 않는다.
+  Export 검사는 이 import를 파일 존재 확인과 ZIP 자산 목록 수집에 사용한다.
+- 앱 전용 `/__vs/file/...` URL을 생성 결과에 넣지 않는다. data URI와 외부 `http(s):` URL은 보존한다.
+  `assetId`는 실제 자산 파일명으로 해석해 같은 방식으로 import한다. 없는 이미지를 성공으로 보고하지 않는다.
 - 이미지 겹의 `background-size`는 cover→`cover`, contain→`contain`, fill→`100% 100%`.
   gradient/solid 이미지 겹의 size는 `auto`. **겹별 목록 길이와 순서를 맞춘다.**
 - position은 전부 `center`, repeat는 전부 `no-repeat`, origin은 `border-box`다. 반복은 미지원.
@@ -676,13 +697,15 @@ grid 컨테이너 바로 아래라 자식들은 `flex-1`/`self-stretch`가 아�
 사진 위 linear 예시(정적, assets 파일이 실제로 있어야 한다):
 
 ```tsx
+import heroImageUrl from "../assets/hero.png";
+
 <div style={{
-  backgroundImage: 'linear-gradient(180deg, #0F172A00 0%, #0F172ACC 100%), url("../assets/hero.png")',
+  backgroundImage: `linear-gradient(180deg, #0F172A00 0%, #0F172ACC 100%), url(${JSON.stringify(heroImageUrl)})`,
   backgroundSize: 'auto, cover', backgroundPosition: 'center, center',
   backgroundRepeat: 'no-repeat, no-repeat', backgroundOrigin: 'border-box',
 }} />
 ```
 
-Export는 생성된 코드의 `../assets/...` 참조를 `usedAssets`로 모아 ZIP에 넣는다.
+Export는 생성된 코드의 정적 `../assets/...` import를 검사해 `usedAssets`로 모아 ZIP에 넣는다.
 모든 참조가 실제 assets 파일과 맞는지 확인한다. 이 매핑의 fixture 검증은 실제 AI 실행 성공의
 증거가 아니다. 수동 에이전트가 코드를 생성한 뒤 별도로 검증해야 한다.

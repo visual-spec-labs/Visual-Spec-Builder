@@ -11,7 +11,7 @@
 import { WORKSPACE_DIR_RULES } from "./protocol";
 
 /** 파일 이름에 쓰지 않을 글자 — 경로 구분자와 OS가 싫어하는 것들. */
-const UNSAFE_CHARS = /[/\\:*?"<>|\s]+/g;
+const UNSAFE_CHARS = /[/\\:*?"<>|#%\s]+/g;
 
 /**
  * 원본 파일 이름을 assets에 둘 수 있는 이름으로 다듬는다.

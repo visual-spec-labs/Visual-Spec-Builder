@@ -24,18 +24,27 @@ export interface ImportRef {
   line: number;
 }
 
+interface LocatedImport extends ImportRef {
+  start: number;
+  end: number;
+}
+
 /**
  * `import ... from "x"` · `export ... from "x"` · `import "x"` · `import("x")`.
  *
- * 가운데를 `[^'"();]*`로 묶어 **따옴표·세미콜론·괄호를 건너뛰지 못하게** 했다.
- * `[\s\S]*?`로 두면 한참 아래 줄의 엉뚱한 문자열까지 한 구문으로 이어 붙인다.
- * 줄바꿈은 허용해야 한다 — 여러 줄에 걸친 `import { A, B } from "x"`가 흔하다.
+ * import 절은 따옴표·세미콜론·괄호를 넘어가지 않게 하고, 모듈 문자열은 시작한
+ * 따옴표와 같은 문자로 닫히게 한다. 따옴표 종류가 다른 파일명 문자와 escape도
+ * 허용하면서 여러 줄 import의 specifier를 정확히 읽는다.
  */
 const IMPORT_PATTERNS = [
-  /\b(?:import|export)\b[^'"();]*?\bfrom\s*['"]([^'"]+)['"]/g,
-  /\bimport\s*['"]([^'"]+)['"]/g,
-  /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  /\b(?:import|export)\b[^'"();]*?\bfrom\s*("|')((?:\\.|(?!\1)[^\\\r\n])*)\1/g,
+  /\bimport\s*("|')((?:\\.|(?!\1)[^\\\r\n])*)\1/g,
+  /\bimport\s*\(\s*("|')((?:\\.|(?!\1)[^\\\r\n])*)\1\s*\)/g,
 ];
+
+function unescapeSpecifier(specifier: string): string {
+  return specifier.replace(/\\(["'\\])/g, "$1");
+}
 
 /** 문자열 시작부터 `index`까지의 줄 수(1부터). */
 function lineAt(source: string, index: number): number {
@@ -51,20 +60,29 @@ function lineAt(source: string, index: number): number {
  * (`import "x"` 패턴은 `import x from "y"`의 뒷부분과 겹치지 않지만, 앞으로 패턴을
  * 늘릴 때를 대비해 위치 기준으로 접어 둔다).
  */
-export function scanImports(source: string): ImportRef[] {
-  const byIndex = new Map<number, ImportRef>();
+function scanLocatedImports(source: string): LocatedImport[] {
+  const byIndex = new Map<number, LocatedImport>();
 
   for (const pattern of IMPORT_PATTERNS) {
     pattern.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(source)) !== null) {
-      byIndex.set(match.index, { specifier: match[1], line: lineAt(source, match.index) });
+      byIndex.set(match.index, {
+        specifier: unescapeSpecifier(match[2]),
+        line: lineAt(source, match.index),
+        start: match.index,
+        end: match.index + match[0].length,
+      });
     }
   }
 
   return [...byIndex.entries()]
     .sort(([a], [b]) => a - b)
     .map(([, ref]) => ref);
+}
+
+export function scanImports(source: string): ImportRef[] {
+  return scanLocatedImports(source).map(({ specifier, line }) => ({ specifier, line }));
 }
 
 /**
@@ -98,24 +116,38 @@ export function packageNameOf(specifier: string): string {
 }
 
 /**
- * 소스 안의 assets 참조(`../assets/hero.png`)를 찾아 **파일 이름만** 돌려준다.
+ * CSS background URL과 정적 번들러 import에서 자산 파일명을 모은다.
  *
- * `../`가 몇 겹이든 받는다. SKILL.md는 `../assets/<파일명>`으로 정해 뒀지만 그
- * 문서 자신이 "정확한 경로 depth는 확정된 게 아니다"라고 단서를 달았고, 실제로
- * 작업공간에서는 `generated/pages/`에서 `.visual-spec/assets/`까지 두 단계다.
- * 어느 쪽으로 적혀 있든 가리키는 것은 작업공간의 같은 assets 폴더 하나뿐이라,
- * depth를 따지는 대신 파일 이름으로 맞춰 본다.
- *
- * **내보낸 폴더에서는 `../assets/`가 맞는 표기가 된다** — ZIP은 `pages/`·`components/`
- * 옆에 `assets/`를 나란히 담기 때문이다(`bundle.ts`).
+ * CSS URL은 URL 인코딩을 decode해 작업공간 원본 파일명과 비교한다. 모듈 import는
+ * URL이 아니라 파일 시스템 경로이므로 문자열을 그대로 둔다. Export 배치에서는
+ * `pages/`·`components/`와 `assets/`가 형제라 이미지 import는 `../assets/<파일명>`이다.
  */
 const ASSET_REFERENCE = /(?:\.\.\/)+assets\/([^"'`\s)\\]+)/g;
 
-export function scanAssetReferences(source: string): string[] {
+/** An exported page/component imports an image from its sibling assets folder. */
+export function assetImportName(specifier: string): string | null {
+  const match = /^\.\.\/assets\/([^/]+)$/.exec(specifier);
+  if (match === null || !/\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(match[1])) return null;
+  return match[1];
+}
+
+export function scanAssetReferences(
+  source: string,
+  options: { includeStaticImports?: boolean } = {},
+): string[] {
   const names = new Set<string>();
+  const assetImports = scanLocatedImports(source).filter(({ specifier }) => assetImportName(specifier) !== null);
+  const withoutAssetImports = assetImports
+    .slice()
+    .sort((a, b) => b.start - a.start)
+    .reduce((remaining, reference) => {
+      const statement = remaining.slice(reference.start, reference.end)
+        .replace(/[^\r\n]/g, " ");
+      return remaining.slice(0, reference.start) + statement + remaining.slice(reference.end);
+    }, source);
   // A generated JS string may escape CSS delimiters (url(\"…\")); the opposite
   // quote is a valid filename character. Match the same delimiter at both ends.
-  const remaining = source.replace(/url\(\s*(\\?["'])(.*?)\1\s*\)/g,
+  const remaining = withoutAssetImports.replace(/url\(\s*(\\?["'])(.*?)\1\s*\)/g,
     (_match, _quote: string, path: string) => {
       if (/^(?:\.\.\/)+assets\//.test(path)) {
         names.add(decodeAssetName(path.replace(/^(?:\.\.\/)+assets\//, "")));
@@ -126,6 +158,14 @@ export function scanAssetReferences(source: string): string[] {
   let match: RegExpExecArray | null;
   while ((match = ASSET_REFERENCE.exec(remaining)) !== null) {
     names.add(decodeAssetName(match[1]));
+  }
+  // Static imports are the bundler contract. Keep their literal module path intact:
+  // unlike a URL in CSS, percent sequences in an import are filename characters.
+  if (options.includeStaticImports !== false) {
+    for (const reference of assetImports) {
+      const name = assetImportName(reference.specifier);
+      if (name !== null) names.add(name);
+    }
   }
   return [...names];
 }

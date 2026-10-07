@@ -19,7 +19,7 @@
  * 그 import가 전부 깨진다. 02의 예시는 폴더 하나로 독립한다는 뜻을 보인 그림이지
  * 강제 규격이 아니다.
  *
- * `assets/`를 `pages/`·`components/` 옆에 두는 것도 같은 이유다 — 코드가 적어 둔
+ * `assets/`를 `pages/`·`components/` 옆에 두는 것도 같은 이유다 — 정적 번들러 import
  * `../assets/hero.png`가 **내보낸 폴더 안에서 그대로 맞는 경로**가 된다.
  */
 
@@ -130,11 +130,13 @@ npm install react
 
 ## 통합 방법
 
-1. 이 폴더를 대상 프로젝트 안 원하는 위치에 통째로 복사합니다.
+1. 이 폴더를 대상 프로젝트의 소스 디렉터리 안에 통째로 복사합니다(예: src/visual-spec/).
    \`pages/\`·\`components/\`·\`assets/\`의 상대 위치는 **바꾸지 않습니다** — 서로를
    \`../components/…\`·\`../assets/…\`로 가리키고 있습니다.
 2. \`package.json\`의 의존성이 대상 프로젝트에 있는지 확인합니다.
 3. 페이지 컴포넌트를 라우터에 연결합니다.
+   이미지 파일은 TSX의 정적 import로 참조합니다. Vite 같은 번들러가 개발 중 파일을 제공하고,
+   production build에서 출력 URL로 바꾸며, 앱의 base 설정(하위 경로 배포 포함)도 적용합니다.
 4. 스타일은 Tailwind CSS 유틸리티 클래스입니다. **Tailwind v4**(\`@tailwindcss/vite\` 등
    Vite 플러그인 방식)는 모듈 그래프를 자동으로 훑어 별도 설정 없이도 이 폴더의
    클래스를 찾아냅니다. **v3 이하**를 쓴다면 \`tailwind.config\`의 \`content\` 배열에 이
@@ -157,7 +159,7 @@ ${issueTable(report)}
 - \`@/\` 같은 경로 별칭·절대 경로 import가 없는지
 - 상대 경로 import가 실제로 있는 파일을 가리키는지
 - 상대 경로가 이 폴더 밖으로 나가지 않는지
-- 코드가 참조하는 \`../assets/…\` 이미지가 실제로 있는지
+- 정적 \`../assets/…\` 이미지 import가 실제로 있는지 — 이미지 배경도 같은 import를 사용합니다
 
 ### 확인하지 않은 것
 
