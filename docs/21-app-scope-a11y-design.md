@@ -25,7 +25,7 @@ UI·문서의 제공 범위 문구만 맞췄다(맨 아래 "이번 PR에서 바�
 | 대상 | 지금 | 근거 |
 |---|---|---|
 | Export 결과 | `pages/`·`components/`·`assets/`·`package.json`·`README.md` ZIP. README가 "이 폴더 자체는 앱이 아니라 컴포넌트 묶음"이라고 적는다 | `export/bundle.ts` `buildReadme` |
-| Export 화면·범위 문서 | 컴포넌트 묶음이라는 말이 없다. 02는 "출력: 기능 폴더 Export"라고만 적는다 | `ui/ExportPanel.tsx`, [02](02-mvp-scope.md) |
+| Export 화면·범위 문서 | (#285 이전) 컴포넌트 묶음이라는 말이 없었다. 02는 "출력: 기능 폴더 Export"라고만 적었다 — 이번 PR에서 맞췄다(맨 아래 "이번 PR에서 바꾼 것") | `ui/ExportPanel.tsx`, [02](02-mvp-scope.md) |
 | `ImageNode` | `src`·`fit`만 있다. alt 필드가 없다 | 정본 스키마 `$defs.ImageNode` |
 | `InputNode` | `placeholder`(표시용 텍스트)뿐. 입력 타입·label·value가 없다 | 정본 스키마 `$defs.InputNode`, [05](05-schema.md) |
 | `ButtonNode` | `content`(표시용 라벨)뿐. 클릭 동작이 없다 | 같은 곳 |
@@ -53,8 +53,9 @@ UI·문서의 제공 범위 문구만 맞췄다(맨 아래 "이번 PR에서 바�
 | 데이터 불러오기·API 호출 | 데이터 바인딩이 IR 제외 범위다. 표·카드의 값은 스펙에 적힌 정적 텍스트다 |
 | 인증·세션·백엔드 | 이 도구의 범위가 아니다 |
 | 배포 설정 | 통합하는 앱의 몫이다 |
+| hover·focus·disabled 상태 스타일 | IR의 `states`가 제외 범위다(아래 2절) |
 
-이 범위를 **Export 화면 하단 문구, ZIP의 README, 02, 14**에서 같은 말로 쓴다(이번 PR).
+이 범위를 **Export 화면 하단 문구, ZIP의 README, 02, 14**에서 같은 목록으로 쓴다(이번 PR) — 앱 셸·라우터 설정·폼 동작·데이터 불러오기·인증·백엔드·상태 스타일·배포 설정.
 
 ## 2. 입력·접근성 최소 지원 범위
 
