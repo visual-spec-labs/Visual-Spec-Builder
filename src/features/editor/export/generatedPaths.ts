@@ -46,7 +46,7 @@ function dirNameOf(path: string): string {
  *
  * `generated/` 밖으로 나가면(`../../` 등) null이다 — 그건 결과 폴더 하나만 옮겨
  * 쓰는 순간 깨지는 참조라 "못 찾았다"가 아니라 **규칙 위반**으로 다뤄야 한다
- * (02-mvp-scope.md "결과물 원칙": 내보낸 폴더는 독립적으로 동작해야 한다).
+ * (02-mvp-scope.md "결과물 원칙": 내보낸 폴더는 다른 앱에 그대로 넣어 쓸 수 있어야 한다).
  */
 export function resolveRelativePath(fromPath: string, specifier: string): string | null {
   const base = dirNameOf(fromPath);
