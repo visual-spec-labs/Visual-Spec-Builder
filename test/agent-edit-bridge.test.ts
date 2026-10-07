@@ -413,6 +413,38 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(result()).toBeNull();
   });
 
+  it("확인 대기(pending)를 결과로 알리지 못했으면 확인창을 띄워 두지 않고 연결을 잃은 것으로 친다", async () => {
+    await connect();
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    // 처리 직전 확인 뒤 잠금이 넘어가(만료·인계) 서버가 결과 쓰기를 거부한다
+    writes.mockImplementation(async (path, body, type, rev, owner) =>
+      path === "runtime/agent-edit-result.json" ? { ok: false, error: "409" } : serverWrite(path, body, type, rev, owner));
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    writes.mockImplementation(serverWrite);
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "rejected", requestId: "bg" });
+  });
+
+  it("확인 대기(pending)를 쓰는 중 홈으로 가도 거절이 그 뒤에 쓰여 결과가 pending으로 남지 않는다", async () => {
+    await connect();
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    // pending 쓰기는 느리고 거절 쓰기는 빠르다 — 순서를 지키지 않으면 pending이 마지막에 남는다
+    writes.mockImplementation((path, body, type, rev, owner) => {
+      const delay = typeof body === "string" && body.includes('"pending"') ? 100 : 0;
+      return new Promise((resolve) => { setTimeout(() => resolve(serverWrite(path, body, type, rev, owner)), delay); });
+    });
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(710); // poll(1초)이 확인창을 띄우고 pending을 쓰는 중
+    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "confirm" });
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(300);
+    writes.mockImplementation(serverWrite);
+    expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
+  });
+
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
     const read = vi.mocked(readWorkspaceTextFile);
     const serverRead = read.getMockImplementation()!;

@@ -109,12 +109,22 @@ export function startAgentEditBridge(): () => void {
 
   /**
    * 결과 파일은 서버가 연결 잠금의 주인일 때만 쓴다(PR #303 리뷰) — 연결을 잃은 줄 아직 모르는
-   * 탭이 옛 요청의 결과로 새 주인의 결과를 덮지 않게. 쓰지 못했으면 이 탭은 더 이상 주인이 아니다.
+   * 탭이 옛 요청의 결과로 새 주인의 결과를 덮지 않게.
+   *
+   * 결과 쓰기는 **보낸 순서대로** 한 줄로 처리한다 — 확인 대기("pending")를 쓰는 사이 홈으로 가
+   * 거절을 쓰면 두 요청이 경쟁해 결과가 pending으로 남을 수 있다(PR #303 셀프 리뷰). 쓰지 못했으면
+   * (잠금 만료·인계, 일시 오류) 이 연결로는 결과를 알릴 수 없으므로 연결을 잃은 것으로 처리한다 —
+   * 떠 있는 확인창도 거둔다. 일시 오류였다면 다음 회차가 다시 잡는다.
    */
-  async function writeResult(requestId: string, status: AgentEditStatus, message: string) {
-    await writeWorkspaceFile(AGENT_EDIT_RESULT_PATH,
-      JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision(tabId)), null, 2),
-      "application/json", undefined, tabId);
+  let resultChain: Promise<unknown> = Promise.resolve();
+  async function writeResult(requestId: string, status: AgentEditStatus, message: string): Promise<boolean> {
+    const epochAt = epoch;
+    const body = JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision(tabId)), null, 2);
+    const run = resultChain.then(() => writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, tabId));
+    resultChain = run.catch(() => undefined);
+    const written = await run;
+    if (!written.ok && holder && epoch === epochAt) loseConnection();
+    return written.ok;
   }
 
   async function publish(force = false) {
