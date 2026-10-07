@@ -4,6 +4,8 @@ import type { VerifyIssue, VerifyReport } from "@/features/editor/export/verifyG
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useExportStore } from "@/features/editor/store/exportStore";
 import { downloadGeneratedBundle } from "@/features/editor/ui/exportGeneratedCode";
+import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
+import { openTicketPanel } from "@/features/editor/ui/openTicketPanel";
 
 function IssueRow({ issue }: { issue: VerifyIssue }) {
   const where = issue.line === undefined ? issue.file : `${issue.file}:${issue.line}`;
@@ -108,6 +110,8 @@ export function ExportPanel() {
         </button>
       </header>
 
+      <HandoffStageIndicator current="export" />
+
       <div className="flex-1 overflow-auto p-3">
         {status === "scanning" && <p className="text-sm text-content-muted">훑는 중…</p>}
 
@@ -131,8 +135,11 @@ export function ExportPanel() {
 
             {report.fileCount === 0 && (
               <p className="rounded-panel border border-line bg-surface-raised p-3 text-xs text-content-muted">
-                <code>.visual-spec/generated/</code>가 비어 있습니다. 구현 티켓을 외부 에이전트로
-                구현해 아래 경로에 저장하면 여기에서 검증하고 내보낼 수 있습니다.
+                아직 생성된 코드가 없습니다. 이전 단계(에이전트 전달)에서 구현 티켓을
+                에이전트에 전달하고 처리되면 여기서 검증할 수 있습니다.{" "}
+                <button type="button" onClick={openTicketPanel} className="underline hover:text-content">
+                  구현 티켓 열기
+                </button>
               </p>
             )}
 
@@ -183,7 +190,13 @@ export function ExportPanel() {
               type="button"
               onClick={handleDownload}
               disabled={report.fileCount === 0 || isDownloading}
-              className="rounded-control border border-line bg-surface-raised px-2 py-2 text-xs text-content-strong hover:bg-hover disabled:opacity-50"
+              // 오류 없이 준비된 상태의 주 동작이다(#283) — 강조색을 쓴다. 오류가
+              // 남아 있으면(아직 "받아도 되는" 상태가 아니므로) 중립 스타일로 물러난다.
+              className={`rounded-control px-2 py-2 text-xs disabled:opacity-50 ${
+                report.errorCount === 0
+                  ? "bg-primary text-text-on-accent hover:opacity-90"
+                  : "border border-line bg-surface-raised text-content-strong hover:bg-hover"
+              }`}
             >
               {isDownloading ? "만드는 중…" : "결과 폴더 ZIP 내려받기"}
             </button>

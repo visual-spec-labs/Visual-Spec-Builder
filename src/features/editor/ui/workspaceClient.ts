@@ -41,6 +41,24 @@ function isWorkspaceResponse(response: Response): boolean {
 }
 
 let available: boolean | undefined;
+/** `undefined` = 아직 안 물어봤다. 물어봤는데 `root`가 없었으면 `null`. */
+let cachedRoot: string | null | undefined;
+
+/** `/__vs/status`를 한 번 묻는다. 실패해도 예외를 던지지 않는다. */
+async function fetchWorkspaceStatus(): Promise<{ ok: boolean; root: string | null }> {
+  try {
+    const response = await fetch(WORKSPACE_STATUS_ROUTE, { method: "GET" });
+    if (!response.ok || !isWorkspaceResponse(response)) return { ok: false, root: null };
+    const body: unknown = await response.json();
+    const root =
+      typeof body === "object" && body !== null && typeof (body as { root?: unknown }).root === "string"
+        ? (body as { root: string }).root
+        : null;
+    return { ok: true, root };
+  } catch {
+    return { ok: false, root: null };
+  }
+}
 
 /**
  * 작업공간이 연결돼 있는지 한 번 물어보고 결과를 기억한다.
@@ -51,13 +69,27 @@ let available: boolean | undefined;
 export async function isWorkspaceAvailable(): Promise<boolean> {
   if (available === true) return true;
 
-  try {
-    const response = await fetch(WORKSPACE_STATUS_ROUTE, { method: "GET" });
-    available = response.ok && isWorkspaceResponse(response);
-  } catch {
-    available = false;
-  }
+  const status = await fetchWorkspaceStatus();
+  available = status.ok;
+  if (status.ok) cachedRoot = status.root;
   return available;
+}
+
+/**
+ * 작업공간의 절대 경로. 작업공간이 없거나 서버가 안 돌려줬으면 `null`(#283).
+ *
+ * `/__vs/status`는 `isWorkspaceAvailable`도 묻는 것과 같은 라우트다 — 둘 다
+ * 부르면 두 번째 호출은 캐시를 쓴다(아래 `undefined` 분기).
+ */
+export async function getWorkspaceRoot(): Promise<string | null> {
+  if (cachedRoot !== undefined) return cachedRoot;
+
+  const status = await fetchWorkspaceStatus();
+  if (status.ok) {
+    available = true;
+    cachedRoot = status.root;
+  }
+  return status.ok ? status.root : null;
 }
 
 /**

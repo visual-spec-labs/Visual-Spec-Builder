@@ -17,6 +17,8 @@ import type { Command } from "@/features/editor/command/types";
 import { runTransactionGates } from "@/features/editor/command/transactionGate";
 import { changedBackgroundNodes } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
+import { buildNlAgentInstruction } from "@/features/editor/ui/agentHandoff";
+import { CopyButton } from "@/features/editor/ui/CopyButton";
 
 /**
  * 캔버스 아래 전폭 행에 붙는 자연어 입력창 (이슈 #155).
@@ -269,13 +271,25 @@ export function NaturalLanguageBar() {
         )}
       </form>
 
-      {/* 알림 한 자리(docs/08 4.3). role=status 라 스크린 리더도 같은 줄을 읽는다. */}
-      <p role="status" aria-live="polite" className="min-h-4 text-xs">
+      {/* 알림 한 자리(docs/08 4.3). role=status 라 스크린 리더도 같은 줄을 읽는다.
+          div로 두는 이유는 pending 상태의 <details>가 <p> 안에 못 들어가서다
+          (HTML이 <p> 안의 블록 요소를 만나면 <p>를 조기에 닫아 버린다). */}
+      <div role="status" aria-live="polite" className="min-h-4 text-xs">
         {shown.kind === "pending" && (
-          <span className="text-content-muted">
-            에이전트 응답을 기다리는 중… 에이전트에게 <code>.visual-spec/{NL_REQUEST_PATH}</code>를 읽고{" "}
-            <code>.visual-spec/{NL_RESPONSE_PATH}</code>에 Command 배열을 쓰게 하세요.
-          </span>
+          <div className="flex flex-col gap-1 text-content-muted">
+            <span className="flex flex-wrap items-center gap-2">
+              에이전트 응답 대기 중 — 아직 전달하지 않았다면 지시를 복사해 에이전트에
+              붙여 넣으세요.
+              <CopyButton text={buildNlAgentInstruction()} />
+            </span>
+            <details className="text-content-subtle">
+              <summary className="cursor-pointer select-none">자세히</summary>
+              <p className="mt-1">
+                요청: <code>.visual-spec/{NL_REQUEST_PATH}</code> · 응답:{" "}
+                <code>.visual-spec/{NL_RESPONSE_PATH}</code>
+              </p>
+            </details>
+          </div>
         )}
         {shown.kind === "confirmation" && (
           <span className="text-content">
@@ -304,7 +318,7 @@ export function NaturalLanguageBar() {
             </button>
           </span>
         )}
-      </p>
+      </div>
     </section>
   );
 }

@@ -154,9 +154,11 @@ async function waitForNlResponse(
     if (result.kind !== "stale") return { kind: "response", result };
 
     if (Date.now() >= deadline) {
+      // 원시 경로는 더 이상 이 문구에 넣지 않는다(#283) — 입력창이 "자세히"로
+      // 같은 경로를 보여주고, 이 문구는 사람이 다음에 할 일만 말한다.
       return {
         kind: "timeout",
-        message: `${Math.round(NL_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 .visual-spec/${NL_REQUEST_PATH}를 읽고 .visual-spec/${NL_RESPONSE_PATH}에 답을 쓰게 하세요.`,
+        message: `${Math.round(NL_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 지시를 다시 복사해 전달하세요.`,
       };
     }
     await sleep(NL_POLL_INTERVAL_MS);
