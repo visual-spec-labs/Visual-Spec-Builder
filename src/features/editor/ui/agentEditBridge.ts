@@ -131,13 +131,22 @@ export function startAgentEditBridge(): () => void {
   const tabId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID() : `gui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   /**
-   * 지금 연결의 잠금 주인 id(fencing 토큰). 연결을 새로 맺을 때마다 바꾼다 — 탭 id를 그대로 쓰면
+   * 지금 연결의 잠금 주인 id(fencing 토큰). 연결이 끝날 때(해제·상실) 바꾼다 — 탭 id를 그대로 쓰면
    * A→B→A로 다시 연결했을 때 지난 연결에서 늦게 도착한 결과 쓰기를 서버가 "주인"으로 받아들여
    * 그 사이 B가 쓴 결과를 덮는다(PR #303 리뷰). 서버는 쓰는 순간 잠금 주인과 이 값을 대조한다.
    * 상태 버전(stateRevision)에도 들어가 지난 연결에서 읽은 상태로 만든 요청은 맞지 않는다.
    */
   let connectionSeq = 0;
   let owner = `${tabId}:${connectionSeq}`;
+  /**
+   * 다음 연결은 새 주인 id로. 연결에 실패한 잡기 시도마다 바꾸지는 않는다 — 시간 초과로 취소했지만
+   * 서버에선 잡힌 잠금을 다음 시도가 같은 id로 이어받아야 한다. 새 id로 바꾸면 그 잠금이 주인
+   * 없이 30초 남아 이 탭도 다른 탭도 연결하지 못한다(PR #303 셀프 리뷰).
+   */
+  function rotateOwner() {
+    connectionSeq += 1;
+    owner = `${tabId}:${connectionSeq}`;
+  }
   let stopped = false;
   let holder = false;
   /**
@@ -183,14 +192,18 @@ export function startAgentEditBridge(): () => void {
    * 요청의 결과를 다시 쓰는 일은 `lastResult`로 따로 한다.
    */
   let lastResultUnsent = false;
-  async function writeResult(requestId: string, status: AgentEditStatus, message: string, uncertain = false): Promise<boolean> {
+  async function writeResult(
+    requestId: string, status: AgentEditStatus, message: string, uncertain = false,
+    /** 연결을 풀며 쓸 때는 풀리는(지난) 연결의 주인 id로 쓴다 — 새 id는 아직 잠금을 쥐지 않았다. */
+    asOwner = owner,
+  ): Promise<boolean> {
     lastResult = { requestId, status, message, uncertain };
     const epochAt = epoch;
-    const writeOwner = owner;
+    const writeOwner = asOwner;
     const body = JSON.stringify(buildAgentEditResult(requestId, status, message, currentStateRevision(writeOwner), uncertain), null, 2);
     // 줄에서 기다리는 사이 다음 연결이 시작됐으면 지난 연결의 쓰기는 시작하지 않는다. 시작했더라도
     // 서버가 지난 주인 id를 거부한다.
-    const run = resultChain.then(() => writeOwner === owner
+    const run = resultChain.then(() => writeOwner === owner || unreleased.has(writeOwner)
       ? timed((signal) => writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, writeOwner, signal),
         { ok: false as const, error: "시간 초과" })
       : { ok: false as const, error: "지난 연결의 결과 쓰기" });
@@ -224,17 +237,18 @@ export function startAgentEditBridge(): () => void {
    * 공유 결과 파일이 엇갈린다(#279 리뷰). 아직 연결의 주인일 때만 결과를 거절로 남긴다. 소유권을
    * 잃었으면 결과는 새 주인이 연결하며 정리한다(`claim`).
    */
-  async function dropConfirm(writeRejected: boolean) {
+  async function dropConfirm(writeRejected: boolean, asOwner = owner) {
     const notice = useAgentEditStore.getState().notice;
     if (notice?.kind !== "confirm") return;
     const message = "GUI 연결이 끊겨(홈 이동·다른 탭·새로고침) 확인을 기다리던 이 편집을 적용하지 않았습니다. gui-state.json을 다시 읽고 새 id로 요청하세요.";
     useAgentEditStore.setState({ notice: { kind: "rejected", requestId: notice.requestId, message } });
-    if (writeRejected) await writeResult(notice.requestId, "rejected", message);
+    if (writeRejected) await writeResult(notice.requestId, "rejected", message, false, asOwner);
   }
 
   /** 잠금이 다른 탭으로 넘어갔다 — 이 탭은 더 이상 결과를 쓰지 않는다. */
   function loseConnection() {
     epoch += 1;
+    rotateOwner();
     lastResultUnsent = false;
     holder = false;
     lockMaybeHeld = false; // 잠금은 이미 다른 탭 것이다 — 닫을 때 풀면 그 탭의 잠금을 건드린다
@@ -248,6 +262,8 @@ export function startAgentEditBridge(): () => void {
    * 다른 탭이 잠금 기한(30초)을 기다리지 않는다(PR #303 셀프 리뷰).
    */
   let lockMaybeHeld = false;
+  /** 풀기로 했지만 아직 해제를 보내지 않은 지난 연결의 주인 id(거절 결과 쓰기를 기다리는 중). */
+  const unreleased = new Set<string>();
   /**
    * 이 연결의 잠금을 푼다. 잠금을 푸는 모든 경로(연결 종료, 최초 연결 취소)가 이걸 지난다.
    * `before`(확인창 거절 결과 쓰기)는 해제 전에 하되 최대 `RELEASE_WRITE_WAIT_MS`만 기다린다 —
@@ -258,18 +274,23 @@ export function startAgentEditBridge(): () => void {
    * gui-state.json을 지우지 못한다(서버는 주인이 같을 때만 지운다). 지난 연결의 잠금이 아직 남아
    * 있으면 새로 잡기는 busy이고, 해제가 도착하거나 기한(30초)이 지나면 다음 회차가 잡는다.
    */
-  function releaseLock(before?: () => Promise<void>): void {
+  function releaseLock(before?: (releaseOwner: string) => Promise<void>): void {
     epoch += 1;
     const releaseOwner = owner;
+    rotateOwner();
+    // 새 주인 id는 아직 아무것도 쥐지 않았다. 지난 id의 잠금은 해제를 보낼 때까지 따로 기억해,
+    // 그 사이 탭을 닫아도 풀리게 한다.
+    lockMaybeHeld = false;
+    unreleased.add(releaseOwner);
     void (async () => {
       try {
         if (before) {
           let timer: ReturnType<typeof setTimeout> | undefined;
-          await Promise.race([before(), new Promise<void>((resolve) => { timer = setTimeout(resolve, RELEASE_WRITE_WAIT_MS); })]);
+          await Promise.race([before(releaseOwner), new Promise<void>((resolve) => { timer = setTimeout(resolve, RELEASE_WRITE_WAIT_MS); })]);
           clearTimeout(timer);
         }
       } finally {
-        if (owner === releaseOwner) lockMaybeHeld = false;
+        unreleased.delete(releaseOwner);
         await releaseRequestLock("gui", releaseOwner); // 서버가 이 연결의 gui-state.json을 정리한다
       }
     })();
@@ -281,7 +302,7 @@ export function startAgentEditBridge(): () => void {
     useAgentEditStore.setState({ connected: false });
     // 거절 결과를 **먼저** 쓰고 잠금을 푼다 — 서버가 쓰는 순간 주인인지 본다. 이미 다른 탭에
     // 넘어갔으면 쓰기가 거부돼 새 주인의 결과를 덮지 않는다(PR #303 리뷰).
-    releaseLock(() => dropConfirm(true));
+    releaseLock((releaseOwner) => dropConfirm(true, releaseOwner));
   }
 
   async function claim() {
@@ -291,8 +312,6 @@ export function startAgentEditBridge(): () => void {
     if (claiming) return;
     claiming = true;
     try {
-      // 새로 잡을 때는 새 주인 id로 — 지난 연결의 늦은 쓰기를 서버가 거부하게 한다.
-      if (!holder) { connectionSeq += 1; owner = `${tabId}:${connectionSeq}`; }
       const epochBefore = epoch;
       // 요청을 보내는 순간부터 잠금을 쥐었을 수 있다 — 그 사이 탭을 닫아도 해제를 보낸다.
       if (!holder) lockMaybeHeld = true;
@@ -521,7 +540,9 @@ export function startAgentEditBridge(): () => void {
   }
 
   const onPageHide = (event: PageTransitionEvent) => {
-    if (!event.persisted && (holder || lockMaybeHeld)) void releaseRequestLock("gui", owner, true);
+    if (event.persisted) return;
+    if (holder || lockMaybeHeld) void releaseRequestLock("gui", owner, true);
+    for (const pending of unreleased) void releaseRequestLock("gui", pending, true);
   };
   const unsubscribeEditor = useEditorStore.subscribe((s, prev) => {
     if (s.spec !== prev.spec || s.activePageId !== prev.activePageId || s.selectedId !== prev.selectedId) schedulePublish();

@@ -773,6 +773,53 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(releaseRequestLock).toHaveBeenCalledWith("gui", expect.any(String), true);
   });
 
+  it("확인 대기 중 홈으로 가면 풀리는 연결의 주인 id로 거절을 쓴 뒤 잠금을 푼다 — 다시 연결하지 않아도 결과가 남는다", async () => {
+    const server = ownerAwareServer({});
+    await connect();
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(server.owner()).toBeNull();
+    expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
+    expect(result().uncertain).toBeUndefined();
+  });
+
+  it("잠금 요청이 시간 초과로 취소됐지만 서버에선 잡혔으면, 다음 시도가 같은 주인 id로 이어받아 곧바로 연결한다", async () => {
+    const server = ownerAwareServer({});
+    const ownerAware = vi.mocked(acquireRequestLock).getMockImplementation()!;
+    // 첫 잡기는 서버에서 성공하지만 응답이 오지 않는다(잠자기 등)
+    vi.mocked(acquireRequestLock).mockImplementationOnce((kind, who, renew) => {
+      void ownerAware(kind, who, renew);
+      return new Promise(() => undefined);
+    });
+    stop = startAgentEditBridge();
+    await vi.advanceTimersByTimeAsync(BRIDGE_IO_TIMEOUT_MS + 100);
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    const orphan = server.owner();
+    expect(orphan).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(AGENT_CLAIM_MS);
+    expect(useAgentEditStore.getState().connected).toBe(true); // 30초를 기다리지 않는다
+    expect(server.owner()).toBe(orphan);
+  });
+
+  it("홈 이동 뒤 거절 쓰기를 기다리는 동안 탭을 닫으면 지난 연결의 잠금도 푼다", async () => {
+    await connect();
+    const firstOwner = state().id;
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    await vi.advanceTimersByTimeAsync(1100);
+    writes.mockImplementation((path, body, type, rev, who) =>
+      path === "runtime/agent-edit-result.json" ? new Promise(() => undefined) : serverWrite(path, body, type, rev, who));
+    useNavigationStore.getState().openHome(); // 거절 쓰기가 멈춰 해제를 아직 보내지 않았다
+    await vi.advanceTimersByTimeAsync(100);
+    const onPageHide = vi.mocked(window.addEventListener).mock.calls.find(([type]) => type === "pagehide")![1] as unknown as (event: { persisted: boolean }) => void;
+    onPageHide({ persisted: false });
+    writes.mockImplementation(serverWrite);
+    expect(releaseRequestLock).toHaveBeenCalledWith("gui", firstOwner, true);
+  });
+
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
     const read = vi.mocked(readWorkspaceTextFileStrict);
     const serverRead = read.getMockImplementation()!;
