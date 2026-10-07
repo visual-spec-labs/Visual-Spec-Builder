@@ -5,9 +5,35 @@ import { createNode, type NodeKind } from "@/features/editor/store/createNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
 import { useToolStore } from "@/features/editor/store/toolStore";
+import { useViewStore } from "@/features/editor/store/viewStore";
 import { clickBoundary, resolveClickTarget, resolveInsertParent } from "./selection";
 
 /** DOM 이벤트를 기존 선택 규칙과 Store Command 액션에 연결한다. */
+
+/**
+ * 캔버스 포인터 조작이 다시 시작됐다는 신호로 도구 모음 handoff를 무효화한다
+ * (#275 리뷰 4차 대응).
+ *
+ * `toolbarFocusHandoffPending`은 "도구 모음에서 막 떨어진 포커스" 맥락 하나만
+ * 가리켜야 하는데, 그 맥락이 끝났다고 볼 신호는 지금까지 "소비(Tab)"와
+ * "재표시 후 다른 곳으로 포커스 이동" 둘뿐이었다 — 스크롤로 숨김/재표시가
+ * 반복돼도 `body` 포커스는 똑같아서 구분이 안 됐다. 사용자가 캔버스를 다시
+ * 클릭해 새로 선택하는 것은 또 다른 종류의 "맥락 종료"다 — 도구 모음을 더
+ * 쓰려던 게 아니라 캔버스로 돌아왔다는 뜻이므로, 이 시점에 남아 있는 handoff는
+ * 다음 Tab에 잘못 붙어 방금 새로 고른 선택의 정상적인 형제 이동(#151)을
+ * 가로막는다. 클릭으로 선택이 안 바뀌어도(같은 노드 재클릭, 배경 클릭으로
+ * 선택 해제 등) 포인터 조작 자체가 "재개"의 신호이므로 무조건 끈다.
+ *
+ * export한다 — 같은 "캔버스 포인터 조작 재개" 신호가 이 파일의 네 핸들러
+ * 밖에서도 필요하다(노드 끌기는 `useNodeDrag.ts`, 리사이즈 핸들 끌기는
+ * `CanvasResizeHandles.tsx`). 호출부마다 `setToolbarFocusHandoffPending(false)`를
+ * 따로 적으면 다음에 끄는 조건이 바뀔 때 한 곳을 빠뜨리기 쉽다(#275 리뷰
+ * 6차 대응).
+ */
+export function clearToolbarFocusHandoff() {
+  useViewStore.getState().setToolbarFocusHandoffPending(false);
+}
+
 /** 새 노드를 만들어 부모에 붙이고, 도구를 Select로 되돌린다. */
 function insertNewNode(kind: NodeKind, parentId: NodeId) {
   const { spec, activePageId, insertNode } = useEditorStore.getState();
@@ -26,6 +52,7 @@ function insertNewNode(kind: NodeKind, parentId: NodeId) {
 export function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
   // 중첩된 부모의 핸들러까지 함께 실행되면 어느 노드를 클릭했는지 알 수 없다.
   event.stopPropagation();
+  clearToolbarFocusHandoff();
 
   const tool = useToolStore.getState().activeTool;
   if (tool === "hand") return; // 팬 전용 도구 — 선택을 바꾸지 않는다
@@ -62,6 +89,7 @@ export function handleNodeClick(clickedId: NodeId, event: ReactMouseEvent) {
  */
 export function handleNodeDoubleClick(clickedId: NodeId, event: ReactMouseEvent) {
   event.stopPropagation();
+  clearToolbarFocusHandoff();
 
   const tool = useToolStore.getState().activeTool;
   if (tool !== "select") return; // 진입은 Select 도구에서만 뜻이 있다
@@ -99,6 +127,7 @@ export function handleNodeDoubleClick(clickedId: NodeId, event: ReactMouseEvent)
 export function handleNodeContextMenu(clickedId: NodeId, event: ReactMouseEvent) {
   event.preventDefault();
   event.stopPropagation();
+  clearToolbarFocusHandoff();
 
   const tool = useToolStore.getState().activeTool;
   if (tool !== "select") return;
@@ -119,6 +148,8 @@ export function handleNodeContextMenu(clickedId: NodeId, event: ReactMouseEvent)
 
 /** 아트보드 바깥(캔버스 바탕)을 클릭했을 때. */
 export function handleBackgroundClick() {
+  clearToolbarFocusHandoff();
+
   const tool = useToolStore.getState().activeTool;
   if (tool === "hand") return;
 

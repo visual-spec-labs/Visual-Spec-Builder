@@ -4,6 +4,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { resizedValue } from "./canvasLayout";
+import { clearToolbarFocusHandoff } from "./canvasSelection";
 import { createResizeGesture, type ResizeTarget } from "./resizeGesture";
 
 /** 우측(e) · 하단(s) · 우하단(se) 세 방향만 지원한다 — ResizeHandles 주석 참고. */
@@ -27,6 +28,10 @@ const RESIZE_HANDLE_SIZE = 8;
 function startResize(event: ReactMouseEvent, id: NodeId, edge: ResizeEdge, box: Box) {
   event.preventDefault();
   event.stopPropagation();
+  // 리사이즈 핸들을 끄는 것도 캔버스 포인터 조작의 재개다 — 선택은 바뀌지
+  // 않지만(이미 선택된 노드에만 핸들이 뜬다) 클릭 없이 바로 끌 수 있어
+  // canvasSelection.ts의 네 핸들러를 거치지 않는다(#275 리뷰 6차 대응).
+  clearToolbarFocusHandoff();
 
   const zoom = useViewStore.getState().zoom / 100;
   const measured = useMeasureStore.getState().size;

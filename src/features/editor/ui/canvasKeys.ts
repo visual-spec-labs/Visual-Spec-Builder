@@ -12,6 +12,7 @@ import {
   isSpacePanKey,
   nodeClipboardCommandForKey,
   nodeGroupCommandForKey,
+  shouldConsumeToolbarFocusHandoff,
   shouldDeleteSelection,
   siblingNavDirectionForKey,
   toolForKey,
@@ -50,6 +51,19 @@ export function useCanvasKeys(
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (useSaveConflictStore.getState().paused) return;
+      // 도구 모음이 막 포커스를 떼 간 다음의 Tab 한 번인가(#275 리뷰 대응,
+      // Toolbar.tsx의 같은 이름 신호 주석 참고). Ctrl/Cmd/Alt가 안 눌린 `Tab`
+      // 에서만 읽고 끈다(1회성) — shouldConsumeToolbarFocusHandoff 주석 참고.
+      // 다른 키(Shift 단독 keydown 포함)와 Ctrl/Cmd/Alt가 눌린 Tab에서는 신호를
+      // 그대로 남겨 둔다.
+      const toolbarFocusHandoff = shouldConsumeToolbarFocusHandoff({
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+      })
+        ? useViewStore.getState().consumeToolbarFocusHandoffPending()
+        : false;
       const target = event.target as HTMLElement | null;
       const keyInput = {
         code: event.code,
@@ -141,6 +155,7 @@ export function useCanvasKeys(
 
       // 형제 이동(#151). Tab은 브라우저의 포커스 이동 키라 판정 자체가
       // "선택이 있을 때만"(hasSelection) 훔친다 — siblingNavDirectionForKey 주석 참고.
+      // `toolbarFocusHandoff`를 그대로 넘긴다 — 물러나는 판단은 그 함수 안에서 한다.
       const { selectedId: siblingTarget, select: selectSibling } = useEditorStore.getState();
       const siblingDirection = siblingNavDirectionForKey({
         code: event.code,
@@ -152,6 +167,7 @@ export function useCanvasKeys(
         contentEditable: target?.isContentEditable ?? false,
         role: target?.getAttribute("role") ?? undefined,
         hasSelection: siblingTarget !== null,
+        toolbarFocusHandoff,
       });
       if (siblingDirection !== null && siblingTarget !== null) {
         event.preventDefault();
