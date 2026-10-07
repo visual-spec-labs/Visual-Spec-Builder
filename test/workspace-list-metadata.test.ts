@@ -49,3 +49,14 @@ describe("엄격한 텍스트 읽기 (#279)", () => {
     expect(await readWorkspaceTextFileStrict("runtime/a.json")).toEqual({ ok: false });
   });
 });
+
+it("상태 조회는 중단 신호를 fetch에 전달하고 실패를 캐시하지 않는다", async () => {
+  const controller = new AbortController();
+  const fetcher = vi.fn().mockRejectedValueOnce(new Error("aborted")).mockResolvedValueOnce(response({ ok: true }));
+  vi.stubGlobal("fetch", fetcher);
+  const { isWorkspaceAvailable } = await import("@/features/editor/ui/workspaceClient");
+  expect(await isWorkspaceAvailable(controller.signal)).toBe(false);
+  expect(fetcher).toHaveBeenCalledWith("/__vs/status", { method: "GET", signal: controller.signal });
+  expect(await isWorkspaceAvailable()).toBe(true);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});

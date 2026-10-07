@@ -350,12 +350,13 @@ function handleRead(res: ServerResponse, absolutePath: string, isSpec: boolean):
   let stats;
   try {
     stats = statSync(absolutePath);
-  } catch {
-    sendError(res, 404, "파일이 없습니다.");
+  } catch (error) {
+    const missing = (error as NodeJS.ErrnoException).code === "ENOENT";
+    sendError(res, missing ? 404 : 500, missing ? "파일이 없습니다." : "파일을 확인하지 못했습니다.");
     return;
   }
   if (!stats.isFile()) {
-    sendError(res, 404, "파일이 아닙니다.");
+    sendError(res, 400, "파일이 아닙니다.");
     return;
   }
 
@@ -371,7 +372,9 @@ function handleRead(res: ServerResponse, absolutePath: string, isSpec: boolean):
       res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
       res.setHeader("content-length", body.length);
       res.end(body);
-    } catch { sendError(res, 404, "파일을 읽지 못했습니다."); }
+    } catch (error) {
+      sendError(res, (error as NodeJS.ErrnoException).code === "ENOENT" ? 404 : 500, "파일을 읽지 못했습니다.");
+    }
   } else createReadStream(absolutePath).pipe(res);
 }
 

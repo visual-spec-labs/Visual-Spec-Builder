@@ -318,6 +318,8 @@ export function startAgentEditBridge(): () => void {
     if (claiming) return;
     claiming = true;
     try {
+      if (!holder && !await timed((signal) => isWorkspaceAvailable(signal), false)) return;
+      if (stopped || !onEditor()) return;
       const epochBefore = epoch;
       // 요청을 보내는 순간부터 잠금을 쥐었을 수 있다 — 그 사이 탭을 닫아도 해제를 보낸다.
       if (!holder) lockMaybeHeld = true;
@@ -560,14 +562,11 @@ export function startAgentEditBridge(): () => void {
     if (s.screen !== prev.screen) void claim();
   });
 
-  void (async () => {
-    if (!await isWorkspaceAvailable() || stopped) return;
-    if (typeof window !== "undefined") window.addEventListener("pagehide", onPageHide);
-    await claim();
-    if (stopped) return; // 첫 연결을 기다리는 사이 정리됐다 — 타이머(Worker)를 새로 만들지 않는다
-    tickers.push(startTicker(AGENT_CLAIM_MS, () => { void claim(); }));
-    tickers.push(startTicker(AGENT_EDIT_POLL_MS, () => { void poll(); }));
-  })();
+  // 최초 서버 확인·연결이 실패하거나 지연돼도 재시도와 탭 종료 처리는 살아 있어야 한다.
+  if (typeof window !== "undefined") window.addEventListener("pagehide", onPageHide);
+  tickers.push(startTicker(AGENT_CLAIM_MS, () => { void claim(); }));
+  tickers.push(startTicker(AGENT_EDIT_POLL_MS, () => { void poll(); }));
+  void claim();
 
   return () => {
     stopped = true;

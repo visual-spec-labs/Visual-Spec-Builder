@@ -10,7 +10,7 @@ import { seedSpec } from "@/features/editor/store/seedSpec";
 import {
   AGENT_CLAIM_MS, BRIDGE_IO_TIMEOUT_MS, LOCK_CHECK_FRESH_MS, RELEASE_WRITE_WAIT_MS, startAgentEditBridge,
 } from "@/features/editor/ui/agentEditBridge";
-import { acquireRequestLock, readWorkspaceTextFileStrict, releaseRequestLock, writeWorkspaceFile } from "@/features/editor/ui/workspaceClient";
+import { acquireRequestLock, isWorkspaceAvailable, readWorkspaceTextFileStrict, releaseRequestLock, writeWorkspaceFile } from "@/features/editor/ui/workspaceClient";
 
 /**
  * 외부 에이전트 대화 → 열린 GUI 반영 통로(#279). 작업공간 파일 입출력은 메모리 지도로
@@ -83,6 +83,7 @@ beforeEach(() => {
   useAgentEditStore.setState({ notice: null, connected: false });
   useNavigationStore.getState().openEditor();
   vi.mocked(acquireRequestLock).mockResolvedValue("acquired");
+  vi.mocked(isWorkspaceAvailable).mockResolvedValue(true);
   // 테스트가 바꾼 가짜 서버 동작이 다음 테스트로 새지 않게 기본 동작으로 되돌린다
   vi.mocked(releaseRequestLock).mockImplementation(async () => undefined);
   vi.mocked(writeWorkspaceFile).mockImplementation(async (path, body) => { files.set(path, body as string); return { ok: true, path }; });
@@ -91,6 +92,63 @@ beforeEach(() => {
 afterEach(() => { stop?.(); stop = undefined; vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("GUI 상태 공개 (#279)", () => {
+  it.each(["failure", "timeout"] as const)("초기 서버 조회 %s 뒤 화면 전환 없이 회복하고 폴링·연장·종료를 처리한다", async (mode) => {
+    let initialSignal: AbortSignal | undefined;
+    if (mode === "failure") vi.mocked(isWorkspaceAvailable).mockResolvedValueOnce(false);
+    else vi.mocked(isWorkspaceAvailable).mockImplementationOnce((signal) => {
+      initialSignal = signal;
+      return new Promise(() => undefined);
+    });
+    await connect();
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    await vi.advanceTimersByTimeAsync(BRIDGE_IO_TIMEOUT_MS + AGENT_CLAIM_MS + 100);
+    if (mode === "timeout") expect(initialSignal?.aborted).toBe(true);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    const owner = state().id;
+    sendEdit({ id: "recovered", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("회복") });
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(result()).toMatchObject({ requestId: "recovered", status: "applied" });
+    vi.mocked(acquireRequestLock).mockClear();
+    await vi.advanceTimersByTimeAsync(AGENT_CLAIM_MS);
+    expect(acquireRequestLock).toHaveBeenCalledWith("gui", owner, true, expect.any(AbortSignal));
+    const onPageHide = vi.mocked(window.addEventListener).mock.calls.find(([type]) => type === "pagehide")![1] as unknown as (event: { persisted: boolean }) => void;
+    onPageHide({ persisted: false });
+    expect(releaseRequestLock).toHaveBeenCalledWith("gui", owner, true);
+    stop!();
+    stop = undefined;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(window.removeEventListener).toHaveBeenCalledWith("pagehide", onPageHide);
+  });
+
+  it("초기 실패 뒤 Home→Editor에서 연결돼도 주기 처리가 설치돼 있다", async () => {
+    vi.mocked(isWorkspaceAvailable).mockResolvedValueOnce(false);
+    await connect();
+    useNavigationStore.getState().openHome();
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    sendEdit({ id: "navigation", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("화면 전환 후") });
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(result()).toMatchObject({ requestId: "navigation", status: "applied" });
+    vi.mocked(acquireRequestLock).mockClear();
+    await vi.advanceTimersByTimeAsync(AGENT_CLAIM_MS);
+    expect(acquireRequestLock).toHaveBeenCalledWith("gui", state().id, true, expect.any(AbortSignal));
+  });
+
+  it("초기 조회를 기다리다 정리하면 늦은 응답이 연결과 타이머를 되살리지 않는다", async () => {
+    let finish!: (available: boolean) => void;
+    vi.mocked(isWorkspaceAvailable).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await connect();
+    stop!();
+    stop = undefined;
+    finish(true);
+    await vi.advanceTimersByTimeAsync(AGENT_CLAIM_MS * 2);
+    expect(acquireRequestLock).not.toHaveBeenCalled();
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("연결된 탭은 문서·페이지·선택·상태 버전을 gui-state.json에 공개한다", async () => {
     useEditorStore.getState().select("headerTitle");
     await connect();

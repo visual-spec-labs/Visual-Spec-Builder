@@ -50,11 +50,11 @@ function isWorkspaceResponse(response: Response): boolean {
 let cachedStatus: { ok: true; root: string | null } | undefined;
 
 /** `/__vs/status`를 한 번 묻는다. 실패해도 예외를 던지지 않는다. */
-async function fetchWorkspaceStatus(): Promise<{ ok: boolean; root: string | null }> {
+async function fetchWorkspaceStatus(signal?: AbortSignal): Promise<{ ok: boolean; root: string | null }> {
   if (cachedStatus !== undefined) return cachedStatus;
 
   try {
-    const response = await fetch(WORKSPACE_STATUS_ROUTE, { method: "GET" });
+    const response = await fetch(WORKSPACE_STATUS_ROUTE, { method: "GET", signal });
     if (!response.ok || !isWorkspaceResponse(response)) return { ok: false, root: null };
     const body: unknown = await response.json();
     const root =
@@ -69,8 +69,8 @@ async function fetchWorkspaceStatus(): Promise<{ ok: boolean; root: string | nul
 }
 
 /** 작업공간이 연결돼 있는지 한 번 물어보고 결과를 기억한다. */
-export async function isWorkspaceAvailable(): Promise<boolean> {
-  return (await fetchWorkspaceStatus()).ok;
+export async function isWorkspaceAvailable(signal?: AbortSignal): Promise<boolean> {
+  return (await fetchWorkspaceStatus(signal)).ok;
 }
 
 /** 작업공간의 절대 경로. 작업공간이 없거나 서버가 안 돌려줬으면 `null`(#283). */
