@@ -31,3 +31,21 @@ describe("목록 메타데이터 클라이언트", () => {
     expect(await listWorkspaceFileEntries("specs")).toBeNull();
   });
 });
+
+describe("엄격한 텍스트 읽기 (#279)", () => {
+  it("없음(404)과 읽기 실패(HTTP 오류·네트워크)를 구분한다", async () => {
+    const marker = { [WORKSPACE_MARKER_HEADER]: "1" };
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response({ ok: true }))
+      .mockResolvedValueOnce(new Response("본문", { headers: marker }))
+      .mockResolvedValueOnce(new Response("", { status: 404, headers: marker }))
+      .mockResolvedValueOnce(new Response("", { status: 500, headers: marker }))
+      .mockRejectedValueOnce(new Error("fetch failed"));
+    vi.stubGlobal("fetch", fetcher);
+    const { readWorkspaceTextFileStrict } = await import("@/features/editor/ui/workspaceClient");
+    expect(await readWorkspaceTextFileStrict("runtime/a.json")).toEqual({ ok: true, text: "본문" });
+    expect(await readWorkspaceTextFileStrict("runtime/a.json")).toEqual({ ok: true, text: null });
+    expect(await readWorkspaceTextFileStrict("runtime/a.json")).toEqual({ ok: false });
+    expect(await readWorkspaceTextFileStrict("runtime/a.json")).toEqual({ ok: false });
+  });
+});

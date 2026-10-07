@@ -7,8 +7,8 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { seedSpec } from "@/features/editor/store/seedSpec";
-import { startAgentEditBridge } from "@/features/editor/ui/agentEditBridge";
-import { acquireRequestLock, readWorkspaceTextFile, releaseRequestLock, writeWorkspaceFile } from "@/features/editor/ui/workspaceClient";
+import { RELEASE_WRITE_WAIT_MS, startAgentEditBridge } from "@/features/editor/ui/agentEditBridge";
+import { acquireRequestLock, readWorkspaceTextFileStrict, releaseRequestLock, writeWorkspaceFile } from "@/features/editor/ui/workspaceClient";
 
 /**
  * 외부 에이전트 대화 → 열린 GUI 반영 통로(#279). 작업공간 파일 입출력은 메모리 지도로
@@ -22,6 +22,7 @@ vi.mock("@/features/editor/ui/workspaceClient", () => ({
   listWorkspaceFiles: vi.fn(async (dir: string) => [...files.keys()]
     .filter((path) => path.startsWith(`${dir}/`)).map((path) => path.slice(dir.length + 1))),
   readWorkspaceTextFile: vi.fn(async (path: string) => files.get(path) ?? null),
+  readWorkspaceTextFileStrict: vi.fn(async (path: string) => ({ ok: true, text: files.get(path) ?? null })),
   writeWorkspaceFile: vi.fn(async (path: string, body: string) => { files.set(path, body); return { ok: true, path }; }),
 }));
 
@@ -33,6 +34,36 @@ function sendEdit(edit: Record<string, unknown>) {
 }
 const background = (color: string) => [{ type: "updateNode", id: "root", path: "background", value: [{ type: "solid", color }] }];
 const retitle = (value: string) => [{ type: "updateNode", id: "headerTitle", path: "content", value }];
+
+/**
+ * 서버의 gui 잠금을 주인 id 기준으로 흉내 낸다 — 잡기·연장·해제와, 잠금으로 보호되는 파일(결과·상태)
+ * 쓰기를 쓰는 순간 주인과 대조한다. 해제는 그 주인의 gui-state.json만 지운다.
+ */
+function ownerAwareServer({ releaseDelayMs = 0 }: { releaseDelayMs?: number }) {
+  let lockOwner: string | null = null;
+  vi.mocked(acquireRequestLock).mockImplementation(async (_kind, who, renew) => {
+    if (renew) return lockOwner === who ? "acquired" : "busy";
+    if (lockOwner !== null && lockOwner !== who) return "busy";
+    lockOwner = who;
+    return "acquired";
+  });
+  vi.mocked(releaseRequestLock).mockImplementation((_kind, who) => new Promise<void>((resolve) => {
+    setTimeout(() => {
+      if (lockOwner === who) {
+        lockOwner = null;
+        if ((JSON.parse(files.get("runtime/gui-state.json") ?? "null") as { id?: string } | null)?.id === who) files.delete("runtime/gui-state.json");
+      }
+      resolve();
+    }, releaseDelayMs);
+  }));
+  const writes = vi.mocked(writeWorkspaceFile);
+  const base = writes.getMockImplementation()!;
+  writes.mockImplementation(async (path, body, type, rev, who) =>
+    (path === "runtime/agent-edit-result.json" || path === "runtime/gui-state.json") && who !== lockOwner
+      ? { ok: false, error: "잠금 거부", status: 409 }
+      : base(path, body, type, rev, who));
+  return { owner: () => lockOwner };
+}
 
 let stop: (() => void) | undefined;
 async function connect() {
@@ -50,6 +81,10 @@ beforeEach(() => {
   useAgentEditStore.setState({ notice: null, connected: false });
   useNavigationStore.getState().openEditor();
   vi.mocked(acquireRequestLock).mockResolvedValue("acquired");
+  // 테스트가 바꾼 가짜 서버 동작이 다음 테스트로 새지 않게 기본 동작으로 되돌린다
+  vi.mocked(releaseRequestLock).mockImplementation(async () => undefined);
+  vi.mocked(writeWorkspaceFile).mockImplementation(async (path, body) => { files.set(path, body as string); return { ok: true, path }; });
+  vi.mocked(readWorkspaceTextFileStrict).mockImplementation(async (path) => ({ ok: true, text: files.get(path) ?? null }));
 });
 afterEach(() => { stop?.(); stop = undefined; vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
@@ -313,51 +348,72 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     expect(writes.mock.invocationCallOrder[attempt]).toBeLessThan(vi.mocked(releaseRequestLock).mock.invocationCallOrder.at(-1)!);
   });
 
-  it("확인 대기 중 홈에 갔다 바로 돌아와도, 거절을 쓰고 잠금을 푼 뒤에 다시 잡는다", async () => {
+  it("확인 대기 중 홈에 갔다 바로 돌아오면 거절을 쓰고 잠금을 푼다 — 해제가 늦게 도착해도 새 연결의 잠금·상태는 지우지 않는다", async () => {
+    const server = ownerAwareServer({ releaseDelayMs: 100 });
     await connect();
     sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
     await vi.advanceTimersByTimeAsync(1100);
-    // 해제 요청(DELETE)은 늦게 끝난다 — 끝나기 전에 다시 잡으면 늦은 해제가 새 잠금을 지운다
-    let releaseDone = false;
-    vi.mocked(releaseRequestLock).mockImplementationOnce(() => new Promise((resolve) => {
-      setTimeout(() => { releaseDone = true; resolve(); }, 100);
-    }));
-    const acquiredAfterRelease: boolean[] = [];
-    vi.mocked(acquireRequestLock).mockClear();
-    vi.mocked(acquireRequestLock).mockImplementation(async () => { acquiredAfterRelease.push(releaseDone); return "acquired"; });
     useNavigationStore.getState().openHome();
-    useNavigationStore.getState().openEditor();
-    await vi.advanceTimersByTimeAsync(300);
-    expect(acquiredAfterRelease.length).toBeGreaterThan(0);
-    expect(acquiredAfterRelease.every(Boolean)).toBe(true);
+    useNavigationStore.getState().openEditor(); // 해제가 도착하기 전에 돌아온다
+    await vi.advanceTimersByTimeAsync(5500); // 해제 도착 → 다음 회차가 새 주인 id로 잡는다
     expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(server.owner()).not.toBeNull();
+    expect(state()?.id).toBe(server.owner()); // 늦은 해제가 새 연결의 상태 파일을 지우지 않았다
     expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
   });
 
-  it("최초 연결의 복원 읽기 중 홈에 갔다 돌아와도, 늦게 끝나는 해제를 기다린 뒤 다시 잡는다", async () => {
+  it("최초 연결의 복원 읽기 중 홈에 갔다 돌아와도, 늦게 도착한 해제가 새 연결을 지우지 않는다", async () => {
+    const server = ownerAwareServer({ releaseDelayMs: 200 });
     // 잠금을 잡은 뒤 이전 결과를 읽는 동안(느림) 사용자가 홈으로 간다
-    const read = vi.mocked(readWorkspaceTextFile);
+    const read = vi.mocked(readWorkspaceTextFileStrict);
     const serverRead = read.getMockImplementation()!;
     read.mockImplementationOnce((path) => new Promise((resolve) => { setTimeout(() => resolve(serverRead(path)), 50); }));
-    // 해제 요청(DELETE)도 늦게 끝난다. 끝나면 서버는 이 탭의 상태 파일을 지운다
-    let releaseDone = false;
-    vi.mocked(releaseRequestLock).mockImplementationOnce(() => new Promise((resolve) => {
-      setTimeout(() => { releaseDone = true; files.delete("runtime/gui-state.json"); resolve(); }, 200);
-    }));
-    const acquiredAfterRelease: boolean[] = [];
-    vi.mocked(acquireRequestLock).mockImplementation(async () => { acquiredAfterRelease.push(releaseDone); return "acquired"; });
-
     stop = startAgentEditBridge();
     await vi.advanceTimersByTimeAsync(10);
     useNavigationStore.getState().openHome();
     await vi.advanceTimersByTimeAsync(60); // 복원 읽기가 끝나며 연결을 취소하고 해제를 보낸다
     expect(releaseRequestLock).toHaveBeenCalled();
-    useNavigationStore.getState().openEditor(); // 해제가 끝나기 전에 돌아온다
-    await vi.advanceTimersByTimeAsync(500);
-
-    expect(acquiredAfterRelease).toEqual([false, true]); // 처음 잡기, 해제가 끝난 뒤 다시 잡기
+    useNavigationStore.getState().openEditor(); // 해제가 도착하기 전에 돌아온다
+    await vi.advanceTimersByTimeAsync(5500);
     expect(useAgentEditStore.getState().connected).toBe(true);
-    expect(state()).not.toBeNull(); // 늦은 해제가 새로 공개한 상태 파일을 지우지 않았다
+    expect(state()?.id).toBe(server.owner());
+  });
+
+  it("결과 쓰기가 응답 없이 멈춰도 홈 이동의 해제와 다시 연결이 막히지 않는다", async () => {
+    const server = ownerAwareServer({});
+    await connect();
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    // 확인창의 pending 결과 쓰기가 끝나지 않는다
+    writes.mockImplementation((path, body, type, rev, who) =>
+      path === "runtime/agent-edit-result.json" && typeof body === "string" && body.includes('"pending"')
+        ? new Promise(() => undefined)
+        : serverWrite(path, body, type, rev, who));
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "confirm" });
+    const firstOwner = server.owner();
+    useNavigationStore.getState().openHome();
+    await vi.advanceTimersByTimeAsync(10);
+    useNavigationStore.getState().openEditor();
+    await vi.advanceTimersByTimeAsync(RELEASE_WRITE_WAIT_MS + 6000);
+    writes.mockImplementation(serverWrite);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    expect(server.owner()).not.toBe(firstOwner);
+  });
+
+  it("재연결 복원 중 결과·요청 파일 읽기가 실패하면 연결을 미뤄, 이미 적용한 요청의 결과를 덮지 않는다", async () => {
+    // A를 적용하고 applied까지 기록한 상태(이전 연결)
+    sendEdit({ id: "a", baseStateRevision: "old-connection", pageId: "page1", commands: retitle("A") });
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "a", status: "applied" }));
+    const read = vi.mocked(readWorkspaceTextFileStrict);
+    read.mockResolvedValueOnce({ ok: false }); // 복원 직후 읽기가 일시 실패
+    await connect();
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    await vi.advanceTimersByTimeAsync(6000); // 다음 회차가 다시 잡아 제대로 복원한다
+    expect(useAgentEditStore.getState().connected).toBe(true);
+    await vi.advanceTimersByTimeAsync(3000); // 폴링이 a를 다시 처리하지 않는다
+    expect(result()).toMatchObject({ requestId: "a", status: "applied" });
   });
 
   it("연장 요청이 오가는 사이 홈에 갔다 돌아오면, 그 응답으로 연결됐다고 치지 않는다 — 늦은 해제가 지운다", async () => {
@@ -656,7 +712,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
   });
 
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {
-    const read = vi.mocked(readWorkspaceTextFile);
+    const read = vi.mocked(readWorkspaceTextFileStrict);
     const serverRead = read.getMockImplementation()!;
     read.mockImplementationOnce((path) => new Promise((resolve) => { setTimeout(() => resolve(serverRead(path)), 50); }));
     stop = startAgentEditBridge();

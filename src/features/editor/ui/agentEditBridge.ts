@@ -38,6 +38,7 @@ import {
   isWorkspaceAvailable,
   listWorkspaceFiles,
   readWorkspaceTextFile,
+  readWorkspaceTextFileStrict,
   releaseRequestLock,
   writeWorkspaceFile,
 } from "./workspaceClient";
@@ -87,6 +88,9 @@ export function currentStateRevision(tabId: string): string {
 }
 
 /** 이 연결이 처리 여부를 알 수 없는 요청의 결과 문구. 결과에는 `uncertain: true`가 함께 실린다. */
+/** 연결을 풀 때 확인창 거절 결과 쓰기를 기다리는 최대 시간. 그 뒤엔 기다리지 않고 잠금을 푼다. */
+export const RELEASE_WRITE_WAIT_MS = 3000;
+
 export const UNCERTAIN_MESSAGE =
   "GUI 연결이 새로 맺어져(새로고침·홈 이동·다른 탭) 이 요청이 이전 연결에서 적용됐는지 확인할 수 없습니다. "
   + "적용됐을 수 있으니 gui-state.json을 다시 읽어 원하는 변경이 이미 반영됐는지 먼저 확인하고, 반영되지 않았을 때만 새 id로 다시 요청하세요.";
@@ -204,8 +208,6 @@ export function startAgentEditBridge(): () => void {
     void dropConfirm(false);
   }
 
-  /** 연결을 푸는 중(거절 결과를 쓰고 잠금을 푸는 사이). 다시 잡기는 이게 끝난 뒤에 한다. */
-  let releasing: Promise<void> | null = null;
   /**
    * 서버 잠금을 쥐고 있을 수 있는가. `holder`보다 넓다 — 최초 연결의 복원을 읽는 동안과 연결을
    * 풀며 거절 결과를 쓰는 동안에도 잠금은 이 탭 것이다. 그 사이 탭을 닫으면 해제를 보내야
@@ -213,24 +215,30 @@ export function startAgentEditBridge(): () => void {
    */
   let lockMaybeHeld = false;
   /**
-   * 잠금을 푼다 — 해제 요청(DELETE)이 끝날 때까지 `releasing`에 올려 둔다. 끝나기 전에 같은 탭이
-   * 다시 잡으면 늦게 도착한 해제가 새 잠금과 gui-state.json을 지운다(PR #303 리뷰). 잠금을 푸는
-   * 모든 경로(연결 종료, 최초 연결 취소)가 이걸 지난다. `before`는 해제 전에 끝낼 일이다.
+   * 이 연결의 잠금을 푼다. 잠금을 푸는 모든 경로(연결 종료, 최초 연결 취소)가 이걸 지난다.
+   * `before`(확인창 거절 결과 쓰기)는 해제 전에 하되 최대 `RELEASE_WRITE_WAIT_MS`만 기다린다 —
+   * 응답 없는 결과 쓰기 하나가 해제를 무기한 막지 않게(PR #303 리뷰). 그보다 늦게 도착한 쓰기는
+   * 서버가 주인이 아니라고 거부하고, 같은 탭이 다시 잡으면 기억한 결과(`lastResult`)로 다시 쓴다.
+   *
+   * 다시 잡기는 해제를 기다리지 않는다. 연결마다 주인 id가 달라 늦게 도착한 해제는 새 연결의 잠금과
+   * gui-state.json을 지우지 못한다(서버는 주인이 같을 때만 지운다). 지난 연결의 잠금이 아직 남아
+   * 있으면 새로 잡기는 busy이고, 해제가 도착하거나 기한(30초)이 지나면 다음 회차가 잡는다.
    */
-  function releaseLock(before?: () => Promise<void>): Promise<void> {
+  function releaseLock(before?: () => Promise<void>): void {
     epoch += 1;
     const releaseOwner = owner;
-    const previous = releasing;
-    const run = (async () => {
-      if (previous !== null) await previous;
-      try { await before?.(); } finally {
-        lockMaybeHeld = false;
-        await releaseRequestLock("gui", releaseOwner);
-      } // 서버가 이 연결의 gui-state.json을 정리한다
+    void (async () => {
+      try {
+        if (before) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          await Promise.race([before(), new Promise<void>((resolve) => { timer = setTimeout(resolve, RELEASE_WRITE_WAIT_MS); })]);
+          clearTimeout(timer);
+        }
+      } finally {
+        if (owner === releaseOwner) lockMaybeHeld = false;
+        await releaseRequestLock("gui", releaseOwner); // 서버가 이 연결의 gui-state.json을 정리한다
+      }
     })();
-    releasing = run;
-    void run.finally(() => { if (releasing === run) releasing = null; });
-    return run;
   }
 
   function disconnect() {
@@ -239,7 +247,7 @@ export function startAgentEditBridge(): () => void {
     useAgentEditStore.setState({ connected: false });
     // 거절 결과를 **먼저** 쓰고 잠금을 푼다 — 서버가 쓰는 순간 주인인지 본다. 이미 다른 탭에
     // 넘어갔으면 쓰기가 거부돼 새 주인의 결과를 덮지 않는다(PR #303 리뷰).
-    void releaseLock(() => dropConfirm(true));
+    releaseLock(() => dropConfirm(true));
   }
 
   async function claim() {
@@ -249,15 +257,12 @@ export function startAgentEditBridge(): () => void {
     if (claiming) return;
     claiming = true;
     try {
-      // 방금 푼 연결의 해제가 끝나기 전에 다시 잡으면, 늦게 도착한 해제가 새로 잡은 잠금을 푼다.
-      if (releasing !== null) await releasing;
-      if (stopped || !onEditor()) return;
       // 새로 잡을 때는 새 주인 id로 — 지난 연결의 늦은 쓰기를 서버가 거부하게 한다.
       if (!holder) { connectionSeq += 1; owner = `${tabId}:${connectionSeq}`; }
       const epochBefore = epoch;
       const outcome = await acquireRequestLock("gui", owner, holder);
       // 잡는 요청이 오가는 사이 연결을 풀었다(홈 이동) — 해제가 아직 오가든 이미 끝났든 이 응답은
-      // 지난 연결의 것이다. 다음 회차가 해제를 기다린 뒤 다시 잡는다(PR #303 리뷰).
+      // 지난 연결의 것이다. 다음 회차가 새 주인 id로 다시 잡는다(PR #303 리뷰).
       if (epoch !== epochBefore) return;
       if (outcome === "acquired") lockMaybeHeld = true;
       const nowHolder = outcome === "acquired" || (holder && outcome === "unavailable");
@@ -268,7 +273,13 @@ export function startAgentEditBridge(): () => void {
         // 연결로 바꾼다 — 그 사이 폴링이 같은 요청을 다시 처리하지 않게.
         // 이전 결과가 "pending"(배경 변경 확인 대기)이면 끝난 요청이 아니다 — 그 확인창은 이전
         // 연결과 함께 사라졌으므로 거절로 끝낸다. 처리 완료로 치면 결과가 영원히 pending에 머문다(#279 리뷰).
-        const previous = await readWorkspaceTextFile(AGENT_EDIT_RESULT_PATH);
+        // 읽기 실패를 "파일 없음"으로 치면 이미 처리한 요청을 새 요청으로 보고 다시 처리해 확정 거절로
+        // 결과를 덮는다(PR #303 리뷰). 둘 중 하나라도 읽지 못했으면 이번엔 연결하지 않고 잠금을 푼다 —
+        // 다음 회차가 다시 잡아 복원한다.
+        const previousRead = await readWorkspaceTextFileStrict(AGENT_EDIT_RESULT_PATH);
+        const requestRead = previousRead.ok ? await readWorkspaceTextFileStrict(AGENT_EDIT_PATH) : previousRead;
+        if (!previousRead.ok || !requestRead.ok) { releaseLock(); return; }
+        const previous = previousRead.text;
         let handled: string | null = null;
         let unfinished: string | null = null;
         try {
@@ -277,7 +288,7 @@ export function startAgentEditBridge(): () => void {
           if (body?.status === "pending") unfinished = id;
           else handled = id;
         } catch { handled = null; }
-        const pending = parseAgentEdit(await readWorkspaceTextFile(AGENT_EDIT_PATH));
+        const pending = parseAgentEdit(requestRead.text);
         // 요청 파일의 요청이 우선이다 — 결과 파일은 하나라 마지막에 쓴 결과만 남는다.
         let waiting = "id" in pending && pending.id !== handled ? pending.id : unfinished;
         // 이 탭이 이미 처리하고 결과만 못 알린 요청이면 거절 대신 그 결과를 다시 쓴다. 이 탭에서 확인을
@@ -289,7 +300,7 @@ export function startAgentEditBridge(): () => void {
         const ownPending = mine !== null && mine.status === "pending";
         if (own !== null) waiting = null;
         lastHandledId = own?.requestId ?? waiting ?? handled;
-        if (stopped || !onEditor()) { void releaseLock(); return; } // 복원을 읽는 사이 홈으로 갔다
+        if (stopped || !onEditor()) { releaseLock(); return; } // 복원을 읽는 사이 홈으로 갔다
         epoch += 1;
         lastResultUnsent = false;
         // 지난 연결의 쓰기를 기다리지 않는다 — 응답 없는 요청 하나가 새 연결의 결과를 묶지 않게.

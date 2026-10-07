@@ -137,6 +137,24 @@ export async function readWorkspaceTextFile(relativePath: string): Promise<strin
 }
 
 /**
+ * `readWorkspaceTextFile`과 같지만 **없음과 읽기 실패를 구분한다**. 없으면 `{ ok: true, text: null }`,
+ * 네트워크·HTTP 오류면 `{ ok: false }`. 실패를 없음으로 읽으면 판단이 틀어지는 곳(에이전트 편집
+ * 연결 복원, #279)에서 쓴다.
+ */
+export async function readWorkspaceTextFileStrict(relativePath: string): Promise<{ ok: true; text: string | null } | { ok: false }> {
+  if (!(await isWorkspaceAvailable())) return { ok: false };
+  try {
+    const response = await fetch(workspaceFileUrl(relativePath));
+    if (!isWorkspaceResponse(response)) return { ok: false };
+    if (response.status === 404) return { ok: true, text: null };
+    if (!response.ok) return { ok: false };
+    return { ok: true, text: await response.text() };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
  * 바이너리 파일 내용. 없거나 읽을 수 없으면 null (이슈 #157).
  *
  * Export가 `assets/`의 이미지를 ZIP에 그대로 담을 때 쓴다 — `readWorkspaceTextFile`로
