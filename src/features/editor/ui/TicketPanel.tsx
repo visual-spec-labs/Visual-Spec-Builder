@@ -7,6 +7,7 @@ import { isAllDone, isReady, readyTickets } from "@/features/editor/ticket/ticke
 import type { TicketStatus } from "@/features/editor/ticket/types";
 import { buildTicketAgentInstruction } from "@/features/editor/ui/agentHandoff";
 import { CopyButton } from "@/features/editor/ui/CopyButton";
+import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
 import { openExportPanel } from "@/features/editor/ui/openExportPanel";
 import {
@@ -16,7 +17,6 @@ import {
   STALE_TICKET_MESSAGE,
 } from "@/features/editor/ui/ticketRunner";
 import { getWorkspaceRoot, isWorkspaceAvailable } from "@/features/editor/ui/workspaceClient";
-import { WORKSPACE_DIR_NAME } from "@/features/workspace/protocol";
 
 const STATUS_LABEL: Record<TicketStatus, string> = {
   pending: "대기",
@@ -233,7 +233,11 @@ export function TicketPanel() {
             )}
             {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, ticketAgentClient.ts) —
                 실패 상태에서도 "자세히"로 같은 정보를 볼 수 있어야 한다. */}
-            <TicketHandoffDetails workspaceRoot={workspaceRoot} />
+            <HandoffDetails
+              requestPath={TICKET_REQUEST_PATH}
+              responsePath={TICKET_RESPONSE_PATH}
+              workspaceRoot={workspaceRoot}
+            />
           </div>
         ) : running ? (
           <div className="flex flex-col gap-1 text-content-muted">
@@ -242,7 +246,11 @@ export function TicketPanel() {
               붙여 넣으세요.
               <CopyButton text={buildTicketAgentInstruction()} />
             </span>
-            <TicketHandoffDetails workspaceRoot={workspaceRoot} />
+            <HandoffDetails
+              requestPath={TICKET_REQUEST_PATH}
+              responsePath={TICKET_RESPONSE_PATH}
+              workspaceRoot={workspaceRoot}
+            />
           </div>
         ) : tickets.length === 0 ? null : isAllDone(tickets) && !isStale ? (
           <span className="text-content-muted">
@@ -260,31 +268,17 @@ export function TicketPanel() {
             <CopyButton text={buildTicketAgentInstruction()} label="지시 미리 복사" />
           </div>
         ) : !isStale ? (
+          // 원인을 하나로 단정하지 않는다(#283 리뷰 대응) — readyWave가 비는 건
+          // 의존 중인 선행 티켓이 남아서일 수도, 의존이 없는 티켓이 실패해서일
+          // 수도 있다(실패는 "대기"가 아니라서 readyTickets에서 바로 빠진다).
+          // "의존 때문"이라고 단정하면 실패를 고치러 온 사용자에게 틀린 원인을
+          // 가리킨다.
           <span className="text-content-muted">
-            지금 전달할 수 있는 티켓이 없습니다. 의존 중인 선행 티켓이 끝나야 다음
-            웨이브를 전달할 수 있습니다.
+            지금 전달할 수 있는 티켓이 없습니다. 의존 중인 선행 티켓이 남아 있거나
+            실패한 티켓이 있는지 확인하세요.
           </span>
         ) : null}
       </div>
     </aside>
-  );
-}
-
-/** 요청/응답 경로와 작업공간 절대 경로 — 기본으로 접혀 있다(#283). */
-function TicketHandoffDetails({ workspaceRoot }: { workspaceRoot: string | null }) {
-  return (
-    <details className="text-content-subtle">
-      <summary className="cursor-pointer select-none">자세히</summary>
-      <p className="mt-1">
-        요청: <code>{WORKSPACE_DIR_NAME}/{TICKET_REQUEST_PATH}</code> · 응답:{" "}
-        <code>{WORKSPACE_DIR_NAME}/{TICKET_RESPONSE_PATH}</code>
-        {workspaceRoot !== null && (
-          <>
-            {" "}
-            · 작업공간: <code>{workspaceRoot}</code>
-          </>
-        )}
-      </p>
-    </details>
   );
 }

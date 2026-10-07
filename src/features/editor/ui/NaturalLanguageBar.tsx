@@ -19,7 +19,7 @@ import { changedBackgroundNodes } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
 import { buildNlAgentInstruction } from "@/features/editor/ui/agentHandoff";
 import { CopyButton } from "@/features/editor/ui/CopyButton";
-import { WORKSPACE_DIR_NAME } from "@/features/workspace/protocol";
+import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 
 /**
  * 캔버스 아래 전폭 행에 붙는 자연어 입력창 (이슈 #155).
@@ -296,7 +296,7 @@ export function NaturalLanguageBar() {
               붙여 넣으세요.
               <CopyButton text={buildNlAgentInstruction()} />
             </span>
-            <NlHandoffDetails />
+            <HandoffDetails requestPath={NL_REQUEST_PATH} responsePath={NL_RESPONSE_PATH} />
           </div>
         )}
         {shown.kind === "confirmation" && (
@@ -326,7 +326,7 @@ export function NaturalLanguageBar() {
             )}
             {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, nlAgentClient.ts) —
                 실패 상태에서도 "자세히"로 같은 정보를 볼 수 있어야 한다. */}
-            <NlHandoffDetails />
+            <HandoffDetails requestPath={NL_REQUEST_PATH} responsePath={NL_RESPONSE_PATH} />
           </div>
         )}
         {shown.kind === "success" && (
@@ -346,18 +346,5 @@ export function NaturalLanguageBar() {
         )}
       </div>
     </section>
-  );
-}
-
-/** 요청/응답 경로 — 기본으로 접혀 있다(#283). `pending`·`error` 둘 다 쓴다. */
-function NlHandoffDetails() {
-  return (
-    <details className="text-content-subtle">
-      <summary className="cursor-pointer select-none">자세히</summary>
-      <p className="mt-1">
-        요청: <code>{WORKSPACE_DIR_NAME}/{NL_REQUEST_PATH}</code> · 응답:{" "}
-        <code>{WORKSPACE_DIR_NAME}/{NL_RESPONSE_PATH}</code>
-      </p>
-    </details>
   );
 }

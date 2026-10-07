@@ -19,6 +19,10 @@ export function CopyButton({ text, label = "지시 복사" }: { text: string; la
   // 견딘다(#283 리뷰 2차 대응 — 처음엔 cleanup만 있어 그 왕복 뒤로 영영
   // "언마운트됨"으로 읽는 버그였다).
   const guardRef = useRef(createMountedGuard());
+  // 빠른 연속 클릭에서 먼저 시작한 복사가 나중에 끝나면, 그 결과가 나중 클릭의
+  // 피드백을 덮어쓸 수 있다(#283 리뷰 대응) — 클릭마다 늘어나는 토큰을 쥐고 있다가
+  // await 뒤 "가장 최근 클릭"인지 확인해서 아니면 버린다.
+  const clickTokenRef = useRef(0);
 
   useEffect(() => {
     guardRef.current.setup();
@@ -29,8 +33,9 @@ export function CopyButton({ text, label = "지시 복사" }: { text: string; la
   }, []);
 
   async function handleClick() {
+    const token = ++clickTokenRef.current;
     const ok = await copyToClipboard(text);
-    if (!guardRef.current.isMounted()) return;
+    if (!guardRef.current.isMounted() || token !== clickTokenRef.current) return;
     setFeedback(ok ? "copied" : "failed");
     if (timerRef.current !== null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setFeedback("idle"), FEEDBACK_MS);

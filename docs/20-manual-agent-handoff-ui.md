@@ -361,6 +361,44 @@ cleanup(마지막 언마운트)하면 다시 unmounted. 이 테스트는 수정 
 `<details>`를 안전하게 담는지, 조건부 렌더 분기가 모든 상태를 빠짐없이
 덮는지)를 수작업으로 검토하는 선에서 마무리했다.
 
+## 자체 code-review 대응 3차 (2026-10-07, 커밋 45b9621 이후)
+
+StrictMode 수정을 커밋한 뒤 `/code-review`를 한 번 더 돌려 네 건을 찾아 그중
+둘(1·2)은 문구 교정, 나머지 둘(3·4)은 코드 수정으로 고쳤다.
+
+1. **`TicketPanel`의 마지막 fallback 문구가 "의존 때문"으로 단정했다.**
+   `readyWave.length === 0`이 되는 경우는 "의존 중인 선행 티켓이 남음" 외에도
+   "의존이 없는 티켓이 실패함"이 있다(실패는 `pending`이 아니라서
+   `readyTickets`에서 바로 빠진다) — 그런데 문구는 전자만 가리켰다. "의존 중인
+   선행 티켓이 남아 있거나 실패한 티켓이 있는지 확인하세요"로 원인을 하나로
+   단정하지 않게 고쳤다.
+2. **`STALE_TICKET_MESSAGE`에 옛 "실행" 표현이 남아 있었다.** 이 PR이 버튼·
+   안내 문구를 전부 "실행"에서 "전달"로 바꿨는데(#219 — GUI는 에이전트를
+   실행하지 않는다), `ticketRunner.ts`의 이 상수만 "…다시 생성해야 **실행할**
+   수 있습니다"로 안 바뀌어 있었다. "…다시 생성해야 **전달할** 수 있습니다"로
+   맞췄다. 이 문자열을 그대로 assert하는 테스트는 없어 안전하게 바꿀 수 있었다.
+3. **`CopyButton`에 클릭 순서를 가르는 가드가 없었다.** `copyToClipboard`가
+   끝나는 순서가 클릭한 순서와 다를 수 있다(예: 클립보드 권한 프롬프트 등으로
+   첫 호출이 느려짐) — 느린 첫 호출이 더 빠른 두 번째 클릭의 결과를 나중에
+   덮어쓸 수 있었다. 클릭마다 늘어나는 토큰(`clickTokenRef`)을 `await` 전에
+   잡아 두고, `await` 뒤 그 토큰이 아직 "가장 최근 클릭"인지(`isMounted()`
+   확인과 같은 자리) 확인해서 아니면 `setFeedback`을 건너뛴다 —
+   `ticketStore.ts`의 `generation` 카운터와 같은 패턴이다.
+4. **`TicketHandoffDetails`(`TicketPanel.tsx`)·`NlHandoffDetails`
+   (`NaturalLanguageBar.tsx`)가 거의 같은 모양을 각자 갖고 있었다.** 둘 다
+   "요청/응답 경로를 `<details>` 뒤에 접어 보여준다"는 같은 목적이고, 차이는
+   경로 상수와 `workspaceRoot` 표시 여부뿐이었다. `src/features/editor/ui/HandoffDetails.tsx`
+   로 뽑아 `requestPath`·`responsePath`·(선택) `workspaceRoot` props로
+   받게 하고, 두 파일의 로컬 정의를 지우고 그 컴포넌트를 쓰도록 바꿨다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1558개
+통과/1개 건너뜀 — 이번 라운드는 새 테스트를 추가하지 않았다(문구 교정 2건은
+assert 대상이 없었고, 레이스 가드·컴포넌트 추출 2건은 기존 동작을 그대로
+유지하는 리팩터라 기존 테스트가 그대로 회귀를 잡아준다).
+
 ## 범위 밖
 
 - 실제 진행 로그·재연결·재시도 런타임 구현은 #284(F07)로 분리한다. 이 작업은
