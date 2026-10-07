@@ -87,6 +87,8 @@ export interface VerifyReport {
   errorCount: number;
   /** bare import에서 모은 패키지 이름(정렬·중복 제거). package.json 후보다. */
   packages: string[];
+  /** 파일 내용에서 참조한 이미지 이름. 파일 존재 여부와 무관하게 모두 담는다. */
+  requiredAssets: string[];
   /** 실제로 작업공간 assets에 있는, 코드가 참조하는 파일 이름들. ZIP에 함께 담는다. */
   usedAssets: string[];
 }
@@ -110,6 +112,7 @@ export function verifyGenerated({ files, tickets, assetNames }: VerifyInput): Ve
   const assets = new Set(assetNames);
   const issues: VerifyIssue[] = [];
   const packages = new Set<string>();
+  const requiredAssets = new Set<string>();
   const usedAssets = new Set<string>();
 
   const coverage: TicketCoverage[] = tickets.map((ticket) => {
@@ -178,6 +181,7 @@ export function verifyGenerated({ files, tickets, assetNames }: VerifyInput): Ve
           continue;
         }
         if (assetPath === `assets/${assetName}`) {
+          requiredAssets.add(assetName);
           if (assets.has(assetName)) {
             usedAssets.add(assetName);
           } else {
@@ -222,6 +226,7 @@ export function verifyGenerated({ files, tickets, assetNames }: VerifyInput): Ve
     }
 
     for (const name of scanAssetReferences(file.content, { includeStaticImports: false })) {
+      requiredAssets.add(name);
       if (assets.has(name)) {
         usedAssets.add(name);
       } else {
@@ -242,6 +247,7 @@ export function verifyGenerated({ files, tickets, assetNames }: VerifyInput): Ve
     issues,
     errorCount: issues.filter((issue) => issue.severity === "error").length,
     packages: [...packages].sort((a, b) => a.localeCompare(b)),
+    requiredAssets: [...requiredAssets].sort((a, b) => a.localeCompare(b)),
     usedAssets: [...usedAssets].sort((a, b) => a.localeCompare(b)),
   };
 }
