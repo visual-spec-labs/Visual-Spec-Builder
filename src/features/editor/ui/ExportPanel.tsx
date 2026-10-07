@@ -205,8 +205,9 @@ export function ExportPanel() {
       </div>
 
       <p className="border-t border-line px-3 py-2 text-xs text-content-muted">
-        타입 검사·lint·화면 비교는 하지 않습니다. 대상 프로젝트 설정이 필요해 앱 안에서 답을 낼 수
-        없습니다.
+        결과는 실행 앱이 아니라 화면 컴포넌트 묶음입니다 — 라우터 설정·폼 동작·데이터 불러오기·인증은
+        들어 있지 않습니다. 타입 검사·lint·화면 비교는 하지 않습니다. 대상 프로젝트 설정이 필요해 앱
+        안에서 답을 낼 수 없습니다.
       </p>
     </aside>
   );
