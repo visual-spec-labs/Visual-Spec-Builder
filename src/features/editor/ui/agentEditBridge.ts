@@ -42,6 +42,7 @@ import {
   releaseRequestLock,
   writeWorkspaceFile,
 } from "./workspaceClient";
+import { startTicker } from "./ticker";
 
 /** 편집 요청을 확인하는 간격. 사람이 대화에서 요청하는 속도에 비하면 충분히 촘촘하다. */
 export const AGENT_EDIT_POLL_MS = 1000;
@@ -49,25 +50,6 @@ export const AGENT_EDIT_POLL_MS = 1000;
 export const AGENT_CLAIM_MS = 5000;
 /** 내용이 그대로여도 이 간격으로 `updatedAt`을 갱신한다 — 에이전트가 GUI가 열려 있는지 판단한다. */
 export const GUI_STATE_HEARTBEAT_MS = 10_000;
-
-/**
- * 주기 작업 타이머. 사용자는 보통 터미널(에이전트)을 앞에 두고 브라우저를 뒤에 둔다 — Chrome은
- * 5분 넘게 가려진 탭의 setInterval을 1분에 한 번으로 묶어(intensive throttling) 하트비트·폴링·
- * 잠금 연장이 모두 늦어진다(#279 리뷰). 전용 Worker의 타이머는 그 제약을 받지 않으므로 Worker가
- * 박자를 보내고 실제 일은 메인 스레드가 한다. Worker를 못 쓰는 환경(테스트 등)은 setInterval로.
- */
-function startTicker(intervalMs: number, tick: () => void): () => void {
-  if (typeof Worker !== "undefined" && typeof Blob !== "undefined" && typeof URL?.createObjectURL === "function") {
-    try {
-      const url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${intervalMs});`], { type: "text/javascript" }));
-      const worker = new Worker(url);
-      worker.onmessage = tick;
-      return () => { worker.terminate(); URL.revokeObjectURL(url); };
-    } catch { /* 아래 setInterval로 */ }
-  }
-  const timer = setInterval(tick, intervalMs);
-  return () => clearInterval(timer);
-}
 
 function currentState(tabId: string) {
   const { spec, activePageId, selectedId, documentId } = useEditorStore.getState();

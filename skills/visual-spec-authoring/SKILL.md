@@ -11,6 +11,8 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 1분 안에 갱신됐으면 GUI가 그 문서를 열고 있을 수 있고, 파일을 고쳐도 GUI에 반영되지 않으며 미저장
 초안·Undo가 어긋난다. 그때는 [visual-spec-nl-response](../visual-spec-nl-response/SKILL.md)의 "대화에서 바로
 고치기" 절대로 GUI에 Command를 보낸다(#279). GUI가 꺼져 있거나 다른 파일을 고칠 때만 이 스킬로 파일을 쓴다.
+(열린 GUI는 그 파일의 디스크 변경을 몇 초 안에 감지해 불러오거나, 사용자에게 미저장 편집이 있으면 묻는다 —
+그래도 열린 문서는 Command 통로가 미저장 초안·Undo를 가장 정확히 보존한다.)
 
 ## 뼈대
 

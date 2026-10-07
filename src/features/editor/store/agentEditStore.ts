@@ -4,8 +4,8 @@ import type { Command } from "@/features/editor/command/types";
 import type { PageId, ProjectSpec } from "@/features/editor/schema";
 
 /**
- * 외부 에이전트 편집(#279)을 사용자에게 알리는 자리. 편집 자체는 editorStore가 하고, 여기는
- * "무엇이 적용·거절됐고 되돌릴 수 있는가"만 들고 있다 — 저장 충돌 상태(saveConflictStore)와
+ * 외부 에이전트 편집과 열린 파일의 디스크 변경(#279)을 사용자에게 알리는 자리. 편집 자체는
+ * editorStore가 하고, 여기는 "무엇이 적용·거절됐고 되돌릴 수 있는가"만 들고 있다 — 저장 충돌 상태(saveConflictStore)와
  * 같은 이유로 IR/Command 스토어와 분리한다.
  */
 export type AgentEditNotice =
@@ -17,10 +17,31 @@ export type AgentEditNotice =
       pageId: PageId; commands: Command[]; baseStateRevision: string;
     };
 
+/**
+ * 열린 파일의 디스크 변경 알림. 에이전트 편집 알림과 **다른 자리**다 — 같은 자리를 쓰면
+ * 디스크 알림이 에이전트의 확인 대기(배경 변경)를 덮어 그 요청이 영원히 "pending"으로 남거나,
+ * 적용·거절 결과를 사용자가 보기 전에 지운다(#279 리뷰).
+ */
+export type DiskChangeNotice =
+  /** 열린 파일이 디스크에서 바뀌어 불러왔다(미저장 편집 없음) — Undo로 되돌릴 수 있다. */
+  | { kind: "diskImported"; fileName: string; spec: ProjectSpec }
+  /** 열린 파일이 디스크에서 바뀌었는데 미저장 편집이 있다 — 불러올지 묻는다. */
+  | {
+      kind: "diskChanged"; fileName: string;
+      /** 물을 때 문서가 가리키던 디스크 버전. 그 뒤 저장 등으로 바뀌었으면 이 질문은 낡았다. */
+      baseRevision: string | null;
+      revision: string; spec: ProjectSpec;
+    }
+  /** 디스크의 새 내용이 검증에 실패해 불러오지 않았다. */
+  | { kind: "diskInvalid"; fileName: string; issueCount: number };
+
 export const useAgentEditStore = create<{
   notice: AgentEditNotice | null;
+  diskNotice: DiskChangeNotice | null;
   /** 이 탭이 지금 외부 에이전트와 연결된 GUI인가(작업공간에서 한 탭만). */
   connected: boolean;
   /** 확인 대기 중인 편집을 사용자가 적용·거절했을 때 브리지가 처리한다. */
   resolveConfirm: (accept: boolean) => void;
-}>(() => ({ notice: null, connected: false, resolveConfirm: () => undefined }));
+  /** 디스크 변경을 불러올지(true) 내 편집을 유지할지(false) 정했을 때 감시기가 처리한다. */
+  resolveDiskChange: (load: boolean) => void;
+}>(() => ({ notice: null, diskNotice: null, connected: false, resolveConfirm: () => undefined, resolveDiskChange: () => undefined }));

@@ -177,10 +177,10 @@ export async function readWorkspaceBinaryFile(
 }
 
 /** The token belongs to these exact bytes, not a later Save-time read. */
-export async function readWorkspaceSpecSnapshot(relativePath: string): Promise<{ text: string; revision: string } | null> {
-  if (!(await isWorkspaceAvailable())) return null;
+export async function readWorkspaceSpecSnapshot(relativePath: string, signal?: AbortSignal): Promise<{ text: string; revision: string } | null> {
+  if (!(await isWorkspaceAvailable(signal))) return null;
   try {
-    const response = await fetch(workspaceFileUrl(relativePath));
+    const response = await fetch(workspaceFileUrl(relativePath), { signal });
     const revision = response.headers.get(WORKSPACE_REVISION_HEADER);
     if (!response.ok || !isWorkspaceResponse(response) || !revision) return null;
     return { text: await response.text(), revision };
