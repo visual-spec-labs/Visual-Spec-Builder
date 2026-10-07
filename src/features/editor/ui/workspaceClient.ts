@@ -87,13 +87,13 @@ export async function getWorkspaceRoot(): Promise<string | null> {
  */
 export async function listWorkspaceFiles(
   dir: WorkspaceDir,
-  options: { recursive?: boolean } = {},
+  options: { recursive?: boolean; signal?: AbortSignal } = {},
 ): Promise<string[] | null> {
   if (!(await isWorkspaceAvailable())) return null;
 
   const query = options.recursive === true ? `?${WORKSPACE_LIST_RECURSIVE_PARAM}=1` : "";
   try {
-    const response = await fetch(`${WORKSPACE_LIST_ROUTE}${dir}${query}`);
+    const response = await fetch(`${WORKSPACE_LIST_ROUTE}${dir}${query}`, { signal: options.signal });
     if (!response.ok || !isWorkspaceResponse(response)) return null;
     const body: unknown = await response.json();
     const files = (body as { files?: unknown }).files;
@@ -124,11 +124,11 @@ export async function listWorkspaceFileEntries(dir: WorkspaceDir): Promise<Works
 }
 
 /** 텍스트 파일 내용. 없거나 읽을 수 없으면 null. */
-export async function readWorkspaceTextFile(relativePath: string): Promise<string | null> {
+export async function readWorkspaceTextFile(relativePath: string, signal?: AbortSignal): Promise<string | null> {
   if (!(await isWorkspaceAvailable())) return null;
 
   try {
-    const response = await fetch(workspaceFileUrl(relativePath));
+    const response = await fetch(workspaceFileUrl(relativePath), { signal });
     if (!response.ok || !isWorkspaceResponse(response)) return null;
     return await response.text();
   } catch {
@@ -141,10 +141,12 @@ export async function readWorkspaceTextFile(relativePath: string): Promise<strin
  * 네트워크·HTTP 오류면 `{ ok: false }`. 실패를 없음으로 읽으면 판단이 틀어지는 곳(에이전트 편집
  * 연결 복원, #279)에서 쓴다.
  */
-export async function readWorkspaceTextFileStrict(relativePath: string): Promise<{ ok: true; text: string | null } | { ok: false }> {
+export async function readWorkspaceTextFileStrict(
+  relativePath: string, signal?: AbortSignal,
+): Promise<{ ok: true; text: string | null } | { ok: false }> {
   if (!(await isWorkspaceAvailable())) return { ok: false };
   try {
-    const response = await fetch(workspaceFileUrl(relativePath));
+    const response = await fetch(workspaceFileUrl(relativePath), { signal });
     if (!isWorkspaceResponse(response)) return { ok: false };
     if (response.status === 404) return { ok: true, text: null };
     if (!response.ok) return { ok: false };
@@ -200,6 +202,8 @@ export async function writeWorkspaceFile(
   expectedRevision?: string,
   /** 잠금으로 보호되는 요청 파일(#273)에 쓸 때 잠금 주인. */
   requestOwner?: string,
+  /** 취소(시간 제한) 신호. 응답 없는 요청이 호출 측을 무기한 붙잡지 않게 한다(#279). */
+  signal?: AbortSignal,
 ): Promise<WriteResult> {
   if (!(await isWorkspaceAvailable())) {
     return { ok: false, error: "작업공간에 연결돼 있지 않습니다." };
@@ -212,6 +216,7 @@ export async function writeWorkspaceFile(
         ...(expectedRevision === undefined ? {} : { [WORKSPACE_EXPECTED_REVISION_HEADER]: expectedRevision }),
         ...(requestOwner === undefined ? {} : { [WORKSPACE_REQUEST_OWNER_HEADER]: requestOwner }) },
       body,
+      signal,
     });
     if (!isWorkspaceResponse(response)) {
       return { ok: false, error: "작업공간 응답이 아닙니다." };
@@ -240,12 +245,14 @@ export async function acquireRequestLock(
   kind: RequestLockKind,
   owner: string,
   renew = false,
+  signal?: AbortSignal,
 ): Promise<RequestLockOutcome> {
   try {
     const query = renew ? `?${WORKSPACE_REQUEST_LOCK_RENEW_PARAM}=1` : "";
     const response = await fetch(`${WORKSPACE_REQUEST_LOCK_ROUTE}${kind}${query}`, {
       method: "POST",
       headers: { [WORKSPACE_REQUEST_OWNER_HEADER]: owner },
+      signal,
     });
     if (!isWorkspaceResponse(response)) return "unavailable";
     if (response.status === 409) return "busy";
@@ -259,7 +266,7 @@ export async function acquireRequestLock(
  * 잠금을 푼다. 실패해도 기한이 지나면 풀리므로 결과를 돌려주지 않는다. `keepalive`는
  * 탭을 닫는 중(pagehide)에도 요청이 끝까지 가게 한다.
  */
-/** 해제 요청이 끝나면 풀리는 Promise를 돌려준다 — 같은 탭이 곧바로 다시 잡을 때 기다린다(#279). */
+/** 해제 요청이 끝나면 풀리는 Promise를 돌려준다(실패해도 풀린다). */
 export function releaseRequestLock(kind: RequestLockKind, owner: string, keepalive = false): Promise<void> {
   return fetch(`${WORKSPACE_REQUEST_LOCK_ROUTE}${kind}`, {
     method: "DELETE",

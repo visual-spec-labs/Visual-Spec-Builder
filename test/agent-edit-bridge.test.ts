@@ -7,7 +7,9 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { seedSpec } from "@/features/editor/store/seedSpec";
-import { RELEASE_WRITE_WAIT_MS, startAgentEditBridge } from "@/features/editor/ui/agentEditBridge";
+import {
+  AGENT_CLAIM_MS, BRIDGE_IO_TIMEOUT_MS, LOCK_CHECK_FRESH_MS, RELEASE_WRITE_WAIT_MS, startAgentEditBridge,
+} from "@/features/editor/ui/agentEditBridge";
 import { acquireRequestLock, readWorkspaceTextFileStrict, releaseRequestLock, writeWorkspaceFile } from "@/features/editor/ui/workspaceClient";
 
 /**
@@ -709,6 +711,66 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     writes.mockImplementation(serverWrite);
     expect(useAgentEditStore.getState().connected).toBe(true);
     expect(result()).toMatchObject({ requestId: "before-connect", status: "rejected", uncertain: true });
+  });
+
+  it("응답 없는 요청(복원 읽기·하트비트·결과 쓰기)이 있어도 연결 확인과 폴링이 멈추지 않는다", async () => {
+    const hang = <T,>() => new Promise<T>(() => undefined);
+    // 1) 복원 읽기가 멈춘다 → 시간 제한 뒤 잠금을 풀고 다음 회차에 연결한다
+    vi.mocked(readWorkspaceTextFileStrict).mockImplementationOnce(() => hang());
+    await connect();
+    expect(useAgentEditStore.getState().connected).toBe(false);
+    await vi.advanceTimersByTimeAsync(BRIDGE_IO_TIMEOUT_MS + AGENT_CLAIM_MS + 500);
+    expect(useAgentEditStore.getState().connected).toBe(true);
+
+    // 2) 결과 쓰기가 멈춘다 → 폴링이 다음 요청을 계속 처리한다
+    const writes = vi.mocked(writeWorkspaceFile);
+    const serverWrite = writes.getMockImplementation()!;
+    let hungOnce = false;
+    writes.mockImplementation((path, body, type, rev, who) => {
+      if (path === "runtime/agent-edit-result.json" && !hungOnce) { hungOnce = true; return hang(); }
+      return serverWrite(path, body, type, rev, who);
+    });
+    sendEdit({ id: "e1", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("하나") });
+    await vi.advanceTimersByTimeAsync(BRIDGE_IO_TIMEOUT_MS + 1500);
+    sendEdit({ id: "e2", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("둘") });
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(title()).toBe("둘");
+    expect(result()).toMatchObject({ requestId: "e2", status: "applied" });
+
+    // 3) 하트비트(gui-state.json) 쓰기가 멈춘다 → 연결 확인(연장)이 계속 돈다
+    let stateHung = false;
+    writes.mockImplementation((path, body, type, rev, who) => {
+      if (path === "runtime/gui-state.json" && !stateHung) { stateHung = true; return hang(); }
+      return serverWrite(path, body, type, rev, who);
+    });
+    useEditorStore.getState().setNodeField("headerTitle", "content", "상태 바뀜"); // 공개를 유도한다
+    await vi.advanceTimersByTimeAsync(AGENT_CLAIM_MS);
+    const claimsBefore = vi.mocked(acquireRequestLock).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(BRIDGE_IO_TIMEOUT_MS + AGENT_CLAIM_MS * 2);
+    writes.mockImplementation(serverWrite);
+    expect(vi.mocked(acquireRequestLock).mock.calls.length).toBeGreaterThan(claimsBefore);
+  });
+
+  it("처리 직전 소유권 확인 응답이 잠금 기한의 절반보다 늦게 오면 믿지 않고 적용하지 않는다", async () => {
+    await connect();
+    // 확인을 보낸 직후 탭이 얼었다(타이머도 멈춤) 깨어나, 몇십 초 전에 보낸 확인의 "주인 맞음"을 받는다
+    vi.mocked(acquireRequestLock).mockImplementationOnce(async () => {
+      vi.setSystemTime(Date.now() + LOCK_CHECK_FRESH_MS + 1000);
+      return "acquired";
+    });
+    sendEdit({ id: "late", baseStateRevision: state().stateRevision, pageId: "page1", commands: retitle("늦은 확인") });
+    await vi.advanceTimersByTimeAsync(800); // 그 폴링 한 번
+    expect(title()).not.toBe("늦은 확인");
+    expect(result()).toBeNull();
+  });
+
+  it("잠금 요청이 오가는 중 탭을 닫아도 해제를 보낸다 — 서버는 이미 잡았을 수 있다", async () => {
+    vi.mocked(acquireRequestLock).mockImplementationOnce(() => new Promise(() => undefined));
+    stop = startAgentEditBridge();
+    await vi.advanceTimersByTimeAsync(10);
+    const onPageHide = vi.mocked(window.addEventListener).mock.calls.find(([type]) => type === "pagehide")![1] as unknown as (event: { persisted: boolean }) => void;
+    onPageHide({ persisted: false });
+    expect(releaseRequestLock).toHaveBeenCalledWith("gui", expect.any(String), true);
   });
 
   it("최초 연결의 복원을 읽는 중 탭을 닫아도 잠금을 푼다", async () => {

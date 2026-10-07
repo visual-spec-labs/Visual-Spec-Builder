@@ -31,7 +31,7 @@ import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
-import { RUNTIME_DIR } from "@/features/workspace/protocol";
+import { REQUEST_LOCK_TTL_MS, RUNTIME_DIR } from "@/features/workspace/protocol";
 
 import {
   acquireRequestLock,
@@ -90,6 +90,38 @@ export function currentStateRevision(tabId: string): string {
 /** 이 연결이 처리 여부를 알 수 없는 요청의 결과 문구. 결과에는 `uncertain: true`가 함께 실린다. */
 /** 연결을 풀 때 확인창 거절 결과 쓰기를 기다리는 최대 시간. 그 뒤엔 기다리지 않고 잠금을 푼다. */
 export const RELEASE_WRITE_WAIT_MS = 3000;
+/**
+ * 브리지의 작업공간 요청 하나를 기다리는 최대 시간. 넘으면 요청을 취소하고 실패로 친다 — 응답 없는
+ * 요청 하나가 연결 확인·폴링을 무기한 멈추면 새로고침 전까지 연결이 멈추거나 "연결됨"으로 잘못
+ * 보인다(PR #303 리뷰).
+ */
+export const BRIDGE_IO_TIMEOUT_MS = 5000;
+/**
+ * 소유권 확인 응답을 믿을 수 있는 최대 왕복 시간 — 잠금 기한의 절반. 보낸 뒤 이보다 늦게 받은
+ * "주인 맞음"은 그 사이(탭 정지·잠자기) 잠금이 넘어갔을 수 있으므로 적용 근거로 쓰지 않는다.
+ */
+export const LOCK_CHECK_FRESH_MS = REQUEST_LOCK_TTL_MS / 2;
+
+/** `run`을 최대 `BRIDGE_IO_TIMEOUT_MS`만 기다린다. 넘으면 요청을 취소하고 `fallback`을 돌려준다. */
+async function timed<T>(run: (signal: AbortSignal) => Promise<T>, fallback: T): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => {
+    timer = setTimeout(() => { controller.abort(); resolve(fallback); }, BRIDGE_IO_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([run(controller.signal), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** 처리 직전 소유권 확인. 늦게 받은 "주인 맞음"은 믿지 않고 `unavailable`로 친다. */
+async function checkLock(owner: string): Promise<"acquired" | "busy" | "unavailable"> {
+  const sentAt = Date.now();
+  const outcome = await timed((signal) => acquireRequestLock("gui", owner, true, signal), "unavailable" as const);
+  return outcome === "acquired" && Date.now() - sentAt > LOCK_CHECK_FRESH_MS ? "unavailable" : outcome;
+}
 
 export const UNCERTAIN_MESSAGE =
   "GUI 연결이 새로 맺어져(새로고침·홈 이동·다른 탭) 이 요청이 이전 연결에서 적용됐는지 확인할 수 없습니다. "
@@ -159,7 +191,8 @@ export function startAgentEditBridge(): () => void {
     // 줄에서 기다리는 사이 다음 연결이 시작됐으면 지난 연결의 쓰기는 시작하지 않는다. 시작했더라도
     // 서버가 지난 주인 id를 거부한다.
     const run = resultChain.then(() => writeOwner === owner
-      ? writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, writeOwner)
+      ? timed((signal) => writeWorkspaceFile(AGENT_EDIT_RESULT_PATH, body, "application/json", undefined, writeOwner, signal),
+        { ok: false as const, error: "시간 초과" })
       : { ok: false as const, error: "지난 연결의 결과 쓰기" });
     resultChain = run.catch(() => undefined);
     const written = await run;
@@ -174,7 +207,8 @@ export function startAgentEditBridge(): () => void {
     const state = currentState(owner);
     const comparable = JSON.stringify({ ...state, updatedAt: "" });
     if (!force && comparable === lastPublished && Date.now() - lastPublishedAt < GUI_STATE_HEARTBEAT_MS) return;
-    const written = await writeWorkspaceFile(GUI_STATE_PATH, JSON.stringify(state, null, 2), "application/json", undefined, owner);
+    const written = await timed((signal) => writeWorkspaceFile(GUI_STATE_PATH, JSON.stringify(state, null, 2), "application/json", undefined, owner, signal),
+      { ok: false as const, error: "시간 초과" });
     if (written.ok) {
       lastPublished = comparable;
       lastPublishedAt = Date.now();
@@ -260,7 +294,10 @@ export function startAgentEditBridge(): () => void {
       // 새로 잡을 때는 새 주인 id로 — 지난 연결의 늦은 쓰기를 서버가 거부하게 한다.
       if (!holder) { connectionSeq += 1; owner = `${tabId}:${connectionSeq}`; }
       const epochBefore = epoch;
-      const outcome = await acquireRequestLock("gui", owner, holder);
+      // 요청을 보내는 순간부터 잠금을 쥐었을 수 있다 — 그 사이 탭을 닫아도 해제를 보낸다.
+      if (!holder) lockMaybeHeld = true;
+      const outcome = await timed((signal) => acquireRequestLock("gui", owner, holder, signal), "unavailable" as const);
+      if (!holder && outcome === "busy" && epoch === epochBefore) lockMaybeHeld = false;
       // 잡는 요청이 오가는 사이 연결을 풀었다(홈 이동) — 해제가 아직 오가든 이미 끝났든 이 응답은
       // 지난 연결의 것이다. 다음 회차가 새 주인 id로 다시 잡는다(PR #303 리뷰).
       if (epoch !== epochBefore) return;
@@ -276,8 +313,10 @@ export function startAgentEditBridge(): () => void {
         // 읽기 실패를 "파일 없음"으로 치면 이미 처리한 요청을 새 요청으로 보고 다시 처리해 확정 거절로
         // 결과를 덮는다(PR #303 리뷰). 둘 중 하나라도 읽지 못했으면 이번엔 연결하지 않고 잠금을 푼다 —
         // 다음 회차가 다시 잡아 복원한다.
-        const previousRead = await readWorkspaceTextFileStrict(AGENT_EDIT_RESULT_PATH);
-        const requestRead = previousRead.ok ? await readWorkspaceTextFileStrict(AGENT_EDIT_PATH) : previousRead;
+        const readFailed = { ok: false as const };
+        const previousRead = await timed((signal) => readWorkspaceTextFileStrict(AGENT_EDIT_RESULT_PATH, signal), readFailed);
+        const requestRead = previousRead.ok
+          ? await timed((signal) => readWorkspaceTextFileStrict(AGENT_EDIT_PATH, signal), readFailed) : previousRead;
         if (!previousRead.ok || !requestRead.ok) { releaseLock(); return; }
         const previous = previousRead.text;
         let handled: string | null = null;
@@ -370,7 +409,7 @@ export function startAgentEditBridge(): () => void {
     if (parsed.id === lastHandledId || !holder) return;
     // 처리 직전에 연결이 아직 이 탭인지 확인한다 — 연장이 늦어 잠금이 넘어갔다면 새 탭이 처리한다.
     const epochBefore = epoch;
-    const outcome = await acquireRequestLock("gui", owner, true);
+    const outcome = await checkLock(owner);
     // 확인을 기다리는 사이 연결이 바뀌었다(주기 연장이 잃음을 먼저 확인, 홈 이동) — 이 응답이
     // 성공이어도 지난 연결의 것이다. 적용하지 않는다(PR #303 리뷰).
     if (stopped || epoch !== epochBefore || !holder) return;
@@ -436,8 +475,8 @@ export function startAgentEditBridge(): () => void {
     if (stopped || !holder || claiming || polling) return;
     polling = true;
     try {
-      const files = await listWorkspaceFiles(RUNTIME_DIR);
-      if (files?.includes(AGENT_EDIT_FILE)) await handle(await readWorkspaceTextFile(AGENT_EDIT_PATH));
+      const files = await timed((signal) => listWorkspaceFiles(RUNTIME_DIR, { signal }), null);
+      if (files?.includes(AGENT_EDIT_FILE)) await handle(await timed((signal) => readWorkspaceTextFile(AGENT_EDIT_PATH, signal), null));
     } finally {
       polling = false;
     }
@@ -457,7 +496,7 @@ export function startAgentEditBridge(): () => void {
     const epochBefore = epoch;
     let outcome;
     try {
-      outcome = await acquireRequestLock("gui", owner, true);
+      outcome = await checkLock(owner);
     } finally {
       resolving = false;
     }
