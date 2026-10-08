@@ -11,7 +11,7 @@ PR 생성 전 테스트를 실행하고, 한글 PR 제목·본문을 작성한 �
 
 ### 1단계 — 브랜치 및 변경사항 파악
 
-**PR base는 항상 `develop`이다.** GitHub 기본 브랜치나 현재 브랜치의 upstream을 추측해 base를 정하지 않는다. `main`을 포함해 다른 브랜치를 PR base로 사용하지 않는다.
+**PR base는 기본적으로 `develop`이다.** GitHub 기본 브랜치나 현재 브랜치의 upstream을 추측해 base를 정하지 않는다. 단, 사용자가 릴리스 승격 등 `main`으로의 병합을 명시적으로 의도한 경우에는 `main`을 예외 base로 사용할 수 있다. 의도가 분명하지 않으면 `develop`을 사용한다.
 
 ```bash
 git status
@@ -19,8 +19,9 @@ git log develop..HEAD --oneline
 git diff develop...HEAD --stat
 ```
 
+- `main` 병합이 명시된 경우에는 위 두 비교 명령의 `develop`을 `main`으로 바꿔 실행한다.
 - 현재 브랜치가 `develop`이면 피처 브랜치가 아니므로 PR 준비를 중단한다.
-- PR 준비 요약과 승인 요청에 base를 `develop`으로 표시한다.
+- PR 준비 요약과 승인 요청에 실제 base(`develop` 또는 명시적으로 요청된 `main`)를 표시한다.
 - 원격 브랜치에 push 되지 않은 경우 → PR 생성 전 push 여부를 사용자에게 묻는다
 
 ---
@@ -55,7 +56,7 @@ npm run build
 
 ### 3단계 — PR 내용 작성
 
-`develop..HEAD` 커밋과 `develop...HEAD` 변경 파일을 분석해 초안을 작성한다.
+선택한 base 브랜치(`develop`, 또는 명시적으로 요청된 `main`) 기준으로 커밋과 변경 파일을 분석해 초안을 작성한다.
 
 **PR 제목**: `type: 한글 요약` 형태, 70자 이내
 - type: `feat` | `fix` | `refactor` | `chore` | `style` | `docs`
@@ -92,7 +93,7 @@ npm run build
 ```
 ## PR 준비 완료
 
-**브랜치**: feature/xxx → develop
+**브랜치**: feature/xxx → develop (또는 명시적으로 요청된 main)
 **포함 커밋**: N개
 
 **제안 PR 제목**:
@@ -112,11 +113,10 @@ npm run build
 
 ### 5단계 — PR 생성
 
-사용자가 승인하면 base를 생략하지 않고 다음처럼 PR을 생성해 URL을 출력한다.
+사용자가 승인하면 선택한 base를 생략하지 않고 PR을 생성해 URL을 출력한다. 기본 생성 명령은 다음과 같다. `main` 병합이 명시된 경우에만 `--base main`을 사용한다.
 
 ```bash
 gh pr create --base develop
 ```
 
-생성 후 `gh pr view --json baseRefName`으로 PR base가 `develop`인지 확인한다. `develop`이
-아니면 작업을 완료로 보고하지 말고 올바른 base로 수정한다.
+생성 후 `gh pr view --json baseRefName`으로 PR base가 요청된 값과 일치하는지 확인한다. 일치하지 않으면 작업을 완료로 보고하지 말고 올바른 base로 수정한다.
