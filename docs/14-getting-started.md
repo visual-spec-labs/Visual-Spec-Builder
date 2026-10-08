@@ -33,6 +33,7 @@ node "$VSB_REPO/bin/visual-spec.mjs"
 
 **마지막 명령은 인자가 없다.** `visual-spec gui`라는 명령은 없다. 터미널에 표시된 localhost 주소를 열고 서버 프로세스는 유지한다.
 CLI는 도구 저장소의 Vite 서버를 띄우고, 실행한 폴더의 `.visual-spec/`을 작업공간으로 연결한다.
+이때 React는 production 빌드로 돈다(#314 — 큰 문서의 편집이 개발 모드보다 훨씬 빠르다). React 경고를 보며 디버깅하려면 `VISUAL_SPEC_REACT_DEV=1`을 붙여 실행한다.
 다른 터미널에서는 `VSB_REPO`를 저장소의 절대 경로로 다시 지정한다.
 
 | 경로 | 쓰임 |

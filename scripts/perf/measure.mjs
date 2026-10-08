@@ -2,8 +2,9 @@
 // 프로젝트·노드·이미지 규모별 성능 실측(#293).
 //
 //   node scripts/perf/measure.mjs [--reps 5] [--scenario S1,S2] [--chrome <path>] [--json out.json]
-//                                 [--node-env production] [--profile]
-//   --node-env <값>        개발 서버의 NODE_ENV(development 기본 | production — React production 빌드 비교 실험).
+//                                 [--node-env development] [--profile]
+//   --node-env <값>        개발 서버의 NODE_ENV. 기본은 CLI(`visual-spec`)와 같은 production이다(#314 —
+//                          사용자 GUI는 React production 빌드로 돈다). development는 #314 이전·`pnpm dev` 비교용.
 //   --profile              측정 반복 뒤 별도 반복 하나에서 홈 진입·편집 구간 CPU 자기 시간 상위를 뽑는다
 //                          (결과 중앙값에는 섞지 않는다. --json이면 함께 저장한다).
 //
@@ -52,14 +53,14 @@ const SCENARIOS = {
 };
 
 function parseArgs(argv) {
-  const args = { reps: 5, scenarios: Object.keys(SCENARIOS), chrome: undefined, json: undefined, profile: false, nodeEnv: "development" };
+  const args = { reps: 5, scenarios: Object.keys(SCENARIOS), chrome: undefined, json: undefined, profile: false, nodeEnv: "production" };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--reps") args.reps = Number(argv[++i]);
     else if (argv[i] === "--scenario") args.scenarios = argv[++i].split(",");
     else if (argv[i] === "--chrome") args.chrome = argv[++i];
     else if (argv[i] === "--json") args.json = argv[++i];
     else if (argv[i] === "--profile") args.profile = true;
-    // 개발 서버의 NODE_ENV. 생략하면 development다(부모 셸의 NODE_ENV를 물려받지 않는다 — 실행과 기록이 어긋나지 않게).
+    // 개발 서버의 NODE_ENV. 생략하면 CLI와 같은 production이다(부모 셸의 NODE_ENV를 물려받지 않는다 — 실행과 기록이 어긋나지 않게).
     else if (argv[i] === "--node-env") args.nodeEnv = argv[++i];
   }
   if (!["development", "production"].includes(args.nodeEnv)) throw new Error(`--node-env는 development 또는 production이어야 합니다(받음: ${args.nodeEnv}).`);
@@ -263,6 +264,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
     "--no-first-run", "--no-default-browser-check", "--window-size=1600,1000", "about:blank"], { stdio: "ignore" });
   const results = [];
   const profiles = {};
+  let retries = 0;
   try {
     const base = `http://127.0.0.1:${port}`;
     await waitHttp(`${base}/__vs/status`, 60_000, () => viteExit);
@@ -273,10 +275,24 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
     // 워밍업 1회(개발 서버의 모듈 변환 캐시를 채운다) + 측정 reps회
     // 프로파일은 측정 반복 뒤 따로 한 번 더 돌린다 — 샘플링이 켜진 시간을 결과에 섞지 않는다.
     const profileRep = profile ? reps : null;
-    for (let rep = -1; rep < reps + (profile ? 1 : 0); rep += 1) {
+    // 반복 하나. 개발 서버가 의존성을 다시 최적화하며 페이지를 새로 고치면(실행 중 "target navigated")
+    // 그 반복만 버리고 다시 잰다 — 측정 대상이 아니라 첫 기동의 부수 효과다. 다시 잰 횟수는 결과에 남긴다.
+    const opened = { contextId: null };
+    const measureRep = async (rep) => {
       const { browserContextId } = await cdp.send("Target.createBrowserContext");
+      opened.contextId = browserContextId;
       const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank", browserContextId });
       const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true });
+      // 개발 서버가 측정 도중 페이지를 새로 고쳤는가. 어느 단계에서든 새로 고쳐졌으면 이 반복은 버린다.
+      const reloaded = async () => (await evaluate(cdp, sessionId,
+        `performance.getEntriesByType("navigation")[0]?.type ?? null`).catch(() => null)) === "reload";
+      const step = async (expression) => {
+        try { return await evaluate(cdp, sessionId, expression); }
+        catch (error) {
+          if (await reloaded()) throw new Error(`page navigated or closed (개발 서버 재로드): ${error.message}`);
+          throw error;
+        }
+      };
       await cdp.send("Performance.enable", {}, sessionId);
       await cdp.send("HeapProfiler.enable", {}, sessionId);
       await cdp.send("Runtime.enable", {}, sessionId);
@@ -290,11 +306,16 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
       let homeMs = null;
       const until = Date.now() + 120_000;
       while (homeMs === null) {
-        homeMs = await evaluate(cdp, sessionId,
-          `document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects} ? performance.now() : null`,
+        const seen = await evaluate(cdp, sessionId,
+          `document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects}
+            ? { t: performance.now(), nav: performance.getEntriesByType("navigation")[0]?.type ?? null } : null`,
           Math.max(1000, until - Date.now()))
           // 페이지를 바꾸는 중의 평가 실패(실행 컨텍스트 교체 등)만 넘긴다. 연결 끊김·시간 초과는 그대로 실패시킨다.
           .catch((error) => { if (error.message.startsWith("DevTools")) throw error; return null; });
+        // 기다리는 사이 개발 서버가 페이지를 새로 고쳤으면(의존성 재최적화) performance.now()가 0부터 다시
+        // 시작해 홈 시간이 짧게 잡힌다 — 이 반복은 버리고 다시 잰다.
+        if (seen !== null && seen.nav === "reload") throw new Error("page navigated or closed (개발 서버 재로드)");
+        homeMs = seen?.t ?? null;
         if (homeMs === null) { if (Date.now() > until) throw new Error("홈 시간 초과"); await sleep(10); }
       }
       if (rep === profileRep) {
@@ -303,29 +324,47 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
         process.stderr.write(`  홈 첫 진입 CPU 자기 시간 상위:\n${profiles.home.map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
       }
       const homeRes = await metrics(cdp, sessionId);
-      await evaluate(cdp, sessionId, PAGE_HELPERS);
-      const openMs = await evaluate(cdp, sessionId, `window.__perf.open(${JSON.stringify(target)})`);
+      await step(PAGE_HELPERS);
+      const openMs = await step(`window.__perf.open(${JSON.stringify(target)})`);
       const openRes = await metrics(cdp, sessionId);
       if (rep === profileRep) {
         await cdp.send("Profiler.enable", {}, sessionId);
         await cdp.send("Profiler.setSamplingInterval", { interval: 100 }, sessionId);
         await cdp.send("Profiler.start", {}, sessionId);
       }
-      const { edits, undos } = await evaluate(cdp, sessionId, "window.__perf.editAndUndo(10)");
+      const { edits, undos } = await step("window.__perf.editAndUndo(10)");
       if (rep === profileRep) {
         const { profile: cpu } = await cdp.send("Profiler.stop", {}, sessionId);
         profiles.editUndo = topSelfTime(cpu);
         process.stderr.write(`  편집·Undo 10회 CPU 자기 시간 상위:\n${profiles.editUndo.map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
       }
-      if (rep === -1) await evaluate(cdp, sessionId, `window.__perf.prepareExport(${scenario.image !== undefined})`);
-      const exported = await evaluate(cdp, sessionId, "window.__perf.exportZip()");
+      if (rep === -1) await step(`window.__perf.prepareExport(${scenario.image !== undefined})`);
+      const exported = await step("window.__perf.exportZip()");
       const endRes = await metrics(cdp, sessionId);
+      // 단계 사이(평가와 평가 사이)에 새로 고쳐져 오류 없이 지나간 경우도 결과에 넣지 않는다.
+      if (await reloaded()) throw new Error("page navigated or closed (개발 서버 재로드)");
       await cdp.send("Target.closeTarget", { targetId });
       await cdp.send("Target.disposeBrowserContext", { browserContextId });
+      opened.contextId = null;
       if (rep >= 0 && rep !== profileRep) {
         results.push({ homeMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
           undoMs: median(undos.map((e) => e.task)), undoFrameMs: median(undos.map((e) => e.frame)), exportMs: exported.ms,
           zipBytes: exported.zipBytes, files: exported.files, homeRes, openRes, endRes });
+      }
+        };
+    for (let rep = -1; rep < reps + (profile ? 1 : 0); rep += 1) {
+      try {
+        await measureRep(rep);
+      } catch (error) {
+        const transient = /navigated or closed|Execution context was destroyed|Cannot find context/.test(error.message);
+        if (opened.contextId !== null) {
+          await cdp.send("Target.disposeBrowserContext", { browserContextId: opened.contextId }).catch(() => undefined);
+          opened.contextId = null;
+        }
+        if (!transient || retries >= 3) throw error;
+        retries += 1;
+        process.stderr.write(`  반복 ${rep}에서 페이지가 새로 고쳐져 다시 잽니다(${retries}회): ${error.message.trim()}\n`);
+        rep -= 1;
       }
     }
     cdp.close();
@@ -338,7 +377,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
   }
   const summary = (pick) => ({ median: round(median(results.map(pick))), max: round(Math.max(...results.map(pick))) });
   return {
-    key, label: scenario.label, reps, imageBytes, nodeEnv,
+    key, label: scenario.label, reps, imageBytes, nodeEnv, retries,
     ...(profile ? { profiles } : {}),
     home: summary((r) => r.homeMs), open: summary((r) => r.openMs), edit: summary((r) => r.editMs),
     undo: summary((r) => r.undoMs), editFrame: summary((r) => r.editFrameMs), undoFrame: summary((r) => r.undoFrameMs),

@@ -12,7 +12,7 @@ npm으로 설치하지 않는다. Node는 20 이상이 필요하다.
 git clone https://github.com/visual-spec-labs/Visual-Spec-Builder.git
 cd Visual-Spec-Builder
 pnpm install
-pnpm dev            # vite 개발 서버
+pnpm dev            # vite 개발 서버(React 개발 모드). CLI로 띄우는 사용자 GUI는 production 모드다(#314)
 ```
 
 전체 스크립트 목록은 [README.md의 "개발"](README.md#개발) 절에 있다.
