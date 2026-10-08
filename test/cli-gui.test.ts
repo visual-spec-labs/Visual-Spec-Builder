@@ -81,6 +81,31 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
     }
   });
 
+  it("pnpm hoisted 의존성도 Node 모듈 해석으로 찾아 GUI를 실행한다", () => {
+    const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-hoisted-root-"));
+    try {
+      const viteRoot = join(fakeRoot, ".pnpm", "node_modules", "vite");
+      mkdirSync(join(viteRoot, "dist", "node"), { recursive: true });
+      mkdirSync(join(viteRoot, "bin"), { recursive: true });
+      writeFileSync(join(viteRoot, "package.json"), JSON.stringify({ name: "vite", main: "dist/node/index.js" }));
+      writeFileSync(join(viteRoot, "dist", "node", "index.js"), "module.exports = {};\n");
+      writeFileSync(
+        join(viteRoot, "bin", "vite.js"),
+        'console.log("WORKSPACE=" + process.env.VISUAL_SPEC_WORKSPACE);\n',
+      );
+
+      const result = runCli([], projectDir, {
+        VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot,
+        NODE_PATH: join(fakeRoot, ".pnpm", "node_modules"),
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe(`WORKSPACE=${join(projectDir, ".visual-spec")}`);
+    } finally {
+      rmSync(fakeRoot, { recursive: true, force: true });
+    }
+  });
+
   // vitest 자체의 기본 테스트 타임아웃(5초)보다 넉넉하게 잡는다 — 셋째 인자로
   // 안 주면 내부 Promise가 끝나기 전에 vitest가 먼저 테스트를 죽인다. CI에서
   // 실제로 5초 타임아웃에 걸리는 걸 보고 여유를 뒀다(느려서가 아니라 아래

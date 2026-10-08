@@ -9,16 +9,16 @@
 // cwd의 `.visual-spec/specs/`를, Import는 `.visual-spec/assets/`를 쓴다. 연결 고리는
 // 아래 runGui가 vite에 실어 보내는 `VISUAL_SPEC_WORKSPACE` 환경 변수 하나다.
 //
-// 이 파일은 scripts/generate-types.mjs와 같은 이유로 컴파일 없는 순수 Node 스크립트다:
-// `npx visual-spec`은 사용자 프로젝트에서 빌드 없이 바로 실행돼야 한다. 다만 `init`·
-// `skills`와 달리 GUI 실행 자체는 **이 패키지 자신의** Vite 개발 서버를 띄우는 것이라
-// (에디터 소스가 사용자 프로젝트가 아니라 이 저장소 안에 있다), `PACKAGE_ROOT`를 cwd로
-// 쓴다 — 아래 runGui 참고.
+// 이 파일은 scripts/generate-types.mjs와 같은 이유로 컴파일 없는 순수 Node 스크립트다.
+// 이 패키지는 레지스트리에 공개하지 않지만, `pnpm pack` tarball에는 에디터 소스와
+// Vite 런타임 의존성이 포함된다. GUI는 **설치된 패키지 자체**의 Vite 서버를 띄우므로
+// 사용자 프로젝트가 아닌 PACKAGE_ROOT를 cwd로 쓴다 — 아래 runGui 참고.
 
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { accessSync, constants as fsConstants, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 
 /** 이 파일 자신의 위치 기준 — 대상 프로젝트(cwd)가 아니라 이 패키지 자신의 skills/를 읽는다. */
 const DEFAULT_PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -507,10 +507,8 @@ function warnAboutInstalledSkillsAt(cwd, target) {
 }
 
 /**
- * 이 패키지 자신의 Vite 개발 서버 **JS 진입점** 경로. 없으면(=이 저장소에서 아직
- * `pnpm install`을 안 한 상태) 에러를 던진다 — spawn이 raw ENOENT를 던지기 전에
- * 여기서 먼저 걸러서 친절한 메시지로 바꾼다(init·installSkills의 ENOTDIR 선점 검사와
- * 같은 패턴).
+ * 이 패키지 자신의 Vite 서버 **JS 진입점** 경로. 없으면 설치가 덜 된 패키지로 보고
+ * spawn의 raw ENOENT 대신 설치 안내를 던진다.
  *
  * `node_modules/.bin/vite`가 아니라 `node_modules/vite/bin/vite.js`를 가리키는 이유는
  * 아래 runGui의 spawn 주석에 적었다 — 이슈 #115.
@@ -520,14 +518,27 @@ function warnAboutInstalledSkillsAt(cwd, target) {
 function resolveViteEntry() {
   const viteEntry = join(PACKAGE_ROOT, "node_modules", "vite", "bin", "vite.js");
 
-  if (!existsAsFile(viteEntry)) {
+  let resolvedEntry = viteEntry;
+  if (!existsAsFile(resolvedEntry)) {
+    try {
+      // pnpm의 isolated/hoisted 레이아웃에서는 의존성 링크가 패키지 바로 아래가
+      // 아닐 수 있다. CLI 실행기가 제공하는 NODE_PATH를 포함해 Node 해석 규칙을 따른다.
+      const viteModule = createRequire(join(PACKAGE_ROOT, "package.json")).resolve("vite");
+      const viteRoot = resolve(dirname(viteModule), "..", "..");
+      resolvedEntry = join(viteRoot, "bin", "vite.js");
+    } catch {
+      // 아래의 기존 설치 안내로 통일한다.
+    }
+  }
+
+  if (!existsAsFile(resolvedEntry)) {
     throw new Error(
-      `${viteEntry}를 찾을 수 없습니다 — 이 저장소에서 먼저 \`pnpm install\`을 실행해주세요.\n` +
-        "(GUI는 지금 사용자 프로젝트가 아니라 이 패키지 자신의 개발 서버로 뜬다 — 이슈 #105 참고)",
+      `${viteEntry}를 찾을 수 없습니다 — 이 패키지 디렉터리에서 먼저 \`pnpm install\`을 실행해주세요.\n` +
+        "GUI는 사용자 프로젝트가 아니라 설치된 visual-spec 패키지의 서버에서 실행됩니다.",
     );
   }
 
-  return viteEntry;
+  return resolvedEntry;
 }
 
 function printUsage() {
