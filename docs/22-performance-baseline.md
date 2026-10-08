@@ -23,7 +23,7 @@
 
 `visual-spec` CLI가 GUI 개발 서버를 `NODE_ENV=production`으로 띄우게 바꿨다(`bin/visual-spec.mjs`의 `guiNodeEnv`, `VISUAL_SPEC_REACT_DEV=1`이면 개발 모드). 측정 스크립트의 기본값도 같은 production으로 바꿨다(개발 모드는 `--node-env development`). 원자료: [qa/2026-10-08-perf-314.json](qa/2026-10-08-perf-314.json) — 다섯 시나리오 모두 다시 잰 반복 0회.
 
-| 시나리오 | 홈 | 열기 | 편집 (JS / 화면) | Undo (JS / 화면) | Export | #314 이전 대비 편집 JS |
+| 시나리오 | 홈 | 열기 | 편집 (다음 태스크 / 두 rAF) | Undo (다음 태스크 / 두 rAF) | Export | #314 이전 대비 편집 다음 태스크 |
 |---|---|---|---|---|---|---|
 | S1 10 · 100 | 123 (165) | 47 (60) | 5 / 33 | 5 / 33 | 7 | 14 → 5 |
 | S2 100 · 100 | 183 (206) | 53 (66) | 4 / 33 | 4 / 34 | 8 | 14 → 4 |
@@ -36,7 +36,7 @@
 - **방식 선택.** 이슈의 두 갈래 중 (가) 개발 서버를 `NODE_ENV=production`으로 띄우는 쪽을 골랐다. (나) `vite build` 결과를 작업공간 미들웨어가 붙은 서버로 제공하는 쪽은 실행마다 빌드(또는 빌드 캐시 판정)가 필요하고, 지금 개발 서버 전용(`apply: "serve"`)인 미들웨어를 preview 서버에도 붙여야 한다. (가)는 CLI가 넘기는 환경 변수 하나로 같은 효과(위 표)를 낸다. 그래서 사용자는 여전히 개발 서버의 모듈을 받고 production 번들(548kB)은 받지 않는다 — 코드 분할(5)은 낮은 우선순위를 유지한다.
 - **개발 모드에서만 있던 것이 사라진다.** React Fast Refresh가 꺼져(plugin-react가 production에서 건너뛴다) GUI를 띄운 채 도구 저장소 소스가 바뀌면(예: `git pull`) 상태 보존 갱신 대신 페이지 전체가 새로 고쳐진다. StrictMode의 effect 이중 실행이 없어지고, React 오류 문구가 `Minified React error #…`로 줄어든다. 셋 다 도구를 고치는 사람에게 필요한 것이라 `pnpm dev`(개발 모드)나 `VISUAL_SPEC_REACT_DEV=1`로 그대로 쓸 수 있다. 앱 코드에는 `import.meta.env`·`NODE_ENV` 분기가 없다.
 - **의존성 캐시를 모드별로 나눴다**(`vite.config.ts`의 `cacheDir` — production은 `node_modules/.vite-production`). Vite는 `NODE_ENV`가 바뀌면 사전 번들 캐시를 다시 만들고, 그 직후 첫 화면에서 새 의존성을 찾으면 페이지를 한 번 새로 고친다. CLI(production)와 `pnpm dev`(development)를 오갈 때마다 이 일이 생기지 않게 한다.
-- 남은 병목은 후속 2(#315, 홈 미리보기 — S4 홈 1.0초·DOM 17만 개)다. 편집은 노드 1000개에서 JS 23~24ms로 한 프레임 예산을 넘는다(#317).
+- 남은 병목은 후속 2(#315, 홈 미리보기 — S4 홈 1.0초·DOM 17만 개)다. 편집은 노드 1000개에서 "다음 태스크까지 경과"가 23~24ms로 노드 100개보다 커서, 실제 입력 경로로 다시 잰다(#317).
 
 ## 측정 환경
 
