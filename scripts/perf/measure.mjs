@@ -23,7 +23,7 @@
 //   export — 생성 코드 훑기·검증(scanGeneratedCode) + 자산 읽기 + ZIP 만들기(다운로드 클릭 제외)
 // 자원: 단계마다 GC를 강제한 뒤의 JS 힙 사용량·DOM 노드 수(Performance.getMetrics).
 
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -51,6 +51,8 @@ const SCENARIOS = {
   S3: { projects: 10, nodes: 1000, label: "프로젝트 10 · 노드 1000" },
   S4: { projects: 100, nodes: 1000, label: "프로젝트 100 · 노드 1000" },
   S5: { projects: 10, nodes: 100, image: { width: 2400, height: 1600 }, label: "프로젝트 10 · 노드 100 · 큰 이미지(11.5MB PNG)" },
+  // 프로젝트마다 다른 이미지 — 디코딩·비트맵이 공유되지 않는다(#318).
+  S6: { projects: 10, nodes: 100, image: { width: 2400, height: 1600, distinct: true }, label: "프로젝트 10 · 노드 100 · 프로젝트마다 다른 큰 이미지(11.5MB PNG × 10)" },
 };
 
 function parseArgs(argv) {
@@ -152,6 +154,39 @@ async function metrics(cdp, sessionId) {
 }
 
 // 페이지 안에서 도는 측정 코드. 앱과 같은 모듈 URL을 동적 import하므로 같은 스토어 인스턴스를 쓴다.
+// 이미지가 실제로 그려진 시각(#318). 이미지는 CSS 배경이라 로드·디코딩이 비동기다 — Element Timing은 배경
+// 이미지에도 renderTime(화면에 그려진 시각)을 준다. 앱을 고치지 않고, 페이지가 뜨기 전에 배경 이미지가 있는
+// 요소에 elementtiming 속성을 붙이는 감시를 심는다.
+const ELEMENT_TIMING_SETUP = String.raw`
+window.__vsbImages = [];
+new PerformanceObserver((list) => {
+  for (const e of list.getEntries()) window.__vsbImages.push({ url: e.url, renderTime: e.renderTime || e.loadTime, loadTime: e.loadTime,
+    top: e.intersectionRect.top, bottom: e.intersectionRect.bottom, width: e.naturalWidth, height: e.naturalHeight });
+}).observe({ type: "element", buffered: true });
+const mark = (el) => { if (el.nodeType === 1 && !el.hasAttribute("elementtiming") && /url\(/.test(el.style?.backgroundImage ?? "")) el.setAttribute("elementtiming", "vsb-image"); };
+new MutationObserver((records) => {
+  for (const r of records) {
+    if (r.type === "attributes") mark(r.target);
+    for (const n of r.addedNodes ?? []) { mark(n); n.querySelectorAll?.("[style]").forEach(mark); }
+  }
+}).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["style"] });
+`;
+
+/** 측정용 Chrome 프로세스 트리(렌더러·GPU 포함)의 RSS 합(MB). 디코딩한 비트맵은 JS 힙에 잡히지 않는다. */
+function chromeTreeRssMB(rootPid) {
+  try {
+    const rows = execFileSync("ps", ["-A", "-o", "pid=,ppid=,rss="], { encoding: "utf8" }).trim().split("\n")
+      .map((line) => line.trim().split(/\s+/).map(Number));
+    const children = new Map();
+    for (const [pid, ppid] of rows) children.set(ppid, [...(children.get(ppid) ?? []), pid]);
+    const rss = new Map(rows.map(([pid, , kb]) => [pid, kb]));
+    let total = 0;
+    const stack = [rootPid];
+    while (stack.length > 0) { const pid = stack.pop(); total += rss.get(pid) ?? 0; stack.push(...(children.get(pid) ?? [])); }
+    return Math.round(total / 1024);
+  } catch { return null; }
+}
+
 // 화면에 보이는 카드의 미리보기가 모두 그려졌는가(#315부터 미리보기는 화면 근처에 들어온 카드만
 // 그린다 — data-preview="pending"). 그 전 버전은 카드와 미리보기를 한 번에 그려 pending이 없다.
 // 첫 화면이 찼는가: 카드가 모두 들어왔거나, 마지막 카드가 화면 아래 끝에 닿았다(#316 — 앞에서부터
@@ -176,6 +211,7 @@ window.__perf = {
     const card = [...document.querySelectorAll("button")].find((b) => !b.getAttribute("aria-label") && b.textContent.includes(target));
     if (!card) throw new Error("카드 없음: " + target);
     const t0 = performance.now();
+    this.openStartedAt = t0;
     card.click();
     for (;;) {
       if (nav.getState().screen === "editor" && editor.getState().spec.name === target) break;
@@ -269,9 +305,12 @@ window.__perf = {
     const editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
     const { spec, activePageId } = editor.getState();
     const scan = await scanGeneratedCode(spec.pages[activePageId]);
+    // 페이지 파일은 이 페이지의 이미지 노드가 가리키는 실제 파일을 import한다(S6는 프로젝트마다 다르다).
+    const hero = spec.pages[activePageId].nodes.hero;
+    const asset = withImage && hero?.type === "image" ? hero.src.split("/").pop() : null;
     for (const entry of scan.report.coverage) {
       const isPage = entry.expectedPath.startsWith("pages/");
-      const body = (withImage && isPage ? 'import heroImageUrl from "../assets/big.png";\n' : "")
+      const body = (asset !== null && isPage ? 'import heroImageUrl from "../assets/' + asset + '";\n' : "")
         + "export " + (isPage ? "default " : "") + "function " + entry.componentName + "() {\n  return null;\n}\n";
       await writeWorkspaceFile("generated/" + entry.expectedPath, body, "text/plain");
     }
@@ -365,6 +404,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
       await cdp.send("HeapProfiler.enable", {}, sessionId);
       await cdp.send("Runtime.enable", {}, sessionId);
       await cdp.send("Page.enable", {}, sessionId);
+      if (scenario.image !== undefined) await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: ELEMENT_TIMING_SETUP }, sessionId);
       if (rep === profileRep) {
         await cdp.send("Profiler.enable", {}, sessionId);
         await cdp.send("Profiler.setSamplingInterval", { interval: 100 }, sessionId);
@@ -400,9 +440,35 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
         process.stderr.write(`  홈 첫 진입 CPU 자기 시간 상위:\n${profiles.home.map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
       }
       const homeRes = await metrics(cdp, sessionId);
+      // 홈: 화면에 보이는 미리보기 이미지가 모두 그려질 때까지(그려진 이미지 수가 보이는 이미지 요소 수에 닿으면).
+      let homeImages = null;
+      if (scenario.image !== undefined) {
+        const imageWait = Date.now() + 30_000;
+        while (homeImages === null) {
+          homeImages = await step(`(() => {
+            const visible = [...document.querySelectorAll('[elementtiming="vsb-image"]')].filter((el) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.width > 0; }).length;
+            const painted = window.__vsbImages.filter((e) => e.bottom > 0 && e.top < innerHeight);
+            return visible > 0 && painted.length >= visible ? { ms: Math.max(...painted.map((e) => e.renderTime)), count: painted.length } : null; })()`);
+          if (homeImages === null) { if (Date.now() > imageWait) throw new Error("홈 이미지 표시 시간 초과"); await sleep(20); }
+        }
+      }
+      // 브라우저 전체 메모리(RSS) — 이미지가 있으면 보이는 이미지가 그려진 뒤.
+      const homeRssMB = chromeTreeRssMB(browser.pid);
       await step(PAGE_HELPERS);
       const openMs = await step(`window.__perf.open(${JSON.stringify(target)})`);
       const openRes = await metrics(cdp, sessionId);
+      // 열기: 에디터 캔버스의 이미지가 그려질 때까지(카드 클릭 시각 기준).
+      let openImages = null;
+      if (scenario.image !== undefined) {
+        const imageWait = Date.now() + 30_000;
+        while (openImages === null) {
+          openImages = await step(`(() => { const start = window.__perf.openStartedAt;
+            const painted = window.__vsbImages.filter((e) => e.renderTime > start && e.width > 0);
+            return painted.length > 0 ? { ms: Math.max(...painted.map((e) => e.renderTime)) - start } : null; })()`);
+          if (openImages === null) { if (Date.now() > imageWait) throw new Error("열기 이미지 표시 시간 초과"); await sleep(20); }
+        }
+      }
+      const openRssMB = chromeTreeRssMB(browser.pid);
       if (rep === profileRep) {
         await cdp.send("Profiler.enable", {}, sessionId);
         await cdp.send("Profiler.setSamplingInterval", { interval: 100 }, sessionId);
@@ -460,7 +526,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
       await cdp.send("Target.disposeBrowserContext", { browserContextId });
       opened.contextId = null;
       if (rep >= 0 && rep !== profileRep) {
-        results.push({ typing, drag, homeMs, homeAllMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
+        results.push({ homeImages, openImages, homeRssMB, openRssMB, typing, drag, homeMs, homeAllMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
           undoMs: median(undos.map((e) => e.task)), undoFrameMs: median(undos.map((e) => e.frame)), exportMs: exported.ms,
           zipBytes: exported.zipBytes, files: exported.files, homeRes, openRes, endRes });
       }
@@ -502,6 +568,11 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
     } : {}),
     export: summary((r) => r.exportMs),
     zipKB: Math.round(results[0].zipBytes / 1024), generatedFiles: results[0].files,
+    rssMB: { home: summary((r) => r.homeRssMB), open: summary((r) => r.openRssMB) },
+    ...(scenario.image !== undefined ? {
+      homeImagesMs: summary((r) => r.homeImages.ms), homeImagesCount: summary((r) => r.homeImages.count),
+      openImagesMs: summary((r) => r.openImages.ms),
+    } : {}),
     heapMB: { home: summary((r) => r.homeRes.heapMB), open: summary((r) => r.openRes.heapMB), end: summary((r) => r.endRes.heapMB) },
     domNodes: { home: summary((r) => r.homeRes.domNodes), open: summary((r) => r.openRes.domNodes) },
     raw: results,
@@ -523,6 +594,8 @@ for (const key of args.scenarios) {
   console.log(`| ${key} ${result.label} | ${f(result.home)} / 전체 ${result.homeAll.median} | ${f(result.open)} | ${f(result.edit)} / ${result.editFrame.median} | ${f(result.undo)} / ${result.undoFrame.median} | ${f(result.export)} | ${result.heapMB.home.median} / ${result.heapMB.open.median} / ${result.heapMB.end.median} | ${result.domNodes.home.median} / ${result.domNodes.open.median} |`);
 }
 for (const result of out) {
+  console.log(`  ${result.key} 브라우저 RSS: 홈 ${result.rssMB.home.median}MB · 열기 뒤 ${result.rssMB.open.median}MB${result.homeImagesMs
+    ? ` · 이미지 그려짐: 홈 ${result.homeImagesMs.median}ms(보이는 ${result.homeImagesCount.median}장) · 열기 ${result.openImagesMs.median}ms` : ""}`);
   if (result.typing) {
     const g = (o) => `놓친 프레임 ${o.missed.median}·간격 p95 ${o.gapP95.median}·최대 ${o.gapMax.median}ms·느린 입력 ${o.slowEvents.median}건(p95 ${o.eventP95.median}·최대 ${o.eventMax.median}ms)`;
     console.log(`  ${result.key} 텍스트 삽입 30자: ${g(result.typing)} · 들어갔는가 ${result.typingApplied}`);
