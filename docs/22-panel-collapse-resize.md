@@ -368,6 +368,64 @@ OS 포커스 상실 시험은 아니었다는 리뷰의 단서처럼, 이것도 
 의 기존 왕복 테스트 하나는 고정값이 새 MIN_PANEL_WIDTH 아래로 떨어져
 있던 것을 280 이상으로 고쳤다 — 테스트 수는 그대로다).
 
+## 리뷰 대응 2차 (2026-10-08, 커밋 31425c4 검토) — React Hook 순서 P1 회귀
+
+팀원이 직전 라운드가 만든 **내 자신의 버그**를 실제 Chromium에서 잡았다.
+
+**버그.** `MenuBar.tsx`의 `propsSlotBusy`를
+`useExportStore((s) => s.isOpen) || useTicketStore((s) => s.isOpen)`로
+썼다. `||`는 단축 평가라 왼쪽이 `true`면 오른쪽은 아예 실행되지 않는다 —
+Export가 열려 있는 동안은 `useTicketStore` 훅 호출 자체가 매 렌더
+생략된다. React는 같은 컴포넌트가 렌더마다 **정확히 같은 순서로 같은
+개수의 훅**을 부른다고 가정하는데, 이 조건부 호출이 그 전제를 깨 React가
+내부 상태를 엉뚱한 훅에 연결하게 만든다 — 결과로 `Cannot read properties
+of undefined (reading 'length')`류 오류가 나며 에디터 전체가 빈 화면이
+됐다. File ▸ Export Code를 여는 평범한 메뉴 클릭 하나로 development·
+production 빌드 모두에서 재현됐다.
+
+**수정.** 두 스토어 훅을 **각자 독립된 줄에서 먼저 호출**해 지역 변수에
+담은 뒤, 그 boolean 값들만 `||`로 합쳤다:
+
+```ts
+const exportOpen = useExportStore((s) => s.isOpen);
+const ticketOpen = useTicketStore((s) => s.isOpen);
+const propsSlotBusy = exportOpen || ticketOpen;
+```
+
+이제 두 훅 모두 렌더마다 조건 없이 호출된다 — 단축 평가는 boolean 값
+사이에서만 일어나고 훅 호출 자체에는 관여하지 않는다.
+
+**회귀 테스트는 이번에도 못 더했다 — 그리고 이번엔 그게 더 아프다.**
+이 버그는 "값이 틀렸다"가 아니라 "React 훅 호출 순서가 렌더마다
+달라진다"는 종류라, 실제로 **컴포넌트를 두 번 이상 렌더**(처음엔
+`isOpen=false`, 그다음 `true`)해야 재현/고정할 수 있다 — 이 저장소에
+React Testing Library 등 렌더 테스트 인프라가 없어서(`docs/20-manual-agent-handoff-ui.md`
+가 이미 같은 한계를 기록했다) 리뷰가 요청한 "MenuBar를 실제로 mount하는
+회귀 테스트"는 지금 구조에서 못 만든다.
+
+**대신 구조적인 원인 하나를 찾았다 — 이 저장소 ESLint 설정에
+`eslint-plugin-react-hooks`가 없다.** `eslint.config.js`를 확인해 보니
+로컬 커스텀 규칙(`local/no-primitive-color-utilities`, 디자인 토큰
+강제용) 하나만 있고, React 생태계의 표준 `rules-of-hooks`/
+`exhaustive-deps` 규칙이 아예 안 걸려 있다. 그 플러그인이 있었다면 이번
+`||` 단축 평가 패턴은 **정적 분석만으로, 렌더 없이** `pnpm run lint`
+단계에서 바로 잡혔을 것이다 — 업계 표준 도구가 정확히 이 버그 클래스를
+잡으려고 만들어졌다. 다만 이건 하나의 PR 안에서 조용히 끼워 넣기엔 범위가
+다르다(새 의존성 추가, 저장소 전체를 처음으로 이 규칙에 통과시켜야 하고
+기존에 모르고 있던 다른 위반이 나올 수도 있다) — 이 PR에서는 당장의
+버그만 고치고, `eslint-plugin-react-hooks` 도입은 사용자에게 별도로
+제안한다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1675개
+통과/2개 건너뜀 — 테스트 수는 그대로다(순수 로직 변경이 아니라 훅 호출
+순서를 고친 것이라 새 테스트를 못 더했다, 위 설명 참고). 라이브 브라우저로
+"Export Code를 열어도 화면이 안 빈다"를 직접 확인하려 했으나, 이번에도
+홈→에디터 전환에서 이 세션의 Chrome 확장이 멈췄다 — 코드 추론(단축 평가가
+더 이상 훅 호출에 관여하지 않는다는 것)으로 대신했다.
+
 ## 범위 밖
 
 - 창 폭에 따른 자동 접기/축소(위 6번) — 수동 접기+상태 유지로 같은 목적을 푼다.

@@ -88,7 +88,16 @@ export function MenuBar() {
   // 한다(#287 리뷰 대응) — 접으면 32px 레일에 Export/티켓 내용이 그대로
   // 눌려 렌더된다. openExportPanel.ts/openTicketPanel.ts가 열 때 이미 펼쳐
   // 두므로, 여기서는 "열려 있는 동안 다시 접지 못하게"만 막으면 된다.
-  const propsSlotBusy = useExportStore((s) => s.isOpen) || useTicketStore((s) => s.isOpen);
+  //
+  // 두 훅을 **각자 먼저 호출**한 뒤에 ||로 합친다(#287 리뷰 2차 대응 —
+  // 실제 P1 회귀였다). `exportOpen || useTicketStore(...)`처럼 한 식에
+  // 바로 쓰면 exportOpen이 true일 때 단축 평가로 useTicketStore 호출 자체가
+  // 생략돼, 그 뒤로 Export가 열려 있는 동안 이 컴포넌트의 훅 호출 순서가
+  // 렌더마다 달라진다 — React가 "Rendered more hooks than during the
+  // previous render"급 오류를 내며 화면이 통째로 빈다.
+  const exportOpen = useExportStore((s) => s.isOpen);
+  const ticketOpen = useTicketStore((s) => s.isOpen);
+  const propsSlotBusy = exportOpen || ticketOpen;
 
   const FILE_MENU: MenuEntry[] = [
     { kind: "action", label: "New", onSelect: () => void newSpec() },
