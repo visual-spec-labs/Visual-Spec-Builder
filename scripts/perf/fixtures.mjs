@@ -2,7 +2,8 @@
 //
 // 프로젝트 문서(0.3)를 `count`개, 각 페이지의 노드를 정확히 `nodes`개로 만든다. 노드 구성은
 // 실제 화면과 비슷하게 root → 섹션(frame) → 카드(frame row) → text·button·input이다. 이미지
-// 시나리오는 큰 PNG 하나를 assets/에 두고 모든 프로젝트가 image 노드로 참조한다.
+// 시나리오는 큰 PNG 하나를 assets/에 두고 모든 프로젝트가 image 노드로 참조한다(`distinct`면 프로젝트마다
+// 다른 PNG — 디코딩·비트맵 메모리를 프로젝트 수만큼 쓰게 한다, #318).
 // 만든 문서는 CLI와 같은 검증기(bin/lib/schema.mjs)로 확인한다 — 잘못된 픽스처로 재지 않게.
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -43,11 +44,14 @@ export function buildPage(total, { imageSrc } = {}) {
   const nodes = {};
   const rootChildren = [];
   let left = total - 1; // root
-  if (imageSrc !== undefined) {
-    nodes.hero = image("Hero", imageSrc);
-    rootChildren.push("hero");
+  // imageSrc가 배열이면 한 페이지에 이미지 여러 장(hero, hero1, …)을 둔다(#318).
+  const sources = imageSrc === undefined ? [] : Array.isArray(imageSrc) ? imageSrc : [imageSrc];
+  sources.forEach((src, index) => {
+    const id = index === 0 ? "hero" : `hero${index}`;
+    nodes[id] = image(`Hero${index}`, src);
+    rootChildren.push(id);
     left -= 1;
-  }
+  });
   let section = 0;
   let card = 0;
   while (left >= 5) {
@@ -134,14 +138,29 @@ export function writeWorkspace(dir, { projects, nodes, image }) {
   const workspace = join(dir, ".visual-spec");
   for (const sub of ["specs", "generated", "assets", "runtime"]) mkdirSync(join(workspace, sub), { recursive: true });
   let imageBytes = 0;
-  if (image !== undefined) {
+  if (image !== undefined && !image.distinct) {
     const png = buildNoisePng(image.width, image.height);
     writeFileSync(join(workspace, "assets", "big.png"), png);
     imageBytes = png.length;
   }
   for (let index = 0; index < projects; index += 1) {
     const label = String(index).padStart(3, "0");
-    const spec = buildProject(`Perf ${label}`, nodes, image === undefined ? undefined : { imageSrc: "assets/big.png" });
+    // distinct면 프로젝트마다 다른 이미지(같은 크기, 다른 내용)를 둔다(#318).
+    let imageSrc;
+    if (image !== undefined) {
+      const perPage = image.perPage ?? 1;
+      const names = Array.from({ length: perPage }, (_, k) =>
+        image.distinct ? `assets/big-${label}${perPage > 1 ? `-${k}` : ""}.png` : "assets/big.png");
+      if (image.distinct) {
+        names.forEach((name, k) => {
+          const png = buildNoisePng(image.width, image.height, 293 + index * 10 + k);
+          writeFileSync(join(workspace, name), png);
+          imageBytes += png.length;
+        });
+      }
+      imageSrc = perPage > 1 ? names : names[0];
+    }
+    const spec = buildProject(`Perf ${label}`, nodes, imageSrc === undefined ? undefined : { imageSrc });
     writeFileSync(join(workspace, "specs", `p${label}.json`), JSON.stringify(spec));
   }
   return { workspace, target: "Perf 000", imageBytes };
