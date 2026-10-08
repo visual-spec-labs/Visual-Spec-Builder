@@ -53,7 +53,7 @@ const SCENARIOS = {
   S5: { projects: 10, nodes: 100, image: { width: 2400, height: 1600 }, label: "프로젝트 10 · 노드 100 · 큰 이미지(11.5MB PNG)" },
   // 프로젝트마다 다른 이미지 — 디코딩·비트맵이 공유되지 않는다(#318).
   S6: { projects: 10, nodes: 100, image: { width: 2400, height: 1600, distinct: true }, label: "프로젝트 10 · 노드 100 · 프로젝트마다 다른 큰 이미지(11.5MB PNG × 10)" },
-  // 홈이 실제로 그리는 카드 수(보이는 것 + 근처, 1600×1000에서 약 40장)를 넘는 서로 다른 이미지(#318).
+  // 홈이 그리는 카드(화면에 보이는 것과 그 아래 근처)보다 많은 프로젝트가 각자 다른 이미지를 쓴다(#318).
   S7: { projects: 50, nodes: 100, image: { width: 2400, height: 1600, distinct: true }, label: "프로젝트 50 · 노드 100 · 프로젝트마다 다른 큰 이미지(11.5MB PNG × 50)" },
   // 한 페이지에 서로 다른 큰 이미지 5장 — 열었을 때 캔버스(#318).
   S8: { projects: 1, nodes: 100, image: { width: 2400, height: 1600, distinct: true, perPage: 5 }, label: "프로젝트 1 · 노드 100 · 한 페이지에 다른 큰 이미지 5장" },
@@ -315,11 +315,11 @@ window.__perf = {
     const { spec, activePageId } = editor.getState();
     const scan = await scanGeneratedCode(spec.pages[activePageId]);
     // 페이지 파일은 이 페이지의 이미지 노드가 가리키는 실제 파일을 import한다(S6는 프로젝트마다 다르다).
-    const hero = spec.pages[activePageId].nodes.hero;
-    const asset = withImage && hero?.type === "image" ? hero.src.split("/").pop() : null;
+    // 페이지의 이미지 노드를 모두 import한다(S8은 한 페이지에 5장).
+    const assets = withImage ? Object.values(spec.pages[activePageId].nodes).filter((n) => n.type === "image").map((n) => n.src.split("/").pop()) : [];
     for (const entry of scan.report.coverage) {
       const isPage = entry.expectedPath.startsWith("pages/");
-      const body = (asset !== null && isPage ? 'import heroImageUrl from "../assets/' + asset + '";\n' : "")
+      const body = (isPage ? assets.map((name, k) => 'import image' + k + ' from "../assets/' + name + '";\n').join("") : "")
         + "export " + (isPage ? "default " : "") + "function " + entry.componentName + "() {\n  return null;\n}\n";
       await writeWorkspaceFile("generated/" + entry.expectedPath, body, "text/plain");
     }
