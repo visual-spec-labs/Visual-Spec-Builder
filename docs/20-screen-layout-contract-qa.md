@@ -12,11 +12,13 @@
 - GUI 아트보드는 `min-height: screen.size.height`이고 column flex 컨테이너다. root는
   `width: 100%; flex: 1 0 auto`라 짧은 콘텐츠는 첫 화면까지 자라고, 긴 콘텐츠는 줄지 않고
   아트보드를 확장한다. root의 JSON `box`는 페이지 크기를 정하지 않는다.
-- 고정 폭 생성 페이지 셸은 viewport와 `screen.size.width` 중 작은 너비를 쓴다.
+- 고정 폭 생성 페이지 셸은 GUI처럼 정확한 `screen.size.width` 너비를 쓴다.
+  viewport가 더 좁아도 축소하지 않으며 가로 스크롤이 생길 수 있다.
   `screen.responsive`가 있는 페이지는 에디터 responsive preview width를 측정 브라우저의
   viewport 너비로 맞추고 생성 셸도 `width: 100%`로 둔다. 이때 preview width는 초기
   `screen.size.width`와 별개이며 responsive breakpoint 계산에도 같은 값을 사용한다.
-  두 경우 모두 최소 높이는 `max(100dvh, screen.size.height)`다.
+  두 경우 모두 최소 높이는 `screen.size.height`다. 브라우저 viewport가 더 높아도
+  root를 늘리지 않는다. 예를 들어 화면 높이 900, viewport 높이 1000이면 짧은 root는 900px이다.
   고정 `height`, `height:100%`/`h-full`, `overflow:hidden`은 쓰지 않는다.
 - 앱 기본 스타일은 Canvas와 같은 Tailwind Preflight 값이어야 한다: margin/padding 0,
   `box-sizing:border-box`, `border:0 solid`, input/button 폰트 상속. input placeholder는
@@ -125,12 +127,38 @@ GUI와 실제 생성 앱의 실측 결과가 아니다.
 ## 저장소 검증 결과
 
 - `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`: 통과.
-- 비교기 테스트의 이전 검증에서는 3개 테스트가 통과했다. 이번 리뷰 수정으로 입력 검증과
-  Canvas zoom 조건 테스트를 추가했으며, 새 테스트는 아직 실행하지 않았다.
-- 전체 `pnpm test`: 99개 파일 통과, 6개 파일 실패, 2개 건너뜀(총 17개 테스트 실패).
-  실패는 검증기 번들/티켓 응답 예제 불일치와 Windows 경로·권한·symlink 제약 등이었다.
-  이 전체 테스트 결과는 비교기 회귀 테스트 결과와 구분한다.
+- `pnpm exec vitest run test/compare-layout-measurements.test.ts`: 7개 통과.
+  같은 viewport에서 생성 root만 viewport 높이까지 늘어난 경우도 실패로 판정한다.
+- `VSB_PAGE_SHELL_BROWSER=1 pnpm exec vitest run test/page-shell-browser.test.ts`:
+  9개 조건을 검사하는 브라우저 테스트 1개 통과. Python Playwright와 `/usr/bin/chromium`이
+  필요하며 일반 테스트에서는 선택 실행으로 건너뛴다. 스킬의 실제 CSS를 읽어 고정/반응형 폭,
+  긴 viewport, 1200px 콘텐츠의 root 확장과 shell scrollHeight를 Canvas 스타일과 비교한다.
+- 전체 `pnpm test`: 108개 파일 통과, 3개 선택 브라우저 테스트 건너뜀; 1740개 테스트 통과.
+- `pnpm run generate:types` 뒤 생성 타입 diff 없음. build는 500kB 초과 chunk 경고가 남는다.
+- 환경: Linux, Node 24.19.0, pnpm 10.33.0, Chromium 151.0.7922.173.
+  이전 작성자 Windows 실행의 6개 실패와 이전 수정 HEAD의 typecheck 실패는 이 결과와 구분한다.
 - 생성 앱과 GUI의 실제 DOM 좌표 비교는 원본 AI ZIP/TSX가 없어 수행하지 못했다.
+
+### 리뷰 수정의 셸 회귀 실측 (2026-10-08)
+
+실제 GUI에 스키마 유효한 **수동 기하 fixture**(root와 32px/1200px 자식 frame)를 로드하고,
+Canvas 확대율을 100%로 맞춘 뒤 스킬 CSS를 적용한 합성 셸과 두 노드의 root-relative
+`x/y/width/height`를 비교했다. 합성 자식은 GUI의 `frameStyle`을 재사용하므로 이 실험은
+셸 계약만 검증하며 독립 코드 생성 정확도를 검증하지 않는다.
+[수치 기록](qa/2026-10-08-page-shell.json)에 12개 조건이 있다.
+
+| 조건 | 실제 GUI와 합성 셸의 일치 결과 |
+|---|---|
+| 고정 390×844, viewport 390×844 또는 390×1000 | 짧은 root 390×844 |
+| 고정 390×844, 좁은 viewport 320×1000 | root 폭 390 유지 |
+| 고정 390×844, 콘텐츠 1200px | root와 shell scrollHeight 1200px |
+| 반응형 높이 900, viewport 높이 1000 | preview 폭 767/768/769/1023/1024/1025/1600과 root 폭 일치, root 높이 900 |
+| 반응형 폭 1600, 콘텐츠 1200px | root 1600×1200, shell scrollHeight 1200px |
+
+기존 `responsive-cards.json`도 실제 GUI preview 1600, viewport 1600×1000에서 root
+1600×900임을 다시 확인했다. 수정 셸도 1600×900으로, 이전 1600×1000 높이 불일치를 해소했다.
+모든 기하 실험은 외부 폰트에 의존하지 않는다. 실제 AI 산출물, 폰트 일치, 이미지 로딩,
+로그인 전체 스타일 및 다중 페이지 통합 실측은 위의 대기 상태를 유지한다.
 
 기존 #269/#268/#224 브라우저 검증은 수동 매핑 fixture와 GUI 계산을 부분 비교한 결과다.
 이들은 이 표의 생성 코드 전체 비교를 대신하지 않는다. 비교 스크립트의 회귀 테스트는

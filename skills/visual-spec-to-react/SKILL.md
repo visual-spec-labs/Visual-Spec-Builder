@@ -238,12 +238,12 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 ### 페이지 viewport와 브라우저 기본 스타일
 
 `screen.size.width/height`는 아트보드 너비와 첫 화면 높이다. root의 높이를 숫자나 `h-full`로
-고정하지 않는다. Canvas처럼 화면보다 짧은 문서는 viewport까지 늘리고, 자식이 더 길면
+고정하지 않는다. Canvas처럼 짧은 문서는 `screen.size.height`까지 늘리고, 자식이 더 길면
 페이지와 문서 스크롤 영역이 함께 늘어나야 한다. 예를 들어 390×844 화면은 root 높이가
 최소 844px이고, 콘텐츠가 900px이면 root와 페이지도 900px 이상이어야 한다.
 
-각 페이지 컴포넌트는 아래 셸을 한 번 둔다. `min-height` 두 선언은 구형 viewport 단위의
-fallback 뒤에 동적 모바일 viewport를 덮는다. `height: 100%`, `h-full`, 고정 `height`,
+각 페이지 컴포넌트는 아래 셸을 한 번 둔다. 최소 높이는 브라우저 viewport 높이가 아니라
+`screen.size.height`다. `height: 100%`, `h-full`, 고정 `height`,
 `overflow: hidden`으로 viewport 안에 가두지 않는다. 화면 여러 개를 한 페이지에서 전환하면
 활성 페이지에만 셸을 두고, 공통 reset은 앱에 한 번만 둔다.
 
@@ -257,8 +257,7 @@ html, body, #root { width: 100%; min-height: 100%; margin: 0; }
   ::placeholder { color: currentColor; opacity: .6; }
 }
 .vsb-page { display: flex; flex-direction: column; width: var(--vsb-page-width);
-  min-height: max(100vh, var(--vsb-page-height));
-  min-height: max(100dvh, var(--vsb-page-height)); margin-inline: auto; }
+  min-height: var(--vsb-page-height); margin-inline: auto; }
 `}</style>
 <main className="vsb-page" style={{
   "--vsb-page-width": "390px", "--vsb-page-height": "844px",
@@ -273,6 +272,8 @@ html, body, #root { width: 100%; min-height: 100%; margin: 0; }
 독립 preview width를 사용하므로, 초기 아트보드 폭으로 생성 셸을 제한하지 않는다. 화면마다
 `screen.size.height`를 최소 높이에 넣는다. 자식이 길어진 때는 root의 `flex-basis:auto`와
 `flex-shrink:0`이 콘텐츠 높이를 보존한다. `size.height`는 첫 화면 최소 높이지 페이지 전체 높이가 아니다.
+브라우저가 1600×1000이고 화면 높이가 900이면 짧은 root는 GUI와 같이 900px이다.
+`100vh`/`100dvh`로 1000px까지 늘리지 않는다. 고정 폭은 viewport가 더 좁아도 축소하지 않는다.
 
 이 reset은 Canvas의 Tailwind Preflight와 맞춘다. reset은 Tailwind utilities보다 낮은
 `@layer base`에 둬야 유틸리티 padding/border/font/color가 reset에 덮이지 않는다. 대상 앱에서

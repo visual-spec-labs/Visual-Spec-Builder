@@ -18,6 +18,7 @@ type Measurement = {
     height: number;
     devicePixelRatio: number;
     visualViewportScale: number;
+    canvasZoomPercent: number;
     fontStatus: string;
     fontFaces: string[];
   };
@@ -132,4 +133,18 @@ it("Canvas 확대율이 100%가 아니면 좌표 비교를 통과시키지 않�
 
   expect(result.status).toBe(1);
   expect(report.errors).toContain("generated canvasZoomPercent must be 100");
+});
+
+it("같은 viewport에서도 셸이 root를 viewport 높이까지 늘리면 실패한다", () => {
+  const gui = measurement();
+  gui.viewport.height = 1000;
+  const generated = structuredClone(gui);
+  generated.nodes.root.height = 1000;
+
+  const result = compare(gui, generated);
+  const report = JSON.parse(result.stdout);
+  expect(result.status).toBe(1);
+  expect(report.rows).toContainEqual({
+    id: "root", passed: false, delta: { x: 0, y: 0, width: 0, height: 156 },
+  });
 });
