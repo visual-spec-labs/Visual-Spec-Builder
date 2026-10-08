@@ -536,6 +536,56 @@ windowWidth, otherPanelEffectiveWidth)`를 추가했다 — "저장된 폭을 �
 `pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1684개
 통과/2개 건너뜀.
 
+## 리뷰 대응 4차 (2026-10-08, 커밋 e04ecbd 검토) — rail 버튼 말고 다른 펼침 경로는 보정을 안 거침
+
+팀원이 직전 수정(rail 버튼 경로)은 확인했지만, **같은 "펼침"을 일으키는
+다른 진입점**을 구체적으로 짚었다.
+
+**지적.** `widthAfterExpand` 보정은 `usePanelResize.ts`의 `toggleCollapsed`
+안에만 있었다 — `LayerTree.tsx`/`PropertiesPanel.tsx`의 rail 펼치기
+버튼은 이 훅을 거치므로 고쳐졌지만, `MenuBar.tsx`의 View ▸ Layers/
+Properties Panel과 `openExportPanel.ts`/`openTicketPanel.ts`의 "접혀
+있으면 편다" 분기는 원본 스토어 액션(`view.toggleTreeCollapsed()`/
+`view.togglePropsCollapsed()`)을 직접 불러 이 보정을 완전히 비켜 갔다.
+1024×768에서 양쪽을 480/480으로 저장해 둔 뒤 이 네 경로(View 메뉴 둘,
+Export 열기, 티켓 열기) 중 아무거나로 마지막 패널을 펼치면 리뷰가
+이전에 지적한 것과 같은 64px Canvas가 재현됐다 — 그리고 그 값이 저장돼
+전체 숨김/복원·Home 이동·새로고침 뒤에도 남았다.
+
+**근본 원인.** `MenuBar.tsx`의 메뉴 항목과 `openExportPanel.ts`/
+`openTicketPanel.ts`는 React 컴포넌트가 아니거나(모듈 최상위 함수) 렌더
+사이클 밖에서 불려서 애초에 `usePanelResize` **훅을 못 쓴다** — 그래서
+처음부터 각자 원본 액션을 직접 불렀다. 보정 로직을 리액트 훅 안에만
+넣어 둔 것 자체가 구조적으로 이런 우회를 만들 수밖에 없었다.
+
+**수정.** `src/features/editor/ui/panelToggle.ts`(신규)에 `toggleTreePanel`/
+`togglePropsPanel` — 리액트와 무관한 평범한 함수로 보정 로직을 뽑았다.
+`usePanelResize.ts`는 이제 이 함수들을 그대로 돌려줄 뿐이고(자기 안에
+같은 로직을 또 안 가진다), `MenuBar.tsx`의 View 메뉴 둘과
+`openExportPanel.ts`/`openTicketPanel.ts`의 "접혀 있으면 편다" 분기 모두
+원본 액션 대신 이 함수를 부르도록 바꿨다 — **펼침이 일어나는 네 경로
+전부가 이제 같은 함수 하나를 거친다.**
+
+**이번엔 그 네 경로 자체를 테스트로 고정할 수 있었다** — `toggleTreePanel`/
+`togglePropsPanel`이 리액트 훅이 아니라 `useViewStore.getState()`로
+명령형으로 읽고 쓰는 평범한 함수라, `openTicketPanel`을 테스트하는 것과
+같은 방식(스토어를 직접 조작하고 함수를 부른 뒤 결과 상태를 본다)으로
+고정할 수 있다. 새 `test/panel-toggle.test.ts`가 리뷰의 재현 수치(양쪽
+480 저장 → 메뉴로 펼침 → 480이 그대로 복원되지 않음, Canvas가 64px보다
+큼)를 직접 넣어 고정하고, `test/panel-handoff.test.ts`에도 `openExportPanel`
+이 저장된 넓은 폭을 그대로 복원하지 않는 케이스를 더했다. 둘 다
+`window.innerWidth`를 읽는 `panelToggle.ts`를 거치므로
+`tsconfig.uitest.json`/`tsconfig.node.json`에 새 테스트 파일을
+등록했다(기존 `panel-handoff.test.ts`는 이미 등록돼 있었다 — DOM을 만지는
+`exportStore` 경로 때문에, 기존 이유 그대로다).
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1692개
+통과/2개 건너뜀 — 신규 `test/panel-toggle.test.ts`(5개)와
+`test/panel-handoff.test.ts`에 더한 1개가 더해졌다.
+
 ## 범위 밖
 
 - 창 폭에 따른 자동 접기/축소(위 6번) — 수동 접기+상태 유지로 같은 목적을 푼다.

@@ -16,6 +16,7 @@ import { newSpec } from "@/features/editor/ui/newSpec";
 import { openExportPanel } from "@/features/editor/ui/openExportPanel";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import { openTicketPanel } from "@/features/editor/ui/openTicketPanel";
+import { togglePropsPanel, toggleTreePanel } from "@/features/editor/ui/panelToggle";
 
 type MenuKey = "file" | "insert" | "view";
 
@@ -81,9 +82,7 @@ export function MenuBar() {
   const showPanels = useViewStore((s) => s.showPanels);
   const togglePanels = useViewStore((s) => s.togglePanels);
   const treeCollapsed = useViewStore((s) => s.treeCollapsed);
-  const toggleTreeCollapsed = useViewStore((s) => s.toggleTreeCollapsed);
   const propsCollapsed = useViewStore((s) => s.propsCollapsed);
-  const togglePropsCollapsed = useViewStore((s) => s.togglePropsCollapsed);
   // Export/구현 티켓이 속성 패널 자리를 쓰는 동안은 그 자리를 접을 수 없게
   // 한다(#287 리뷰 대응) — 접으면 32px 레일에 Export/티켓 내용이 그대로
   // 눌려 렌더된다. openExportPanel.ts/openTicketPanel.ts가 열 때 이미 펼쳐
@@ -124,12 +123,15 @@ export function MenuBar() {
     { kind: "toggle", label: "Panels/Sidebars", checked: showPanels, onToggle: togglePanels },
     // 개별 패널 접기(#287) — "Panels/Sidebars"는 둘 다 숨기고, 이 둘은 한쪽만
     // 좁은 레일로 접는다. 체크 표시는 "펼쳐져 있는가"다(접힘의 반대).
-    { kind: "toggle", label: "Layers Panel", checked: !treeCollapsed, onToggle: toggleTreeCollapsed },
+    // toggleTreePanel/togglePropsPanel을 쓴다(원본 액션을 직접 안 쓴다) —
+    // 펼치는 방향이면 저장된 폭을 Canvas 최소 폭 기준으로 보정한다(#287
+    // 리뷰 4차 대응, panelToggle.ts 참고).
+    { kind: "toggle", label: "Layers Panel", checked: !treeCollapsed, onToggle: toggleTreePanel },
     {
       kind: "toggle",
       label: "Properties Panel",
       checked: !propsCollapsed,
-      onToggle: togglePropsCollapsed,
+      onToggle: togglePropsPanel,
       disabled: propsSlotBusy,
     },
   ];
