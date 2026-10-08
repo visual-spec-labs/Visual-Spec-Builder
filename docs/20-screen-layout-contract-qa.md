@@ -1,8 +1,10 @@
 # 화면 viewport·스타일·노드 좌표 통합 계약 (#280)
 
-상태: 계약과 비교 절차를 정리하는 중. 아래 #280 이슈의 390×844 / 318px 관찰은
-이전 실제 Codex 출력 보고다. 현재 checkout에서 같은 기존 결과를 재실행하거나 수정 후
-실측하지 않았으므로, 이를 이번 변경의 재현·수정 결과로 계산하지 않는다.
+상태: viewport/스타일 계약과 비교 도구·회귀 테스트를 작성했다. 기존 실제 Codex 실행의
+[기록](qa/2026-10-05-real-ai-login.json)과 [화면](qa/2026-10-05-real-ai-login.png)은 남아
+있지만 원본 ZIP/TSX는 저장소에 없고, 기록된 스크린샷은 480×900이다. 이 자료만으로는
+#280의 390×844 조건에서 전체 DOM 좌표를 비교하거나 318px 관찰을 재측정할 수 없다.
+아래 실측 사례는 완료로 계산하지 않으며 수동 fixture도 실제 AI 산출물로 취급하지 않는다.
 
 ## 렌더링 계약
 
@@ -89,16 +91,30 @@ node scripts/compare-layout-measurements.mjs gui.json generated.json
 비교기는 viewport/DPR/폰트 조건, 노드 ID 전체 집합, 각 노드의 네 bounds를 확인하고
 1 CSS px 초과 차이를 실패로 반환한다.
 
+회귀 테스트 `pnpm test -- test/compare-layout-measurements.test.ts`는 1px 경계 통과,
+1px 초과 실패, viewport/font/노드 ID 불일치를 확인한다. 이는 비교기 동작 테스트이며
+GUI와 실제 생성 앱의 실측 결과가 아니다.
+
 ## 필수 사례와 현황
 
 | 사례 | 확인 항목 | 상태 |
 |---|---|---|
-| `examples/login-screen.json` | 390×844 root 높이 및 7개 모든 노드 bounds, 타이틀 줄바꿈, 44px input/button, placeholder | 실측 대기 |
+| `examples/login-screen.json` | 390×844 root 높이 및 7개 모든 노드 bounds, 타이틀 줄바꿈, 44px input/button, placeholder | 실측 대기 — 기존 480×900 스크린샷은 조건 불일치, ZIP/TSX 없음 |
 | `examples/image-hero.json` | root와 이미지·caption bounds, 이미지 fit·intrinsic 크기 | 실측 대기 |
 | `examples/responsive-cards.json` | 모든 노드 bounds와 breakpoint 직전/경계/직후 반응형 재배치 | 실측 대기 |
 | `examples/two-page-project.json` | 두 페이지를 각각 열어 전체 노드 ID와 bounds 비교 | 실측 대기 |
 | 긴 콘텐츠 변형 | 844px보다 긴 root의 확장, 문서 scrollHeight, 잘림 없음 | 실측 대기 |
 
+## 저장소 검증 결과
+
+- `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`: 통과.
+- `pnpm test -- test/compare-layout-measurements.test.ts`: 3개 테스트 통과.
+- 전체 `pnpm test`: 99개 파일 통과, 6개 파일 실패, 2개 건너뜀(총 17개 테스트 실패).
+  실패는 검증기 번들/티켓 응답 예제 불일치와 Windows 경로·권한·symlink 제약 등이었다.
+  이 전체 테스트 결과는 비교기 회귀 테스트 결과와 구분한다.
+- 생성 앱과 GUI의 실제 DOM 좌표 비교는 원본 AI ZIP/TSX가 없어 수행하지 못했다.
+
 기존 #269/#268/#224 브라우저 검증은 수동 매핑 fixture와 GUI 계산을 부분 비교한 결과다.
-이들은 이 표의 생성 코드 전체 비교를 대신하지 않는다. 실제 AI 생성 TSX와 hand-authored
-fixture를 구별해 결과를 기록한다.
+이들은 이 표의 생성 코드 전체 비교를 대신하지 않는다. 비교 스크립트의 회귀 테스트는
+오차 경계, viewport/font 조건, 노드 ID 검사를 확인하지만 제품의 실제 AI 생성 레이아웃을
+검증하지 않는다. 실제 AI 생성 TSX와 hand-authored fixture를 구별해 결과를 기록한다.
