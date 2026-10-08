@@ -58,6 +58,16 @@ export function PanelResizeHandle({
       onResize(startWidth + sign * (moveEvent.clientX - startX));
     }
 
+    // mousedown에서 stopPropagation해도 뒤이어 브라우저가 합성하는 click은
+    // 막지 못한다(`CanvasResizeHandles.tsx`와 같은 이유) — 레이어 트리를
+    // 넓히는 드래그는 커서가 바로 Canvas 쪽으로 넘어가며 끝나기 쉬운데, 그
+    // 자리에서 뜨는 click이 Canvas의 배경 클릭(선택 해제) 또는 Frame/Text
+    // 도구의 새 노드 삽입을 건드린다(자체 code-review 대응). capture
+    // 단계에서 한 번만 가로채 죽인다.
+    function suppressClick(clickEvent: MouseEvent) {
+      clickEvent.stopPropagation();
+    }
+
     function end() {
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", end);
@@ -65,11 +75,20 @@ export function PanelResizeHandle({
       // 드래그 내내 mousemove마다 localStorage에 쓰지 않는다(자체 code-review
       // 대응) — 끝났을 때 한 번만 저장한다.
       onCommit();
+      // click은 mouseup 뒤 브라우저가 같은 동기 흐름 안에서 이어서 내보낸다 —
+      // 그 click을 잡아야 하니 여기서 곧바로 떼면 안 된다. once가 실제로
+      // 클릭이 오면 스스로 정리하고, 클릭이 안 오는 예외 상황을 대비해 다음
+      // 매크로태스크에서 한 번 더 방어적으로 뗀다.
+      setTimeout(() => window.removeEventListener("click", suppressClick, { capture: true }), 0);
     }
 
-    endDragRef.current = end;
+    endDragRef.current = () => {
+      end();
+      window.removeEventListener("click", suppressClick, { capture: true });
+    };
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", end);
+    window.addEventListener("click", suppressClick, { capture: true, once: true });
   }
 
   function handleKeyDown(event: ReactKeyboardEvent) {

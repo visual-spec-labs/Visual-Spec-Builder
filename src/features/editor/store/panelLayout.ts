@@ -39,6 +39,17 @@ export const MAX_PANEL_WIDTH = 480;
 export const DEFAULT_TREE_WIDTH = 300;
 export const DEFAULT_PROPS_WIDTH = 350;
 
+/**
+ * 드래그로 양쪽 패널을 동시에 MAX_PANEL_WIDTH까지 늘리면, 최소 지원 폭인
+ * 1024px 창에서 Canvas가 1024-480-480=64px까지 줄어들 수 있었다(#287 리뷰
+ * 대응) — "최소 지원 폭에서도 주요 조작이 된다"는 설계 결정 7번과 바로
+ * 어긋난다. 정적 MAX_PANEL_WIDTH 하나로는 이걸 못 막는다 — 1920px 창에서는
+ * 480+480이 전혀 문제가 안 되기 때문이다. 그래서 Canvas에 남겨 둘 최소
+ * 폭(300px, 실용적으로 선택 가능한 선)을 따로 두고, 실제 창 폭에서 그만큼을
+ * 뺀 나머지를 두 패널이 나눠 쓰게 동적으로 자른다(`maxResizableWidth`).
+ */
+export const MIN_CANVAS_WIDTH = 300;
+
 export interface PanelLayoutState {
   treeCollapsed: boolean;
   treeWidth: number;
@@ -56,6 +67,25 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
 /** 드래그 중인 폭을 저장 가능한 범위로 자른다. */
 export function clampPanelWidth(width: number): number {
   return Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, width));
+}
+
+/** 패널이 지금 실제로 차지하는 폭 — 접혀 있으면 레일 폭(#287 리뷰 대응). */
+export function effectivePanelWidth(collapsed: boolean, width: number): number {
+  return collapsed ? PANEL_RAIL_WIDTH : width;
+}
+
+/**
+ * 지금 창 폭에서 이 패널이 가질 수 있는 최대 폭(#287 리뷰 대응). 반대쪽
+ * 패널이 지금 실제로 차지하는 폭(접혀 있으면 레일 폭)과 Canvas 최소 폭을
+ * 뺀 나머지다. 창이 아주 좁아 그 나머지가 MIN_PANEL_WIDTH보다도 작아지면
+ * MIN_PANEL_WIDTH를 돌려준다 — 이 함수는 "더 못 늘리게" 막는 상한일
+ * 뿐이고, 하한(MIN_PANEL_WIDTH)을 침범하지는 않는다(펼친 패널이 그보다
+ * 좁아지면 280px 결정 자체가 다시 깨진다, `clampPanelWidth` 참고). 그런
+ * 아주 좁은 창에서는 Canvas가 더 줄어드는 쪽을 받아들인다 — 패널을 접는
+ * 것이 그 상황의 실제 해법이다.
+ */
+export function maxResizableWidth(windowWidth: number, otherPanelEffectiveWidth: number): number {
+  return Math.max(MIN_PANEL_WIDTH, windowWidth - otherPanelEffectiveWidth - MIN_CANVAS_WIDTH);
 }
 
 const PANEL_LAYOUT_STORAGE_KEY = "visual-spec:panel-layout";

@@ -202,6 +202,15 @@ export const useViewStore = create<ViewState>((set, get) => ({
       savePanelLayout(next);
       return next;
     }),
+  // 정적 범위(clampPanelWidth)만 자른다 — 창 폭 대비 동적 상한(#287 리뷰
+  // 대응)은 여기서 안 건다. `window`를 읽어야 하는데, 이 스토어는
+  // `tsconfig.node.json`(DOM 타입 없음)으로도 검사되는 테스트에서 가져다
+  // 쓰므로 `store/`에 DOM 전역을 직접 넣을 수 없다(`localStorage`와 달리
+  // `window`는 `@types/node`가 타입을 안 준다) — "window·document를 만지는
+  // 코드는 ui/에만 둔다"는 이 저장소 경계 그대로다. 그래서 동적 상한은
+  // 호출부(`LayerTree.tsx`/`PropertiesPanel.tsx`, 둘 다 `ui/`)가
+  // `panelLayout.ts`의 순수 함수 `maxResizableWidth`로 미리 깎은 값을
+  // 넘겨준다.
   setTreeWidth: (width) => set({ treeWidth: clampPanelWidth(width) }),
   setPropsWidth: (width) => set({ propsWidth: clampPanelWidth(width) }),
   commitPanelLayout: () => savePanelLayout(panelLayoutOf(get())),

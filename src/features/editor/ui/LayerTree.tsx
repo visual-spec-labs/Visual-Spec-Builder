@@ -26,6 +26,7 @@ import { collectSubtreeIds } from "@/features/editor/command/applyCommand";
 import { canRedo, canUndo } from "@/features/editor/command/history";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
+import { effectivePanelWidth, maxResizableWidth } from "@/features/editor/store/panelLayout";
 import { resolveImportParent } from "@/features/editor/store/resolveImportParent";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { resolveLayerDrop } from "@/features/editor/ui/layerDrop";
@@ -411,8 +412,21 @@ export function LayerTree() {
   const panelCollapsed = useViewStore((s) => s.treeCollapsed);
   const togglePanelCollapsed = useViewStore((s) => s.toggleTreeCollapsed);
   const panelWidth = useViewStore((s) => s.treeWidth);
-  const setPanelWidth = useViewStore((s) => s.setTreeWidth);
+  const setTreeWidth = useViewStore((s) => s.setTreeWidth);
+  const propsCollapsed = useViewStore((s) => s.propsCollapsed);
+  const propsWidth = useViewStore((s) => s.propsWidth);
   const commitPanelLayout = useViewStore((s) => s.commitPanelLayout);
+
+  // 창 폭 대비 동적 상한(#287 리뷰 대응) — window는 여기(ui/)에서만 읽는다,
+  // panelLayout.ts의 maxResizableWidth 참고. 반대쪽(속성) 패널이 지금 쓰는
+  // 폭을 빼 Canvas 최소 폭을 지킨다.
+  function setPanelWidth(width: number) {
+    const max = maxResizableWidth(
+      window.innerWidth,
+      effectivePanelWidth(propsCollapsed, propsWidth),
+    );
+    setTreeWidth(Math.min(width, max));
+  }
 
   useEffect(() => {
     function isEditableTarget(target: EventTarget | null): boolean {

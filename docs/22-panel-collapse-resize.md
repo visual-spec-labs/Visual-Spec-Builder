@@ -426,6 +426,48 @@ React Testing Library 등 렌더 테스트 인프라가 없어서(`docs/20-manua
 홈→에디터 전환에서 이 세션의 Chrome 확장이 멈췄다 — 코드 추론(단축 평가가
 더 이상 훅 호출에 관여하지 않는다는 것)으로 대신했다.
 
+## 자체 code-review 대응 2차 (2026-10-08, 커밋 3abc2e4 이후)
+
+`/code-review`를 한 번 더 돌려 두 건을 찾아 고쳤다.
+
+1. **리사이즈 핸들을 끌고 놓으면 Canvas가 그 클릭을 받았다.**
+   `PanelResizeHandle.tsx`는 `CanvasResizeHandles.tsx`와 같은 mousedown →
+   window mousemove/mouseup 구조라고 스스로 적어 뒀으면서, 그 파일이 가진
+   클릭 억제 장치는 빠뜨렸다 — 레이어 트리를 넓히는 드래그는 커서가 자연히
+   Canvas 쪽으로 넘어가며 끝나는데, mouseup 뒤 브라우저가 합성하는 click이
+   거기 떨어지면 Canvas의 배경 클릭(선택 해제) 또는 Frame/Text 도구의 새
+   노드 삽입을 건드린다. `CanvasResizeHandles.tsx`가 이미 쓰던 패턴(capture
+   단계에서 한 번만 가로채는 `suppressClick` + `once` 리스너 + 지연 정리)을
+   그대로 가져왔다. 언마운트 시 진행 중인 드래그를 정리하는 기존 ref 콜백도
+   이 새 리스너까지 같이 떼도록 맞췄다.
+2. **양쪽 패널을 MAX_PANEL_WIDTH까지 끌면 최소 지원 폭(1024px)에서 Canvas가
+   64px까지 줄 수 있었다.** `MIN_PANEL_WIDTH`/`MAX_PANEL_WIDTH`는 패널
+   하나만 보는 정적 범위라, 반대쪽 패널이 지금 얼마를 쓰는지는 전혀
+   안 본다 — "최소 지원 폭에서도 주요 조작이 된다"는 결정 7번과 바로
+   어긋났다. Canvas에 남겨 둘 최소 폭(`MIN_CANVAS_WIDTH=300`)을 새로 두고,
+   창 폭에서 반대쪽 패널의 실제 폭(접혀 있으면 레일 32px)과 그 300px을 뺀
+   나머지로 한 번 더 자르는 `maxResizableWidth` 순수 함수를 `panelLayout.ts`
+   에 더했다. **이 함수를 `viewStore.ts`에서 바로 못 썼다** — `window`를
+   읽어야 하는데 `localStorage`와 달리 `window`는 `@types/node`가 타입을
+   안 줘서, `tsconfig.node.json`(DOM 없음)으로도 검사되는 테스트가 이
+   스토어를 가져다 쓰는 순간 `tsc -b`가 깨졌다(실제로 깨져서 되돌렸다) —
+   "window·document를 만지는 코드는 ui/에만 둔다"는 이 저장소 경계를
+   스토어 안에서 어기려던 것이었다. 그래서 `viewStore.setTreeWidth`/
+   `setPropsWidth`는 정적 범위만 그대로 자르게 두고, `window.innerWidth`를
+   읽어 동적 상한을 미리 깎는 일은 호출부인 `LayerTree.tsx`/
+   `PropertiesPanel.tsx`(둘 다 `ui/`)로 옮겼다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1681개
+통과/2개 건너뜀 — `test/panel-layout.test.ts`에 `effectivePanelWidth`·
+`maxResizableWidth` 순수 함수 회귀 6개를 더했다. `LayerTree.tsx`/
+`PropertiesPanel.tsx`의 `setPanelWidth` 래퍼(실제로 `window.innerWidth`를
+읽는 부분)는 이 저장소에 렌더 테스트 인프라가 없어 이번에도 자동 테스트는
+못 더했다 — 순수 함수 쪽(핵심 계산)은 고정했고, 그 위에 한 줄짜리 호출만
+얹은 래퍼는 코드 추론으로 확인했다.
+
 ## 범위 밖
 
 - 창 폭에 따른 자동 접기/축소(위 6번) — 수동 접기+상태 유지로 같은 목적을 푼다.

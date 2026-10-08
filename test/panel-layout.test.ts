@@ -3,9 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clampPanelWidth,
   DEFAULT_PANEL_LAYOUT,
+  effectivePanelWidth,
   loadPanelLayout,
   MAX_PANEL_WIDTH,
+  maxResizableWidth,
+  MIN_CANVAS_WIDTH,
   MIN_PANEL_WIDTH,
+  PANEL_RAIL_WIDTH,
   parsePanelLayout,
   savePanelLayout,
 } from "@/features/editor/store/panelLayout";
@@ -46,6 +50,37 @@ describe("clampPanelWidth (#287)", () => {
 
   it("MAX_PANEL_WIDTH보다 크면 MAX_PANEL_WIDTH로 내린다", () => {
     expect(clampPanelWidth(9999)).toBe(MAX_PANEL_WIDTH);
+  });
+});
+
+describe("effectivePanelWidth (#287)", () => {
+  it("펼친 패널은 저장된 폭 그대로다", () => {
+    expect(effectivePanelWidth(false, 350)).toBe(350);
+  });
+
+  it("접힌 패널은 저장된 폭과 무관하게 레일 폭이다", () => {
+    expect(effectivePanelWidth(true, 350)).toBe(PANEL_RAIL_WIDTH);
+  });
+});
+
+describe("maxResizableWidth (#287 리뷰 대응 — 양쪽 MAX로 끌어도 Canvas 최소 폭을 지킨다)", () => {
+  it("넉넉한 창에서는 MAX_PANEL_WIDTH 그대로다", () => {
+    // 1920 - 350(반대쪽) - MIN_CANVAS_WIDTH = 1920-350-300=1270, MAX보다 커서
+    // 상한에 안 걸린다 — clampPanelWidth가 그 뒤에 다시 480으로 자른다.
+    expect(maxResizableWidth(1920, 350)).toBeGreaterThanOrEqual(MAX_PANEL_WIDTH);
+  });
+
+  it("최소 지원 폭(1024px)에서 반대쪽이 기본값(350)이면 그만큼 깎는다", () => {
+    expect(maxResizableWidth(1024, 350)).toBe(1024 - 350 - MIN_CANVAS_WIDTH);
+  });
+
+  it("그 374도 MAX_PANEL_WIDTH(480)보다 작아 실제로 더 못 늘린다 — 이슈가 지적한 '양쪽 480이면 Canvas 64px' 시나리오가 재현되지 않는다", () => {
+    const max = maxResizableWidth(1024, 350);
+    expect(max).toBeLessThan(MAX_PANEL_WIDTH);
+  });
+
+  it("창이 아주 좁아 반대쪽+Canvas 최소 폭만으로도 넘치면 MIN_PANEL_WIDTH 밑으로는 안 내려간다", () => {
+    expect(maxResizableWidth(100, 350)).toBe(MIN_PANEL_WIDTH);
   });
 });
 
