@@ -22,7 +22,7 @@ import {
   previewTextStyle,
 } from "@/features/editor/ui/homePreview";
 import { renameProject } from "./renameProject";
-import { loadWorkspaceProjects, openHomeProject, type HomeProject } from "./homeProjects";
+import { loadWorkspaceProjects, loadWorkspaceProjectsProgressively, openHomeProject, type HomeProject } from "./homeProjects";
 
 const PREVIEW_WIDTH = 208;
 const PREVIEW_HEIGHT = 140;
@@ -67,7 +67,8 @@ const PREVIEW_HEIGHT = 140;
 type HomeState =
   | { kind: "loading" }
   | { kind: "no-workspace" }
-  | { kind: "ready"; projects: HomeProject[] };
+  /** `loading`이면 앞쪽 카드만 읽었고 뒤를 마저 읽는 중이다(#316). */
+  | { kind: "ready"; projects: HomeProject[]; loading: boolean };
 
 export function HomeScreen() {
   const spec = useEditorStore((s) => s.spec);
@@ -86,12 +87,20 @@ export function HomeScreen() {
   // 미리보기를 이미 그린 카드(key). 이름 변경으로 key(파일 이름)가 바뀌어 카드가 다시 마운트돼도
   // 빈 자리로 깜빡이지 않게 새 key로 넘긴다.
   const drawnPreviews = useRef(new Set<string>());
+  // 목록 읽기 세대. 이름 변경으로 목록을 새로 읽으면 올려서, 아직 뒤를 읽던 처음 읽기가 새 목록을
+  // 덮지 못하게 한다(#316).
+  const loadGeneration = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
-    void loadWorkspaceProjects().then((projects) => {
-      if (cancelled) return;
-      setState(projects === null ? { kind: "no-workspace" } : { kind: "ready", projects });
+    const generation = loadGeneration.current;
+    const stale = () => cancelled || generation !== loadGeneration.current;
+    // 앞에서부터 묶음으로 읽어 첫 화면 카드를 먼저 그린다(#316). 뒤 묶음은 이어 붙기만 한다.
+    void loadWorkspaceProjectsProgressively(
+      (projects, done) => setState({ kind: "ready", projects, loading: !done }),
+      { isCancelled: stale },
+    ).then((exists) => {
+      if (!stale() && !exists) setState({ kind: "no-workspace" });
     });
     return () => {
       cancelled = true;
@@ -144,11 +153,12 @@ export function HomeScreen() {
     if (name === null) return;
     setRenaming(true);
     setMessage(null);
+    loadGeneration.current += 1; // 아직 뒤를 읽는 처음 읽기를 멈춘다
     const result = await renameProject(project.fileName, name);
     if (!result.ok) setMessage(result.error);
     else if (drawnPreviews.current.has(project.fileName)) drawnPreviews.current.add(result.path.split("/").pop() ?? "");
     const projects = await loadWorkspaceProjects();
-    if (projects !== null) setState({ kind: "ready", projects });
+    if (projects !== null) setState({ kind: "ready", projects, loading: false });
     setRenaming(false);
   }
 
@@ -162,7 +172,9 @@ export function HomeScreen() {
     if (useEditorStore.getState().spec !== before) openEditor();
   }
 
-  if (state.kind === "loading") {
+  // 뒤를 마저 읽는 중인데 아직 보여 줄 카드가 없으면(앞 묶음이 모두 깨진 파일) 빈 목록(상태 2)이
+  // 아니라 불러오는 중이다.
+  if (state.kind === "loading" || (state.kind === "ready" && state.loading && state.projects.length === 0)) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-surface-sunken text-sm text-content-muted">
         불러오는 중…
@@ -309,10 +321,11 @@ export function HomeScreen() {
         </button>
       </header>
 
-      <div ref={setScrollRoot} className="flex-1 overflow-auto p-6">
+      <div ref={setScrollRoot} data-loading={state.kind === "ready" && state.loading ? "true" : undefined}
+        className="flex-1 overflow-auto p-6">
         {message && <p role="alert" className="mb-4 text-sm">{message}</p>}
         <p className="mb-4 text-sm text-content-muted">
-          프로젝트 {cards.length}개
+          프로젝트 {cards.length}개{state.kind === "ready" && state.loading ? " · 불러오는 중…" : ""}
         </p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(208px,1fr))] gap-4">
           {cards.map((card) => (

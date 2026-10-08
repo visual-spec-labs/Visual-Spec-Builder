@@ -13,9 +13,8 @@ export interface HomeProject {
   diskRevision?: string;
 }
 
-/** 파일 하나를 읽어 ProjectSpec으로 정규화한다. 못 읽거나 검증에 실패하면 null. */
-async function loadHomeProject(fileName: string): Promise<HomeProject | null> {
-  const snapshot = await readWorkspaceSpecSnapshot(`${SPEC_DIR}/${fileName}`);
+/** 읽은 파일 하나를 ProjectSpec으로 정규화한다. 못 읽었거나 검증에 실패하면 null. */
+function toHomeProject(fileName: string, snapshot: { text: string; revision: string } | null): HomeProject | null {
   if (snapshot === null) return null;
 
   const result = parseSpecJson(snapshot.text);
@@ -30,15 +29,68 @@ async function loadHomeProject(fileName: string): Promise<HomeProject | null> {
  * 한 장으로 되돌아간다). 있으면 배열이다(비어 있을 수 있다 — 그때가 상태 2).
  */
 export async function loadWorkspaceProjects(): Promise<HomeProject[] | null> {
-  const entries = await listWorkspaceFileEntries(SPEC_DIR);
-  if (entries === null) return null;
+  let result: HomeProject[] = [];
+  const exists = await loadWorkspaceProjectsProgressively((projects) => { result = projects; });
+  return exists ? result : null;
+}
 
-  // Promise.all이 입력 순서를 유지하므로 읽기 속도가 달라도 카드 순서는 같다.
+/**
+ * 브라우저가 화면을 그리고(카드 미리보기의 IntersectionObserver 콜백·렌더 포함) 다시 돌아올 때까지
+ * 기다린다 — 두 프레임. `setTimeout(0)`만으로는 다음 묶음의 파싱이 그리기보다 먼저 시작돼, 첫 묶음
+ * 카드의 미리보기가 다음 묶음이 끝날 때까지 밀린다. 프레임이 없는 환경(테스트 등)은 다음 태스크.
+ */
+function nextFrames(): Promise<void> {
+  if (typeof requestAnimationFrame !== "function") return new Promise((resolve) => { setTimeout(resolve, 0); });
+  return new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(() => resolve())); });
+}
+
+/**
+ * 묶음 크기(#316). 첫 묶음은 첫 화면(넓은 창에서 카드 20여 장)을 한 번에 채울 만큼, 그 뒤는 크게 —
+ * 묶음마다 목록을 다시 그리고 이벤트 루프를 양보하므로 묶음이 잘수록 전체 완료가 늦어진다.
+ */
+export const HOME_FIRST_BATCH = 24;
+export const HOME_PARSE_BATCH = 50;
+
+/**
+ * `loadWorkspaceProjects`와 같은 결과를 **앞에서부터 묶음으로** 낸다(#316).
+ *
+ * 프로젝트가 많고 크면(100개 × 노드 1000) 홈 진입 시간의 큰 몫이 파일마다의 JSON 파싱과 스키마
+ * 검증이다(docs/22-performance-baseline.md). 파일은 한꺼번에 요청해 두고, 파싱·검증은 카드 순서
+ * (최근 수정순)대로 첫 묶음 `firstBatch`개, 그 뒤 `batch`개씩 하며 묶음 사이에 이벤트 루프를 양보한다. 그래서 첫 화면 카드가
+ * 나머지를 기다리지 않고 먼저 그려진다.
+ *
+ * 묶음이 끝날 때마다 `onProgress(지금까지의 목록, 다 읽었는가)`를 부른다. 목록은 매번 새 배열이고
+ * 순서는 최종 순서와 같다 — 못 읽거나 검증에 실패한 파일은 빠지지만 이미 낸 카드의 순서는 바뀌지
+ * 않는다(뒤에 이어 붙기만 한다). 마지막 호출의 `done`은 true다. `isCancelled()`가 true가 되면
+ * 그 자리에서 멈춘다. 작업공간이 없으면 `onProgress`를 부르지 않고 false다.
+ */
+export async function loadWorkspaceProjectsProgressively(
+  onProgress: (projects: HomeProject[], done: boolean) => void,
+  { firstBatch = HOME_FIRST_BATCH, batch = HOME_PARSE_BATCH, isCancelled = () => false }:
+    { firstBatch?: number; batch?: number; isCancelled?: () => boolean } = {},
+): Promise<boolean> {
+  const entries = await listWorkspaceFileEntries(SPEC_DIR);
+  if (entries === null) return false;
+
   const ordered = [...entries].sort((a, b) =>
     b.mtimeMs - a.mtimeMs || a.name.localeCompare(b.name),
   );
-  const loaded = await Promise.all(ordered.map((entry) => loadHomeProject(entry.name)));
-  return loaded.filter((project): project is HomeProject => project !== null);
+  // 읽기는 한꺼번에 시작한다 — 파싱이 앞 묶음을 하는 동안 뒤 파일이 도착한다.
+  const snapshots = ordered.map((entry) => readWorkspaceSpecSnapshot(`${SPEC_DIR}/${entry.name}`));
+  const projects: HomeProject[] = [];
+  for (let start = 0, size = firstBatch; start < ordered.length || start === 0; start += size, size = batch) {
+    for (let index = start; index < Math.min(start + size, ordered.length); index += 1) {
+      const project = toHomeProject(ordered[index].name, await snapshots[index]);
+      if (project !== null) projects.push(project);
+    }
+    if (isCancelled()) return true;
+    const done = start + size >= ordered.length;
+    onProgress([...projects], done);
+    if (done) break;
+    await nextFrames();
+    if (isCancelled()) return true;
+  }
+  return true;
 }
 
 /**

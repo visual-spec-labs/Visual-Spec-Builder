@@ -1,0 +1,385 @@
+{
+ "when": "2026-10-08T02:10:47.530Z",
+ "node": "v26.4.0",
+ "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+ "browser": "Chrome/154.0.8037.98",
+ "results": [
+  {
+   "key": "S2",
+   "label": "프로젝트 100 · 노드 100",
+   "reps": 5,
+   "imageBytes": 0,
+   "nodeEnv": "production",
+   "retries": 0,
+   "home": {
+    "median": 163.3,
+    "max": 192.3
+   },
+   "homeAll": {
+    "median": 182.9,
+    "max": 213.5
+   },
+   "open": {
+    "median": 35.4,
+    "max": 53.3
+   },
+   "edit": {
+    "median": 4.4,
+    "max": 4.7
+   },
+   "undo": {
+    "median": 4.3,
+    "max": 4.7
+   },
+   "editFrame": {
+    "median": 33.3,
+    "max": 33.4
+   },
+   "undoFrame": {
+    "median": 33.4,
+    "max": 33.7
+   },
+   "export": {
+    "median": 8.6,
+    "max": 11
+   },
+   "zipKB": 5,
+   "generatedFiles": 7,
+   "heapMB": {
+    "home": {
+     "median": 19.2,
+     "max": 19.2
+    },
+    "open": {
+     "median": 15.2,
+     "max": 15.3
+    },
+    "end": {
+     "median": 16.7,
+     "max": 16.7
+    }
+   },
+   "domNodes": {
+    "home": {
+     "median": 5699,
+     "max": 5699
+    },
+    "open": {
+     "median": 2804,
+     "max": 2804
+    }
+   },
+   "raw": [
+    {
+     "homeMs": 177.10000002384186,
+     "homeAllMs": 196.10000002384186,
+     "openMs": 34.80000001192093,
+     "editMs": 4.399999976158142,
+     "editFrameMs": 33.39999997615814,
+     "undoMs": 4.699999988079071,
+     "undoFrameMs": 33.39999997615814,
+     "exportMs": 8.599999964237213,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 19.2,
+      "domNodes": 5698
+     },
+     "openRes": {
+      "heapMB": 15.3,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 16.7,
+      "domNodes": 2804
+     }
+    },
+    {
+     "homeMs": 192.30000001192093,
+     "homeAllMs": 213.5,
+     "openMs": 40.59999996423721,
+     "editMs": 4.700000047683716,
+     "editFrameMs": 33.19999998807907,
+     "undoMs": 4.300000011920929,
+     "undoFrameMs": 33.60000002384186,
+     "exportMs": 8.600000023841858,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 19.1,
+      "domNodes": 5699
+     },
+     "openRes": {
+      "heapMB": 15.2,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 16.7,
+      "domNodes": 2804
+     }
+    },
+    {
+     "homeMs": 163.30000001192093,
+     "homeAllMs": 182.9000000357628,
+     "openMs": 34.10000002384186,
+     "editMs": 4.100000023841858,
+     "editFrameMs": 32.700000047683716,
+     "undoMs": 4.199999988079071,
+     "undoFrameMs": 33.69999998807907,
+     "exportMs": 9.5,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 19.2,
+      "domNodes": 5698
+     },
+     "openRes": {
+      "heapMB": 15.3,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 16.7,
+      "domNodes": 2804
+     }
+    },
+    {
+     "homeMs": 157.79999995231628,
+     "homeAllMs": 179.69999998807907,
+     "openMs": 35.40000003576279,
+     "editMs": 4.300000011920929,
+     "editFrameMs": 33.30000001192093,
+     "undoMs": 4.600000023841858,
+     "undoFrameMs": 33.39999997615814,
+     "exportMs": 11,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 19.2,
+      "domNodes": 5699
+     },
+     "openRes": {
+      "heapMB": 15.2,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 16.7,
+      "domNodes": 2804
+     }
+    },
+    {
+     "homeMs": 157.4000000357628,
+     "homeAllMs": 178.70000004768372,
+     "openMs": 53.30000001192093,
+     "editMs": 4.5,
+     "editFrameMs": 33.30000001192093,
+     "undoMs": 4.300000011920929,
+     "undoFrameMs": 33.40000003576279,
+     "exportMs": 7.100000023841858,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 19.2,
+      "domNodes": 5699
+     },
+     "openRes": {
+      "heapMB": 15.2,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 16.7,
+      "domNodes": 2804
+     }
+    }
+   ]
+  },
+  {
+   "key": "S4",
+   "label": "프로젝트 100 · 노드 1000",
+   "reps": 5,
+   "imageBytes": 0,
+   "nodeEnv": "production",
+   "retries": 0,
+   "home": {
+    "median": 489.5,
+    "max": 513.7
+   },
+   "homeAll": {
+    "median": 593.6,
+    "max": 636.2
+   },
+   "open": {
+    "median": 162.8,
+    "max": 167.4
+   },
+   "edit": {
+    "median": 22.5,
+    "max": 23.4
+   },
+   "undo": {
+    "median": 22.7,
+    "max": 23.2
+   },
+   "editFrame": {
+    "median": 33.3,
+    "max": 33.6
+   },
+   "undoFrame": {
+    "median": 33.3,
+    "max": 34.2
+   },
+   "export": {
+    "median": 21.2,
+    "max": 23.1
+   },
+   "zipKB": 16,
+   "generatedFiles": 53,
+   "heapMB": {
+    "home": {
+     "median": 73.2,
+     "max": 73.4
+    },
+    "open": {
+     "median": 32.1,
+     "max": 32.1
+    },
+    "end": {
+     "median": 42.1,
+     "max": 42.1
+    }
+   },
+   "domNodes": {
+    "home": {
+     "median": 43114,
+     "max": 43114
+    },
+    "open": {
+     "median": 25081,
+     "max": 25081
+    }
+   },
+   "raw": [
+    {
+     "homeMs": 505.69999998807907,
+     "homeAllMs": 636.1999999880791,
+     "openMs": 162.80000001192093,
+     "editMs": 22.5,
+     "editFrameMs": 33.59999996423721,
+     "undoMs": 23.19999998807907,
+     "undoFrameMs": 33.30000001192093,
+     "exportMs": 23.099999964237213,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 73.2,
+      "domNodes": 43114
+     },
+     "openRes": {
+      "heapMB": 32.1,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 42.1,
+      "domNodes": 25081
+     }
+    },
+    {
+     "homeMs": 344.5,
+     "homeAllMs": 602.1999999880791,
+     "openMs": 156.80000001192093,
+     "editMs": 23.400000035762787,
+     "editFrameMs": 33.30000001192093,
+     "undoMs": 23,
+     "undoFrameMs": 34.200000047683716,
+     "exportMs": 21.69999998807907,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 73.4,
+      "domNodes": 43114
+     },
+     "openRes": {
+      "heapMB": 32.1,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 42.1,
+      "domNodes": 25081
+     }
+    },
+    {
+     "homeMs": 345.9000000357628,
+     "homeAllMs": 593.6000000238419,
+     "openMs": 163.9000000357628,
+     "editMs": 22.599999964237213,
+     "editFrameMs": 33.30000001192093,
+     "undoMs": 22.599999964237213,
+     "undoFrameMs": 33.30000001192093,
+     "exportMs": 20.80000001192093,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 73.2,
+      "domNodes": 43114
+     },
+     "openRes": {
+      "heapMB": 30.8,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 42.1,
+      "domNodes": 25081
+     }
+    },
+    {
+     "homeMs": 513.6999999880791,
+     "homeAllMs": 555.7999999523163,
+     "openMs": 167.39999997615814,
+     "editMs": 22.5,
+     "editFrameMs": 33.10000002384186,
+     "undoMs": 22.69999998807907,
+     "undoFrameMs": 33.39999997615814,
+     "exportMs": 20.400000035762787,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 73,
+      "domNodes": 43114
+     },
+     "openRes": {
+      "heapMB": 30.9,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 42.1,
+      "domNodes": 25081
+     }
+    },
+    {
+     "homeMs": 489.5,
+     "homeAllMs": 574.1000000238419,
+     "openMs": 150.5999999642372,
+     "editMs": 22.099999964237213,
+     "editFrameMs": 33.39999997615814,
+     "undoMs": 22.399999976158142,
+     "undoFrameMs": 33.30000001192093,
+     "exportMs": 21.19999998807907,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 73,
+      "domNodes": 43114
+     },
+     "openRes": {
+      "heapMB": 32.1,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 42.1,
+      "domNodes": 25081
+     }
+    }
+   ]
+  }
+ ],
+ "note": "#316 적용 뒤(홈 목록: 파일은 한꺼번에 요청, 파싱·검증은 첫 묶음 24·뒤 50개씩, 묶음 사이 두 프레임 양보) 측정. home = 첫 화면(카드가 모두 들어왔거나 마지막 카드가 화면 끝에 닿고 보이는 미리보기 완료), homeAll = 카드가 모두 들어오고 읽기 완료. node scripts/perf/measure.mjs --reps 5 --scenario S2,S4 (production)."
+}

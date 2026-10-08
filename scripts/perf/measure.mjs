@@ -14,7 +14,8 @@
 // 반복마다 새 브라우저 컨텍스트(저장소·캐시 분리)에서 잰다.
 //
 // 재는 것(모두 페이지의 performance.now 기준, ms):
-//   home   — 내비게이션 시작 → 홈 카드가 모두 DOM에 있고, 화면에 보이는 카드의 미리보기가 모두 그려질 때까지
+//   home   — 내비게이션 시작 → 첫 화면이 찰 때까지: 카드가 모두 들어왔거나 마지막 카드가 화면 아래 끝에 닿았고,
+//            화면에 보이는 카드의 미리보기가 모두 그려졌다. homeAll은 카드가 모두 들어오고 읽기가 끝날 때까지
 //   open   — 카드 클릭 → 에디터 화면에 그 프로젝트가 그려질 때까지(두 프레임 뒤)
 //   edit   — text 노드 내용 변경(setNodeField) → 다음 태스크(setTimeout 0)까지 경과와 두 번째 rAF까지 경과, 10회 중앙값.
 //            앞은 JS CPU 시간만이 아니고, 뒤는 화면 표시 완료를 보장하지 않는다. 편집이 실제로 적용됐는지 확인한다
@@ -151,6 +152,12 @@ async function metrics(cdp, sessionId) {
 // 페이지 안에서 도는 측정 코드. 앱과 같은 모듈 URL을 동적 import하므로 같은 스토어 인스턴스를 쓴다.
 // 화면에 보이는 카드의 미리보기가 모두 그려졌는가(#315부터 미리보기는 화면 근처에 들어온 카드만
 // 그린다 — data-preview="pending"). 그 전 버전은 카드와 미리보기를 한 번에 그려 pending이 없다.
+// 첫 화면이 찼는가: 카드가 모두 들어왔거나, 마지막 카드가 화면 아래 끝에 닿았다(#316 — 앞에서부터
+// 묶음으로 그린다). 이전 버전은 카드를 한 번에 모두 그리므로 "모두 들어옴"과 같은 순간이다.
+const firstScreenFilled = (projects) => `(() => { const cards = document.querySelectorAll('[aria-label$=" 이름 변경"]');
+  if (cards.length >= ${projects}) return true; const last = cards[cards.length - 1];
+  return last !== undefined && last.getBoundingClientRect().bottom >= innerHeight; })()`;
+
 const VISIBLE_PREVIEWS_READY = `[...document.querySelectorAll('[data-preview="pending"]')].every((e) => {
   const r = e.getBoundingClientRect(); return r.bottom <= 0 || r.top >= innerHeight; })`;
 
@@ -312,7 +319,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
       const until = Date.now() + 120_000;
       while (homeMs === null) {
         const seen = await evaluate(cdp, sessionId,
-          `document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects}
+          `${firstScreenFilled(scenario.projects)}
             && ${VISIBLE_PREVIEWS_READY}
             ? { t: performance.now(), nav: performance.getEntriesByType("navigation")[0]?.type ?? null } : null`,
           Math.max(1000, until - Date.now()))
@@ -323,6 +330,13 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
         if (seen !== null && seen.nav === "reload") throw new Error("page navigated or closed (개발 서버 재로드)");
         homeMs = seen?.t ?? null;
         if (homeMs === null) { if (Date.now() > until) throw new Error("홈 시간 초과"); await sleep(10); }
+      }
+      // 전체: 카드가 모두 들어오고 뒤를 마저 읽는 표시가 사라질 때까지(#316). 이전 버전은 첫 화면과 같은 순간이다.
+      let homeAllMs = null;
+      while (homeAllMs === null) {
+        homeAllMs = await step(`document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects}
+          && document.querySelector("[data-loading]") === null ? performance.now() : null`);
+        if (homeAllMs === null) { if (Date.now() > until) throw new Error("홈 전체 시간 초과"); await sleep(10); }
       }
       if (rep === profileRep) {
         const { profile: cpu } = await cdp.send("Profiler.stop", {}, sessionId);
@@ -353,7 +367,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
       await cdp.send("Target.disposeBrowserContext", { browserContextId });
       opened.contextId = null;
       if (rep >= 0 && rep !== profileRep) {
-        results.push({ homeMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
+        results.push({ homeMs, homeAllMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
           undoMs: median(undos.map((e) => e.task)), undoFrameMs: median(undos.map((e) => e.frame)), exportMs: exported.ms,
           zipBytes: exported.zipBytes, files: exported.files, homeRes, openRes, endRes });
       }
@@ -385,7 +399,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
   return {
     key, label: scenario.label, reps, imageBytes, nodeEnv, retries,
     ...(profile ? { profiles } : {}),
-    home: summary((r) => r.homeMs), open: summary((r) => r.openMs), edit: summary((r) => r.editMs),
+    home: summary((r) => r.homeMs), homeAll: summary((r) => r.homeAllMs), open: summary((r) => r.openMs), edit: summary((r) => r.editMs),
     undo: summary((r) => r.undoMs), editFrame: summary((r) => r.editFrameMs), undoFrame: summary((r) => r.undoFrameMs),
     export: summary((r) => r.exportMs),
     zipKB: Math.round(results[0].zipBytes / 1024), generatedFiles: results[0].files,
@@ -407,6 +421,6 @@ for (const key of args.scenarios) {
   const result = await runScenario(key, scenario, { reps: args.reps, chrome, profile: args.profile, nodeEnv: args.nodeEnv });
   out.push(result);
   const f = (s) => `${s.median} (최대 ${s.max})`;
-  console.log(`| ${key} ${result.label} | ${f(result.home)} | ${f(result.open)} | ${f(result.edit)} / ${result.editFrame.median} | ${f(result.undo)} / ${result.undoFrame.median} | ${f(result.export)} | ${result.heapMB.home.median} / ${result.heapMB.open.median} / ${result.heapMB.end.median} | ${result.domNodes.home.median} / ${result.domNodes.open.median} |`);
+  console.log(`| ${key} ${result.label} | ${f(result.home)} / 전체 ${result.homeAll.median} | ${f(result.open)} | ${f(result.edit)} / ${result.editFrame.median} | ${f(result.undo)} / ${result.undoFrame.median} | ${f(result.export)} | ${result.heapMB.home.median} / ${result.heapMB.open.median} / ${result.heapMB.end.median} | ${result.domNodes.home.median} / ${result.domNodes.open.median} |`);
 }
 if (args.json) writeFileSync(args.json, JSON.stringify({ when: new Date().toISOString(), node: process.version, chrome, browser: versions.browser, results: out }, null, 2));
