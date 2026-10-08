@@ -268,3 +268,43 @@ Escape를 누르면 선택이 해제된다 — 다이얼로그는 그대로 떠 
 - 검색/복제/삭제 구현 — 위 "결정 4"의 우선순위·정책만 이번 PR에 포함하고, 실제
   구현은 후속 이슈로 분리한다.
 - 손상 파일을 앱 안에서 직접 고치는 편집 기능 — 원본 다운로드까지만 지원한다.
+
+## PR #332 브라우저 재검증 및 보정 (2026-10-08)
+
+위의 최초 구현 검증 기록과 브라우저 보류는 당시 상태다. 후속 검증에서는 실제
+Chromium으로 다음 네 문제를 재현한 뒤 보정했다.
+
+- Tab/Shift+Tab이 PromptDialog 밖으로 나가 Home이나 다른 카드의 Rename을
+  실행했다. prompt가 열려 있으면 앱 본문을 `inert`로 두고 다이얼로그의 첫/마지막
+  입력·버튼 사이에서 Tab을 순환한다. 요청마다 첫 입력 또는 목록 버튼에 포커스를 둔다.
+- Escape가 prompt를 닫은 뒤 같은 이벤트의 window 리스너가 닫힌 상태를 읽어
+  캔버스 선택을 해제했다. 닫기 전에 기본 동작과 이벤트 전파를 함께 막는다.
+- 텍스트 요청을 다른 텍스트 요청으로 교체하면 `useState(initialValue)`가 앞 요청의
+  입력을 재사용했다. 요청 ID를 부여하고 그 ID로 입력 컴포넌트를 다시 마운트한다.
+  앞 요청은 기존 계약대로 `null`로 정리된다.
+- 겹친 "다시 확인"의 옛 응답이 새 복구 결과를 덮었다. 새로고침도 세대 번호를
+  캡처해 완료 시 비교하고, 이전 요청 및 unmount 시 남은 읽기를 중단한다.
+  AbortSignal을 무시하는 지연 응답에도 세대 비교가 적용된다.
+
+재현 가능한 브라우저 회귀 러너: `scripts/browser/project-dialogs.mjs`.
+Playwright는 선택적 QA 도구이며 앱 의존성에 추가하지 않았다. 별도로 설치된
+Playwright ESM 진입점과 Chromium 실행 파일을 지정한다.
+
+```bash
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+CHROME_BIN=/usr/bin/chromium node scripts/browser/project-dialogs.mjs
+```
+
+러너는 임시 워크스페이스와 Vite 서버를 만들고 종료 시 제거한다. 실제 키보드의
+양방향 포커스 순환, Escape·Delete·Undo 격리, 요청 교체, 반복/중단된 Open·Save as,
+Cancel 뒤 문서·선택·history 보존, 손상 파일 선택, Enter로 한글 Save as/Rename,
+역순 Retry 완료를 검사한다. 대체 요청은 배경이 inert여서 사용자가 접근할 수 없으므로
+공개 prompt/파일 함수로 주입하고, Retry 지연은 fetch에 주입한다. 파일 저장과 이름
+변경은 실제 워크스페이스 미들웨어로 실행한다.
+
+실행 결과: Chromium 151.0.7922.173에서 위 시나리오 전부 통과, pageerror 없음.
+`pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`와 생성 타입 비교를 함께
+모두 통과했다(전체 테스트 1,735개 통과, 선택 실행 브라우저 코드 생성 테스트 2개 skip).
+#302의 native confirm과 #319의 이름 없는 초안 Home Resume 공백은
+기존 별도 범위이며 이번 수정이 해결했다고 주장하지 않는다. 다른 브라우저 및
+모든 다중 탭 경합 조합을 실행한 결과로 확대하지 않는다.

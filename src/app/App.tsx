@@ -8,12 +8,14 @@ import { startAgentEditBridge } from "@/features/editor/ui/agentEditBridge";
 import { startDiskWatch } from "@/features/editor/ui/diskWatch";
 import { AgentEditNotice } from "@/features/editor/ui/AgentEditNotice";
 import { SaveConflictDialog } from "@/features/editor/ui/SaveConflictDialog";
+import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { PromptDialog } from "@/features/editor/ui/PromptDialog";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { ThemeProvider } from "@/features/editor/ui/ThemeProvider";
 
 export function App() {
   const screen = useNavigationStore((s) => s.screen);
+  const prompting = usePromptDialogStore((s) => s.state.kind !== "closed");
   const paused = useSaveConflictStore((s) => s.paused);
   useEffect(startSpecAutosave, []);
   useEffect(startAgentEditBridge, []);
@@ -21,7 +23,7 @@ export function App() {
 
   return (
     <ThemeProvider>
-      <div inert={paused || undefined}>
+      <div inert={paused || prompting || undefined}>
         {screen === "home" ? <HomeScreen /> : <EditorLayout />}
       </div>
       <SaveConflictDialog />

@@ -111,3 +111,15 @@ describe("첫 묶음 크기는 창으로 어림한 첫 화면 카드 수다 (#31
   });
 });
 
+
+
+it("passes cancellation to every snapshot in a replacement Home refresh", async () => {
+  const controller = new AbortController();
+  vi.mocked(listWorkspaceFileEntries).mockResolvedValue([{ name: "a.json", mtimeMs: 1 }]);
+  vi.mocked(readWorkspaceSpecSnapshot).mockImplementation(async (_path, signal) => {
+    expect(signal).toBe(controller.signal);
+    controller.abort();
+    return null;
+  });
+  expect(await loadWorkspaceProjects({ signal: controller.signal })).toEqual({ projects: [], failures: [] });
+});

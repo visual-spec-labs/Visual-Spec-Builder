@@ -44,11 +44,11 @@ function toHomeProject(fileName: string, snapshot: { text: string; revision: str
  * 조용히 사라졌다. `loadWorkspaceProjectsProgressively`를 한 묶음(`firstBatch: Infinity`)으로
  * 부르는 얇은 래퍼다 — 양보할 "다음 묶음"이 없어 프레임을 기다릴 필요가 없다.
  */
-export async function loadWorkspaceProjects(): Promise<{ projects: HomeProject[]; failures: HomeProjectFailure[] } | null> {
+export async function loadWorkspaceProjects({ signal }: { signal?: AbortSignal } = {}): Promise<{ projects: HomeProject[]; failures: HomeProjectFailure[] } | null> {
   let result: { projects: HomeProject[]; failures: HomeProjectFailure[] } = { projects: [], failures: [] };
   const exists = await loadWorkspaceProjectsProgressively(
     (projects, failures) => { result = { projects, failures }; },
-    { firstBatch: Infinity },
+    { firstBatch: Infinity, signal, isCancelled: () => signal?.aborted ?? false },
   );
   return exists ? result : null;
 }

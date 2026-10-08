@@ -14,6 +14,7 @@ import { create } from "zustand";
  */
 
 interface TextPromptState {
+  requestId: number;
   kind: "text";
   title: string;
   message?: string;
@@ -25,6 +26,7 @@ interface TextPromptState {
 }
 
 interface PickPromptState {
+  requestId: number;
   kind: "pick";
   title: string;
   message?: string;
@@ -34,6 +36,8 @@ interface PickPromptState {
 }
 
 type PromptDialogState = { kind: "closed" } | TextPromptState | PickPromptState;
+
+let nextRequestId = 0;
 
 export const usePromptDialogStore = create<{
   state: PromptDialogState;
@@ -78,6 +82,7 @@ export function promptText(options: TextPromptOptions): Promise<string | null> {
     usePromptDialogStore.setState({
       state: {
         kind: "text",
+        requestId: ++nextRequestId,
         title: options.title,
         message: options.message,
         initialValue: options.initialValue ?? "",
@@ -104,6 +109,7 @@ export function promptPick(options: PickPromptOptions): Promise<string | null> {
     usePromptDialogStore.setState({
       state: {
         kind: "pick",
+        requestId: ++nextRequestId,
         title: options.title,
         message: options.message,
         items: options.items,

@@ -72,3 +72,17 @@ describe("promptText/promptPick (#288)", () => {
     await expect(second).resolves.toBe("x.json");
   });
 });
+
+
+it("identifies replacement text requests even when their titles match", async () => {
+  const first = promptText({ title: "Rename", initialValue: "Alpha" });
+  const initial = usePromptDialogStore.getState().state;
+  const second = promptText({ title: "Rename", initialValue: "Beta" });
+  const replacement = usePromptDialogStore.getState().state;
+  if (initial.kind !== "text" || replacement.kind !== "text") throw new Error("Expected text requests");
+  expect(replacement.requestId).not.toBe(initial.requestId);
+  expect(replacement.initialValue).toBe("Beta");
+  await expect(first).resolves.toBeNull();
+  usePromptDialogStore.getState().resolve("Beta renamed");
+  await expect(second).resolves.toBe("Beta renamed");
+});

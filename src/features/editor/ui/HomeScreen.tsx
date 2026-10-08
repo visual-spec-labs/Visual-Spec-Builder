@@ -121,7 +121,8 @@ export function HomeScreen() {
     });
     return () => {
       cancelled = true;
-      reads.abort();
+      loadGeneration.current += 1;
+      abortLoad.current();
     };
   }, []);
 
@@ -129,9 +130,12 @@ export function HomeScreen() {
   // 아직 뒤를 읽는 처음 읽기가 남아 있으면 먼저 멈춘다 — 안 그러면 그 진행 중인
   // onProgress가 나중에 끝나며 이 새로고침 결과를 덮어쓸 수 있다.
   async function refreshProjects() {
-    loadGeneration.current += 1;
+    const generation = ++loadGeneration.current;
     abortLoad.current();
-    const result = await loadWorkspaceProjects();
+    const reads = new AbortController();
+    abortLoad.current = () => reads.abort();
+    const result = await loadWorkspaceProjects({ signal: reads.signal });
+    if (generation !== loadGeneration.current) return;
     if (result !== null) setState({ kind: "ready", ...result, loading: false });
     // 다시 읽기에 실패해도(작업공간 연결 끊김 등) 처음 읽기는 이미 멈췄다 — 보이던 목록을 두고
     // "불러오는 중"만 끈다. 그대로 두면 표시가 영영 남는다.
