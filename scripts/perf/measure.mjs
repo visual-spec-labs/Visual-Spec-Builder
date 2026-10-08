@@ -23,7 +23,7 @@
 //   export — 생성 코드 훑기·검증(scanGeneratedCode) + 자산 읽기 + ZIP 만들기(다운로드 클릭 제외)
 // 자원: 단계마다 GC를 강제한 뒤의 JS 힙 사용량·DOM 노드 수(Performance.getMetrics).
 
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -31,6 +31,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { writeWorkspace } from "./fixtures.mjs";
+import { collectChromeRss, formatRss, summarizeRss } from "./rss.mjs";
 
 // DevTools 연결에 Node 내장 WebSocket을 쓴다. Node 22부터는 기본으로 있고, 이 저장소가 지원하는 Node 20은
 // `--experimental-websocket`이 있어야 한다 — 없으면 그 플래그를 붙여 이 스크립트를 한 번 다시 실행한다(PR #313 리뷰).
@@ -180,21 +181,6 @@ new MutationObserver((records) => {
   }
 }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["style"] });
 `;
-
-/** 측정용 Chrome 프로세스 트리(렌더러·GPU 포함)의 RSS 합(MB). 디코딩한 비트맵은 JS 힙에 잡히지 않는다. */
-function chromeTreeRssMB(rootPid) {
-  try {
-    const rows = execFileSync("ps", ["-A", "-o", "pid=,ppid=,rss="], { encoding: "utf8" }).trim().split("\n")
-      .map((line) => line.trim().split(/\s+/).map(Number));
-    const children = new Map();
-    for (const [pid, ppid] of rows) children.set(ppid, [...(children.get(ppid) ?? []), pid]);
-    const rss = new Map(rows.map(([pid, , kb]) => [pid, kb]));
-    let total = 0;
-    const stack = [rootPid];
-    while (stack.length > 0) { const pid = stack.pop(); total += rss.get(pid) ?? 0; stack.push(...(children.get(pid) ?? [])); }
-    return Math.round(total / 1024);
-  } catch { return null; }
-}
 
 // 화면에 보이는 카드의 미리보기가 모두 그려졌는가(#315부터 미리보기는 화면 근처에 들어온 카드만
 // 그린다 — data-preview="pending"). 그 전 버전은 카드와 미리보기를 한 번에 그려 pending이 없다.
@@ -466,7 +452,8 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
         }
       }
       // 브라우저 전체 메모리(RSS) — 이미지가 있으면 보이는 이미지가 그려진 뒤.
-      const homeRssMB = chromeTreeRssMB(browser.pid);
+      const homeRssCollection = collectChromeRss(browser.pid);
+      const homeRssMB = homeRssCollection.valueMB;
       await step(PAGE_HELPERS);
       const openMs = await step(`window.__perf.open(${JSON.stringify(target)})`);
       const openRes = await metrics(cdp, sessionId);
@@ -484,7 +471,8 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
           if (openImages === null) { if (Date.now() > imageWait) throw new Error("열기 이미지 표시 시간 초과"); await sleep(20); }
         }
       }
-      const openRssMB = chromeTreeRssMB(browser.pid);
+      const openRssCollection = collectChromeRss(browser.pid);
+      const openRssMB = openRssCollection.valueMB;
       if (rep === profileRep) {
         await cdp.send("Profiler.enable", {}, sessionId);
         await cdp.send("Profiler.setSamplingInterval", { interval: 100 }, sessionId);
@@ -542,7 +530,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
       await cdp.send("Target.disposeBrowserContext", { browserContextId });
       opened.contextId = null;
       if (rep >= 0 && rep !== profileRep) {
-        results.push({ homeImages, openImages, homeRssMB, openRssMB, typing, drag, homeMs, homeAllMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
+        results.push({ homeImages, openImages, homeRssMB, openRssMB, homeRssCollection, openRssCollection, typing, drag, homeMs, homeAllMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
           undoMs: median(undos.map((e) => e.task)), undoFrameMs: median(undos.map((e) => e.frame)), exportMs: exported.ms,
           zipBytes: exported.zipBytes, files: exported.files, homeRes, openRes, endRes });
       }
@@ -584,7 +572,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
     } : {}),
     export: summary((r) => r.exportMs),
     zipKB: Math.round(results[0].zipBytes / 1024), generatedFiles: results[0].files,
-    rssMB: { home: summary((r) => r.homeRssMB), open: summary((r) => r.openRssMB) },
+    rssMB: { home: summarizeRss(results.map((r) => r.homeRssCollection)), open: summarizeRss(results.map((r) => r.openRssCollection)) },
     ...(scenario.image !== undefined ? {
       homeImagesMs: summary((r) => r.homeImages.ms), homeImagesCount: summary((r) => r.homeImages.count),
       openImagesMs: summary((r) => r.openImages.ms),
@@ -610,7 +598,7 @@ for (const key of args.scenarios) {
   console.log(`| ${key} ${result.label} | ${f(result.home)} / 전체 ${result.homeAll.median} | ${f(result.open)} | ${f(result.edit)} / ${result.editFrame.median} | ${f(result.undo)} / ${result.undoFrame.median} | ${f(result.export)} | ${result.heapMB.home.median} / ${result.heapMB.open.median} / ${result.heapMB.end.median} | ${result.domNodes.home.median} / ${result.domNodes.open.median} |`);
 }
 for (const result of out) {
-  console.log(`  ${result.key} 브라우저 RSS: 홈 ${result.rssMB.home.median}MB · 열기 뒤 ${result.rssMB.open.median}MB${result.homeImagesMs
+  console.log(`  ${result.key} 브라우저 RSS: 홈 ${formatRss(result.rssMB.home)} · 열기 뒤 ${formatRss(result.rssMB.open)}${result.homeImagesMs
     ? ` · 이미지 그려짐: 홈 ${result.homeImagesMs.median}ms(보이는 ${result.homeImagesCount.median}장) · 열기 ${result.openImagesMs.median}ms` : ""}`);
   if (result.typing) {
     const g = (o) => `놓친 프레임 ${o.missed.median}·간격 p95 ${o.gapP95.median}·최대 ${o.gapMax.median}ms·느린 입력 ${o.slowEvents.median}건(p95 ${o.eventP95.median}·최대 ${o.eventMax.median}ms)`;
