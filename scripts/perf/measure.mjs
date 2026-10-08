@@ -14,7 +14,7 @@
 // 반복마다 새 브라우저 컨텍스트(저장소·캐시 분리)에서 잰다.
 //
 // 재는 것(모두 페이지의 performance.now 기준, ms):
-//   home   — 내비게이션 시작 → 홈 카드가 모두 그려질 때까지
+//   home   — 내비게이션 시작 → 홈 카드가 모두 DOM에 있고, 화면에 보이는 카드의 미리보기가 모두 그려질 때까지
 //   open   — 카드 클릭 → 에디터 화면에 그 프로젝트가 그려질 때까지(두 프레임 뒤)
 //   edit   — text 노드 내용 변경(setNodeField) → 다음 태스크(setTimeout 0)까지 경과와 두 번째 rAF까지 경과, 10회 중앙값.
 //            앞은 JS CPU 시간만이 아니고, 뒤는 화면 표시 완료를 보장하지 않는다. 편집이 실제로 적용됐는지 확인한다
@@ -149,6 +149,11 @@ async function metrics(cdp, sessionId) {
 }
 
 // 페이지 안에서 도는 측정 코드. 앱과 같은 모듈 URL을 동적 import하므로 같은 스토어 인스턴스를 쓴다.
+// 화면에 보이는 카드의 미리보기가 모두 그려졌는가(#315부터 미리보기는 화면 근처에 들어온 카드만
+// 그린다 — data-preview="pending"). 그 전 버전은 카드와 미리보기를 한 번에 그려 pending이 없다.
+const VISIBLE_PREVIEWS_READY = `[...document.querySelectorAll('[data-preview="pending"]')].every((e) => {
+  const r = e.getBoundingClientRect(); return r.bottom <= 0 || r.top >= innerHeight; })`;
+
 const PAGE_HELPERS = String.raw`
 window.__perf = {
   frame: () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
@@ -308,6 +313,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
       while (homeMs === null) {
         const seen = await evaluate(cdp, sessionId,
           `document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects}
+            && ${VISIBLE_PREVIEWS_READY}
             ? { t: performance.now(), nav: performance.getEntriesByType("navigation")[0]?.type ?? null } : null`,
           Math.max(1000, until - Date.now()))
           // 페이지를 바꾸는 중의 평가 실패(실행 컨텍스트 교체 등)만 넘긴다. 연결 끊김·시간 초과는 그대로 실패시킨다.

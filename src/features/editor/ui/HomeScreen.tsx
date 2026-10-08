@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   Node as SpecNode,
@@ -18,6 +18,7 @@ import {
   previewFrameStyle,
   previewImageStyle,
   previewInputStyle,
+  previewNodeIds,
   previewScale,
   previewTextStyle,
 } from "@/features/editor/ui/homePreview";
@@ -359,22 +360,52 @@ function ProjectCard({
   );
 }
 
-/** 캡처 이미지를 저장하지 않는다 — 스펙 JSON에서 매번 즉석 렌더한다(해결된 항목, docs/open-questions.md). */
+/**
+ * 요소가 화면 근처(위아래 `rootMargin`)에 한 번이라도 들어왔는가. 한 번 들어오면 계속 true다 —
+ * 스크롤해 벗어날 때마다 미리보기를 지웠다 다시 그리지 않는다. `IntersectionObserver`가 없는
+ * 환경(테스트 등)에서는 처음부터 true다.
+ */
+function useSeenOnce<T extends Element>(rootMargin = "200px"): [RefObject<T | null>, boolean] {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(() => typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    if (seen || ref.current === null) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
+    }, { rootMargin });
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [seen, rootMargin]);
+  return [ref, seen];
+}
+
+/**
+ * 캡처 이미지를 저장하지 않는다 — 스펙 JSON에서 매번 즉석 렌더한다(해결된 항목, docs/open-questions.md).
+ *
+ * 다만 가볍게 그린다(#315): 화면 근처에 들어온 카드만 그리고, 그릴 노드도 그리는 순서로 최대
+ * `PREVIEW_NODE_LIMIT`개다(`previewNodeIds`). 그리기 전에는 같은 크기의 빈 자리만 둔다.
+ */
 function ProjectPreview({ page }: { page: ScreenSpec }) {
   const { width, height } = page.size;
   const scale = previewScale(width, height, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+  const [ref, seen] = useSeenOnce<HTMLDivElement>();
+  const allowed = useMemo(() => (seen ? previewNodeIds(page) : null), [seen, page]);
 
   return (
     <div
+      ref={ref}
+      data-preview={allowed === null ? "pending" : "ready"}
       className="relative overflow-hidden rounded-control bg-surface-canvas"
       style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT }}
     >
-      <div
-        className="absolute top-0 left-0"
-        style={{ width, height, transform: `scale(${scale})`, transformOrigin: "top left" }}
-      >
-        <PreviewNode id={page.root} nodes={page.nodes} />
-      </div>
+      {allowed !== null && (
+        <div
+          className="absolute top-0 left-0"
+          style={{ width, height, transform: `scale(${scale})`, transformOrigin: "top left" }}
+        >
+          <PreviewNode id={page.root} nodes={page.nodes} allowed={allowed} />
+        </div>
+      )}
     </div>
   );
 }
@@ -382,14 +413,17 @@ function ProjectPreview({ page }: { page: ScreenSpec }) {
 function PreviewNode({
   id,
   nodes,
+  allowed,
   parentDirection,
 }: {
   id: NodeId;
   nodes: Record<NodeId, SpecNode>;
+  /** 그릴 노드(`previewNodeIds`). 밖의 노드와 그 아래는 그리지 않는다. */
+  allowed: Set<NodeId>;
   parentDirection?: Direction;
 }) {
   const node = nodes[id];
-  if (node === undefined || node.visible === false) {
+  if (node === undefined || node.visible === false || !allowed.has(id)) {
     return null;
   }
 
@@ -401,6 +435,7 @@ function PreviewNode({
             key={child.node}
             id={child.node}
             nodes={nodes}
+            allowed={allowed}
             parentDirection={node.layout.direction}
           />
         ))}
