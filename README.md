@@ -5,7 +5,7 @@
 Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현한다.
 
 처음 실행한다면 [로그인 예제로 시작하기](docs/14-getting-started.md)를 따른다.
-현재 패키지는 `private: true`이며, npm 배포 대신 저장소 체크아웃의 CLI를 사용한다.
+패키지는 `private: true`라 레지스트리에 공개하지 않는다. `pnpm pack`으로 만든 로컬 tarball은 별도 폴더에 설치해 CLI와 GUI 런타임을 검증할 수 있다.
 
 ## 문서
 
@@ -37,7 +37,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [DESIGN-TOKEN-RULES.md](docs/DESIGN-TOKEN-RULES.md) | 디자인 토큰 네이밍·구조·참조 규칙 |
 | [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
 | [open-questions.md](docs/open-questions.md) | 미확정 항목 |
-| [qa/](docs/qa/) | 개별 기능 QA 기록 ([탭 저장 충돌](docs/qa/tab-save-conflicts.md), [프로젝트 이름·파일명 변경](docs/qa/project-file-rename-qa.md), [Export 이미지 자산 정합성](docs/qa/export-asset-integrity.md)) |
+| [qa/](docs/qa/) | 개별 기능 QA 기록 ([탭 저장 충돌](docs/qa/tab-save-conflicts.md), [프로젝트 이름·파일명 변경](docs/qa/project-file-rename-qa.md), [Export 이미지 자산 정합성](docs/qa/export-asset-integrity.md), [로컬 tarball GUI 런타임](docs/qa/package-tarball-runtime.md)) |
 | [skills/](docs/skills/) | 배포 스킬 7종(`skills/`)의 사람용 설명 |
 
 설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 있다.
@@ -100,7 +100,7 @@ import { validateVisualSpec } from "@/features/editor/schema";
 
 ## 개발
 
-Node 20 이상(CI는 20), pnpm 10.33.0을 사용한다 (`packageManager: pnpm@10.33.0`). npm으로 설치하지 않는다.
+Node `^20.19.0 || >=22.12.0`, pnpm 10.33.0을 사용한다 (`packageManager: pnpm@10.33.0`). Vite 런타임이 요구하는 Node 범위다.
 
 ```bash
 pnpm install --frozen-lockfile
