@@ -53,6 +53,10 @@ const SCENARIOS = {
   S5: { projects: 10, nodes: 100, image: { width: 2400, height: 1600 }, label: "프로젝트 10 · 노드 100 · 큰 이미지(11.5MB PNG)" },
   // 프로젝트마다 다른 이미지 — 디코딩·비트맵이 공유되지 않는다(#318).
   S6: { projects: 10, nodes: 100, image: { width: 2400, height: 1600, distinct: true }, label: "프로젝트 10 · 노드 100 · 프로젝트마다 다른 큰 이미지(11.5MB PNG × 10)" },
+  // 홈이 실제로 그리는 카드 수(보이는 것 + 근처, 1600×1000에서 약 40장)를 넘는 서로 다른 이미지(#318).
+  S7: { projects: 50, nodes: 100, image: { width: 2400, height: 1600, distinct: true }, label: "프로젝트 50 · 노드 100 · 프로젝트마다 다른 큰 이미지(11.5MB PNG × 50)" },
+  // 한 페이지에 서로 다른 큰 이미지 5장 — 열었을 때 캔버스(#318).
+  S8: { projects: 1, nodes: 100, image: { width: 2400, height: 1600, distinct: true, perPage: 5 }, label: "프로젝트 1 · 노드 100 · 한 페이지에 다른 큰 이미지 5장" },
 };
 
 function parseArgs(argv) {
@@ -159,9 +163,14 @@ async function metrics(cdp, sessionId) {
 // 요소에 elementtiming 속성을 붙이는 감시를 심는다.
 const ELEMENT_TIMING_SETUP = String.raw`
 window.__vsbImages = [];
+// 요소별 그려진 시각. 개수가 아니라 요소로 맞춘다 — 다시 마운트된 요소의 옛 항목을 세지 않게.
+window.__vsbPainted = new WeakMap();
 new PerformanceObserver((list) => {
-  for (const e of list.getEntries()) window.__vsbImages.push({ url: e.url, renderTime: e.renderTime || e.loadTime, loadTime: e.loadTime,
-    top: e.intersectionRect.top, bottom: e.intersectionRect.bottom, width: e.naturalWidth, height: e.naturalHeight });
+  for (const e of list.getEntries()) {
+    const renderTime = e.renderTime || e.loadTime;
+    window.__vsbImages.push({ url: e.url, renderTime, width: e.naturalWidth });
+    if (e.element) window.__vsbPainted.set(e.element, renderTime);
+  }
 }).observe({ type: "element", buffered: true });
 const mark = (el) => { if (el.nodeType === 1 && !el.hasAttribute("elementtiming") && /url\(/.test(el.style?.backgroundImage ?? "")) el.setAttribute("elementtiming", "vsb-image"); };
 new MutationObserver((records) => {
@@ -446,9 +455,13 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
         const imageWait = Date.now() + 30_000;
         while (homeImages === null) {
           homeImages = await step(`(() => {
-            const visible = [...document.querySelectorAll('[elementtiming="vsb-image"]')].filter((el) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.width > 0; }).length;
-            const painted = window.__vsbImages.filter((e) => e.bottom > 0 && e.top < innerHeight);
-            return visible > 0 && painted.length >= visible ? { ms: Math.max(...painted.map((e) => e.renderTime)), count: painted.length } : null; })()`);
+            // 화면 안이고, 카드 미리보기 영역(overflow hidden)에 잘려 나가지 않은 이미지만 — 잘린 것은 그려지지 않는다.
+            const visible = [...document.querySelectorAll('[data-preview] [elementtiming="vsb-image"]')].filter((el) => {
+              const r = el.getBoundingClientRect(); const c = el.closest("[data-preview]").getBoundingClientRect();
+              const top = Math.max(r.top, c.top), bottom = Math.min(r.bottom, c.bottom);
+              return r.width > 0 && bottom > top && bottom > 0 && top < innerHeight; });
+            const times = visible.map((el) => window.__vsbPainted.get(el));
+            return visible.length > 0 && times.every((t) => t !== undefined) ? { ms: Math.max(...times), count: visible.length } : null; })()`);
           if (homeImages === null) { if (Date.now() > imageWait) throw new Error("홈 이미지 표시 시간 초과"); await sleep(20); }
         }
       }
@@ -462,9 +475,12 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
       if (scenario.image !== undefined) {
         const imageWait = Date.now() + 30_000;
         while (openImages === null) {
+          // 캔버스(노드 요소)의 이미지가 모두 그려질 때까지 — 홈 미리보기의 늦은 이미지는 세지 않는다.
           openImages = await step(`(() => { const start = window.__perf.openStartedAt;
-            const painted = window.__vsbImages.filter((e) => e.renderTime > start && e.width > 0);
-            return painted.length > 0 ? { ms: Math.max(...painted.map((e) => e.renderTime)) - start } : null; })()`);
+            const canvas = [...document.querySelectorAll('[data-node-id][elementtiming="vsb-image"]')];
+            const times = canvas.map((el) => window.__vsbPainted.get(el));
+            return canvas.length > 0 && times.every((t) => t !== undefined && t > start)
+              ? { ms: Math.max(...times) - start, count: canvas.length } : null; })()`);
           if (openImages === null) { if (Date.now() > imageWait) throw new Error("열기 이미지 표시 시간 초과"); await sleep(20); }
         }
       }
