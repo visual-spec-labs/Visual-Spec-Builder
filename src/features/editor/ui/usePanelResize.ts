@@ -1,4 +1,8 @@
-import { effectivePanelWidth, maxResizableWidth } from "@/features/editor/store/panelLayout";
+import {
+  effectivePanelWidth,
+  maxResizableWidth,
+  widthAfterExpand,
+} from "@/features/editor/store/panelLayout";
 import { useViewStore } from "@/features/editor/store/viewStore";
 
 /**
@@ -18,16 +22,30 @@ export function usePanelResize(side: "tree" | "props") {
   const otherCollapsed = useViewStore((s) => (side === "tree" ? s.propsCollapsed : s.treeCollapsed));
   const otherWidth = useViewStore((s) => (side === "tree" ? s.propsWidth : s.treeWidth));
   const rawSetWidth = useViewStore((s) => (side === "tree" ? s.setTreeWidth : s.setPropsWidth));
-  const toggleCollapsed = useViewStore((s) =>
+  const rawToggleCollapsed = useViewStore((s) =>
     side === "tree" ? s.toggleTreeCollapsed : s.togglePropsCollapsed,
   );
   const commitPanelLayout = useViewStore((s) => s.commitPanelLayout);
 
+  const otherEffectiveWidth = effectivePanelWidth(otherCollapsed, otherWidth);
+
   // 창 폭 대비 동적 상한(#287 리뷰 대응) — 반대쪽 패널이 지금 쓰는 폭(접혀
   // 있으면 레일 폭)을 빼 Canvas 최소 폭을 지킨다.
   function setWidth(nextWidth: number) {
-    const max = maxResizableWidth(window.innerWidth, effectivePanelWidth(otherCollapsed, otherWidth));
-    rawSetWidth(Math.min(nextWidth, max));
+    rawSetWidth(Math.min(nextWidth, maxResizableWidth(window.innerWidth, otherEffectiveWidth)));
+  }
+
+  // 접힘→펼침도 같은 상한을 거친다(#287 리뷰 2차 대응, panelLayout.ts의
+  // widthAfterExpand 참고) — toggle은 collapsed만 뒤집고 저장된 width는
+  // 그대로 복원해 위 setWidth의 상한을 우회했었다. 폭을 먼저 고치고 나서
+  // 토글해야 toggleCollapsed 자신의 저장 로직(panelLayoutOf)이 고친 폭을
+  // 같이 저장한다.
+  function toggleCollapsed() {
+    if (collapsed) {
+      const corrected = widthAfterExpand(width, window.innerWidth, otherEffectiveWidth);
+      if (corrected !== width) rawSetWidth(corrected);
+    }
+    rawToggleCollapsed();
   }
 
   return { collapsed, width, setWidth, toggleCollapsed, commitPanelLayout };

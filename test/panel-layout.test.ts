@@ -12,6 +12,7 @@ import {
   PANEL_RAIL_WIDTH,
   parsePanelLayout,
   savePanelLayout,
+  widthAfterExpand,
 } from "@/features/editor/store/panelLayout";
 
 /**
@@ -81,6 +82,22 @@ describe("maxResizableWidth (#287 리뷰 대응 — 양쪽 MAX로 끌어도 Canv
 
   it("창이 아주 좁아 반대쪽+Canvas 최소 폭만으로도 넘치면 MIN_PANEL_WIDTH 밑으로는 안 내려간다", () => {
     expect(maxResizableWidth(100, 350)).toBe(MIN_PANEL_WIDTH);
+  });
+});
+
+describe("widthAfterExpand (#287 리뷰 2차 대응 — 접힘→펼침이 저장된 폭을 복원할 때도 상한을 지킨다)", () => {
+  it("상한 안이면 저장된 폭을 그대로 복원한다", () => {
+    expect(widthAfterExpand(350, 1920, 32)).toBe(350);
+  });
+
+  it("실제 리뷰 재현 — 양쪽을 480으로 끌어 둔 뒤 1024px 창에서 마지막으로 펼치면 저장된 480이 아니라 지금 상한으로 깎인다", () => {
+    // 레이어 트리를 저장된 480으로 펼치려는데, 속성 패널이 이미 480으로 펼쳐져
+    // 있다 — maxResizableWidth(1024, 480) = max(280, 1024-480-300=244) = 280.
+    expect(widthAfterExpand(480, 1024, 480)).toBe(280);
+  });
+
+  it("상한이 저장된 폭보다 크면(=안전하면) 그대로 둔다 — 불필요하게 줄이지 않는다", () => {
+    expect(widthAfterExpand(300, 1024, 32)).toBe(300);
   });
 });
 

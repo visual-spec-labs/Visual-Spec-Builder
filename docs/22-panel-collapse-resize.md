@@ -492,6 +492,50 @@ React Testing Library 등 렌더 테스트 인프라가 없어서(`docs/20-manua
 `pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1681개
 통과/2개 건너뜀 — 동작을 안 바꾼 리팩터링이라 테스트 수·내용 모두 그대로다.
 
+## 리뷰 대응 3차 (2026-10-08, 커밋 aa9b6c1 검토) — 접힘→펼침이 Canvas 최소 폭 보호를 우회함
+
+팀원이 1024×768 뷰포트를 처음부터 끝까지 고정한 채 실제 Chromium으로 P2
+한 건을 재현했다.
+
+**지적.** "속성 접고 Layers 480으로 늘림 → Layers 접고 Properties 480으로
+늘림 → Layers 다시 펼침" 순서로 하면 저장된 480/480이 그대로 복원돼
+Canvas가 64px이 됐다. 직접 드래그로는 `maxResizableWidth` 보호(280에서
+멈춤)가 작동하는데, `toggleCollapsed`는 `collapsed` 플래그만 뒤집고
+저장된 `width`는 그대로 되돌려 놔서 이 보호를 완전히 비켜 간다 — "결정"
+7번(최소 지원 폭에서도 주요 조작 가능)이 리뷰가 지적한 그대로 다시
+깨졌다.
+
+**수정.** `panelLayout.ts`에 순수 함수 `widthAfterExpand(storedWidth,
+windowWidth, otherPanelEffectiveWidth)`를 추가했다 — "저장된 폭을 그대로
+복원해도 되는지" 판정만 한다(`maxResizableWidth`로 상한을 구해 그보다
+크면 깎는다). `usePanelResize.ts`의 `toggleCollapsed`가 접힘→펼침
+방향일 때만(`collapsed`가 지금 `true`, 즉 펼치려는 참) 이 함수로 먼저
+폭을 보정한 뒤에 실제 토글을 부른다 — 보정을 토글보다 먼저 해야
+`toggleTreeCollapsed`/`togglePropsCollapsed` 자신의 저장 로직
+(`panelLayoutOf`)이 보정된 폭을 같이 저장한다. 접는 방향은 안 건드린다 —
+접기는 항상 Canvas를 넓히기만 해서 이 상한을 어길 수가 없다.
+
+리뷰의 재현 수치로 검산하면: 레이어 트리를 저장된 480으로 펼치려는
+순간, 속성 패널은 이미 480으로 펼쳐져 있다 —
+`maxResizableWidth(1024, 480) = max(280, 1024-480-300=244) = 280`.
+그래서 480이 아니라 280으로 깎인다. Canvas는 `1024-280-480=264px`다 —
+목표인 300px에는 못 미치지만(두 패널 다 저장된 폭을 "그대로" 복원하려는
+이 극단적인 경우엔 `MIN_PANEL_WIDTH` 하한이 `MIN_CANVAS_WIDTH`보다
+우선한다, `maxResizableWidth`의 기존 문서화된 동작과 같다), 고치기 전의
+64px보다는 훨씬 낫다.
+
+**이번엔 로직 자체를 순수 함수로 뽑아 실제로 테스트를 고정할 수 있었다**
+(지난 두 라운드는 `window`를 읽는 `ui/` 래퍼라 테스트를 못 더했다) —
+`test/panel-layout.test.ts`에 `widthAfterExpand` 3개를 추가했고, 그중
+하나는 리뷰의 재현 수치(480 저장값·1024 창·반대쪽 480)를 그대로 넣어
+280이 나오는지 고정한다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1684개
+통과/2개 건너뜀.
+
 ## 범위 밖
 
 - 창 폭에 따른 자동 접기/축소(위 6번) — 수동 접기+상태 유지로 같은 목적을 푼다.

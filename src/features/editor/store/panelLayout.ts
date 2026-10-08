@@ -88,6 +88,23 @@ export function maxResizableWidth(windowWidth: number, otherPanelEffectiveWidth:
   return Math.max(MIN_PANEL_WIDTH, windowWidth - otherPanelEffectiveWidth - MIN_CANVAS_WIDTH);
 }
 
+/**
+ * 접힌 패널을 펼칠 때 저장된 폭을 그대로 복원해도 되는지 판정한다(#287
+ * 리뷰 2차 대응). 드래그·키보드 조절(`maxResizableWidth`를 직접 쓰는 쪽)은
+ * "지금" 바뀌는 폭만 자르지만, 접힘→펼침은 **과거에 저장된** 폭을 그대로
+ * 되돌려 놓는다 — 그 폭은 저장될 당시의 반대쪽 상태 기준으로는 괜찮았던
+ * 값이라, 그 뒤 반대쪽을 넓힌 채로 이쪽을 펼치면(또는 반대 순서) 더 이상
+ * 안 괜찮을 수 있다. 펼치는 쪽만 이 보정이 필요하다 — 접는 쪽은 항상
+ * Canvas를 넓히기만 해서 상한을 어길 길이 없다.
+ */
+export function widthAfterExpand(
+  storedWidth: number,
+  windowWidth: number,
+  otherPanelEffectiveWidth: number,
+): number {
+  return Math.min(storedWidth, maxResizableWidth(windowWidth, otherPanelEffectiveWidth));
+}
+
 const PANEL_LAYOUT_STORAGE_KEY = "visual-spec:panel-layout";
 
 /**
