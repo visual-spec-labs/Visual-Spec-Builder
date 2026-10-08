@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { blankSpec } from "@/features/editor/store/blankSpec";
-import { loadWorkspaceProjects, loadWorkspaceProjectsProgressively } from "@/features/editor/ui/homeProjects";
+import { homeFirstBatch, loadWorkspaceProjects, loadWorkspaceProjectsProgressively } from "@/features/editor/ui/homeProjects";
 import { listWorkspaceFileEntries, readWorkspaceSpecSnapshot } from "@/features/editor/ui/workspaceClient";
 
 vi.mock("@/features/editor/ui/workspaceClient", () => ({
@@ -81,6 +81,15 @@ describe("홈 목록을 앞에서부터 묶음으로 낸다 (#316)", () => {
     const empty: [number, boolean][] = [];
     expect(await loadWorkspaceProjectsProgressively((projects, done) => empty.push([projects.length, done]))).toBe(true);
     expect(empty).toEqual([[0, true]]);
+  });
+});
+
+describe("첫 묶음 크기는 창으로 어림한 첫 화면 카드 수다 (#316)", () => {
+  it("열 수 × (보이는 행 + 1), 최소 12, 창을 모르면 24", () => {
+    expect(homeFirstBatch(1600, 1000)).toBe(7 * 6); // 측정 창 — 보이는 카드 약 40장을 한 묶음에
+    expect(homeFirstBatch(1400, 1000)).toBe(6 * 6);
+    expect(homeFirstBatch(400, 300)).toBe(12);
+    expect(homeFirstBatch(0, 0)).toBe(24);
   });
 });
 

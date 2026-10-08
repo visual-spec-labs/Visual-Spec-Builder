@@ -90,20 +90,25 @@ export function HomeScreen() {
   // 목록 읽기 세대. 이름 변경으로 목록을 새로 읽으면 올려서, 아직 뒤를 읽던 처음 읽기가 새 목록을
   // 덮지 못하게 한다(#316).
   const loadGeneration = useRef(0);
+  // 처음 읽기의 남은 요청을 멈춘다(이름 변경으로 목록을 다시 읽을 때).
+  const abortLoad = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     let cancelled = false;
     const generation = loadGeneration.current;
     const stale = () => cancelled || generation !== loadGeneration.current;
+    const reads = new AbortController();
+    abortLoad.current = () => reads.abort();
     // 앞에서부터 묶음으로 읽어 첫 화면 카드를 먼저 그린다(#316). 뒤 묶음은 이어 붙기만 한다.
     void loadWorkspaceProjectsProgressively(
       (projects, done) => setState({ kind: "ready", projects, loading: !done }),
-      { isCancelled: stale },
+      { isCancelled: stale, signal: reads.signal },
     ).then((exists) => {
       if (!stale() && !exists) setState({ kind: "no-workspace" });
     });
     return () => {
       cancelled = true;
+      reads.abort();
     };
   }, []);
 
@@ -154,11 +159,15 @@ export function HomeScreen() {
     setRenaming(true);
     setMessage(null);
     loadGeneration.current += 1; // 아직 뒤를 읽는 처음 읽기를 멈춘다
+    abortLoad.current();
     const result = await renameProject(project.fileName, name);
     if (!result.ok) setMessage(result.error);
     else if (drawnPreviews.current.has(project.fileName)) drawnPreviews.current.add(result.path.split("/").pop() ?? "");
     const projects = await loadWorkspaceProjects();
     if (projects !== null) setState({ kind: "ready", projects, loading: false });
+    // 다시 읽기에 실패해도(작업공간 연결 끊김 등) 처음 읽기는 이미 멈췄다 — 보이던 목록을 두고
+    // "불러오는 중"만 끈다. 그대로 두면 표시가 영영 남는다.
+    else setState((current) => (current.kind === "ready" ? { ...current, loading: false } : current));
     setRenaming(false);
   }
 

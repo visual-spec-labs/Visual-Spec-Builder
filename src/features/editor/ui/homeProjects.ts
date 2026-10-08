@@ -30,7 +30,8 @@ function toHomeProject(fileName: string, snapshot: { text: string; revision: str
  */
 export async function loadWorkspaceProjects(): Promise<HomeProject[] | null> {
   let result: HomeProject[] = [];
-  const exists = await loadWorkspaceProjectsProgressively((projects) => { result = projects; });
+  // 한 번에 돌려주므로 묶음·프레임 양보가 필요 없다 — 한 묶음으로 끝까지 읽는다.
+  const exists = await loadWorkspaceProjectsProgressively((projects) => { result = projects; }, { firstBatch: Infinity });
   return exists ? result : null;
 }
 
@@ -40,16 +41,29 @@ export async function loadWorkspaceProjects(): Promise<HomeProject[] | null> {
  * 카드의 미리보기가 다음 묶음이 끝날 때까지 밀린다. 프레임이 없는 환경(테스트 등)은 다음 태스크.
  */
 function nextFrames(): Promise<void> {
-  if (typeof requestAnimationFrame !== "function") return new Promise((resolve) => { setTimeout(resolve, 0); });
+  // 숨긴 탭은 프레임이 오지 않는다 — 그대로 기다리면 돌아올 때까지 읽기가 멈춘다.
+  const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+  if (typeof requestAnimationFrame !== "function" || hidden) return new Promise((resolve) => { setTimeout(resolve, 0); });
   return new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(() => resolve())); });
 }
 
 /**
- * 묶음 크기(#316). 첫 묶음은 첫 화면(넓은 창에서 카드 20여 장)을 한 번에 채울 만큼, 그 뒤는 크게 —
- * 묶음마다 목록을 다시 그리고 이벤트 루프를 양보하므로 묶음이 잘수록 전체 완료가 늦어진다.
+ * 묶음 크기(#316). 첫 묶음은 첫 화면을 한 번에 채울 만큼(`homeFirstBatch`), 그 뒤는 크게 —
+ * 묶음마다 목록을 다시 그리고 프레임을 기다리므로 묶음이 잘수록 전체 완료가 늦어진다.
  */
-export const HOME_FIRST_BATCH = 24;
 export const HOME_PARSE_BATCH = 50;
+
+/**
+ * 창 크기로 어림한 첫 화면 카드 수. 홈 카드 격자(`HomeScreen`의 minmax(208px) 열 + 16px 간격,
+ * 좌우 여백 24px씩)와 카드 높이(약 240px, 간격 포함)로 열 수 × (보이는 행 + 1)이다. 창을 모르면 24.
+ */
+export function homeFirstBatch(width = typeof window === "undefined" ? 0 : window.innerWidth,
+  height = typeof window === "undefined" ? 0 : window.innerHeight): number {
+  if (width <= 0 || height <= 0) return 24;
+  const columns = Math.max(1, Math.floor((width - 48 + 16) / (208 + 16)));
+  const rows = Math.ceil(height / 240) + 1;
+  return Math.max(12, columns * rows);
+}
 
 /**
  * `loadWorkspaceProjects`와 같은 결과를 **앞에서부터 묶음으로** 낸다(#316).
@@ -66,8 +80,8 @@ export const HOME_PARSE_BATCH = 50;
  */
 export async function loadWorkspaceProjectsProgressively(
   onProgress: (projects: HomeProject[], done: boolean) => void,
-  { firstBatch = HOME_FIRST_BATCH, batch = HOME_PARSE_BATCH, isCancelled = () => false }:
-    { firstBatch?: number; batch?: number; isCancelled?: () => boolean } = {},
+  { firstBatch = homeFirstBatch(), batch = HOME_PARSE_BATCH, isCancelled = () => false, signal }:
+    { firstBatch?: number; batch?: number; isCancelled?: () => boolean; signal?: AbortSignal } = {},
 ): Promise<boolean> {
   const entries = await listWorkspaceFileEntries(SPEC_DIR);
   if (entries === null) return false;
@@ -76,7 +90,8 @@ export async function loadWorkspaceProjectsProgressively(
     b.mtimeMs - a.mtimeMs || a.name.localeCompare(b.name),
   );
   // 읽기는 한꺼번에 시작한다 — 파싱이 앞 묶음을 하는 동안 뒤 파일이 도착한다.
-  const snapshots = ordered.map((entry) => readWorkspaceSpecSnapshot(`${SPEC_DIR}/${entry.name}`));
+  // 취소(`signal`)하면 아직 내려받는 요청도 멈춘다.
+  const snapshots = ordered.map((entry) => readWorkspaceSpecSnapshot(`${SPEC_DIR}/${entry.name}`, signal));
   const projects: HomeProject[] = [];
   for (let start = 0, size = firstBatch; start < ordered.length || start === 0; start += size, size = batch) {
     for (let index = start; index < Math.min(start + size, ordered.length); index += 1) {
