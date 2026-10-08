@@ -83,6 +83,9 @@ export function HomeScreen() {
   const draftInputRef = useRef<HTMLInputElement>(null);
   // 카드 목록을 스크롤하는 요소 — 미리보기를 미리 그릴 범위(rootMargin)의 기준이다(#315).
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
+  // 미리보기를 이미 그린 카드(key). 이름 변경으로 key(파일 이름)가 바뀌어 카드가 다시 마운트돼도
+  // 빈 자리로 깜빡이지 않게 새 key로 넘긴다.
+  const drawnPreviews = useRef(new Set<string>());
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +146,7 @@ export function HomeScreen() {
     setMessage(null);
     const result = await renameProject(project.fileName, name);
     if (!result.ok) setMessage(result.error);
+    else if (drawnPreviews.current.has(project.fileName)) drawnPreviews.current.add(result.path.split("/").pop() ?? "");
     const projects = await loadWorkspaceProjects();
     if (projects !== null) setState({ kind: "ready", projects });
     setRenaming(false);
@@ -313,7 +317,8 @@ export function HomeScreen() {
         <div className="grid grid-cols-[repeat(auto-fill,minmax(208px,1fr))] gap-4">
           {cards.map((card) => (
             <ProjectCard key={card.key} spec={card.spec} onOpen={card.onOpen} onRename={card.onRename} disabled={renaming}
-              scrollRoot={scrollRoot} />
+              scrollRoot={scrollRoot} drawn={drawnPreviews.current.has(card.key)}
+              onDrawn={() => drawnPreviews.current.add(card.key)} />
           ))}
         </div>
       </div>
@@ -327,12 +332,17 @@ function ProjectCard({
   onRename,
   disabled,
   scrollRoot,
+  drawn,
+  onDrawn,
 }: {
   spec: ProjectSpec;
   onOpen: () => void;
   onRename?: () => void;
   disabled: boolean;
   scrollRoot: Element | null;
+  /** 이 카드의 미리보기를 이미 그린 적이 있다(이름 변경으로 다시 마운트된 경우 등). */
+  drawn: boolean;
+  onDrawn: () => void;
 }) {
   // 열면 editorStore.loadSpec이 항상 pageOrder[0]을 활성 페이지로 잡는다
   // (editorStore.ts) — 그래서 카드 미리보기·크기도 같은 페이지를 기준으로
@@ -347,7 +357,7 @@ function ProjectCard({
       onClick={onOpen}
       className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-2 text-left hover:border-primary"
     >
-      <ProjectPreview page={coverPage} scrollRoot={scrollRoot} />
+      <ProjectPreview page={coverPage} scrollRoot={scrollRoot} drawn={drawn} onDrawn={onDrawn} />
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-content-strong">
           {spec.name}
@@ -371,9 +381,11 @@ function ProjectCard({
  * 잘라 낸 바로 아래 카드가 "보이지 않음"으로 남아 `rootMargin`이 효과가 없다. 스크롤 요소가
  * 아직 없으면 기다린다. `IntersectionObserver`가 없는 환경(테스트 등)에서는 처음부터 true다.
  */
-function useSeenOnce<T extends Element>(root: Element | null, rootMargin = "200px"): [RefObject<T | null>, boolean] {
+function useSeenOnce<T extends Element>(
+  root: Element | null, initiallySeen = false, rootMargin = "200px",
+): [RefObject<T | null>, boolean] {
   const ref = useRef<T>(null);
-  const [seen, setSeen] = useState(() => typeof IntersectionObserver === "undefined");
+  const [seen, setSeen] = useState(() => initiallySeen || typeof IntersectionObserver === "undefined");
   useEffect(() => {
     if (seen || root === null || ref.current === null) return;
     const observer = new IntersectionObserver((entries) => {
@@ -392,14 +404,20 @@ function useSeenOnce<T extends Element>(root: Element | null, rootMargin = "200p
  * 그리는 카드는 노드를 **전부** 그린다 — 노드를 일부만 그리면 row·grid 배치에서 보이는 영역이
  * 빠지거나, 남은 형제의 정렬(center·space-between 등)이 달라져 카드와 실제 화면이 어긋난다.
  */
-function ProjectPreview({ page, scrollRoot }: { page: ScreenSpec; scrollRoot: Element | null }) {
+function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
+  page: ScreenSpec; scrollRoot: Element | null; drawn: boolean; onDrawn: () => void;
+}) {
   const { width, height } = page.size;
   const scale = previewScale(width, height, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-  const [ref, seen] = useSeenOnce<HTMLDivElement>(scrollRoot);
+  const [ref, seen] = useSeenOnce<HTMLDivElement>(scrollRoot, drawn);
+  useEffect(() => { if (seen) onDrawn(); }, [seen, onDrawn]);
 
+  // 미리보기는 그림이다 — 카드 버튼의 접근 가능한 이름은 프로젝트 이름·페이지 정보로 충분하다.
+  // 미리보기 안의 텍스트까지 이름에 들어가면 그렸는지(스크롤 위치)에 따라 이름이 바뀌고 매우 길어진다.
   return (
     <div
       ref={ref}
+      aria-hidden="true"
       data-preview={seen ? "ready" : "pending"}
       className="relative overflow-hidden rounded-control bg-surface-canvas"
       style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT }}
