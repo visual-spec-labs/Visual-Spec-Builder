@@ -1,5 +1,5 @@
 {
- "when": "2026-10-08T01:58:36.056Z",
+ "when": "2026-10-08T02:02:23.874Z",
  "node": "v26.4.0",
  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
  "browser": "Chrome/154.0.8037.98",
@@ -12,43 +12,43 @@
    "nodeEnv": "production",
    "retries": 0,
    "home": {
-    "median": 162.9,
-    "max": 215.3
+    "median": 193.7,
+    "max": 216.4
    },
    "open": {
-    "median": 35.2,
-    "max": 46.8
+    "median": 45.6,
+    "max": 58.9
    },
    "edit": {
-    "median": 4.6,
-    "max": 4.8
+    "median": 4.3,
+    "max": 4.7
    },
    "undo": {
-    "median": 4.4,
+    "median": 4.3,
     "max": 4.6
    },
    "editFrame": {
     "median": 33.3,
-    "max": 33.7
+    "max": 33.4
    },
    "undoFrame": {
-    "median": 33.3,
+    "median": 33.4,
     "max": 33.9
    },
    "export": {
-    "median": 7.7,
-    "max": 9.3
+    "median": 8.8,
+    "max": 9.2
    },
    "zipKB": 5,
    "generatedFiles": 7,
    "heapMB": {
     "home": {
-     "median": 17.6,
-     "max": 17.6
+     "median": 18.1,
+     "max": 18.1
     },
     "open": {
-     "median": 15.3,
-     "max": 15.3
+     "median": 15.2,
+     "max": 15.2
     },
     "end": {
      "median": 16.6,
@@ -57,8 +57,8 @@
    },
    "domNodes": {
     "home": {
-     "median": 4660,
-     "max": 4660
+     "median": 5698,
+     "max": 5698
     },
     "open": {
      "median": 2804,
@@ -67,64 +67,18 @@
    },
    "raw": [
     {
-     "homeMs": 174.5999999642372,
-     "openMs": 46.799999952316284,
-     "editMs": 4.800000011920929,
-     "editFrameMs": 33.30000001192093,
-     "undoMs": 4.399999976158142,
-     "undoFrameMs": 33.39999997615814,
-     "exportMs": 7.699999988079071,
-     "zipBytes": 5488,
-     "files": 7,
-     "homeRes": {
-      "heapMB": 17.6,
-      "domNodes": 4660
-     },
-     "openRes": {
-      "heapMB": 15.2,
-      "domNodes": 2804
-     },
-     "endRes": {
-      "heapMB": 16.6,
-      "domNodes": 2804
-     }
-    },
-    {
-     "homeMs": 215.29999995231628,
-     "openMs": 35.19999998807907,
-     "editMs": 4.799999952316284,
-     "editFrameMs": 33.30000001192093,
-     "undoMs": 4.600000023841858,
-     "undoFrameMs": 33.30000001192093,
-     "exportMs": 6.5,
-     "zipBytes": 5488,
-     "files": 7,
-     "homeRes": {
-      "heapMB": 17.6,
-      "domNodes": 4660
-     },
-     "openRes": {
-      "heapMB": 15.3,
-      "domNodes": 2804
-     },
-     "endRes": {
-      "heapMB": 16.6,
-      "domNodes": 2804
-     }
-    },
-    {
-     "homeMs": 159,
-     "openMs": 40,
-     "editMs": 4.5,
-     "editFrameMs": 32.90000003576279,
-     "undoMs": 4.399999976158142,
+     "homeMs": 179.5,
+     "openMs": 45.10000002384186,
+     "editMs": 4.199999988079071,
+     "editFrameMs": 33,
+     "undoMs": 4.100000023841858,
      "undoFrameMs": 33.89999997615814,
-     "exportMs": 7.599999964237213,
+     "exportMs": 6.800000011920929,
      "zipBytes": 5488,
      "files": 7,
      "homeRes": {
-      "heapMB": 17.6,
-      "domNodes": 4660
+      "heapMB": 18.1,
+      "domNodes": 5698
      },
      "openRes": {
       "heapMB": 15.2,
@@ -136,21 +90,21 @@
      }
     },
     {
-     "homeMs": 161.60000002384186,
-     "openMs": 33.69999998807907,
-     "editMs": 3.899999976158142,
-     "editFrameMs": 33.30000001192093,
-     "undoMs": 4.399999976158142,
-     "undoFrameMs": 33.30000001192093,
-     "exportMs": 7.899999976158142,
+     "homeMs": 202.30000001192093,
+     "openMs": 56.69999998807907,
+     "editMs": 4.699999988079071,
+     "editFrameMs": 33.10000002384186,
+     "undoMs": 4.600000023841858,
+     "undoFrameMs": 33.39999997615814,
+     "exportMs": 9.200000047683716,
      "zipBytes": 5488,
      "files": 7,
      "homeRes": {
-      "heapMB": 17.6,
-      "domNodes": 4660
+      "heapMB": 18.1,
+      "domNodes": 5698
      },
      "openRes": {
-      "heapMB": 15.3,
+      "heapMB": 15.2,
       "domNodes": 2804
      },
      "endRes": {
@@ -159,21 +113,67 @@
      }
     },
     {
-     "homeMs": 162.9000000357628,
-     "openMs": 30.80000001192093,
-     "editMs": 4.599999964237213,
-     "editFrameMs": 33.69999998807907,
-     "undoMs": 4.399999976158142,
-     "undoFrameMs": 33,
-     "exportMs": 9.300000011920929,
+     "homeMs": 216.4000000357628,
+     "openMs": 38.90000003576279,
+     "editMs": 4.300000011920929,
+     "editFrameMs": 33.39999997615814,
+     "undoMs": 4.400000035762787,
+     "undoFrameMs": 33.30000001192093,
+     "exportMs": 7.100000023841858,
      "zipBytes": 5488,
      "files": 7,
      "homeRes": {
-      "heapMB": 17.6,
-      "domNodes": 4660
+      "heapMB": 18.1,
+      "domNodes": 5698
      },
      "openRes": {
-      "heapMB": 15.3,
+      "heapMB": 15.2,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 16.6,
+      "domNodes": 2804
+     }
+    },
+    {
+     "homeMs": 193.69999998807907,
+     "openMs": 45.60000002384186,
+     "editMs": 4.5,
+     "editFrameMs": 33.299999952316284,
+     "undoMs": 4.300000011920929,
+     "undoFrameMs": 33.5,
+     "exportMs": 8.800000011920929,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 18.1,
+      "domNodes": 5698
+     },
+     "openRes": {
+      "heapMB": 15.2,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 16.6,
+      "domNodes": 2804
+     }
+    },
+    {
+     "homeMs": 171.4000000357628,
+     "openMs": 58.90000003576279,
+     "editMs": 4.100000023841858,
+     "editFrameMs": 33.39999997615814,
+     "undoMs": 4.199999988079071,
+     "undoFrameMs": 33.30000001192093,
+     "exportMs": 8.800000011920929,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 18.1,
+      "domNodes": 5698
+     },
+     "openRes": {
+      "heapMB": 15.2,
       "domNodes": 2804
      },
      "endRes": {
@@ -191,53 +191,53 @@
    "nodeEnv": "production",
    "retries": 0,
    "home": {
-    "median": 399.3,
-    "max": 401.5
+    "median": 537.5,
+    "max": 564
    },
    "open": {
-    "median": 126.7,
-    "max": 138
+    "median": 160.2,
+    "max": 181
    },
    "edit": {
-    "median": 21.9,
-    "max": 23
+    "median": 24.2,
+    "max": 24.5
    },
    "undo": {
-    "median": 22.3,
-    "max": 23.5
+    "median": 21.3,
+    "max": 24.1
    },
    "editFrame": {
-    "median": 33.6,
-    "max": 33.7
+    "median": 33.4,
+    "max": 33.6
    },
    "undoFrame": {
     "median": 33.3,
     "max": 33.4
    },
    "export": {
-    "median": 21.6,
-    "max": 25.3
+    "median": 22.7,
+    "max": 24.3
    },
    "zipKB": 16,
    "generatedFiles": 53,
    "heapMB": {
     "home": {
-     "median": 52.3,
-     "max": 52.3
+     "median": 62.5,
+     "max": 62.6
     },
     "open": {
-     "median": 32.1,
+     "median": 30.9,
      "max": 32.1
     },
     "end": {
      "median": 42,
-     "max": 42
+     "max": 42.1
     }
    },
    "domNodes": {
     "home": {
-     "median": 7774,
-     "max": 7774
+     "median": 43114,
+     "max": 43114
     },
     "open": {
      "median": 25081,
@@ -246,87 +246,18 @@
    },
    "raw": [
     {
-     "homeMs": 398.7999999523163,
-     "openMs": 129.89999997615814,
-     "editMs": 21.899999976158142,
-     "editFrameMs": 33.69999998807907,
-     "undoMs": 22.299999952316284,
-     "undoFrameMs": 33.39999997615814,
-     "exportMs": 25.30000001192093,
-     "zipBytes": 16385,
-     "files": 53,
-     "homeRes": {
-      "heapMB": 52.2,
-      "domNodes": 7774
-     },
-     "openRes": {
-      "heapMB": 32.1,
-      "domNodes": 25081
-     },
-     "endRes": {
-      "heapMB": 42,
-      "domNodes": 25081
-     }
-    },
-    {
-     "homeMs": 391,
-     "openMs": 123.30000001192093,
-     "editMs": 22.80000001192093,
-     "editFrameMs": 33.59999996423721,
-     "undoMs": 23.5,
-     "undoFrameMs": 33.39999997615814,
-     "exportMs": 21.900000035762787,
-     "zipBytes": 16385,
-     "files": 53,
-     "homeRes": {
-      "heapMB": 52.3,
-      "domNodes": 7774
-     },
-     "openRes": {
-      "heapMB": 32.1,
-      "domNodes": 25081
-     },
-     "endRes": {
-      "heapMB": 42,
-      "domNodes": 25081
-     }
-    },
-    {
-     "homeMs": 399.30000001192093,
-     "openMs": 126.39999997615814,
-     "editMs": 23,
-     "editFrameMs": 33.39999997615814,
-     "undoMs": 22.600000023841858,
+     "homeMs": 564,
+     "openMs": 162.80000001192093,
+     "editMs": 24.5,
+     "editFrameMs": 33.30000001192093,
+     "undoMs": 24.099999964237213,
      "undoFrameMs": 33.30000001192093,
-     "exportMs": 21.600000023841858,
+     "exportMs": 22.69999998807907,
      "zipBytes": 16385,
      "files": 53,
      "homeRes": {
-      "heapMB": 52.3,
-      "domNodes": 7774
-     },
-     "openRes": {
-      "heapMB": 30.6,
-      "domNodes": 25081
-     },
-     "endRes": {
-      "heapMB": 42,
-      "domNodes": 25081
-     }
-    },
-    {
-     "homeMs": 400.69999998807907,
-     "openMs": 138,
-     "editMs": 21.30000001192093,
-     "editFrameMs": 33.59999996423721,
-     "undoMs": 22.19999998807907,
-     "undoFrameMs": 33.299999952316284,
-     "exportMs": 21,
-     "zipBytes": 16385,
-     "files": 53,
-     "homeRes": {
-      "heapMB": 52.3,
-      "domNodes": 7774
+      "heapMB": 62.6,
+      "domNodes": 43114
      },
      "openRes": {
       "heapMB": 30.9,
@@ -338,21 +269,90 @@
      }
     },
     {
-     "homeMs": 401.5,
-     "openMs": 126.69999998807907,
-     "editMs": 21,
-     "editFrameMs": 33.39999997615814,
-     "undoMs": 21,
+     "homeMs": 537.5,
+     "openMs": 181,
+     "editMs": 24,
+     "editFrameMs": 33.40000003576279,
+     "undoMs": 20.899999976158142,
      "undoFrameMs": 33.30000001192093,
-     "exportMs": 20.69999998807907,
+     "exportMs": 24.30000001192093,
      "zipBytes": 16385,
      "files": 53,
      "homeRes": {
-      "heapMB": 52.3,
-      "domNodes": 7774
+      "heapMB": 62.5,
+      "domNodes": 43114
+     },
+     "openRes": {
+      "heapMB": 30.9,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 42.1,
+      "domNodes": 25081
+     }
+    },
+    {
+     "homeMs": 551.1000000238419,
+     "openMs": 160.19999998807907,
+     "editMs": 24.5,
+     "editFrameMs": 33.30000001192093,
+     "undoMs": 21.599999964237213,
+     "undoFrameMs": 33.39999997615814,
+     "exportMs": 23,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 62.5,
+      "domNodes": 43114
      },
      "openRes": {
       "heapMB": 32.1,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 42,
+      "domNodes": 25081
+     }
+    },
+    {
+     "homeMs": 525.8000000119209,
+     "openMs": 158.30000001192093,
+     "editMs": 24.19999998807907,
+     "editFrameMs": 33.59999996423721,
+     "undoMs": 21.30000001192093,
+     "undoFrameMs": 33.30000001192093,
+     "exportMs": 22.5,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 62.5,
+      "domNodes": 43114
+     },
+     "openRes": {
+      "heapMB": 32.1,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 42.1,
+      "domNodes": 25081
+     }
+    },
+    {
+     "homeMs": 516.7000000476837,
+     "openMs": 154.69999998807907,
+     "editMs": 23.700000047683716,
+     "editFrameMs": 33.40000003576279,
+     "undoMs": 21,
+     "undoFrameMs": 33.39999997615814,
+     "exportMs": 20.19999998807907,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 62.5,
+      "domNodes": 43114
+     },
+     "openRes": {
+      "heapMB": 30.3,
       "domNodes": 25081
      },
      "endRes": {
@@ -363,5 +363,5 @@
    ]
   }
  ],
- "note": "#315 적용 뒤(홈 미리보기: 화면 근처 카드만, 노드 상한 200) 측정. 홈 완료 = 카드 DOM + 화면에 보이는 카드의 미리보기 그리기 완료. node scripts/perf/measure.mjs --reps 5 --scenario S2,S4 (production)."
+ "note": "#315 적용 뒤(홈 미리보기: 카드 목록 스크롤 영역 근처의 카드만 그림, 노드는 전부) 측정. 홈 완료 = 카드 DOM + 화면에 보이는 카드의 미리보기 그리기 완료. node scripts/perf/measure.mjs --reps 5 --scenario S2,S4 (production)."
 }

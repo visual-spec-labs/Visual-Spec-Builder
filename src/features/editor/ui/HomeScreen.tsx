@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 import type {
   Node as SpecNode,
@@ -18,7 +18,6 @@ import {
   previewFrameStyle,
   previewImageStyle,
   previewInputStyle,
-  previewNodeIds,
   previewScale,
   previewTextStyle,
 } from "@/features/editor/ui/homePreview";
@@ -82,6 +81,8 @@ export function HomeScreen() {
   const [draftText, setDraftText] = useState("");
   const [submittingDraft, setSubmittingDraft] = useState(false);
   const draftInputRef = useRef<HTMLInputElement>(null);
+  // 카드 목록을 스크롤하는 요소 — 미리보기를 미리 그릴 범위(rootMargin)의 기준이다(#315).
+  const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -304,14 +305,15 @@ export function HomeScreen() {
         </button>
       </header>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div ref={setScrollRoot} className="flex-1 overflow-auto p-6">
         {message && <p role="alert" className="mb-4 text-sm">{message}</p>}
         <p className="mb-4 text-sm text-content-muted">
           프로젝트 {cards.length}개
         </p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(208px,1fr))] gap-4">
           {cards.map((card) => (
-            <ProjectCard key={card.key} spec={card.spec} onOpen={card.onOpen} onRename={card.onRename} disabled={renaming} />
+            <ProjectCard key={card.key} spec={card.spec} onOpen={card.onOpen} onRename={card.onRename} disabled={renaming}
+              scrollRoot={scrollRoot} />
           ))}
         </div>
       </div>
@@ -324,11 +326,13 @@ function ProjectCard({
   onOpen,
   onRename,
   disabled,
+  scrollRoot,
 }: {
   spec: ProjectSpec;
   onOpen: () => void;
   onRename?: () => void;
   disabled: boolean;
+  scrollRoot: Element | null;
 }) {
   // 열면 editorStore.loadSpec이 항상 pageOrder[0]을 활성 페이지로 잡는다
   // (editorStore.ts) — 그래서 카드 미리보기·크기도 같은 페이지를 기준으로
@@ -343,7 +347,7 @@ function ProjectCard({
       onClick={onOpen}
       className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-2 text-left hover:border-primary"
     >
-      <ProjectPreview page={coverPage} />
+      <ProjectPreview page={coverPage} scrollRoot={scrollRoot} />
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-content-strong">
           {spec.name}
@@ -361,49 +365,51 @@ function ProjectCard({
 }
 
 /**
- * 요소가 화면 근처(위아래 `rootMargin`)에 한 번이라도 들어왔는가. 한 번 들어오면 계속 true다 —
- * 스크롤해 벗어날 때마다 미리보기를 지웠다 다시 그리지 않는다. `IntersectionObserver`가 없는
- * 환경(테스트 등)에서는 처음부터 true다.
+ * 요소가 스크롤 영역(`root`)의 보이는 부분 근처(위아래 `rootMargin`)에 한 번이라도 들어왔는가.
+ * 한 번 들어오면 계속 true다 — 스크롤해 벗어날 때마다 미리보기를 지웠다 다시 그리지 않는다.
+ * 기준을 브라우저 창이 아니라 카드 목록의 스크롤 요소로 잡는다 — 창을 기준으로 하면 그 요소가
+ * 잘라 낸 바로 아래 카드가 "보이지 않음"으로 남아 `rootMargin`이 효과가 없다. 스크롤 요소가
+ * 아직 없으면 기다린다. `IntersectionObserver`가 없는 환경(테스트 등)에서는 처음부터 true다.
  */
-function useSeenOnce<T extends Element>(rootMargin = "200px"): [RefObject<T | null>, boolean] {
+function useSeenOnce<T extends Element>(root: Element | null, rootMargin = "200px"): [RefObject<T | null>, boolean] {
   const ref = useRef<T>(null);
   const [seen, setSeen] = useState(() => typeof IntersectionObserver === "undefined");
   useEffect(() => {
-    if (seen || ref.current === null) return;
+    if (seen || root === null || ref.current === null) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
-    }, { rootMargin });
+    }, { root, rootMargin });
     observer.observe(ref.current);
     return () => observer.disconnect();
-  }, [seen, rootMargin]);
+  }, [seen, root, rootMargin]);
   return [ref, seen];
 }
 
 /**
  * 캡처 이미지를 저장하지 않는다 — 스펙 JSON에서 매번 즉석 렌더한다(해결된 항목, docs/open-questions.md).
  *
- * 다만 가볍게 그린다(#315): 화면 근처에 들어온 카드만 그리고, 그릴 노드도 그리는 순서로 최대
- * `PREVIEW_NODE_LIMIT`개다(`previewNodeIds`). 그리기 전에는 같은 크기의 빈 자리만 둔다.
+ * 다만 화면 근처에 들어온 카드만 그린다(#315). 그리기 전에는 같은 크기의 빈 자리만 둔다.
+ * 그리는 카드는 노드를 **전부** 그린다 — 노드를 일부만 그리면 row·grid 배치에서 보이는 영역이
+ * 빠지거나, 남은 형제의 정렬(center·space-between 등)이 달라져 카드와 실제 화면이 어긋난다.
  */
-function ProjectPreview({ page }: { page: ScreenSpec }) {
+function ProjectPreview({ page, scrollRoot }: { page: ScreenSpec; scrollRoot: Element | null }) {
   const { width, height } = page.size;
   const scale = previewScale(width, height, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-  const [ref, seen] = useSeenOnce<HTMLDivElement>();
-  const allowed = useMemo(() => (seen ? previewNodeIds(page) : null), [seen, page]);
+  const [ref, seen] = useSeenOnce<HTMLDivElement>(scrollRoot);
 
   return (
     <div
       ref={ref}
-      data-preview={allowed === null ? "pending" : "ready"}
+      data-preview={seen ? "ready" : "pending"}
       className="relative overflow-hidden rounded-control bg-surface-canvas"
       style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT }}
     >
-      {allowed !== null && (
+      {seen && (
         <div
           className="absolute top-0 left-0"
           style={{ width, height, transform: `scale(${scale})`, transformOrigin: "top left" }}
         >
-          <PreviewNode id={page.root} nodes={page.nodes} allowed={allowed} />
+          <PreviewNode id={page.root} nodes={page.nodes} />
         </div>
       )}
     </div>
@@ -413,17 +419,14 @@ function ProjectPreview({ page }: { page: ScreenSpec }) {
 function PreviewNode({
   id,
   nodes,
-  allowed,
   parentDirection,
 }: {
   id: NodeId;
   nodes: Record<NodeId, SpecNode>;
-  /** 그릴 노드(`previewNodeIds`). 밖의 노드와 그 아래는 그리지 않는다. */
-  allowed: Set<NodeId>;
   parentDirection?: Direction;
 }) {
   const node = nodes[id];
-  if (node === undefined || node.visible === false || !allowed.has(id)) {
+  if (node === undefined || node.visible === false) {
     return null;
   }
 
@@ -435,7 +438,6 @@ function PreviewNode({
             key={child.node}
             id={child.node}
             nodes={nodes}
-            allowed={allowed}
             parentDirection={node.layout.direction}
           />
         ))}

@@ -5,8 +5,6 @@ import type {
   FrameNode,
   ImageNode,
   InputNode,
-  NodeId,
-  ScreenSpec,
   TextNode,
 } from "@/features/editor/schema";
 
@@ -184,34 +182,3 @@ export function previewScale(
 
   return Math.min(boxWidth / contentWidth, boxHeight / contentHeight);
 }
-
-/**
- * 카드 미리보기에 그릴 노드의 최대 개수(#315).
- *
- * 카드는 페이지를 첫 화면 높이(`size.height`)로 잘라 축소해 보여 준다. 그래서 노드 1000개
- * 페이지도 카드에 실제로 보이는 것은 위쪽 수십 개다. 전부 그리면 프로젝트 100 × 노드 1000에서
- * 홈 DOM이 17만 개가 되고 진입이 1초를 넘는다(docs/22-performance-baseline.md).
- */
-export const PREVIEW_NODE_LIMIT = 200;
-
-/**
- * 미리보기에 그릴 노드를 **그리는 순서(깊이 우선, 자식 배열 순)** 로 최대 `limit`개 고른다.
- * 숨긴 노드(`visible: false`)와 그 아래는 세지 않는다 — 어차피 그리지 않는다. 없는 자식
- * 참조는 건너뛴다. 세로 배치에서 깊이 우선 순서는 위에서 아래로 그려지는 순서와 같아서,
- * 잘리는 쪽은 카드 밖(첫 화면 아래)이 된다.
- */
-export function previewNodeIds(page: ScreenSpec, limit = PREVIEW_NODE_LIMIT): Set<NodeId> {
-  const picked = new Set<NodeId>();
-  const stack: NodeId[] = [page.root];
-  while (stack.length > 0 && picked.size < limit) {
-    const id = stack.pop() as NodeId;
-    const node = page.nodes[id];
-    if (node === undefined || node.visible === false || picked.has(id)) continue;
-    picked.add(id);
-    if (node.type === "frame") {
-      for (let index = node.children.length - 1; index >= 0; index -= 1) stack.push(node.children[index].node);
-    }
-  }
-  return picked;
-}
-
