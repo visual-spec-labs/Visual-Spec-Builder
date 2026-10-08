@@ -10,11 +10,20 @@
   },
   "files": [
     "bin",
-    "skills"
+    "docs/05-schema.md",
+    "docs/08-natural-language.md",
+    "docs/09-command-schema-freeze.md",
+    "docs/11-ticket-schema-freeze.md",
+    "docs/16-responsive-codegen-qa.md",
+    "examples",
+    "skills",
+    "src",
+    "index.html",
+    "vite.config.ts"
   ],
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=20"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
     "dev": "vite",
@@ -27,24 +36,24 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.0.5",
     "ajv": "^8.17.1",
     "lucide-react": "^1.31.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.1",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.15.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@typescript-eslint/parser": "^8.67.0",
-    "@vitejs/plugin-react": "^6.0.5",
     "eslint": "^10.8.1",
     "json-schema-to-typescript": "^15.0.4",
-    "tailwindcss": "^4.3.3",
     "typescript": "^5.9.2",
-    "vite": "^8.2.1",
     "vitest": "^3.2.4"
   }
 }
