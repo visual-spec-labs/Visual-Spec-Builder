@@ -1,6 +1,7 @@
-import type { MouseEvent } from "react";
+import { useEffect, type CSSProperties, type MouseEvent } from "react";
 
 import { useExportStore } from "@/features/editor/store/exportStore";
+import { PANEL_RAIL_WIDTH } from "@/features/editor/store/panelLayout";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { Canvas } from "@/features/editor/ui/Canvas";
@@ -9,6 +10,7 @@ import { ExportPanel } from "@/features/editor/ui/ExportPanel";
 import { LayerTree } from "@/features/editor/ui/LayerTree";
 import { MenuBar } from "@/features/editor/ui/MenuBar";
 import { NaturalLanguageBar } from "@/features/editor/ui/NaturalLanguageBar";
+import { reconcilePanelWidths } from "@/features/editor/ui/panelToggle";
 import { PropertiesPanel } from "@/features/editor/ui/PropertiesPanel";
 import { Toolbar } from "@/features/editor/ui/Toolbar";
 import { TicketPanel } from "@/features/editor/ui/TicketPanel";
@@ -44,14 +46,37 @@ function handleContextMenu(event: MouseEvent<HTMLElement>) {
  */
 export function EditorLayout() {
   const showPanels = useViewStore((s) => s.showPanels);
+  const treeCollapsed = useViewStore((s) => s.treeCollapsed);
+  const treeWidth = useViewStore((s) => s.treeWidth);
+  const propsCollapsed = useViewStore((s) => s.propsCollapsed);
+  const propsWidth = useViewStore((s) => s.propsWidth);
   const showTickets = useTicketStore((s) => s.isOpen);
   // 코드 Export 패널이 구현 티켓 패널보다 앞선다 — 둘 다 열려 있으면 **방금 연 쪽**이
   // Export다(티켓을 보다가 내보내는 순서라서). 닫으면 그대로 티켓 패널로 돌아간다.
   const showExport = useExportStore((s) => s.isOpen);
 
-  const gridColsClass = showPanels
-    ? "grid-cols-[var(--layout-tree-width)_1fr_var(--layout-props-width)]"
-    : "grid-cols-[var(--layout-tree-width-collapsed)_1fr_var(--layout-props-width-collapsed)]";
+  // 패널 폭은 이제 사용자가 드래그로 바꾸는 런타임 값이라 CSS 토큰(고정값 전용,
+  // DESIGN-TOKEN-RULES.md)이 아니라 인라인 스타일로 계산한다 — Canvas.tsx의 노드
+  // 크기·위치와 같은 자리다(#287, docs/22-panel-collapse-resize.md "결정" 5번).
+  // 전체 토글(showPanels)이 꺼지면 0 — 개별 접힘(treeCollapsed/propsCollapsed)은
+  // 레일 폭(PANEL_RAIL_WIDTH), 둘 다 아니면 사용자가 맞춘 폭이다.
+  function columnWidth(collapsed: boolean, width: number): number {
+    if (!showPanels) return 0;
+    return collapsed ? PANEL_RAIL_WIDTH : width;
+  }
+  const gridStyle: CSSProperties = {
+    gridTemplateColumns: `${columnWidth(treeCollapsed, treeWidth)}px 1fr ${columnWidth(propsCollapsed, propsWidth)}px`,
+  };
+
+  // 저장된 폭이 지금 창 기준으로는 더 이상 괜찮지 않을 수 있다(#287 리뷰
+  // 5차 대응) — 넓은 모니터에서 저장한 값을 좁은 창에서 처음 열면, 접힘·
+  // 펼침을 한 번도 안 거치고 그 값이 그대로 렌더부터 적용된다. 마운트
+  // 시(= 홈에서 에디터로 들어올 때마다, `App.tsx`가 서브트리를 통째로
+  // 새로 마운트한다) 한 번만 맞춘다 — 창 크기 변경에 실시간으로 반응하는
+  // 자동 규칙은 의도적으로 안 만든다(docs/22 "결정" 6번).
+  useEffect(() => {
+    reconcilePanelWidths();
+  }, []);
 
   return (
     // overflow-hidden 이 필요하다. transform 은 레이아웃 박스를 바꾸지 않지만
@@ -60,7 +85,8 @@ export function EditorLayout() {
     // 앱 셸은 화면 크기에 딱 맞아야 하므로 여기서 잘라낸다.
     <div
       onContextMenu={handleContextMenu}
-      className={`relative grid h-screen w-screen overflow-hidden ${gridColsClass} grid-rows-[var(--layout-menubar-height)_1fr_auto] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'_'ai_ai_ai'] bg-surface-sunken text-content`}
+      style={gridStyle}
+      className="relative grid h-screen w-screen overflow-hidden grid-rows-[var(--layout-menubar-height)_1fr_auto] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'_'ai_ai_ai'] bg-surface-sunken text-content"
     >
       <MenuBar />
       {showPanels && <LayerTree />}

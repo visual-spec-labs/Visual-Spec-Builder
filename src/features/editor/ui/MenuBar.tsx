@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useExportStore } from "@/features/editor/store/exportStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
+import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { formatDocumentTitle } from "@/features/editor/ui/documentTitle";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
@@ -14,6 +16,7 @@ import { newSpec } from "@/features/editor/ui/newSpec";
 import { openExportPanel } from "@/features/editor/ui/openExportPanel";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import { openTicketPanel } from "@/features/editor/ui/openTicketPanel";
+import { togglePropsPanel, toggleTreePanel } from "@/features/editor/ui/panelToggle";
 
 type MenuKey = "file" | "insert" | "view";
 
@@ -78,6 +81,22 @@ export function MenuBar() {
   const toggleGrid = useViewStore((s) => s.toggleGrid);
   const showPanels = useViewStore((s) => s.showPanels);
   const togglePanels = useViewStore((s) => s.togglePanels);
+  const treeCollapsed = useViewStore((s) => s.treeCollapsed);
+  const propsCollapsed = useViewStore((s) => s.propsCollapsed);
+  // Export/구현 티켓이 속성 패널 자리를 쓰는 동안은 그 자리를 접을 수 없게
+  // 한다(#287 리뷰 대응) — 접으면 32px 레일에 Export/티켓 내용이 그대로
+  // 눌려 렌더된다. openExportPanel.ts/openTicketPanel.ts가 열 때 이미 펼쳐
+  // 두므로, 여기서는 "열려 있는 동안 다시 접지 못하게"만 막으면 된다.
+  //
+  // 두 훅을 **각자 먼저 호출**한 뒤에 ||로 합친다(#287 리뷰 2차 대응 —
+  // 실제 P1 회귀였다). `exportOpen || useTicketStore(...)`처럼 한 식에
+  // 바로 쓰면 exportOpen이 true일 때 단축 평가로 useTicketStore 호출 자체가
+  // 생략돼, 그 뒤로 Export가 열려 있는 동안 이 컴포넌트의 훅 호출 순서가
+  // 렌더마다 달라진다 — React가 "Rendered more hooks than during the
+  // previous render"급 오류를 내며 화면이 통째로 빈다.
+  const exportOpen = useExportStore((s) => s.isOpen);
+  const ticketOpen = useTicketStore((s) => s.isOpen);
+  const propsSlotBusy = exportOpen || ticketOpen;
 
   const FILE_MENU: MenuEntry[] = [
     { kind: "action", label: "New", onSelect: () => void newSpec() },
@@ -102,6 +121,29 @@ export function MenuBar() {
     { kind: "separator" },
     { kind: "toggle", label: "Show Grid", checked: showGrid, onToggle: toggleGrid },
     { kind: "toggle", label: "Panels/Sidebars", checked: showPanels, onToggle: togglePanels },
+    // 개별 패널 접기(#287) — "Panels/Sidebars"는 둘 다 숨기고, 이 둘은 한쪽만
+    // 좁은 레일로 접는다. 체크 표시는 "지금 실제로 보이는가"다 —
+    // !collapsed만 보면 안 된다(자체 code-review 대응). showPanels가
+    // 꺼져 있으면 treeCollapsed/propsCollapsed가 뭐든 두 패널 다 안 보이는데
+    // (`EditorLayout.tsx`), showPanels를 안 보면 접힘 상태만으로 "펼쳐짐 ✓"
+    // 표시가 떠 — 실제로는 전체 토글에 가려 안 보이는데 체크가 돼 있는
+    // 모순이 생긴다.
+    // toggleTreePanel/togglePropsPanel을 쓴다(원본 액션을 직접 안 쓴다) —
+    // 펼치는 방향이면 저장된 폭을 Canvas 최소 폭 기준으로 보정한다(#287
+    // 리뷰 4차 대응, panelToggle.ts 참고).
+    {
+      kind: "toggle",
+      label: "Layers Panel",
+      checked: showPanels && !treeCollapsed,
+      onToggle: toggleTreePanel,
+    },
+    {
+      kind: "toggle",
+      label: "Properties Panel",
+      checked: showPanels && !propsCollapsed,
+      onToggle: togglePropsPanel,
+      disabled: propsSlotBusy,
+    },
   ];
 
   useEffect(() => {

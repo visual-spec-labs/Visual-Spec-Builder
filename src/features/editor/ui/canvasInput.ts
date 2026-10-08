@@ -262,6 +262,11 @@ export function siblingNavDirectionForKey(
   if (input.toolbarFocusHandoff) return null;
   if (isTypingTarget(input.tagName, input.contentEditable)) return null;
   if (isActivationTarget(input.tagName, input.role)) return null;
+  // #287 리뷰 대응 — 패널 폭 조절 핸들(role="separator", PanelResizeHandle.tsx)에
+  // 포커스가 있을 때는 Tab이 네이티브 포커스 이동을 하게 둔다. 이 리스너가
+  // window에 걸려 있어 포커스 위치와 무관하게 Tab을 먼저 가로채므로, 핸들을
+  // 빼 주지 않으면 포커스가 핸들에 갇힌 채 선택 노드만 형제로 바뀐다.
+  if (input.role === "separator") return null;
 
   return input.shiftKey ? "prev" : "next";
 }

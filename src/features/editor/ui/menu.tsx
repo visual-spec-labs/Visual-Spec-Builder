@@ -32,10 +32,10 @@ export function MenuList({
           <li key={entry.label} role="menuitem">
             <button
               type="button"
-              disabled={entry.kind === "action" ? entry.disabled : false}
+              disabled={entry.disabled ?? false}
               onClick={() => {
+                if (entry.disabled) return;
                 if (entry.kind === "action") {
-                  if (entry.disabled) return;
                   entry.onSelect();
                   onCloseMenu();
                 } else {

@@ -1,5 +1,12 @@
 import { create } from "zustand";
 
+import {
+  clampPanelWidth,
+  loadPanelLayout,
+  savePanelLayout,
+  type PanelLayoutState,
+} from "@/features/editor/store/panelLayout";
+
 /**
  * 캔버스 뷰(줌·그리드·패널 표시) 전용 스토어.
  * IR/선택 상태를 다루는 editorStore와 분리한다 — docs/EDITOR_STORE_CONTRACT.md의
@@ -27,6 +34,28 @@ export interface ViewState {
   showGrid: boolean;
   /** 좌우 패널(레이어 트리·세부설정) 동시 표시 여부. */
   showPanels: boolean;
+  /**
+   * 개별 패널 접기·폭(#287). `showPanels`와 독립이다 — 전체 토글은 둘 다
+   * 숨기고, 이건 한쪽만 좁은 레일로 접거나 폭을 조절한다. 둘 다 켜져 있으면
+   * `showPanels`가 우선한다(둘 다 안 보인다, `EditorLayout.tsx`).
+   * docs/22-panel-collapse-resize.md "결정" 참고.
+   */
+  treeCollapsed: boolean;
+  treeWidth: number;
+  propsCollapsed: boolean;
+  propsWidth: number;
+  toggleTreeCollapsed: () => void;
+  togglePropsCollapsed: () => void;
+  /**
+   * 드래그 중(mousemove)에 쓴다 — state만 갱신하고 저장하지 않는다(자체
+   * code-review 대응). 드래그 한 번에 수십~수백 번 불릴 수 있어, 매번
+   * localStorage에 쓰면 그 I/O가 드래그 중 버벅임으로 보인다.
+   * `commitPanelLayout`이 드래그가 끝난 뒤 한 번만 저장한다.
+   */
+  setTreeWidth: (width: number) => void;
+  setPropsWidth: (width: number) => void;
+  /** 지금 패널 상태를 localStorage에 한 번 저장한다. 드래그 끝(mouseup)·키보드 조절마다 부른다. */
+  commitPanelLayout: () => void;
   /** 캔버스 뷰포트의 실측 크기(여백 제외). 캔버스가 올려준다. */
   viewport: Dimensions | null;
   /** 화면(아트보드) 크기. 캔버스가 활성 페이지의 size를 올려준다. */
@@ -117,10 +146,17 @@ function sameSize(a: Dimensions | null, b: Dimensions): boolean {
   return a !== null && a.width === b.width && a.height === b.height;
 }
 
+/** ViewState에서 panelLayout.ts의 PanelLayoutState 네 필드만 뽑는다(저장용). */
+function panelLayoutOf(state: ViewState): PanelLayoutState {
+  const { treeCollapsed, treeWidth, propsCollapsed, propsWidth } = state;
+  return { treeCollapsed, treeWidth, propsCollapsed, propsWidth };
+}
+
 export const useViewStore = create<ViewState>((set, get) => ({
   zoom: ZOOM_DEFAULT,
   showGrid: true,
   showPanels: true,
+  ...loadPanelLayout(),
   viewport: null,
   content: null,
   canvasAtBottom: false,
@@ -154,4 +190,28 @@ export const useViewStore = create<ViewState>((set, get) => ({
   fitToScreen: () => set((state) => ({ zoom: fitZoom(state.viewport, state.content) })),
   toggleGrid: () => set((state) => ({ showGrid: !state.showGrid })),
   togglePanels: () => set((state) => ({ showPanels: !state.showPanels })),
+  toggleTreeCollapsed: () =>
+    set((state) => {
+      const next = { ...panelLayoutOf(state), treeCollapsed: !state.treeCollapsed };
+      savePanelLayout(next);
+      return next;
+    }),
+  togglePropsCollapsed: () =>
+    set((state) => {
+      const next = { ...panelLayoutOf(state), propsCollapsed: !state.propsCollapsed };
+      savePanelLayout(next);
+      return next;
+    }),
+  // 정적 범위(clampPanelWidth)만 자른다 — 창 폭 대비 동적 상한(#287 리뷰
+  // 대응)은 여기서 안 건다. `window`를 읽어야 하는데, 이 스토어는
+  // `tsconfig.node.json`(DOM 타입 없음)으로도 검사되는 테스트에서 가져다
+  // 쓰므로 `store/`에 DOM 전역을 직접 넣을 수 없다(`localStorage`와 달리
+  // `window`는 `@types/node`가 타입을 안 준다) — "window·document를 만지는
+  // 코드는 ui/에만 둔다"는 이 저장소 경계 그대로다. 그래서 동적 상한은
+  // 호출부(`LayerTree.tsx`/`PropertiesPanel.tsx`, 둘 다 `ui/`)가
+  // `panelLayout.ts`의 순수 함수 `maxResizableWidth`로 미리 깎은 값을
+  // 넘겨준다.
+  setTreeWidth: (width) => set({ treeWidth: clampPanelWidth(width) }),
+  setPropsWidth: (width) => set({ propsWidth: clampPanelWidth(width) }),
+  commitPanelLayout: () => savePanelLayout(panelLayoutOf(get())),
 }));
