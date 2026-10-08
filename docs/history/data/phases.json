@@ -1,0 +1,198 @@
+{
+  "generatedAt": "2026-10-08T11:02:17.618Z",
+  "repo": "visual-spec-labs/Visual-Spec-Builder",
+  "branch": "develop",
+  "phases": [
+    {
+      "id": "p0",
+      "order": 0,
+      "slug": "prologue",
+      "title": "프롤로그 — 한 문장에서 출발하다",
+      "start": "2026-07-24",
+      "end": "2026-07-31",
+      "summary": "다섯 명이 MVP 범위와 데모 목표 한 문장을 정하고, 스키마 v0.1을 동결했다.",
+      "stats": {
+        "phase": "p0",
+        "mergedPRs": 1,
+        "approved": 0,
+        "commits": 9,
+        "issuesOpened": 0,
+        "prAuthors": {
+          "Yumesa2025": 1
+        }
+      }
+    },
+    {
+      "id": "p1",
+      "order": 1,
+      "slug": "groundwork",
+      "title": "기초 공사 — 방향을 다듬고 규칙을 세우다",
+      "start": "2026-08-01",
+      "end": "2026-08-20",
+      "summary": "\"기존 프로젝트 분석\"을 내려놓고 독립 작업공간으로 방향을 굳힌 뒤, 하루 만에 CI·스킬·문서 체계를 세웠다.",
+      "stats": {
+        "phase": "p1",
+        "mergedPRs": 11,
+        "approved": 0,
+        "commits": 36,
+        "issuesOpened": 6,
+        "prAuthors": {
+          "GAMMJ": 2,
+          "wook3964": 2,
+          "Yumesa2025": 7
+        }
+      }
+    },
+    {
+      "id": "p2",
+      "order": 2,
+      "slug": "editor-frame",
+      "title": "에디터의 골격이 서다",
+      "start": "2026-08-21",
+      "end": "2026-08-31",
+      "summary": "공유 스토어 위에 레이어 트리·캔버스·속성 패널·메뉴바가 붙어 편집기가 모양을 갖췄다.",
+      "stats": {
+        "phase": "p2",
+        "mergedPRs": 18,
+        "approved": 18,
+        "commits": 80,
+        "issuesOpened": 26,
+        "prAuthors": {
+          "GAMMJ": 5,
+          "SunMyunC": 2,
+          "wook3964": 5,
+          "dogui1018": 5,
+          "Yumesa2025": 1
+        }
+      }
+    },
+    {
+      "id": "p3",
+      "order": 3,
+      "slug": "richer-language",
+      "title": "표현의 폭을 넓히다 — 스키마와 편집 모델",
+      "start": "2026-09-01",
+      "end": "2026-09-11",
+      "summary": "노드 5종·여러 페이지 프로젝트(v0.2)로 스키마를 넓히고, 모든 편집이 Command를 거치게 했다.",
+      "stats": {
+        "phase": "p3",
+        "mergedPRs": 32,
+        "approved": 28,
+        "commits": 116,
+        "issuesOpened": 25,
+        "prAuthors": {
+          "GAMMJ": 8,
+          "dogui1018": 7,
+          "wook3964": 12,
+          "Yumesa2025": 4,
+          "SunMyunC": 1
+        }
+      }
+    },
+    {
+      "id": "p4",
+      "order": 4,
+      "slug": "hands-on-editor",
+      "title": "손에 붙는 편집기, 굳어지는 계약",
+      "start": "2026-09-12",
+      "end": "2026-09-26",
+      "summary": "피그마에 가까운 조작감을 다듬고, GUI를 작업공간에 연결하고, Command 계약을 동결했다.",
+      "stats": {
+        "phase": "p4",
+        "mergedPRs": 29,
+        "approved": 27,
+        "commits": 90,
+        "issuesOpened": 27,
+        "prAuthors": {
+          "dogui1018": 6,
+          "wook3964": 7,
+          "GAMMJ": 9,
+          "Yumesa2025": 7
+        }
+      }
+    },
+    {
+      "id": "p5",
+      "order": 5,
+      "slug": "words-to-screens",
+      "title": "말이 화면이 되다 — 자연어와 코드 생성",
+      "start": "2026-09-27",
+      "end": "2026-10-02",
+      "summary": "자연어 수정·생성, 코드 ZIP 내보내기, 에이전트 실행 왕복이 이어지며 처음부터 끝까지의 길이 생겼다.",
+      "stats": {
+        "phase": "p5",
+        "mergedPRs": 14,
+        "approved": 12,
+        "commits": 33,
+        "issuesOpened": 14,
+        "prAuthors": {
+          "Yumesa2025": 2,
+          "wook3964": 4,
+          "dogui1018": 5,
+          "GAMMJ": 3
+        }
+      }
+    },
+    {
+      "id": "p6",
+      "order": 6,
+      "slug": "busiest-day",
+      "title": "몰아친 하루 — 배경과 반응형",
+      "start": "2026-10-03",
+      "end": "2026-10-04",
+      "summary": "캔버스 드래그, 채우기 겹 배경(v0.3), 반응형 스키마와 그룹이 하루에 들어왔다. 커밋 142개.",
+      "stats": {
+        "phase": "p6",
+        "mergedPRs": 24,
+        "approved": 3,
+        "commits": 142,
+        "issuesOpened": 22,
+        "prAuthors": {
+          "dogui1018": 1,
+          "Yumesa2025": 23
+        }
+      }
+    },
+    {
+      "id": "p7",
+      "order": 7,
+      "slug": "first-run",
+      "title": "첫 완주 — MVP 전 구간 검증",
+      "start": "2026-10-05",
+      "end": "2026-10-05",
+      "summary": "반응형·이미지 배경·실행 정책을 마무리하고, 설치부터 Export까지 전 구간을 통과했다.",
+      "stats": {
+        "phase": "p7",
+        "mergedPRs": 13,
+        "approved": 1,
+        "commits": 25,
+        "issuesOpened": 29,
+        "prAuthors": {
+          "Yumesa2025": 13
+        }
+      }
+    },
+    {
+      "id": "p8",
+      "order": 8,
+      "slug": "polishing",
+      "title": "제품으로 다듬다",
+      "start": "2026-10-06",
+      "end": null,
+      "summary": "생성 코드와 캔버스의 정합성, 편집 안정성, 접근성, 설치 가능한 런타임을 다듬고 있다.",
+      "stats": {
+        "phase": "p8",
+        "mergedPRs": 21,
+        "approved": 21,
+        "commits": 125,
+        "issuesOpened": 10,
+        "prAuthors": {
+          "Yumesa2025": 1,
+          "wook3964": 8,
+          "GAMMJ": 7,
+          "dogui1018": 5
+        }
+      }
+    }
+  ]
+}
