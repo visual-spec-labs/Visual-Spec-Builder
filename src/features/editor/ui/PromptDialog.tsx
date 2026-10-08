@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 
 /**
@@ -9,19 +10,33 @@ import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore"
 export function PromptDialog() {
   const state = usePromptDialogStore((s) => s.state);
   const resolve = usePromptDialogStore((s) => s.resolve);
+  const paused = useSaveConflictStore((s) => s.paused);
 
   const root = useRef<HTMLDivElement>(null);
   const requestId = state.kind === "closed" ? null : state.requestId;
+  // Keep the original opener for the whole modal session. A replacement's
+  // keyed input removes the old focused control before this effect runs.
+  const opener = useRef<Element | null>(null);
   useEffect(() => {
-    if (requestId === null) return;
-    const previous = document.activeElement;
-    root.current?.querySelector<HTMLElement>("input, button")?.focus();
-    return () => {
+    // A storage/disk conflict can arrive while an async prompt is pending.
+    // Cancel that request and let the conflict dialog own focus and recovery.
+    if (paused) {
+      resolve(null);
+      opener.current = null;
+      return;
+    }
+    if (requestId === null) {
+      const previous = opener.current;
+      opener.current = null;
+      // The closed render has already removed the background's inert state.
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
-    };
-  }, [requestId]);
+      return;
+    }
+    opener.current ??= document.activeElement;
+    root.current?.querySelector<HTMLElement>("input, button")?.focus();
+  }, [requestId, paused, resolve]);
 
-  if (state.kind === "closed") return null;
+  if (state.kind === "closed" || paused) return null;
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
       // Close only this dialog. The window listener would otherwise see the

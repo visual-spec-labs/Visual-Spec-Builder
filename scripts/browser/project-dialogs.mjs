@@ -36,7 +36,8 @@ try {
     });
   });
   browser = await chromium.launch({ executablePath: process.env.CHROME_BIN, args: ["--no-sandbox"] });
-  const page = await browser.newPage();
+  const context = await browser.newContext();
+  const page = await context.newPage();
   page.setDefaultTimeout(10000);
   const errors = [];
   const notices = [];
@@ -53,6 +54,10 @@ try {
     }
   }
   await page.getByRole("button", { name: "Alpha 이름 변경" }).click();
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Alpha 이름 변경");
+  await page.keyboard.press("Enter");
+  assert.equal(await dialog.getByRole("textbox").inputValue(), "Alpha");
   await cycle();
   assert.equal(await page.getByRole("button", { name: "+ 새 프로젝트", exact: true }).evaluate(button => Boolean(button.closest("[inert]"))), true);
   await dialog.getByRole("textbox").fill("Do not reuse");
@@ -66,8 +71,12 @@ try {
   await page.keyboard.press("Escape");
   assert.equal(await page.evaluate(() => window.replacement), null);
   assert.equal(await dialog.count(), 0);
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Alpha 이름 변경");
+  await page.keyboard.press("Enter");
+  assert.equal(await dialog.getByRole("textbox").inputValue(), "Alpha");
+  await page.keyboard.press("Escape");
   assert.equal(await page.getByRole("button", { name: "Alpha 이름 변경" }).count(), 1);
-  console.log("PASS Rename focus cycle, inert background, replacement input, Escape");
+  console.log("PASS Rename focus cycle, inert background, replacement input, Escape, opener restoration and keyboard continuation");
 
   await page.getByRole("button").filter({ hasText: /Alpha.*페이지/s }).click();
   await page.getByRole("button", { name: "File", exact: true }).waitFor();
@@ -165,6 +174,43 @@ try {
   await page.waitForTimeout(200);
   assert.equal(await page.getByText("프로젝트 4개", { exact: true }).count(), 1);
   assert.equal(await page.getByText(/손상된 파일/).count(), 0);
+  // A real second-tab storage event must hand the whole modal session to the
+  // save-conflict dialog, not autofocus invisible controls behind Save as.
+  await page.getByRole("button").filter({ hasText: /Beta.*페이지/s }).click();
+  await page.getByRole("button", { name: "File", exact: true }).waitFor();
+  await page.evaluate(() => {
+    editor.getState().setPageField(editor.getState().activePageId, "name", "Keep conflict draft");
+    editor.getState().select("header");
+  });
+  const beforeConflict = await snapshot();
+  const changed = await page.evaluate(async () => {
+    const { projectStorageKey, serializeStoredDocument } = await import("/src/features/editor/store/specStorage.ts");
+    const spec = structuredClone(editor.getState().spec);
+    spec.name = "Other tab edit";
+    return { key: projectStorageKey(documentStore.getState().fileName, ""),
+      raw: serializeStoredDocument({spec, fileName: documentStore.getState().fileName,
+        diskRevision: documentStore.getState().diskRevision}) };
+  });
+  await page.evaluate(async () => {
+    const { saveSpecAs } = await import("/src/features/editor/ui/exportSpecAsJson.ts");
+    window.conflictPrompt = saveSpecAs(editor.getState().spec);
+  });
+  await dialog.getByRole("textbox").fill("Never write this");
+  const other = await context.newPage();
+  // A same-origin blank document avoids mounting another editor/autosave.
+  await other.route("**/storage-event-source", route => route.fulfill({contentType: "text/html", body: "<title>Second tab</title>"}));
+  await other.goto(`${url}storage-event-source`);
+  await other.evaluate(({key, raw}) => localStorage.setItem(key, raw), changed);
+  await page.waitForFunction(async () => (await import("/src/features/editor/store/saveConflictStore.ts")).useSaveConflictStore.getState().paused);
+  assert.equal(await page.evaluate(() => window.conflictPrompt), null);
+  assert.equal(await dialog.count(), 1);
+  assert.equal(await page.evaluate(() => document.activeElement?.closest('[role="alertdialog"]')?.getAttribute("aria-labelledby")), "save-conflict-title");
+  assert.equal(await snapshot(), beforeConflict);
+  await dialog.getByRole("button", {name: "취소 — 내 작업 유지"}).click();
+  assert.equal(await snapshot(), beforeConflict);
+  assert.equal(await page.evaluate(async () => (await import("/src/features/editor/store/saveConflictStore.ts")).useSaveConflictStore.getState().paused), true);
+  await other.close();
+  console.log("PASS second-tab conflict cancels pending Save as, owns visible focus, and preserves paused draft/history");
   assert.deepEqual(errors, []);
   console.log("PASS delayed Retry cannot overwrite newer repaired-file result; no page errors");
 } finally {
