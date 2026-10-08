@@ -139,6 +139,15 @@ describe("buildReadme", () => {
     expect(readme).toContain("타입 검사");
   });
 
+  it("실행 앱이 아니라 컴포넌트 묶음이며 무엇이 들어 있지 않은지 적는다 (#285)", () => {
+    const readme = buildReadme("Dashboard", emptyReport);
+
+    expect(readme).toContain("앱이 아니라 컴포넌트 묶음");
+    for (const excluded of ["라우터 설정", "폼 상태", "데이터 불러오기", "인증", "alt=\"\""]) {
+      expect(readme).toContain(excluded);
+    }
+  });
+
   it("검증에서 잡힌 문제를 표로 싣는다", () => {
     const report = verifyGenerated({
       files: [{ path: "components/Card.tsx", content: `import { B } from "@/b";` }],

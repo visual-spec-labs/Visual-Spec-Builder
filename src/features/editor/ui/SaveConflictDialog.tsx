@@ -13,8 +13,14 @@ export function SaveConflictDialog() {
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-surface-sunken/80">
     <section role="alertdialog" aria-modal="true" aria-labelledby="save-conflict-title"
       className="max-w-lg rounded-lg bg-surface-raised p-6 text-content shadow-xl">
-      <h2 id="save-conflict-title" className="mb-3 text-lg font-semibold">다른 탭에서 이 프로젝트를 변경했습니다</h2>
-      <p>자동저장과 파일 덮어쓰기를 중지했습니다. 내 작업은 이 탭에 보존됩니다.</p>
+      <h2 id="save-conflict-title" className="mb-3 text-lg font-semibold">
+        {reason === "disk" ? "디스크의 파일이 바뀌어 저장을 멈췄습니다" : "다른 탭에서 이 프로젝트를 변경했습니다"}
+      </h2>
+      <p>
+        {reason === "disk"
+          ? "열어 둔 뒤 다른 탭이나 도구(에이전트·git 등)가 파일을 바꿨습니다. 덮어쓰지 않도록 자동저장과 저장을 중지했습니다. 내 작업은 이 탭에 보존됩니다."
+          : "자동저장과 파일 덮어쓰기를 중지했습니다. 내 작업은 이 탭에 보존됩니다."}
+      </p>
       <p className="my-3 text-sm">먼저 내 작업을 별도 JSON 파일로 다운로드할 수 있습니다. 다운로드 후에도 최신 내용을 불러오기 전까지 저장은 중지됩니다.</p>
       <div className="flex flex-wrap gap-3">
         <button autoFocus className="rounded border px-3 py-2" onClick={() => {
@@ -22,10 +28,12 @@ export function SaveConflictDialog() {
           setMessage("별도 파일 다운로드를 요청했습니다. 다운로드 목록에서 파일을 확인하세요.");
         }}>내 작업 별도 파일로 보관</button>
         <button className="rounded border px-3 py-2" onClick={async () => {
-          if (!window.confirm("내 작업 대신 다른 탭의 최신 내용을 불러올까요? 보관이 필요하면 먼저 별도 파일로 다운로드하세요.")) return;
+          if (!window.confirm(reason === "disk"
+            ? "내 작업 대신 디스크의 최신 내용을 불러올까요? 보관이 필요하면 먼저 별도 파일로 다운로드하세요."
+            : "내 작업 대신 다른 탭의 최신 내용을 불러올까요? 보관이 필요하면 먼저 별도 파일로 다운로드하세요.")) return;
           if (!await loadLatest()) setMessage("최신 자동저장을 읽을 수 없습니다. 내 작업은 보존되며 저장 중지는 유지됩니다.");
           else setMessage("");
-        }}>다른 탭의 최신 내용 불러오기</button>
+        }}>{reason === "disk" ? "디스크의 최신 내용 불러오기" : "다른 탭의 최신 내용 불러오기"}</button>
         <button className="rounded border px-3 py-2" onClick={() => setMessage("취소했습니다. 내 작업과 저장 중지를 유지합니다.")}>취소 — 내 작업 유지</button>
       </div>
       <p role="status" className="mt-3 text-sm">{message}</p>

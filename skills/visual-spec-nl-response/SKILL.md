@@ -1,6 +1,6 @@
 ---
 name: visual-spec-nl-response
-description: Visual Spec Builder GUI가 `.visual-spec/runtime/nl-request.json`을 써 뒀을 때 실행한다 — 그 파일이 있다는 것 자체가 트리거다. "GUI에서 보낸 요청 처리해줘", "nl-request 봐줘", "자연어 편집창에 뭐 입력했어" 처럼 GUI의 자연어 입력창(NaturalLanguageBar)이 보낸 요청에 응답해야 할 때, 또는 사용자가 Visual Spec GUI를 띄워 두고 "화면 만들어줘"/"이 버튼 색 바꿔줘" 같은 요청을 GUI 안에서 이미 입력한 상황에서 쓴다. **GUI 밖에서** 스펙 JSON 파일 자체를 쓰거나 고쳐 달라는 요청(`examples/*.json`, `.visual-spec/specs/*.json`을 직접 겨냥)은 [visual-spec-authoring](../visual-spec-authoring/SKILL.md) 대상이지 이 스킬 대상이 아니다 — 산출물이 파일 전체인지 Command 배열인지로 가른다.
+description: Visual Spec Builder GUI가 `.visual-spec/runtime/nl-request.json`을 써 뒀을 때 실행한다 — 그 파일이 있다는 것 자체가 트리거다. "GUI에서 보낸 요청 처리해줘", "nl-request 봐줘", "자연어 편집창에 뭐 입력했어" 처럼 GUI의 자연어 입력창(NaturalLanguageBar)이 보낸 요청에 응답해야 할 때, 또는 사용자가 Visual Spec GUI를 띄워 두고 "화면 만들어줘"/"이 버튼 색 바꿔줘" 같은 요청을 GUI 안에서 이미 입력한 상황에서 쓴다. **GUI 밖에서** 스펙 JSON 파일 자체를 쓰거나 고쳐 달라는 요청(`examples/*.json`, `.visual-spec/specs/*.json`을 직접 겨냥)은 [visual-spec-authoring](../visual-spec-authoring/SKILL.md) 대상이지 이 스킬 대상이 아니다 — 산출물이 파일 전체인지 Command 배열인지로 가른다. 또한 GUI가 열려 있을 때(`.visual-spec/runtime/gui-state.json`이 최근에 갱신됨) 사용자가 이 대화에서 바로 "버튼 색 바꿔줘", "제목 크게 해줘"처럼 화면 수정을 요청하면, 스펙 파일을 직접 고치지 말고 이 스킬의 "대화에서 바로 고치기" 절대로 `agent-edit.json`에 Command를 보낸다.
 ---
 
 # 자연어 요청에 Command로 응답하기
@@ -15,7 +15,7 @@ description: Visual Spec Builder GUI가 `.visual-spec/runtime/nl-request.json`�
 |---|---|---|
 | 산출물 | 스펙 JSON **문서 전체** | **Command 배열**(부분) |
 | 도착지 | 파일(`examples/*.json`, `.visual-spec/specs/`) | `.visual-spec/runtime/nl-response.json` |
-| 트리거 | 파일을 콕 집어 "이 JSON 고쳐줘" | GUI가 `nl-request.json`을 써 둔 상태 |
+| 트리거 | 파일을 콕 집어 "이 JSON 고쳐줘"(GUI가 꺼져 있을 때) | GUI가 `nl-request.json`을 써 둔 상태, 또는 GUI가 열려 있는데 대화에서 화면 수정을 요청받음 |
 | Undo | 없음(파일을 덮어씀) | GUI의 Undo 스택에 한 단계로 들어감 |
 
 노드 타입 5종 제약, `examples/`(사용자 프로젝트에서는 함께 설치된 `../visual-spec/contract/examples/`)가 지키는 관용구, `examples/invalid/`가 보여주는 자주 틀리는
@@ -250,6 +250,57 @@ Transaction은 Command가 최소 1개 필요하다(스키마가 거부한다).
 요청은 `id`, 응답은 `requestId`). `protocol`이 다르거나 `requestId`가 안 맞으면 GUI가 응답을
 무시하고 계속 기다린다(낡은 응답을 이번 요청의 답으로 오인하지 않기 위해서다) — 답을 냈는데
 GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
+
+## 대화에서 바로 고치기 — GUI가 열려 있을 때 (`agent-edit.json`, #279)
+
+사용자가 GUI 입력창이 아니라 **이 대화에서** 화면 수정을 요청했고 GUI가 열려 있으면, 스펙 파일
+(`.visual-spec/specs/*.json`)을 직접 고치지 않는다. 열린 GUI는 파일 변경을 모르고, 미저장 초안과
+Undo가 어긋난다. 대신 같은 Command를 GUI에 보내 GUI가 검증·적용하게 한다.
+
+1. **GUI가 열려 있는지 본다.** `.visual-spec/runtime/gui-state.json`이 있고 `updatedAt`이 1분 안이면
+   열려 있다(열린 GUI는 10초마다 갱신한다). 없거나 오래됐으면 GUI가 꺼진 것이다 — 이때는
+   [visual-spec-authoring](../visual-spec-authoring/SKILL.md)으로 파일을 고친다.
+2. **지금 상태를 읽는다.** `gui-state.json`의 `page`(활성 페이지 전체), `pageId`, `selectedId`
+   ("이 버튼"이 가리키는 노드), `stateRevision`, `fileName`을 읽는다. 노드 id와 현재 값은 `page`에서만
+   가져온다 — 파일을 다시 읽지 않는다(GUI의 미저장 편집이 반영된 쪽이 `page`다).
+3. **Command를 만든다.** 위 "응답 만들기" 절과 같은 Command 6종·규칙을 쓴다. 활성 페이지 한 장만
+   다룬다.
+4. **`.visual-spec/runtime/agent-edit.json`에 쓴다**(임시 파일에 쓰고 rename으로 교체한다).
+   ```json
+   {
+     "protocol": 1,
+     "id": "<새 고유 id — 요청마다 다르게>",
+     "baseStateRevision": "<gui-state.json의 stateRevision 그대로>",
+     "pageId": "<gui-state.json의 pageId 그대로>",
+     "summary": "<사용자에게 보일 한 줄 요약, 예: 제목을 '환영합니다'로 바꿈>",
+     "commands": [ /* Command 배열 */ ]
+   }
+   ```
+5. **결과를 기다린다.** `.visual-spec/runtime/agent-edit-result.json`에서 `requestId`가 내 `id`와 같은
+   결과를 1초 간격으로 최대 30초 확인한다.
+   - `applied` — 적용됐다. GUI에 "외부 에이전트가 편집을 적용했습니다"와 되돌리기가 뜬다. 사용자에게
+     무엇을 바꿨는지와 GUI에서 되돌릴 수 있다는 것을 알린다. 저장은 사용자가 GUI에서 한다.
+   - `pending` — 배경을 바꾸는 편집이라 GUI에서 사용자 확인을 기다린다. **최종 결과가 아니다.**
+     사용자에게 GUI에서 확인해 달라고 알리고, 같은 `requestId`의 결과가 `applied`나 `rejected`로
+     바뀔 때까지 결과 파일을 계속 확인한다(사용자가 누르는 데 시간이 걸리므로 30초 제한을 두지 않고,
+     오래 걸리면 사용자에게 다시 묻는다). 확인을 기다리는 동안 **새 편집 요청을 보내지 않는다** —
+     새 요청이 오면 GUI는 기다리던 편집을 적용하지 않은 것으로 끝낸다(`rejected`). 확인 전에 GUI
+     연결이 바뀌어도(새로고침·홈 이동·다른 탭) 확인창이 사라지므로 `rejected`로 끝난다.
+     다만 **GUI 탭을 닫아** 연결된 GUI가 하나도 없으면 결과를 쓸 탭이 없어 `pending`에 머문다.
+     기다리는 동안 `gui-state.json`이 사라졌거나 `updatedAt`이 1분 넘게 갱신되지 않으면 GUI가 닫힌
+     것이다 — 그 편집이 적용됐는지 알 수 없다고 사용자에게 알리고 **자동으로 다시 보내지 않는다**.
+     사용자가 GUI를 다시 열면 `gui-state.json`에서 반영 여부를 확인한 뒤 필요할 때만 새 `id`로 보낸다.
+   - `rejected`이고 `"uncertain": true` — GUI 연결이 새로 맺어져 이 요청이 **이전 연결에서 이미
+     적용됐는지 알 수 없다**. 그대로 다시 보내면 두 번 적용될 수 있다. `gui-state.json`을 다시 읽어
+     원하는 변경이 `page`에 이미 반영됐는지 먼저 확인하고, 반영되지 않았을 때만 새 `id`로 보낸다.
+     반영돼 있으면 적용된 것으로 사용자에게 알린다.
+   - `rejected` — `message`를 읽는다. "GUI 상태가 바뀌었습니다"면 `gui-state.json`을 **다시 읽고**
+     Command를 다시 만들어 새 `id`로 한 번 더 보낸다. 그 밖의 이유는 사용자에게 그대로 전한다.
+   - `invalid` — Command 형태가 틀렸다. `message`대로 고쳐 새 `id`로 보낸다.
+   - 30초 안에 결과가 없으면 GUI가 이 작업공간에 연결돼 있지 않은 것일 수 있다고 알린다(같은
+     작업공간을 연 GUI 탭이 있는지, 여러 탭이면 그중 하나만 연결된다).
+
+결과를 확인하지 않고 "적용했다"고 말하지 않는다.
 
 ## 자주 틀리는 지점
 

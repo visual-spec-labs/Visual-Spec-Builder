@@ -1,8 +1,11 @@
 import { create } from "zustand";
 import type { ProjectSpec } from "@/features/editor/schema";
 
-/** remote: another tab changed the open project. draft: the opened file is older than its autosave draft. */
-export type PauseReason = "remote" | "draft";
+/**
+ * remote: another tab changed the open project. draft: the opened file is older than its autosave draft.
+ * disk: Save found the file changed on disk by something else (an agent, git, another tool — #279).
+ */
+export type PauseReason = "remote" | "draft" | "disk";
 
 /** Persistence UI state, deliberately separate from the IR/Command store. */
 export const useSaveConflictStore = create<{

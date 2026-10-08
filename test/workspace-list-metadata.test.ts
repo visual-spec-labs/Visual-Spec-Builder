@@ -31,3 +31,32 @@ describe("목록 메타데이터 클라이언트", () => {
     expect(await listWorkspaceFileEntries("specs")).toBeNull();
   });
 });
+
+describe("엄격한 텍스트 읽기 (#279)", () => {
+  it("없음(404)과 읽기 실패(HTTP 오류·네트워크)를 구분한다", async () => {
+    const marker = { [WORKSPACE_MARKER_HEADER]: "1" };
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response({ ok: true }))
+      .mockResolvedValueOnce(new Response("본문", { headers: marker }))
+      .mockResolvedValueOnce(new Response("", { status: 404, headers: marker }))
+      .mockResolvedValueOnce(new Response("", { status: 500, headers: marker }))
+      .mockRejectedValueOnce(new Error("fetch failed"));
+    vi.stubGlobal("fetch", fetcher);
+    const { readWorkspaceTextFileStrict } = await import("@/features/editor/ui/workspaceClient");
+    expect(await readWorkspaceTextFileStrict("runtime/a.json")).toEqual({ ok: true, text: "본문" });
+    expect(await readWorkspaceTextFileStrict("runtime/a.json")).toEqual({ ok: true, text: null });
+    expect(await readWorkspaceTextFileStrict("runtime/a.json")).toEqual({ ok: false });
+    expect(await readWorkspaceTextFileStrict("runtime/a.json")).toEqual({ ok: false });
+  });
+});
+
+it("상태 조회는 중단 신호를 fetch에 전달하고 실패를 캐시하지 않는다", async () => {
+  const controller = new AbortController();
+  const fetcher = vi.fn().mockRejectedValueOnce(new Error("aborted")).mockResolvedValueOnce(response({ ok: true }));
+  vi.stubGlobal("fetch", fetcher);
+  const { isWorkspaceAvailable } = await import("@/features/editor/ui/workspaceClient");
+  expect(await isWorkspaceAvailable(controller.signal)).toBe(false);
+  expect(fetcher).toHaveBeenCalledWith("/__vs/status", { method: "GET", signal: controller.signal });
+  expect(await isWorkspaceAvailable()).toBe(true);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});

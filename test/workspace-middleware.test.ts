@@ -1002,5 +1002,37 @@ describe("runtime/ 요청 파일 잠금(#273)", () => {
       await lock("DELETE", kind, "tab-b");
     }
   });
+
+  it("gui 잠금(#279): 연결된 탭만 gui-state.json을 쓰고, 풀면 그 탭의 상태 파일이 정리된다", async () => {
+    expect((await lock("POST", "gui", "tab-a")).status).toBe(200);
+    expect((await lock("POST", "gui", "tab-b")).status).toBe(409);
+    const write = (owner: string) => fetch(`${baseUrl}/__vs/file/runtime/gui-state.json`, {
+      method: "PUT",
+      headers: { "x-visual-spec-expected-revision": "missing", "x-visual-spec-request-owner": owner },
+      body: JSON.stringify({ protocol: 1, id: owner }),
+    });
+    expect((await write("tab-b")).status).toBe(409);
+    expect((await write("tab-a")).status).toBe(200);
+    await lock("DELETE", "gui", "tab-a");
+    expect(existsSync(join(workspaceRoot, "runtime", "gui-state.json"))).toBe(false);
+    expect((await lock("POST", "gui", "tab-b")).status).toBe(200);
+  });
+
+  it("gui 잠금(#279): 에이전트 편집 결과도 연결된 탭만 쓰고, 연결을 풀어도 결과는 남는다", async () => {
+    expect((await lock("POST", "gui", "tab-b")).status).toBe(200);
+    const writeResult = (owner: string | null, requestId: string) => fetch(`${baseUrl}/__vs/file/runtime/agent-edit-result.json`, {
+      method: "PUT",
+      headers: owner === null ? {} : { "x-visual-spec-request-owner": owner },
+      body: JSON.stringify({ protocol: 1, requestId, status: "applied" }),
+    });
+    expect((await writeResult("tab-b", "b-new")).status).toBe(200);
+    // 연결을 잃은 줄 모르는 탭 A의 옛 결과, 주인 없는 쓰기 — 모두 거부
+    expect((await writeResult("tab-a", "a-old")).status).toBe(409);
+    expect((await writeResult(null, "anon")).status).toBe(409);
+    const resultPath = join(workspaceRoot, "runtime", "agent-edit-result.json");
+    expect(JSON.parse(readFileSync(resultPath, "utf8")).requestId).toBe("b-new");
+    await lock("DELETE", "gui", "tab-b");
+    expect(JSON.parse(readFileSync(resultPath, "utf8")).requestId).toBe("b-new");
+  });
 });
 

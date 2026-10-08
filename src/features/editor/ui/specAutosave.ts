@@ -39,7 +39,7 @@ export function startSpecAutosave() {
   let baseline = namedRecovery ? namedRecovery.baseline : read(key);
   let conflicted = recovery?.conflicted ?? false;
   let diskConflict = recovery?.diskConflict ?? false;
-  let pauseReason: PauseReason = recovery?.reason === "draft" ? "draft" : "remote";
+  let pauseReason: PauseReason = recovery?.reason === "draft" || recovery?.reason === "disk" ? recovery.reason : "remote";
   let renameBaseline = namedRecovery?.renameBaseline ?? null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
@@ -72,7 +72,7 @@ export function startSpecAutosave() {
   function preserve() {
     return writeRecovery({ document, key, baseline, conflicted, renameBaseline, diskConflict, reason: pauseReason });
   }
-  function pause(fromDisk = false, reason: PauseReason = "remote") {
+  function pause(fromDisk = false, reason: PauseReason = fromDisk ? "disk" : "remote") {
     diskConflict ||= fromDisk;
     conflicted = true;
     pauseReason = reason;

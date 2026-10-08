@@ -480,3 +480,23 @@ describe("document switch before the autosave debounce (#267)", () => {
     expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "draft" });
   });
 });
+
+describe("디스크 충돌 사유 (#279)", () => {
+  it("저장이 디스크 변경으로 막히면 다른 탭이 아니라 디스크 사유로 멈추고, 새로고침해도 유지한다", () => {
+    stop = startSpecAutosave();
+    useSaveConflictStore.getState().pause(true); // Save의 CAS 409/428 경로
+    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "disk" });
+    stop();
+    useSaveConflictStore.setState({ paused: false, reason: "remote" });
+    vi.stubGlobal("performance", { getEntriesByType: () => [{ type: "reload" }] });
+    stop = startSpecAutosave();
+    expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "disk" });
+  });
+
+  it("다른 탭 변경으로 멈출 때는 그대로 다른 탭 사유다", () => {
+    stop = startSpecAutosave();
+    useSaveConflictStore.getState().pause();
+    expect(useSaveConflictStore.getState().reason).toBe("remote");
+  });
+});
+

@@ -16,6 +16,7 @@ Visual Spec Builder 작업의 진입점이다. 여기에는 절차도 스키마 
 | Spec을 React/Tailwind 코드로 구현해야 한다 | [visual-spec-to-react](../visual-spec-to-react/SKILL.md) |
 | 스키마 계약·용어·문서 원문을 찾아봐야 한다 | [visual-spec-docs](../visual-spec-docs/SKILL.md) |
 | 편집기 GUI를 켜 달라("Visual Spec 켜줘", "편집기 열어줘") | 아래 "GUI 켜기" 절 |
+| GUI가 열려 있는데(`.visual-spec/runtime/gui-state.json`이 1분 안에 갱신됨) 이 대화에서 "버튼 색 바꿔줘"처럼 화면 수정을 요청받았다 — 스펙 파일을 직접 고치지 않는다 | [visual-spec-nl-response](../visual-spec-nl-response/SKILL.md)의 "대화에서 바로 고치기" 절 |
 | GUI가 `.visual-spec/runtime/nl-request.json`을 써 뒀다(자연어 입력창 요청에 Command로 응답해야 한다) | [visual-spec-nl-response](../visual-spec-nl-response/SKILL.md) |
 
 | GUI가 `.visual-spec/runtime/ticket-request.json`을 써 뒀다(구현 티켓 파일을 만들고 결과를 응답해야 한다) | [visual-spec-ticket-response](../visual-spec-ticket-response/SKILL.md) |

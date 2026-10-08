@@ -211,6 +211,12 @@ export interface EditorState {
    * 0.1·0.2 → 0.3 변환은 여기 오기 전에 입구(store/loadSpec.ts)가 끝낸다(#127).
    */
   loadSpec: (spec: VisualSpec | ProjectSpec) => void;
+  /**
+   * 같은 문서의 내용을 밖에서 바뀐 것으로 갈아 끼운다(#279 — 열린 파일이 디스크에서 바뀜).
+   * `loadSpec`과 달리 **같은 문서**다: `documentId`와 history를 유지하고 한 단계로 쌓아,
+   * Undo 한 번이 불러오기 전 내용으로 돌아간다. 활성 페이지·선택은 남아 있으면 유지한다.
+   */
+  replaceSpecFromOutside: (spec: ProjectSpec) => void;
   /** Filesystem rename metadata; preserve edits, selection and undo history. */
   renameProject: (name: string) => void;
   /**
@@ -557,6 +563,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: initHistory(makeSnapshot(project, project.pageOrder[0])),
     }));
   },
+  replaceSpecFromOutside: (spec) =>
+    set((state) => {
+      const activePageId = spec.pages[state.activePageId] ? state.activePageId : spec.pageOrder[0];
+      const page = spec.pages[activePageId];
+      return {
+        spec,
+        activePageId,
+        selectedId: activePageId === state.activePageId && state.selectedId !== null && page.nodes[state.selectedId] ? state.selectedId : null,
+        focusRootId: activePageId === state.activePageId && state.focusRootId !== null && page.nodes[state.focusRootId] ? state.focusRootId : null,
+        history: pushHistory(state.history, makeSnapshot(spec, activePageId)),
+      };
+    }),
   insertNode: (parentId, id, node) =>
     set((state) => {
       // #131: 직접 노드를 만들지 않고 createNode Command를 거친다 — parent가

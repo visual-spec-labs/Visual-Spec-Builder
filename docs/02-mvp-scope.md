@@ -92,6 +92,18 @@ Codex를 직접 실행하고 인증한다. GUI는 요청 파일을 작성하고 
 
 - 자연어: `runtime/nl-request.json` → 외부 에이전트의 Command 응답 → GUI 검증·Undo 한 단계.
 - 티켓: `runtime/ticket-request.json` → 외부 에이전트의 `generated/` 코드 작성·결과 응답.
+- 외부 대화 편집(#279): 사용자가 GUI 입력창이 아니라 에이전트 대화에서 바로 화면 수정을 요청한 경우다.
+  GUI가 `runtime/gui-state.json`에 지금 문서·페이지·선택·상태 버전(`stateRevision`)을 공개하고(열린 동안
+  10초마다 갱신), 에이전트는 스펙 파일 대신 `runtime/agent-edit.json`에 Command 배열과 읽은 상태 버전
+  (`baseStateRevision`)을 쓴다. GUI는 상태가 그대로일 때만 자연어 경로와 같은 관문(G1~G3)으로 Undo 한
+  단계로 적용하고, 배경을 바꾸면 사용자 확인을 받는다. 결과(`applied`·`pending`·`rejected`·`invalid`와
+  이유)는 `runtime/agent-edit-result.json`에 쓰고 GUI에도 알린다. 한 작업공간에서 GUI 탭 하나만
+  연결된다(`/__vs/request-lock/gui`) — 연결된 탭을 닫으면 `gui-state.json`이 정리되고 다른 탭이 이어받는다.
+- 열린 파일의 디스크 변경(#279): 에디터에서 이름 있는 파일을 연 동안 GUI가 3초마다 디스크 버전을 확인한다.
+  내용이 지금 화면과 같으면(방금 저장) 버전만 맞추고, 미저장 편집이 없으면 디스크 내용을 Undo 한 단계로
+  불러와 알리며, 미저장 편집이 있으면 불러올지 묻는다(유지하면 다음 저장이 디스크 충돌 확인으로 이어진다).
+  검증에 실패하는 내용은 불러오지 않고 알린다. 에이전트는 여전히 열린 GUI에는 Command 통로를 쓴다 —
+  파일을 직접 고치면 3초 지연과 위 확인을 거친다.
 - 위 경로는 `.visual-spec/` 기준이다. GUI의 중지는 응답 대기만 중단하므로 실행 중인
   외부 에이전트에는 사용자가 별도로 중지를 지시해야 한다.
 - 두 요청 파일은 작업공간마다 한 자리이므로 **종류별로 한 번에 한 요청만 기다린다**(#273).
@@ -127,6 +139,10 @@ Codex를 직접 실행하고 인증한다. GUI는 요청 파일을 작성하고 
 | Panda CSS / styled-components 출력 | 같은 IR을 쓰는 출력 어댑터로 나중에 추가 |
 | Image · Shape · Pen 도구 | [04-gui-spec.md](04-gui-spec.md) 도구 모음 참고 |
 | Help 메뉴 | 동일 |
+| 실행 앱 셸·라우터 설정·배포 설정 | Export는 컴포넌트 묶음이다(아래 "Export 제공 범위"). 사용자의 기존 앱에 넣어 쓴다 |
+| 폼 상태·입력 검증·제출, 데이터 불러오기 | `value`/`onChange`/`bindings`가 IR 제외 범위다. 폼 바인딩을 #265의 이벤트 설계 뒤 별도로 검토하는 안은 미확정 제안이다([21](21-app-scope-a11y-design.md)) |
+| 인증·세션·백엔드 | 현재 Export가 제공하지 않는다. 로그인 화면의 모양만 만들며 장기 지원 여부는 미정이다 |
+| hover·focus·disabled 등 상태 스타일 | IR의 `states`가 제외 범위다. 브라우저 기본 focus 표시 보존은 후속 생성 규칙으로 명시·검증할 목표이며 현재 보장이 아니다([21](21-app-scope-a11y-design.md)) |
 
 스키마 수준의 제외 범위는 [05-schema.md](05-schema.md)에 따로 있다.
 
@@ -155,7 +171,7 @@ IR은 v0.1로 동결을 시작한 뒤 06의 절차를 거쳐 v0.2(`ProjectSpec`,
 
 ## 결과물 원칙
 
-Export된 폴더는 가능한 한 독립적으로 동작해야 한다.
+Export된 폴더는 경로 별칭 없이 다른 앱에 그대로 넣어 쓸 수 있어야 한다. 혼자 실행되는 앱이라는 뜻은 아니다(아래 "Export 제공 범위").
 
 - 프로젝트 전용 경로 별칭 사용 금지
 - 상대 경로 import 사용
@@ -174,19 +190,33 @@ import { Button } from "./components/Button";
 Export 결과 예시:
 
 ```
-visual-spec-export/
-└── dashboard/
-    ├── components/
-    │   ├── DashboardHeader.tsx
-    │   ├── Sidebar.tsx
-    │   ├── StatCard.tsx
-    │   └── UserTable.tsx
-    ├── DashboardPage.tsx
-    ├── styles/
-    ├── assets/
-    ├── package.json
-    └── README.md
+dashboard/
+├── pages/
+│   └── DashboardPage.tsx
+├── components/
+│   ├── DashboardHeader.tsx
+│   ├── Sidebar.tsx
+│   ├── StatCard.tsx
+│   └── UserTable.tsx
+├── assets/          참조한 이미지가 있을 때
+├── package.json     필요한 패키지 목록
+└── README.md        실행·통합 방법과 검증 결과
 ```
+
+### Export 제공 범위 (#285)
+
+Export는 **실행 앱이 아니라 화면 단위 React 컴포넌트 묶음**이다. 페이지·컴포넌트·이미지·필요한 패키지
+목록·README를 주고, 사용자가 이미 React + Tailwind CSS가 있는 앱에 넣어 쓴다. 앱 셸(`index.html`·`main.tsx`)·
+라우터 설정·폼 상태와 제출·데이터 불러오기·인증·백엔드·hover/focus/disabled 상태 스타일·배포 설정은 현재 제공하지 않는다. 입력 타입·label·이미지
+alt 같은 의미 속성은 아직 IR에 없어 코드 생성이 보수적으로 근사한다(`alt=""`, 타입 없는 `<input>`).
+현재 지원 범위와 미확정 후속 제안은 [21](21-app-scope-a11y-design.md)에 있다. Export 화면과 ZIP의 README도 같은 범위를 적는다.
+
+> **정정 이력 (2026-10-07, #285)**
+> 이 절과 위 "MVP 제외 범위"의 앱 셸·폼·데이터·인증·상태 스타일 행을 더했다. 지금까지 README만
+> "컴포넌트 묶음"이라고 적고 범위 문서와 Export 화면에는 없어, 받은 ZIP을 실행 앱으로 기대할 수 있었다.
+> 같은 이유로 "결과물 원칙"의 첫 문장("가능한 한 독립적으로 동작해야 한다")을 "다른 앱에 그대로 넣어 쓸 수
+> 있어야 한다"로 고치고, 결과 예시를 실제 배치(`pages/`·`components/`·`assets/`, `styles/` 없음 —
+> `export/bundle.ts` 머리 주석)로 바꿨다. 제공물 자체는 바뀌지 않았다.
 
 ## 구현 단위
 

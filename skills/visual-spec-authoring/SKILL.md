@@ -7,6 +7,13 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 이 스킬이 지금 상황에 맞지 않으면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)를 대신 연다.
 
+**GUI가 열려 있으면 `.visual-spec/specs/`의 파일을 직접 고치지 않는다.** `.visual-spec/runtime/gui-state.json`이
+1분 안에 갱신됐으면 GUI가 그 문서를 열고 있을 수 있고, 파일을 고쳐도 GUI에 반영되지 않으며 미저장
+초안·Undo가 어긋난다. 그때는 [visual-spec-nl-response](../visual-spec-nl-response/SKILL.md)의 "대화에서 바로
+고치기" 절대로 GUI에 Command를 보낸다(#279). GUI가 꺼져 있거나 다른 파일을 고칠 때만 이 스킬로 파일을 쓴다.
+(열린 GUI는 그 파일의 디스크 변경을 몇 초 안에 감지해 불러오거나, 사용자에게 미저장 편집이 있으면 묻는다 —
+그래도 열린 문서는 Command 통로가 미저장 초안·Undo를 가장 정확히 보존한다.)
+
 ## 뼈대
 
 최소 유효 문서는 이 모양이다. 실물은 `examples/empty-title-screen.json` 이다(사용자 프로젝트에서는 함께 설치된 `../visual-spec/contract/examples/`).
