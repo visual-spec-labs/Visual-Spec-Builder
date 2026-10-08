@@ -669,10 +669,32 @@ async function runValidate(files) {
 }
 
 /**
+ * GUI 개발 서버에 넘길 `NODE_ENV`(이슈 #314).
+ *
+ * 사용자는 GUI를 이 개발 서버로 쓴다. 그대로 두면 React가 **개발 모드**로 돌아, 노드 1000개
+ * 문서에서 편집 한 번에 JS 작업이 약 175ms 걸린다(production이면 약 24ms — 실측은
+ * docs/22-performance-baseline.md). 개발 모드의 경고·성능 트랙 기록은 이 저장소를 고치는
+ * 사람에게만 쓸모 있다. 그래서 CLI로 띄울 때는 `production`을 넘겨 Vite가 React production
+ * 빌드를 쓰게 한다. 작업공간 미들웨어는 그대로 개발 서버의 것이다.
+ *
+ * 그 대가로 개발 모드에서만 있던 것이 사라진다: React Fast Refresh(소스가 바뀌면 상태 보존
+ * 갱신 대신 페이지 전체를 새로 고친다), StrictMode의 effect 이중 실행, 자세한 React 오류 문구
+ * (production은 `Minified React error #…`). 셋 다 이 저장소를 고치는 사람에게 필요한 것이라
+ * `pnpm dev`나 `VISUAL_SPEC_REACT_DEV=1`에서 그대로 쓸 수 있다.
+ *
+ * 저장소에서 `pnpm dev`로 띄우는 개발자는 이 함수를 거치지 않으므로 개발 모드 그대로다.
+ * CLI로 띄우면서 개발 모드가 필요하면(React 경고를 보며 디버깅) `VISUAL_SPEC_REACT_DEV=1`.
+ */
+export function guiNodeEnv(env) {
+  return env.VISUAL_SPEC_REACT_DEV === "1" ? "development" : "production";
+}
+
+/**
  * 이 패키지 자신의 Vite 개발 서버를 띄운다 — `--open`으로 기본 브라우저를 연다.
  * `stdio: "inherit"`이라 Ctrl+C가 그대로 전달되고, 서버가 찍는 로그(로컬 URL 등)도
- * 그대로 이 터미널에 보인다. `pnpm dev`와 동작은 같고, 사용자 프로젝트 어디서
- * 실행하든 이 패키지 자신의 개발 서버가 뜬다는 점만 다르다.
+ * 그대로 이 터미널에 보인다. `pnpm dev`와 같은 개발 서버지만 React는 production 빌드로
+ * 돈다(위 `guiNodeEnv`, #314). 사용자 프로젝트 어디서 실행하든 이 패키지 자신의 개발
+ * 서버가 뜬다.
  *
  * **이 프로세스(부모)가 신호를 받으면 자식(vite)에도 그대로 전달한다.** 실제 터미널의
  * Ctrl+C는 foreground process group 전체에 SIGINT가 가서 원래도 문제없지만, 다른
@@ -685,22 +707,6 @@ async function runValidate(files) {
  * 직접 테스트하다 만났다 — 이 부모가 자식이 끝나기만 무한정 기다리면, 부모 자신도 안
  * 끝나고 vite도 고아로 남는다. 3초는 임의로 정한 값이다 — 정상 종료는 훨씬 빨리 끝난다.
  */
-/**
- * GUI 개발 서버에 넘길 `NODE_ENV`(이슈 #314).
- *
- * 사용자는 GUI를 이 개발 서버로 쓴다. 그대로 두면 React가 **개발 모드**로 돌아, 노드 1000개
- * 문서에서 편집 한 번에 JS 작업이 약 175ms 걸린다(production이면 약 24ms — 실측은
- * docs/22-performance-baseline.md). 개발 모드의 경고·성능 트랙 기록은 이 저장소를 고치는
- * 사람에게만 쓸모 있다. 그래서 CLI로 띄울 때는 `production`을 넘겨 Vite가 React production
- * 빌드를 쓰게 한다. 작업공간 미들웨어·HMR 서버는 그대로 개발 서버의 것이다.
- *
- * 저장소에서 `pnpm dev`로 띄우는 개발자는 이 함수를 거치지 않으므로 개발 모드 그대로다.
- * CLI로 띄우면서 개발 모드가 필요하면(React 경고를 보며 디버깅) `VISUAL_SPEC_REACT_DEV=1`.
- */
-export function guiNodeEnv(env) {
-  return env.VISUAL_SPEC_REACT_DEV === "1" ? "development" : "production";
-}
-
 function runGui() {
   const viteEntry = resolveViteEntry();
   warnAboutInstalledSkills(process.cwd());

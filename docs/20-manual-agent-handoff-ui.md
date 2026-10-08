@@ -280,7 +280,8 @@ cleanup이 플래그를 끄고, 그걸 켜 줄 코드가 setup에 없으니 두 
 표시가 **한 번도 뜨지 않는다** — 클립보드 쓰기 자체는 되는데 사용자는 성공도
 실패(권한 거절 등)도 알 길이 없다. `bin/visual-spec.mjs`로 띄우는 `npx
 visual-spec`도 같은 Vite 개발 서버(= 같은 StrictMode)라 테스트 환경이 아니라
-실사용 경로에서도 그대로 터지는 지적이었다.
+실사용 경로에서도 그대로 터지는 지적이었다. (#314 이후 CLI 기본 경로는 React production이라
+StrictMode 이중 실행은 `pnpm dev`·`VISUAL_SPEC_REACT_DEV=1`에서만 일어난다. 가드는 그대로 둔다.)
 
 **원인.** "마운트 상태 추적"을 React 컴포넌트 안의 `useRef(true)` + cleanup만
 있는 `useEffect`로 짰다. 이 패턴 자체가 StrictMode를 가정하지 않은 흔한

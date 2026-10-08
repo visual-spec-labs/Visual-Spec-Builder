@@ -296,11 +296,16 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
       let homeMs = null;
       const until = Date.now() + 120_000;
       while (homeMs === null) {
-        homeMs = await evaluate(cdp, sessionId,
-          `document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects} ? performance.now() : null`,
+        const seen = await evaluate(cdp, sessionId,
+          `document.querySelectorAll('[aria-label$=" 이름 변경"]').length >= ${scenario.projects}
+            ? { t: performance.now(), nav: performance.getEntriesByType("navigation")[0]?.type ?? null } : null`,
           Math.max(1000, until - Date.now()))
           // 페이지를 바꾸는 중의 평가 실패(실행 컨텍스트 교체 등)만 넘긴다. 연결 끊김·시간 초과는 그대로 실패시킨다.
           .catch((error) => { if (error.message.startsWith("DevTools")) throw error; return null; });
+        // 기다리는 사이 개발 서버가 페이지를 새로 고쳤으면(의존성 재최적화) performance.now()가 0부터 다시
+        // 시작해 홈 시간이 짧게 잡힌다 — 이 반복은 버리고 다시 잰다.
+        if (seen !== null && seen.nav === "reload") throw new Error("page navigated or closed (개발 서버 재로드)");
+        homeMs = seen?.t ?? null;
         if (homeMs === null) { if (Date.now() > until) throw new Error("홈 시간 초과"); await sleep(10); }
       }
       if (rep === profileRep) {

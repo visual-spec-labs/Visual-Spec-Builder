@@ -129,7 +129,7 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
       writeFileSync(join(binDir, "vite.js"), 'console.log("NODE_ENV=" + process.env.NODE_ENV);\n');
 
       // 바깥 NODE_ENV(vitest는 test)와 상관없이 production이다.
-      const production = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot, NODE_ENV: "test" });
+      const production = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot, NODE_ENV: "test", VISUAL_SPEC_REACT_DEV: "" });
       expect(production.exitCode).toBe(0);
       expect(production.stdout.trim()).toBe("NODE_ENV=production");
 
