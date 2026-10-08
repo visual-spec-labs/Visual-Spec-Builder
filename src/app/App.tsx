@@ -8,6 +8,7 @@ import { startAgentEditBridge } from "@/features/editor/ui/agentEditBridge";
 import { startDiskWatch } from "@/features/editor/ui/diskWatch";
 import { AgentEditNotice } from "@/features/editor/ui/AgentEditNotice";
 import { SaveConflictDialog } from "@/features/editor/ui/SaveConflictDialog";
+import { PromptDialog } from "@/features/editor/ui/PromptDialog";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { ThemeProvider } from "@/features/editor/ui/ThemeProvider";
 
@@ -24,6 +25,7 @@ export function App() {
         {screen === "home" ? <HomeScreen /> : <EditorLayout />}
       </div>
       <SaveConflictDialog />
+      <PromptDialog />
       <AgentEditNotice />
     </ThemeProvider>
   );

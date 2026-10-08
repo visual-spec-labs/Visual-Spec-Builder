@@ -27,6 +27,7 @@ import { canRedo, canUndo } from "@/features/editor/command/history";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
 import { resolveImportParent } from "@/features/editor/store/resolveImportParent";
+import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { resolveLayerDrop } from "@/features/editor/ui/layerDrop";
 import { PanelRail } from "@/features/editor/ui/PanelRail";
 import { PanelResizeHandle } from "@/features/editor/ui/PanelResizeHandle";
@@ -427,6 +428,9 @@ export function LayerTree() {
 
     function handleKeyDown(event: KeyboardEvent) {
       if (useSaveConflictStore.getState().paused) return;
+      // PromptDialog(#288)가 떠 있는 동안의 Ctrl/Cmd+Z가 다이얼로그 뒤의 문서를
+      // 되돌리면 안 된다 — canvasKeys.ts의 같은 보강과 같은 이유다.
+      if (usePromptDialogStore.getState().state.kind !== "closed") return;
       // 패널의 입력칸 등에서는 브라우저 기본 되돌리기(텍스트 편집 undo)를 그대로 둔다 —
       // 여기서 가로채면 "방금 타이핑한 글자"가 아니라 "직전 노드 편집"이 되돌아간다.
       if (isEditableTarget(event.target)) return;

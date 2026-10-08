@@ -6,6 +6,7 @@ import {
   resolveFilename,
   type ExportResult,
 } from "@/features/editor/store/exportSpec";
+import { promptText } from "@/features/editor/store/promptDialogStore";
 import {
   isWorkspaceAvailable,
   writeWorkspaceFile,
@@ -16,9 +17,13 @@ import { SPEC_DIR, WORKSPACE_MISSING_REVISION } from "@/features/workspace/proto
  * 브라우저 다운로드를 트리거하는 UI 레이어 래퍼(DOM 부수효과).
  * 검증(buildExportPayload)은 store에 두고 순수하게 테스트하며,
  * document/Blob/URL을 쓰는 이 파일은 DOM lib이 있는 ui/ 아래에만 둔다.
+ *
+ * export 전용이 아니다(#288) — `homeProjects.ts`가 검증에 실패한 파일의 원본
+ * 텍스트를 사용자가 내려받게 할 때도 이 함수를 쓴다. 그래서 이름이 json이 아니라
+ * text다 — 검증을 통과한 JSON만 담는다는 보장이 없다.
  */
-function downloadJson(filename: string, json: string): void {
-  const blob = new Blob([json], { type: "application/json" });
+export function downloadTextFile(filename: string, text: string): void {
+  const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -37,7 +42,7 @@ function downloadJson(filename: string, json: string): void {
 export function exportSpecAsJson(spec: ProjectSpec): ExportResult {
   const result = buildExportPayload(spec);
   if (result.ok) {
-    downloadJson(result.filename, result.json);
+    downloadTextFile(result.filename, result.json);
   } else {
     const details = result.issues.slice(0, 3).map((issue) => `${issue.path}: ${issue.message}`);
     const remaining = result.issueCount > 3 ? `\n외 ${result.issueCount - 3}건` : "";
@@ -64,7 +69,7 @@ export function exportSpecAsJson(spec: ProjectSpec): ExportResult {
 async function saveToWorkspace(filename: string, json: string, isCurrent: () => boolean): Promise<{ revision: string | null } | null> {
   if (!(await isWorkspaceAvailable())) {
     if (!isCurrent()) return null;
-    downloadJson(filename, json);
+    downloadTextFile(filename, json);
     return { revision: null };
   }
 
@@ -141,7 +146,7 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
   }
 
   const current = useDocumentStore.getState().fileName ?? result.filename;
-  const chosenName = window.prompt("파일명", current);
+  const chosenName = await promptText({ title: "다른 이름으로 저장", initialValue: current, confirmLabel: "저장" });
   if (chosenName === null) {
     return null;
   }
@@ -158,7 +163,7 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
 export function downloadConflictCopy(spec: ProjectSpec): ExportResult {
   const result = buildExportPayload(spec);
   if (result.ok) {
-    downloadJson(`conflict-copy-${crypto.randomUUID()}.json`, result.json);
+    downloadTextFile(`conflict-copy-${crypto.randomUUID()}.json`, result.json);
   }
   return result;
 }

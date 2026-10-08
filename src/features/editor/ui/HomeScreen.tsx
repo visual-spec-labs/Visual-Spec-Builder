@@ -9,7 +9,9 @@ import type {
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { setHomeDraft } from "@/features/editor/store/homeDraft";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
+import { promptText } from "@/features/editor/store/promptDialogStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
+import { downloadTextFile } from "@/features/editor/ui/exportSpecAsJson";
 import { HOME_DRAFT_EXAMPLES } from "@/features/editor/ui/homeDraftExamples";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
@@ -22,7 +24,13 @@ import {
   previewTextStyle,
 } from "@/features/editor/ui/homePreview";
 import { renameProject } from "./renameProject";
-import { loadWorkspaceProjects, loadWorkspaceProjectsProgressively, openHomeProject, type HomeProject } from "./homeProjects";
+import {
+  loadWorkspaceProjects,
+  loadWorkspaceProjectsProgressively,
+  openHomeProject,
+  type HomeProject,
+  type HomeProjectFailure,
+} from "./homeProjects";
 
 const PREVIEW_WIDTH = 208;
 const PREVIEW_HEIGHT = 140;
@@ -41,9 +49,11 @@ const PREVIEW_HEIGHT = 140;
  * 마운트 시 `listWorkspaceFileEntries(SPEC_DIR)`로 목록을, 파일마다
  * `readWorkspaceTextFile`+`parseSpecJson`(+화면 문서면 `migrateV01`)로 내용을 읽는다.
  * **작업공간이 없으면**(`listWorkspaceFileEntries`가 `null`, 정적 빌드 등) 조용히
- * 예전처럼 메모리 spec 한 장짜리 상태 1로 되돌아간다. **파싱에 실패한 파일은
- * 목록에서 조용히 뺀다** — 깨진 파일 하나 때문에 카드 전체가 안 뜨는 것보다 낫다.
- * 결과가 0개면 상태 2, 1개 이상이면 상태 1 — 같은 조건 하나로 갈린다.
+ * 예전처럼 메모리 spec 한 장짜리 상태 1로 되돌아간다. **읽기·검증에 실패한
+ * 파일은 카드가 되지 못하지만 조용히 사라지지 않는다**(#288) — 사유(읽기 실패/
+ * 검증 실패)와 함께 "손상된 파일" 섹션에 남고, 다시 확인·원본 다운로드 진입점을
+ * 준다(`homeProjects.ts`의 `HomeProjectFailure`). 카드 수가 0개면 상태 2,
+ * 1개 이상이면 상태 1 — 손상 파일 유무와 무관하게 **유효한** 카드 수로만 갈린다.
  *
  * **"자연어로 초안 만들기"는 홈 화면 안에서 먼저 작성한다**(#286). 상태 2(빈
  * 목록)에서 그 타일을 고르면 입력창·초안 예시·수동 에이전트 안내를 보여주는
@@ -67,8 +77,10 @@ const PREVIEW_HEIGHT = 140;
 type HomeState =
   | { kind: "loading" }
   | { kind: "no-workspace" }
-  /** `loading`이면 앞쪽 카드만 읽었고 뒤를 마저 읽는 중이다(#316). */
-  | { kind: "ready"; projects: HomeProject[]; loading: boolean };
+  /** `loading`이면 앞쪽 카드만 읽었고 뒤를 마저 읽는 중이다(#316). `failures`는
+   * 읽기/검증에 실패한 파일(#288) — 지금까지 읽은 묶음 기준이라 `loading`일 때도
+   * 계속 늘어날 수 있다. */
+  | { kind: "ready"; projects: HomeProject[]; failures: HomeProjectFailure[]; loading: boolean };
 
 export function HomeScreen() {
   const spec = useEditorStore((s) => s.spec);
@@ -100,8 +112,9 @@ export function HomeScreen() {
     const reads = new AbortController();
     abortLoad.current = () => reads.abort();
     // 앞에서부터 묶음으로 읽어 첫 화면 카드를 먼저 그린다(#316). 뒤 묶음은 이어 붙기만 한다.
+    // 못 읽거나 검증에 실패한 파일도 묶음마다 failures에 쌓인다(#288).
     void loadWorkspaceProjectsProgressively(
-      (projects, done) => setState({ kind: "ready", projects, loading: !done }),
+      (projects, failures, done) => setState({ kind: "ready", projects, failures, loading: !done }),
       { isCancelled: stale, signal: reads.signal },
     ).then((exists) => {
       if (!stale() && !exists) setState({ kind: "no-workspace" });
@@ -111,6 +124,19 @@ export function HomeScreen() {
       reads.abort();
     };
   }, []);
+
+  // 손상 파일 섹션의 "다시 확인"과 Rename 이후 둘 다 같은 새로고침이 필요하다(#288).
+  // 아직 뒤를 읽는 처음 읽기가 남아 있으면 먼저 멈춘다 — 안 그러면 그 진행 중인
+  // onProgress가 나중에 끝나며 이 새로고침 결과를 덮어쓸 수 있다.
+  async function refreshProjects() {
+    loadGeneration.current += 1;
+    abortLoad.current();
+    const result = await loadWorkspaceProjects();
+    if (result !== null) setState({ kind: "ready", ...result, loading: false });
+    // 다시 읽기에 실패해도(작업공간 연결 끊김 등) 처음 읽기는 이미 멈췄다 — 보이던 목록을 두고
+    // "불러오는 중"만 끈다. 그대로 두면 표시가 영영 남는다.
+    else setState((current) => (current.kind === "ready" ? { ...current, loading: false } : current));
+  }
 
   // "+ 새 화면"도 File ▸ New와 같은 동작이다 — 빈 스펙을 열고 **현재 문서 이름을
   // 비운다**(PR #145 리뷰). 비우지 않으면 새로 만든 화면의 Save가 직전에 열어 둔
@@ -154,7 +180,12 @@ export function HomeScreen() {
 
   async function handleRename(project: HomeProject) {
     if (renaming) return;
-    const name = window.prompt("프로젝트 이름 (저장 파일명도 함께 변경됩니다)", project.spec.name);
+    const name = await promptText({
+      title: "프로젝트 이름 변경",
+      message: "저장 파일명도 함께 변경됩니다.",
+      initialValue: project.spec.name,
+      confirmLabel: "이름 변경",
+    });
     if (name === null) return;
     setRenaming(true);
     setMessage(null);
@@ -163,11 +194,7 @@ export function HomeScreen() {
     const result = await renameProject(project.fileName, name);
     if (!result.ok) setMessage(result.error);
     else if (drawnPreviews.current.has(project.fileName)) drawnPreviews.current.add(result.path.split("/").pop() ?? "");
-    const projects = await loadWorkspaceProjects();
-    if (projects !== null) setState({ kind: "ready", projects, loading: false });
-    // 다시 읽기에 실패해도(작업공간 연결 끊김 등) 처음 읽기는 이미 멈췄다 — 보이던 목록을 두고
-    // "불러오는 중"만 끈다. 그대로 두면 표시가 영영 남는다.
-    else setState((current) => (current.kind === "ready" ? { ...current, loading: false } : current));
+    await refreshProjects();
     setRenaming(false);
   }
 
@@ -202,6 +229,7 @@ export function HomeScreen() {
           onOpen: () => void handleOpenProject(project),
           onRename: () => void handleRename(project),
         }));
+  const failures = state.kind === "ready" ? state.failures : [];
 
   if (cards.length === 0 && draftMode) {
     return (
@@ -279,7 +307,7 @@ export function HomeScreen() {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
         <div className="text-center">
-          <p className="text-lg font-semibold text-content-strong">첫 화면을 만들어 봅시다</p>
+          <p className="text-lg font-semibold text-content-strong">첫 프로젝트를 만들어 봅시다</p>
           <p className="mt-1 text-sm text-content-muted">어떻게 시작하시겠습니까?</p>
         </div>
         <div className="flex w-full max-w-sm flex-col divide-y divide-line overflow-hidden rounded-panel border border-line bg-surface">
@@ -304,9 +332,12 @@ export function HomeScreen() {
             onClick={() => void handleOpenExisting()}
             className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
           >
-            <span className="text-sm font-medium text-content-strong">기존 화면 불러오기</span>
+            <span className="text-sm font-medium text-content-strong">기존 프로젝트 불러오기</span>
             <span className="text-xs text-content-muted">JSON 파일을 엽니다</span>
           </button>
+        </div>
+        <div className="w-full max-w-sm">
+          <CorruptedFilesSection failures={failures} onRetry={() => void refreshProjects()} />
         </div>
       </div>
     );
@@ -326,7 +357,7 @@ export function HomeScreen() {
           onClick={() => void handleNewScreen()}
           className="rounded-control bg-primary px-3 py-1.5 text-sm font-medium text-text-on-accent hover:opacity-90"
         >
-          + 새 화면
+          + 새 프로젝트
         </button>
       </header>
 
@@ -343,7 +374,51 @@ export function HomeScreen() {
               onDrawn={() => drawnPreviews.current.add(card.key)} />
           ))}
         </div>
+        <CorruptedFilesSection failures={failures} onRetry={() => void refreshProjects()} />
       </div>
+    </div>
+  );
+}
+
+/** 읽기/검증에 실패해 카드가 되지 못한 파일을 사유와 함께 보여준다(#288). */
+function CorruptedFilesSection({ failures, onRetry }: { failures: HomeProjectFailure[]; onRetry: () => void }) {
+  if (failures.length === 0) return null;
+
+  return (
+    <div className="mt-6 rounded-panel border border-line bg-surface p-4">
+      <p className="mb-2 text-sm font-medium text-content-strong">손상된 파일 {failures.length}개</p>
+      <ul className="flex flex-col gap-2">
+        {failures.map((failure) => (
+          <li key={failure.fileName} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <div className="min-w-0">
+              <p className="truncate text-content">.visual-spec/specs/{failure.fileName}</p>
+              <p className="text-xs text-content-muted">
+                {failure.reason === "read-failed"
+                  ? "파일을 읽을 수 없습니다."
+                  : `올바른 프로젝트 파일이 아닙니다 (검증 실패 ${failure.issueCount}건).`}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={onRetry}
+                className="rounded-control border border-line px-2 py-1 text-xs hover:bg-hover"
+              >
+                다시 확인
+              </button>
+              {failure.reason === "invalid" && (
+                <button
+                  type="button"
+                  onClick={() => downloadTextFile(failure.fileName, failure.rawText)}
+                  className="rounded-control border border-line px-2 py-1 text-xs hover:bg-hover"
+                >
+                  원본 다운로드
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore"
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
-import { resolveSpecChoice } from "@/features/editor/ui/specChoice";
+import { promptPick } from "@/features/editor/store/promptDialogStore";
 import {
   listWorkspaceFiles,
   readWorkspaceSpecSnapshot,
@@ -69,9 +69,9 @@ export function openSpecFromFileDialog(): void {
  * 02-mvp-scope.md가 정의한 "Open = 작업공간 specs에서 고르기"가 이 경로다. 작업공간이
  * 없거나(개발 서버 미들웨어 없음) 폴더가 비어 있으면 예전의 파일 다이얼로그로 되돌아간다.
  *
- * 고르는 UI가 `window.prompt`인 것은 절충이다 — 메뉴에서 바로 뜨는 모달 목록이
- * 더 낫지만 이 저장소엔 아직 다이얼로그 컴포넌트가 없고, 같은 파일의 Save as도
- * prompt를 쓰고 있다. 목록 UI는 별도 이슈로 남긴다.
+ * 고르는 UI는 `promptPick` 모달이다(#288 — 전엔 `window.prompt` 한 칸에 번호 매긴
+ * 목록을 통째로 보여주고 번호나 이름을 다시 타이핑해야 했다). 목록 항목을 그대로
+ * 클릭하므로 잘못 타이핑해 "목록에 없음"으로 끝나는 경로 자체가 없어진다.
  */
 export async function openSpec(): Promise<void> {
   const names = await listWorkspaceFiles(SPEC_DIR);
@@ -85,18 +85,12 @@ export async function openSpec(): Promise<void> {
     return;
   }
 
-  const listing = names.map((name, index) => `${index + 1}. ${name}`).join("\n");
-  const answer = window.prompt(
-    `.visual-spec/specs/ 에서 열 스펙의 번호나 이름:\n\n${listing}`,
-    "1",
-  );
-  if (answer === null) return;
-
-  const chosen = resolveSpecChoice(answer, names);
-  if (chosen === null) {
-    window.alert(`목록에 없는 스펙입니다: ${answer.trim()}`);
-    return;
-  }
+  const chosen = await promptPick({
+    title: "스펙 열기",
+    message: ".visual-spec/specs/ 에서 열 스펙을 선택하세요.",
+    items: names,
+  });
+  if (chosen === null) return;
 
   const snapshot = await readWorkspaceSpecSnapshot(`${SPEC_DIR}/${chosen}`);
   if (snapshot === null) {

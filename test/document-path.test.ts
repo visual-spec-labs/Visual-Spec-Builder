@@ -17,6 +17,7 @@ import { migrateV01 } from "@/features/editor/schema";
 import type { ProjectSpec, VisualSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { saveSpecToStorage } from "@/features/editor/store/specStorage";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { newSpec } from "@/features/editor/ui/newSpec";
@@ -47,9 +48,19 @@ let workspaceRoot: string;
 let handler: ReturnType<typeof createWorkspaceMiddleware>;
 
 const alerts: string[] = [];
-let promptAnswer: string | null = null;
 
 const realFetch = globalThis.fetch;
+
+/**
+ * `openSpec`/`saveSpecAs`가 쓰는 `promptPick`/`promptText`(#288)는 `window.prompt`가
+ * 아니라 스토어로 모달을 연다 — 호출부가 그 Promise를 기다리는 동안 다이얼로그가
+ * 열리기를 기다렸다가 답해야 한다(열리는 시점은 `listWorkspaceFiles` 같은 비동기
+ * 조회 뒤라 호출 직후 바로 열려 있다는 보장이 없다).
+ */
+async function answerPrompt(value: string | null): Promise<void> {
+  await vi.waitFor(() => expect(usePromptDialogStore.getState().state.kind).not.toBe("closed"));
+  usePromptDialogStore.getState().resolve(value);
+}
 
 /** 예제 스펙을 프로젝트로 올린 것. 파일 이름과 `spec.name`을 일부러 어긋나게 쓴다. */
 function dashboardSpec(): ProjectSpec {
@@ -111,7 +122,6 @@ beforeAll(async () => {
 
   vi.stubGlobal("window", {
     alert: (message: string) => alerts.push(message),
-    prompt: () => promptAnswer,
   });
   // 클라이언트는 `/__vs/...` 상대 경로로 부른다 — 브라우저에서는 문서 오리진이
   // 붙지만 node에는 그게 없다. 오리진만 붙여 진짜 서버로 보낸다.
@@ -132,7 +142,6 @@ beforeEach(() => {
   ensureWorkspaceDirs(workspaceRoot);
   handler = createWorkspaceMiddleware(workspaceRoot);
   alerts.length = 0;
-  promptAnswer = null;
   useDocumentStore.getState().clearFileName();
 });
 
@@ -149,8 +158,9 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
   });
 
   it("customer-copy.json(내부 이름은 Dashboard)을 열어 고치고 Save하면 그 파일이 갱신된다", async () => {
-    promptAnswer = "customer-copy.json";
-    await openSpec();
+    const pending = openSpec();
+    await answerPrompt("customer-copy.json");
+    await pending;
 
     expect(useEditorStore.getState().spec.name).toBe("Dashboard");
 
@@ -161,8 +171,9 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
   });
 
   it("Dashboard.json 같은 새 파일이 생기지 않는다 — 결함의 알맹이가 이것이다", async () => {
-    promptAnswer = "customer-copy.json";
-    await openSpec();
+    const pending = openSpec();
+    await answerPrompt("customer-copy.json");
+    await pending;
     renameActivePage("고친 페이지");
     await save();
 
@@ -171,8 +182,9 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
   });
 
   it("Save를 두 번 해도 같은 파일에 쓴다", async () => {
-    promptAnswer = "customer-copy.json";
-    await openSpec();
+    const pending = openSpec();
+    await answerPrompt("customer-copy.json");
+    await pending;
     renameActivePage("첫 번째");
     await save();
     const pageId = renameActivePage("두 번째");
@@ -182,17 +194,11 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
     expect(readSpecFile("customer-copy.json").pages[pageId].name).toBe("두 번째");
   });
 
-  it("번호로 골라 열어도 이름을 기억한다 — 목록의 1번이든 이름이든 같다", async () => {
-    promptAnswer = "1";
-    await openSpec();
-
-    expect(useDocumentStore.getState().fileName).toBe("customer-copy.json");
-  });
-
   it("고르기를 취소하면 현재 문서가 바뀌지 않는다", async () => {
     useDocumentStore.getState().setFileName("before.json");
-    promptAnswer = null;
-    await openSpec();
+    const pending = openSpec();
+    await answerPrompt(null);
+    await pending;
 
     expect(useDocumentStore.getState().fileName).toBe("before.json");
   });
@@ -200,8 +206,9 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
   it("검증에 실패한 파일은 현재 문서가 되지 않는다 — 안 열린 파일을 Save가 덮어쓰면 안 된다", async () => {
     writeFileSync(join(workspaceRoot, "specs", "broken.json"), "{ 이건 JSON이 아니다");
     useDocumentStore.getState().setFileName("customer-copy.json");
-    promptAnswer = "broken.json";
-    await openSpec();
+    const pending = openSpec();
+    await answerPrompt("broken.json");
+    await pending;
 
     expect(useDocumentStore.getState().fileName).toBe("customer-copy.json");
     expect(alerts.join("\n")).toContain("broken.json");
@@ -211,8 +218,9 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
 describe("Save as 다음의 Save도 그 파일에 쓴다 (PR #145 리뷰)", () => {
   it("Save as로 만든 foo.json을 이어서 Save가 갱신한다", async () => {
     await newSpec();
-    promptAnswer = "foo";
-    await saveSpecAs(useEditorStore.getState().spec);
+    const pending = saveSpecAs(useEditorStore.getState().spec);
+    await answerPrompt("foo");
+    await pending;
 
     expect(existsSync(join(workspaceRoot, "specs", "foo.json"))).toBe(true);
 
@@ -224,32 +232,24 @@ describe("Save as 다음의 Save도 그 파일에 쓴다 (PR #145 리뷰)", () =
   });
 
   it("Save as 기본값은 현재 문서 이름이다 — spec.name이 아니다", async () => {
-    let shown: string | undefined;
-    vi.stubGlobal("window", {
-      alert: (message: string) => alerts.push(message),
-      prompt: (_label: string, initial: string) => {
-        shown = initial;
-        return promptAnswer;
-      },
-    });
     useEditorStore.getState().loadSpec(dashboardSpec());
     useDocumentStore.getState().setFileName("customer-copy.json");
-    promptAnswer = "customer-copy-2";
 
-    await saveSpecAs(useEditorStore.getState().spec);
-
-    expect(shown).toBe("customer-copy.json");
-    vi.stubGlobal("window", {
-      alert: (message: string) => alerts.push(message),
-      prompt: () => promptAnswer,
-    });
+    const pending = saveSpecAs(useEditorStore.getState().spec);
+    await vi.waitFor(() => expect(usePromptDialogStore.getState().state.kind).toBe("text"));
+    const state = usePromptDialogStore.getState().state;
+    if (state.kind !== "text") throw new Error("unreachable");
+    expect(state.initialValue).toBe("customer-copy.json");
+    usePromptDialogStore.getState().resolve("customer-copy-2");
+    await pending;
   });
 
   it("Save as를 취소하면 아무것도 쓰지 않고 현재 문서도 그대로다", async () => {
     useDocumentStore.getState().setFileName("keep.json");
-    promptAnswer = null;
 
-    const result = await saveSpecAs(useEditorStore.getState().spec);
+    const pending = saveSpecAs(useEditorStore.getState().spec);
+    await answerPrompt(null);
+    const result = await pending;
 
     expect(result).toBeNull();
     expect(useDocumentStore.getState().fileName).toBe("keep.json");
@@ -259,9 +259,9 @@ describe("Save as 다음의 Save도 그 파일에 쓴다 (PR #145 리뷰)", () =
   it("저장이 거부되면 현재 문서 이름을 바꾸지 않는다 — 써 본 적 없는 파일을 가리키게 된다", async () => {
     useDocumentStore.getState().setFileName("keep.json");
     // `:`는 미들웨어가 거부하는 글자다(workspacePath.ts) — 실패하는 저장을 만든다.
-    promptAnswer = "a:b";
-
-    await saveSpecAs(useEditorStore.getState().spec);
+    const pending = saveSpecAs(useEditorStore.getState().spec);
+    await answerPrompt("a:b");
+    await pending;
 
     expect(useDocumentStore.getState().fileName).toBe("keep.json");
     expect(alerts.join("\n")).toContain("저장할 수 없습니다");
@@ -277,8 +277,9 @@ describe("New는 현재 문서를 비운다 (PR #145 리뷰)", () => {
   });
 
   it("New 다음의 Save는 방금 열었던 파일을 덮어쓰지 않는다", async () => {
-    promptAnswer = "customer-copy.json";
-    await openSpec();
+    const pending = openSpec();
+    await answerPrompt("customer-copy.json");
+    await pending;
 
     await newSpec();
     expect(useDocumentStore.getState().fileName).toBeNull();
@@ -335,8 +336,11 @@ describe("새로고침해도 Save는 연 파일에 쓴다 (이슈 #185)", () => 
       join(workspaceRoot, "specs", "customer-copy.json"),
       JSON.stringify(dashboardSpec(), null, 2),
     );
-    promptAnswer = "customer-copy.json";
-    await openSpec();
+    {
+      const pending = openSpec();
+      await answerPrompt("customer-copy.json");
+      await pending;
+    }
     expect(useDocumentStore.getState().fileName).toBe("customer-copy.json");
 
     // "새로고침 전에 자동저장이 이미 한 번 돌았다"를 흉내 낸다 — App.tsx의
@@ -357,8 +361,11 @@ describe("새로고침해도 Save는 연 파일에 쓴다 (이슈 #185)", () => 
       join(workspaceRoot, "specs", "customer-copy.json"),
       JSON.stringify(dashboardSpec(), null, 2),
     );
-    promptAnswer = "customer-copy.json";
-    await openSpec();
+    {
+      const pending = openSpec();
+      await answerPrompt("customer-copy.json");
+      await pending;
+    }
     saveSpecToStorage(useEditorStore.getState().spec, useDocumentStore.getState().fileName, useDocumentStore.getState().diskRevision);
 
     vi.resetModules();
