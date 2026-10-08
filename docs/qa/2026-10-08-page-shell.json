@@ -1,0 +1,536 @@
+{
+  "browser": "151.0.7922.173",
+  "devicePixelRatio": 1,
+  "canvasZoomPercent": 100,
+  "method": "Actual GUI with schema-valid hand-authored geometry fixtures versus synthetic shell extracted from SKILL.md; no AI output or font parity claim.",
+  "results": [
+    {
+      "case": "fixed-short",
+      "viewport": [
+        390,
+        844
+      ],
+      "screenSize": {
+        "width": 390,
+        "height": 844
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 844,
+        "document": 844
+      }
+    },
+    {
+      "case": "fixed-tall-viewport",
+      "viewport": [
+        390,
+        1000
+      ],
+      "screenSize": {
+        "width": 390,
+        "height": 844
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 844,
+        "document": 1000
+      }
+    },
+    {
+      "case": "fixed-narrow-viewport",
+      "viewport": [
+        320,
+        1000
+      ],
+      "screenSize": {
+        "width": 390,
+        "height": 844
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 844,
+        "document": 1000
+      }
+    },
+    {
+      "case": "fixed-long",
+      "viewport": [
+        390,
+        844
+      ],
+      "screenSize": {
+        "width": 390,
+        "height": 844
+      },
+      "contentHeight": 1200,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 1200
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 1200
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 1200
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 1200
+        }
+      },
+      "scroll": {
+        "shell": 1200,
+        "document": 1200
+      }
+    },
+    {
+      "case": "responsive-short-767",
+      "viewport": [
+        767,
+        1000
+      ],
+      "screenSize": {
+        "width": 1440,
+        "height": 900
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 767,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 767,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 767,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 767,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 900,
+        "document": 1000
+      }
+    },
+    {
+      "case": "responsive-short-768",
+      "viewport": [
+        768,
+        1000
+      ],
+      "screenSize": {
+        "width": 1440,
+        "height": 900
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 900,
+        "document": 1000
+      }
+    },
+    {
+      "case": "responsive-short-769",
+      "viewport": [
+        769,
+        1000
+      ],
+      "screenSize": {
+        "width": 1440,
+        "height": 900
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 769,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 769,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 769,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 769,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 900,
+        "document": 1000
+      }
+    },
+    {
+      "case": "responsive-short-1023",
+      "viewport": [
+        1023,
+        1000
+      ],
+      "screenSize": {
+        "width": 1440,
+        "height": 900
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1023,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1023,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1023,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1023,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 900,
+        "document": 1000
+      }
+    },
+    {
+      "case": "responsive-short-1024",
+      "viewport": [
+        1024,
+        1000
+      ],
+      "screenSize": {
+        "width": 1440,
+        "height": 900
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 900,
+        "document": 1000
+      }
+    },
+    {
+      "case": "responsive-short-1025",
+      "viewport": [
+        1025,
+        1000
+      ],
+      "screenSize": {
+        "width": 1440,
+        "height": 900
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1025,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1025,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1025,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1025,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 900,
+        "document": 1000
+      }
+    },
+    {
+      "case": "responsive-short-1600",
+      "viewport": [
+        1600,
+        1000
+      ],
+      "screenSize": {
+        "width": 1440,
+        "height": 900
+      },
+      "contentHeight": 32,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 32
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 900
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 32
+        }
+      },
+      "scroll": {
+        "shell": 900,
+        "document": 1000
+      }
+    },
+    {
+      "case": "responsive-long",
+      "viewport": [
+        1600,
+        1000
+      ],
+      "screenSize": {
+        "width": 1440,
+        "height": 900
+      },
+      "contentHeight": 1200,
+      "gui": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 1200
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 1200
+        }
+      },
+      "syntheticShell": {
+        "root": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 1200
+        },
+        "content": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 1200
+        }
+      },
+      "scroll": {
+        "shell": 1200,
+        "document": 1200
+      }
+    }
+  ]
+}
