@@ -109,6 +109,13 @@ export function HomeScreen() {
   // code-review 대응) — Enter와 클릭이 겹치거나 Enter를 빠르게 두 번 누르면
   // newSpec()의 await 구간(settle()이 포함된다) 동안 handleCreateDraft가 다시
   // 들어와 newSpec()+setHomeDraft()+openEditor()가 겹쳐 실행될 수 있다.
+  //
+  // 같은 플래그로 아래 입력창·예시 칩·뒤로 버튼도 모두 잠근다(PR #312 리뷰
+  // 대응) — 실제 autosave Web Lock 경합으로 newSpec()의 settle()이 지연되는
+  // 동안 입력창이 열려 있으면, text를 캡처한 뒤에도 화면에서는 새 글자를
+  // 계속 칠 수 있다. 그 상태로 await가 끝나면 에디터에는 캡처해 둔 옛 값이
+  // 전달되는데 화면엔 사용자가 방금 친 새 값이 보이고 있었다 — 보이는 값과
+  // 실제로 전달되는 값이 조용히 갈라지는 결함이었다.
   async function handleCreateDraft() {
     if (submittingDraft) return;
     const text = draftText.trim();
@@ -188,10 +195,11 @@ export function HomeScreen() {
             type="text"
             value={draftText}
             onChange={(event) => setDraftText(event.target.value)}
+            disabled={submittingDraft}
             autoFocus
             aria-label="자연어 초안 설명"
             placeholder="예: 로그인 화면 — 이메일, 비밀번호 입력창과 로그인 버튼이 있는 화면"
-            className="rounded-control border border-line bg-surface px-3 py-2 text-sm text-content placeholder:text-content-muted"
+            className="rounded-control border border-line bg-surface px-3 py-2 text-sm text-content placeholder:text-content-muted disabled:opacity-60"
           />
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <span className="text-content-muted">예시</span>
@@ -199,11 +207,12 @@ export function HomeScreen() {
               <button
                 key={example.label}
                 type="button"
+                disabled={submittingDraft}
                 onClick={() => {
                   setDraftText(example.text);
                   draftInputRef.current?.focus();
                 }}
-                className="rounded-control border border-line px-2 py-1 text-content hover:bg-hover"
+                className="rounded-control border border-line px-2 py-1 text-content hover:bg-hover disabled:opacity-50"
               >
                 {example.label}
               </button>
