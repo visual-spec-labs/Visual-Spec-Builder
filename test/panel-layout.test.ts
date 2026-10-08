@@ -93,7 +93,7 @@ describe("loadPanelLayout/savePanelLayout (#287)", () => {
   });
 
   it("저장한 값을 그대로 읽어온다", () => {
-    const state = { treeCollapsed: true, treeWidth: 250, propsCollapsed: true, propsWidth: 400 };
+    const state = { treeCollapsed: true, treeWidth: 320, propsCollapsed: true, propsWidth: 400 };
     savePanelLayout(state);
     expect(loadPanelLayout()).toEqual(state);
   });

@@ -18,6 +18,8 @@ export type ToggleEntry = {
   label: string;
   checked: boolean;
   onToggle: () => void;
+  /** 지금은 눌러도 뜻이 없을 때(#287 리뷰 대응 — Export/티켓이 그 자리를 쓰는 동안 속성 패널 접기). */
+  disabled?: boolean;
 };
 export type SeparatorEntry = { kind: "separator" };
 

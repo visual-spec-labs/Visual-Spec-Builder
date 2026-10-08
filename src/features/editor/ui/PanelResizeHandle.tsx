@@ -1,4 +1,4 @@
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 import { MAX_PANEL_WIDTH, MIN_PANEL_WIDTH } from "@/features/editor/store/panelLayout";
 
@@ -34,6 +34,17 @@ export function PanelResizeHandle({
 }) {
   const sign = side === "right" ? 1 : -1;
 
+  // 드래그 도중 이 컴포넌트가 언마운트되면(패널이 접히거나, 홈으로 나가거나,
+  // showPanels가 꺼지는 등) window 리스너는 DOM 노드의 생사와 무관하므로
+  // 그대로 남아 mousemove마다 계속 폭을 바꾼다(#287 리뷰 대응 — "비차단
+  // 관찰"). 지금 드래그를 끝내는 함수를 ref에 쥐고 있다가 언마운트 시
+  // 한 번 불러 정리한다.
+  const endDragRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => endDragRef.current?.();
+  }, []);
+
   function handleMouseDown(event: ReactMouseEvent) {
     event.preventDefault();
     const startX = event.clientX;
@@ -50,11 +61,13 @@ export function PanelResizeHandle({
     function end() {
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", end);
+      endDragRef.current = null;
       // 드래그 내내 mousemove마다 localStorage에 쓰지 않는다(자체 code-review
       // 대응) — 끝났을 때 한 번만 저장한다.
       onCommit();
     }
 
+    endDragRef.current = end;
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", end);
   }

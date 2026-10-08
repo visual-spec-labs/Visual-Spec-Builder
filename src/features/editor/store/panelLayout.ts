@@ -17,12 +17,23 @@
 export const PANEL_RAIL_WIDTH = 32;
 
 /**
- * 펼친 패널의 폭 범위. 200px은 레이어 트리 행(아이콘+이름)과 속성 패널의
- * 라벨+필드 조합이 줄바꿈 없이 들어가는 최소선, 480px은 패널이 캔버스보다
- * 넓어지지 않도록 하는 상한이다(docs/22 "결정" 3번 — 정밀 측정이 아니라
- * 실제 콘텐츠를 보고 고른 값이라 필요하면 이 상수만 바꾸면 된다).
+ * 펼친 패널의 폭 범위. 480px은 패널이 캔버스보다 넓어지지 않도록 하는
+ * 상한이다.
+ *
+ * 280px은 추정이 아니라 **실제 Chromium 재현으로 고친 값**이다(#287 리뷰
+ * 대응). 처음엔 200px로 뒀는데(레이어 트리 행이 줄바꿈 없이 들어가는
+ * 선만 어림), 실제로 1024×768에서 속성 패널을 200px까지 줄이고 Button을
+ * 고르면 색상 hex·breakpoint ID 같은 텍스트 입력칸이 `clientWidth 20px`까지
+ * 눌려 좌우 padding(10px×2)이 그 20px을 통째로 먹어 **입력 텍스트 영역이
+ * 0px**이 됐다 — 그 칸들이 고정폭 스와치·불투명도·버튼과 한 줄(flex row)에
+ * 있어 줄어드는 폭을 거의 전부 떠안기 때문이다(`ColorField.tsx`의 hex
+ * input, `ResponsivePanel.tsx`의 "새 breakpoint ID" input). 내부 컨트롤을
+ * 반응형으로 바꾸는 대신(여러 필드 컴포넌트를 건드려야 하고 회귀 범위가
+ * 커진다) 최소 폭 자체를 그 실패 지점 위로 올렸다 — 350px(기본 속성 패널
+ * 폭)에서는 hex 159px·ID 163px로 정상이었던 것에서 거슬러 올라가, 실패
+ * 지점(200px)보다 확실히 위(약 60px 여유)인 280px로 잡았다.
  */
-export const MIN_PANEL_WIDTH = 200;
+export const MIN_PANEL_WIDTH = 280;
 export const MAX_PANEL_WIDTH = 480;
 
 export const DEFAULT_TREE_WIDTH = 300;

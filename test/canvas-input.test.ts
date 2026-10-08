@@ -478,6 +478,13 @@ describe("siblingNavDirectionForKey — Tab/Shift+Tab 형제 이동(#151)", () =
     expect(siblingNavDirectionForKey(tabKey({ role: "button" }))).toBeNull();
   });
 
+  it("role=separator에 포커스가 있으면 받지 않는다 — 패널 폭 조절 핸들에서 Tab은 네이티브 포커스 이동이어야 한다(#287 리뷰 대응)", () => {
+    expect(siblingNavDirectionForKey(tabKey({ tagName: "DIV", role: "separator" }))).toBeNull();
+    expect(
+      siblingNavDirectionForKey(tabKey({ tagName: "DIV", role: "separator", shiftKey: true })),
+    ).toBeNull();
+  });
+
   it("도구 모음에서 막 떨어진 포커스(toolbarFocusHandoff)면 받지 않는다 — 문서 탐색에 Tab을 돌려준다(#275 리뷰 2차 대응)", () => {
     expect(siblingNavDirectionForKey(tabKey({ toolbarFocusHandoff: true }))).toBeNull();
     expect(

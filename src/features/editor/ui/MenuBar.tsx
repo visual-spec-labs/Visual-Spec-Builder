@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useExportStore } from "@/features/editor/store/exportStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
+import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { formatDocumentTitle } from "@/features/editor/ui/documentTitle";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
@@ -82,6 +84,11 @@ export function MenuBar() {
   const toggleTreeCollapsed = useViewStore((s) => s.toggleTreeCollapsed);
   const propsCollapsed = useViewStore((s) => s.propsCollapsed);
   const togglePropsCollapsed = useViewStore((s) => s.togglePropsCollapsed);
+  // Export/구현 티켓이 속성 패널 자리를 쓰는 동안은 그 자리를 접을 수 없게
+  // 한다(#287 리뷰 대응) — 접으면 32px 레일에 Export/티켓 내용이 그대로
+  // 눌려 렌더된다. openExportPanel.ts/openTicketPanel.ts가 열 때 이미 펼쳐
+  // 두므로, 여기서는 "열려 있는 동안 다시 접지 못하게"만 막으면 된다.
+  const propsSlotBusy = useExportStore((s) => s.isOpen) || useTicketStore((s) => s.isOpen);
 
   const FILE_MENU: MenuEntry[] = [
     { kind: "action", label: "New", onSelect: () => void newSpec() },
@@ -109,7 +116,13 @@ export function MenuBar() {
     // 개별 패널 접기(#287) — "Panels/Sidebars"는 둘 다 숨기고, 이 둘은 한쪽만
     // 좁은 레일로 접는다. 체크 표시는 "펼쳐져 있는가"다(접힘의 반대).
     { kind: "toggle", label: "Layers Panel", checked: !treeCollapsed, onToggle: toggleTreeCollapsed },
-    { kind: "toggle", label: "Properties Panel", checked: !propsCollapsed, onToggle: togglePropsCollapsed },
+    {
+      kind: "toggle",
+      label: "Properties Panel",
+      checked: !propsCollapsed,
+      onToggle: togglePropsCollapsed,
+      disabled: propsSlotBusy,
+    },
   ];
 
   useEffect(() => {
