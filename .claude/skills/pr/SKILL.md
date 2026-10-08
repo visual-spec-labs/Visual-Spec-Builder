@@ -20,7 +20,7 @@ git diff develop...HEAD --stat
 ```
 
 - `main` 병합이 명시된 경우에는 위 두 비교 명령의 `develop`을 `main`으로 바꿔 실행한다.
-- 현재 브랜치가 `develop`이면 피처 브랜치가 아니므로 PR 준비를 중단한다.
+- 선택한 base와 현재 브랜치가 같으면 PR 준비를 중단한다. 단, 사용자가 `develop`에서 `main`으로의 릴리스 승격을 명시한 경우에는 `develop` 브랜치에서 진행할 수 있다.
 - PR 준비 요약과 승인 요청에 실제 base(`develop` 또는 명시적으로 요청된 `main`)를 표시한다.
 - 원격 브랜치에 push 되지 않은 경우 → PR 생성 전 push 여부를 사용자에게 묻는다
 
@@ -31,11 +31,14 @@ git diff develop...HEAD --stat
 아래 명령어를 순서대로 실행한다. 실패 시 PR을 진행하지 않는다.
 
 ```bash
-npx tsc --noEmit
-npm run lint 2>/dev/null || echo "lint 스크립트 없음, 건너뜀"
-npm test --passWithNoTests 2>/dev/null || echo "test 스크립트 없음, 건너뜀"
-npm run build
+pnpm run typecheck
+pnpm run lint
+pnpm test
+pnpm run build
 ```
+
+명령의 종료 코드와 오류 출력을 그대로 확인한다. 실패를 `|| true`, `|| echo` 등으로
+성공 처리하거나 오류 출력을 숨기지 않는다.
 
 테스트 결과 출력:
 
@@ -45,8 +48,8 @@ npm run build
 | 항목 | 결과 |
 |---|---|
 | TypeScript 타입 검사 | ✅ 통과 / ❌ 실패 |
-| ESLint | ✅ 통과 / ⏭️ 건너뜀 / ❌ 실패 |
-| 단위 테스트 | ✅ 통과 / ⏭️ 건너뜀 / ❌ 실패 |
+| ESLint | ✅ 통과 / ❌ 실패 |
+| 단위 테스트 | ✅ 통과 / ❌ 실패 |
 | 빌드 | ✅ 통과 / ❌ 실패 |
 ```
 
@@ -61,27 +64,39 @@ npm run build
 **PR 제목**: `type: 한글 요약` 형태, 70자 이내
 - type: `feat` | `fix` | `refactor` | `chore` | `style` | `docs`
 
-**PR 본문 형식** (`.github/PULL_REQUEST_TEMPLATE.md` 준수):
+**PR 본문 형식**: 먼저 현재 `.github/PULL_REQUEST_TEMPLATE.md`를 읽고 모든 섹션과 체크리스트를 유지해 작성한다. 저장소 템플릿은 다음과 같다:
 ```markdown
+## 변경 사항 요약
+<!-- 이 PR에서 무엇을, 왜 변경했는지 간단히 설명해주세요 -->
+
+
+## 변경 유형
+<!-- 해당하는 항목에 [x] 표시 -->
+- [ ] ✨ 기능 추가 (feat)
+- [ ] 🐛 버그 수정 (fix)
+- [ ] ♻️ 리팩토링 (refactor)
+- [ ] 💄 스타일 / UI (style)
+- [ ] 📝 문서 (docs)
+- [ ] ✅ 테스트 (test)
+- [ ] 🔧 설정 / 빌드 (chore)
+
+
 ## 관련 이슈
+<!-- 예: Closes #12, Related to #34 -->
 
-- closes #(연결된 이슈 번호 — 없으면 줄 삭제, 연결 이슈가 여러개면 다 적기)
 
-## 작업 내용
-
--
-
-## 변경 사항
-
--
-
-## 스크린샷 (선택)
+## 테스트 방법
+<!-- 리뷰어가 변경 사항을 확인할 수 있는 방법을 적어주세요 -->
 
 ## 체크리스트
+- [ ] 로컬에서 정상 동작을 확인했습니다
+- [ ] 셀프 리뷰를 진행했습니다
+- [ ] 관련 문서를 업데이트했습니다 (필요 시)
+- [ ] 리뷰어를 지정했습니다
+- [ ] 제목 접두어와 같은 라벨을 1개만 달았습니다
 
-- [ ] 코드가 정상적으로 동작하는지 확인했습니다
-- [ ] 불필요한 console.log 또는 디버깅 코드를 제거했습니다
-- [ ] 컨벤션에 맞게 작성했습니다
+## 리뷰어에게 남기는 말
+<!-- 중점적으로 봐줬으면 하는 부분, 논의가 필요한 부분 등 -->
 ```
 
 ---
@@ -93,7 +108,7 @@ npm run build
 ```
 ## PR 준비 완료
 
-**브랜치**: feature/xxx → develop (또는 명시적으로 요청된 main)
+**브랜치**: `<현재 브랜치>` → `<선택한 base>`
 **포함 커밋**: N개
 
 **제안 PR 제목**:
@@ -113,7 +128,7 @@ npm run build
 
 ### 5단계 — PR 생성
 
-사용자가 승인하면 선택한 base를 생략하지 않고 PR을 생성해 URL을 출력한다. 기본 생성 명령은 다음과 같다. `main` 병합이 명시된 경우에만 `--base main`을 사용한다.
+사용자가 승인하면 선택한 base를 생략하지 않고 PR을 생성해 URL을 출력한다. 기본 명령은 다음과 같으며, 명시적 릴리스 승격일 때만 `develop`을 `main`으로 바꾼다.
 
 ```bash
 gh pr create --base develop
