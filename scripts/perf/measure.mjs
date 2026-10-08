@@ -213,14 +213,16 @@ window.__perf = {
   inputStop() {
     const record = this.record;
     record.running = false;
+    // 아직 전달되지 않은 항목(마지막 그리기 뒤의 입력 — 드래그에서는 떼기)도 챙긴다.
+    for (const entry of record.observer.takeRecords()) record.events.push({ name: entry.name, duration: entry.duration });
     record.observer.disconnect();
     const gaps = record.frames.slice(1).map((t, i) => t - record.frames[i]);
     const sorted = [...gaps].sort((a, b) => a - b);
     const durations = record.events.map((e) => e.duration).sort((a, b) => a - b);
     return {
       frames: record.frames.length,
-      // 60Hz에서 한 번에 25ms를 넘으면 vsync를 한 번 이상 놓쳤다.
-      missed: gaps.filter((g) => g > 25).length,
+      // 놓친 vsync 수(60Hz): 간격이 16.7ms의 몇 배인지에서 1을 뺀다(33ms 간격 = 1, 50ms = 2).
+      missed: gaps.reduce((sum, g) => sum + Math.max(0, Math.round(g / (1000 / 60)) - 1), 0),
       gapP95: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
       gapMax: sorted[sorted.length - 1] ?? 0,
       // Event Timing: 처리+화면 반영까지 16ms를 넘은 입력 이벤트(키·마우스)
@@ -415,7 +417,8 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
       let typing = null;
       let drag = null;
       if (input && rep !== profileRep) {
-        // 타이핑: 속성 패널 "텍스트" 칸에 30자를 INPUT_KEY_INTERVAL_MS 간격으로 친다(16ms = 키를 누르고 있을 때의 반복).
+        // 타이핑: 속성 패널 "텍스트" 칸에 30자를 Input.insertText로 넣는다 — 텍스트 삽입(beforeinput/input)이며
+        // keydown·IME 조합은 거치지 않는다. 한 글자 처리가 끝나야 다음을 보내므로 실제 간격은 처리 시간 + INPUT_KEY_INTERVAL_MS.
         await step(`window.__perf.selectAndFocus("t0")`);
         await step("window.__perf.inputStart()");
         for (const char of "가나다라마바사아자차카타파하abcdefghijklmnop") {
@@ -424,6 +427,9 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
         }
         await sleep(200);
         typing = await step("window.__perf.inputStop()");
+        // 텍스트가 실제로 들어갔는가 — 칸을 잘못 잡았으면 빈 시간을 잰 셈이다.
+        typing.applied = await step(`(async () => { const e = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState();
+          return e.spec.pages[e.activePageId].nodes.t0.content.length >= 30; })()`);
         await step(`(async () => { const e = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState();
           while (e.history?.past?.length ?? 0) { (await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState().undo(); if (!(await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState().history.past.length) break; } return true; })()`);
         // 드래그: 캔버스의 카드 c1을 c3 위치로 20단계에 걸쳐 끈다(같은 섹션 안 순서 바꾸기).
@@ -492,6 +498,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
       typing: Object.fromEntries(["missed", "gapP95", "gapMax", "slowEvents", "eventP95", "eventMax"].map((k) => [k, summary((r) => r.typing[k])])),
       drag: Object.fromEntries(["missed", "gapP95", "gapMax", "slowEvents", "eventP95", "eventMax"].map((k) => [k, summary((r) => r.drag[k])])),
       dragMoved: results.every((r) => r.drag.moved),
+      typingApplied: results.every((r) => r.typing.applied),
     } : {}),
     export: summary((r) => r.exportMs),
     zipKB: Math.round(results[0].zipBytes / 1024), generatedFiles: results[0].files,
@@ -518,7 +525,7 @@ for (const key of args.scenarios) {
 for (const result of out) {
   if (result.typing) {
     const g = (o) => `놓친 프레임 ${o.missed.median}·간격 p95 ${o.gapP95.median}·최대 ${o.gapMax.median}ms·느린 입력 ${o.slowEvents.median}건(p95 ${o.eventP95.median}·최대 ${o.eventMax.median}ms)`;
-    console.log(`  ${result.key} 타이핑 30자: ${g(result.typing)}`);
+    console.log(`  ${result.key} 텍스트 삽입 30자: ${g(result.typing)} · 들어갔는가 ${result.typingApplied}`);
     console.log(`  ${result.key} 드래그 20단계: ${g(result.drag)} · 노드가 옮겨졌는가 ${result.dragMoved}`);
   }
 }
