@@ -411,6 +411,7 @@ export function LayerTree() {
   const {
     collapsed: panelCollapsed,
     width: panelWidth,
+    maxWidth: panelMaxWidth,
     setWidth: setPanelWidth,
     toggleCollapsed: togglePanelCollapsed,
     commitPanelLayout,
@@ -539,6 +540,7 @@ export function LayerTree() {
       <PanelResizeHandle
         side="right"
         width={panelWidth}
+        maxWidth={panelMaxWidth}
         onResize={setPanelWidth}
         onCommit={commitPanelLayout}
         label="레이어 패널 폭 조절"

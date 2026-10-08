@@ -122,15 +122,25 @@ export function MenuBar() {
     { kind: "toggle", label: "Show Grid", checked: showGrid, onToggle: toggleGrid },
     { kind: "toggle", label: "Panels/Sidebars", checked: showPanels, onToggle: togglePanels },
     // 개별 패널 접기(#287) — "Panels/Sidebars"는 둘 다 숨기고, 이 둘은 한쪽만
-    // 좁은 레일로 접는다. 체크 표시는 "펼쳐져 있는가"다(접힘의 반대).
+    // 좁은 레일로 접는다. 체크 표시는 "지금 실제로 보이는가"다 —
+    // !collapsed만 보면 안 된다(자체 code-review 대응). showPanels가
+    // 꺼져 있으면 treeCollapsed/propsCollapsed가 뭐든 두 패널 다 안 보이는데
+    // (`EditorLayout.tsx`), showPanels를 안 보면 접힘 상태만으로 "펼쳐짐 ✓"
+    // 표시가 떠 — 실제로는 전체 토글에 가려 안 보이는데 체크가 돼 있는
+    // 모순이 생긴다.
     // toggleTreePanel/togglePropsPanel을 쓴다(원본 액션을 직접 안 쓴다) —
     // 펼치는 방향이면 저장된 폭을 Canvas 최소 폭 기준으로 보정한다(#287
     // 리뷰 4차 대응, panelToggle.ts 참고).
-    { kind: "toggle", label: "Layers Panel", checked: !treeCollapsed, onToggle: toggleTreePanel },
+    {
+      kind: "toggle",
+      label: "Layers Panel",
+      checked: showPanels && !treeCollapsed,
+      onToggle: toggleTreePanel,
+    },
     {
       kind: "toggle",
       label: "Properties Panel",
-      checked: !propsCollapsed,
+      checked: showPanels && !propsCollapsed,
       onToggle: togglePropsPanel,
       disabled: propsSlotBusy,
     },

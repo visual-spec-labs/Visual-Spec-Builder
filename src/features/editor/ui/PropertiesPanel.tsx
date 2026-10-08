@@ -84,6 +84,7 @@ export function PropertiesPanel() {
   const {
     collapsed: panelCollapsed,
     width: panelWidth,
+    maxWidth: panelMaxWidth,
     setWidth: setPanelWidth,
     toggleCollapsed: togglePanelCollapsed,
     commitPanelLayout,
@@ -109,6 +110,7 @@ export function PropertiesPanel() {
       <PanelResizeHandle
         side="left"
         width={panelWidth}
+        maxWidth={panelMaxWidth}
         onResize={setPanelWidth}
         onCommit={commitPanelLayout}
         label="속성 패널 폭 조절"

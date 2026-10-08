@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_PROPS_WIDTH, DEFAULT_TREE_WIDTH } from "@/features/editor/store/panelLayout";
 import { useViewStore } from "@/features/editor/store/viewStore";
-import { togglePropsPanel, toggleTreePanel } from "@/features/editor/ui/panelToggle";
+import {
+  reconcilePanelWidths,
+  togglePropsPanel,
+  toggleTreePanel,
+} from "@/features/editor/ui/panelToggle";
 
 /**
  * `toggleTreePanel`/`togglePropsPanel`은 React 훅이 아니라 평범한 함수다
@@ -83,5 +87,64 @@ describe("toggleTreePanel/togglePropsPanel (#287 리뷰 4차 대응)", () => {
     useViewStore.setState({ treeCollapsed: true, propsCollapsed: false });
     toggleTreePanel();
     expect(useViewStore.getState().treeWidth).toBe(DEFAULT_TREE_WIDTH);
+  });
+});
+
+/**
+ * `reconcilePanelWidths`는 접힘→펼침을 한 번도 안 거치고 저장된 폭이 그대로
+ * 렌더되는 경로(넓은 모니터에서 저장한 값을 좁은 창에서 처음 열 때)를
+ * 다룬다(#287 리뷰 5차 대응) — `toggleTreePanel`/`togglePropsPanel`의 보정은
+ * "토글이 일어날 때"만 걸리므로 이 경로를 못 잡는다. `EditorLayout.tsx`가
+ * 마운트 시 한 번 부른다.
+ */
+describe("reconcilePanelWidths (#287 리뷰 5차 대응)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("window", { innerWidth: 1024 });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("양쪽 다 펼쳐진 채 480/480이 저장돼 있으면(접힘을 한 번도 안 거친 경로) 둘 다 Canvas 최소 폭을 지키게 깎는다", () => {
+    useViewStore.setState({
+      treeCollapsed: false,
+      treeWidth: 480,
+      propsCollapsed: false,
+      propsWidth: 480,
+    });
+
+    reconcilePanelWidths();
+
+    const { treeWidth, propsWidth } = useViewStore.getState();
+    const canvasWidth = 1024 - treeWidth - propsWidth;
+    expect(canvasWidth).toBeGreaterThanOrEqual(300);
+  });
+
+  it("접힌 패널의 저장된 폭은 안 건드린다 — 화면에 안 쓰이는 값이라 깎을 이유가 없다", () => {
+    useViewStore.setState({
+      treeCollapsed: true,
+      treeWidth: 480,
+      propsCollapsed: false,
+      propsWidth: DEFAULT_PROPS_WIDTH,
+    });
+
+    reconcilePanelWidths();
+
+    expect(useViewStore.getState().treeWidth).toBe(480);
+  });
+
+  it("기본값처럼 이미 괜찮으면 아무것도 안 바꾼다", () => {
+    useViewStore.setState({
+      treeCollapsed: false,
+      treeWidth: DEFAULT_TREE_WIDTH,
+      propsCollapsed: false,
+      propsWidth: DEFAULT_PROPS_WIDTH,
+    });
+
+    reconcilePanelWidths();
+
+    expect(useViewStore.getState().treeWidth).toBe(DEFAULT_TREE_WIDTH);
+    expect(useViewStore.getState().propsWidth).toBe(DEFAULT_PROPS_WIDTH);
   });
 });

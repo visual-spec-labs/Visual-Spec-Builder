@@ -29,16 +29,21 @@ export function usePanelResize(side: "tree" | "props") {
   const commitPanelLayout = useViewStore((s) => s.commitPanelLayout);
 
   // 창 폭 대비 동적 상한(#287 리뷰 대응) — 반대쪽 패널이 지금 쓰는 폭(접혀
-  // 있으면 레일 폭)을 빼 Canvas 최소 폭을 지킨다.
+  // 있으면 레일 폭)을 빼 Canvas 최소 폭을 지킨다. `setWidth`뿐 아니라
+  // `PanelResizeHandle`의 `aria-valuemax`에도 이 값을 그대로 쓴다(자체
+  // code-review 대응) — 정적 MAX_PANEL_WIDTH를 그대로 공표하면, 반대쪽
+  // 패널 때문에 실제로는 더 못 늘어나는데도 스크린 리더가 "480까지 가능"
+  // 이라고 말해 버린다. `window.innerWidth`가 바뀌는 건 패널 상태와 무관한
+  // 렌더 트리거가 없는 한 즉시 반영되지 않는다 — 창 폭 변화에 실시간으로
+  // 반응하는 건 이 기능의 범위 밖이다(docs/22 "결정" 6번과 같은 이유), 이
+  // 훅이 재렌더되는 시점(접기·폭 조절 등)마다의 값만 보장한다.
+  const maxWidth = maxResizableWidth(window.innerWidth, effectivePanelWidth(otherCollapsed, otherWidth));
+
   function setWidth(nextWidth: number) {
-    const max = maxResizableWidth(
-      window.innerWidth,
-      effectivePanelWidth(otherCollapsed, otherWidth),
-    );
-    rawSetWidth(Math.min(nextWidth, max));
+    rawSetWidth(Math.min(nextWidth, maxWidth));
   }
 
   const toggleCollapsed = side === "tree" ? toggleTreePanel : togglePropsPanel;
 
-  return { collapsed, width, setWidth, toggleCollapsed, commitPanelLayout };
+  return { collapsed, width, maxWidth, setWidth, toggleCollapsed, commitPanelLayout };
 }

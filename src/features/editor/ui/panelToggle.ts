@@ -42,3 +42,42 @@ export function togglePropsPanel(): void {
   }
   state.togglePropsCollapsed();
 }
+
+/**
+ * 지금 펼쳐진 패널들의 폭이 지금 창 기준으로 여전히 괜찮은지 확인하고,
+ * 아니면 줄인다(#287 리뷰 5차 대응). 위 두 함수의 보정은 **접힘→펼침이
+ * 일어나는 순간**에만 걸린다 — 그런데 localStorage에 저장된 폭은 넓은
+ * 모니터에서 만들어졌을 수 있고, 좁은 창에서 처음 앱을 열면(collapse/
+ * expand를 한 번도 안 거치고) 그 넓은 값이 그대로 렌더부터 적용된다.
+ * `EditorLayout.tsx`가 마운트될 때 한 번 불러 그 간극을 메운다.
+ *
+ * 창 폭 변화에 실시간으로 반응하는 자동 규칙은 만들지 않는다(docs/22
+ * "결정" 6번과 같은 이유 — 언제 줄어들지 예측하기 어렵다) — 이 함수는
+ * **마운트 시 한 번**만 불린다, 에디터를 쓰는 도중의 OS 창 크기 변경에는
+ * 반응하지 않는다.
+ *
+ * 두 패널을 순서대로 보정할 때마다 `getState()`를 다시 불러야 한다 —
+ * 트리를 먼저 깎으면 그 결과가 속성 쪽 "반대편 폭" 계산에 반영돼야
+ * 하므로, 한 번 떠 둔 스냅샷을 재사용하면 안 된다.
+ */
+export function reconcilePanelWidths(): void {
+  if (!useViewStore.getState().treeCollapsed) {
+    const state = useViewStore.getState();
+    const corrected = widthAfterExpand(
+      state.treeWidth,
+      window.innerWidth,
+      effectivePanelWidth(state.propsCollapsed, state.propsWidth),
+    );
+    if (corrected !== state.treeWidth) state.setTreeWidth(corrected);
+  }
+  if (!useViewStore.getState().propsCollapsed) {
+    const state = useViewStore.getState();
+    const corrected = widthAfterExpand(
+      state.propsWidth,
+      window.innerWidth,
+      effectivePanelWidth(state.treeCollapsed, state.treeWidth),
+    );
+    if (corrected !== state.propsWidth) state.setPropsWidth(corrected);
+  }
+  useViewStore.getState().commitPanelLayout();
+}

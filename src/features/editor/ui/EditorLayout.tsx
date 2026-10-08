@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent } from "react";
+import { useEffect, type CSSProperties, type MouseEvent } from "react";
 
 import { useExportStore } from "@/features/editor/store/exportStore";
 import { PANEL_RAIL_WIDTH } from "@/features/editor/store/panelLayout";
@@ -10,6 +10,7 @@ import { ExportPanel } from "@/features/editor/ui/ExportPanel";
 import { LayerTree } from "@/features/editor/ui/LayerTree";
 import { MenuBar } from "@/features/editor/ui/MenuBar";
 import { NaturalLanguageBar } from "@/features/editor/ui/NaturalLanguageBar";
+import { reconcilePanelWidths } from "@/features/editor/ui/panelToggle";
 import { PropertiesPanel } from "@/features/editor/ui/PropertiesPanel";
 import { Toolbar } from "@/features/editor/ui/Toolbar";
 import { TicketPanel } from "@/features/editor/ui/TicketPanel";
@@ -66,6 +67,16 @@ export function EditorLayout() {
   const gridStyle: CSSProperties = {
     gridTemplateColumns: `${columnWidth(treeCollapsed, treeWidth)}px 1fr ${columnWidth(propsCollapsed, propsWidth)}px`,
   };
+
+  // 저장된 폭이 지금 창 기준으로는 더 이상 괜찮지 않을 수 있다(#287 리뷰
+  // 5차 대응) — 넓은 모니터에서 저장한 값을 좁은 창에서 처음 열면, 접힘·
+  // 펼침을 한 번도 안 거치고 그 값이 그대로 렌더부터 적용된다. 마운트
+  // 시(= 홈에서 에디터로 들어올 때마다, `App.tsx`가 서브트리를 통째로
+  // 새로 마운트한다) 한 번만 맞춘다 — 창 크기 변경에 실시간으로 반응하는
+  // 자동 규칙은 의도적으로 안 만든다(docs/22 "결정" 6번).
+  useEffect(() => {
+    reconcilePanelWidths();
+  }, []);
 
   return (
     // overflow-hidden 이 필요하다. transform 은 레이아웃 박스를 바꾸지 않지만

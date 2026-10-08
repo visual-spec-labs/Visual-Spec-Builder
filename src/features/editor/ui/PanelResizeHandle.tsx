@@ -1,6 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 
-import { MAX_PANEL_WIDTH, MIN_PANEL_WIDTH } from "@/features/editor/store/panelLayout";
+import { MIN_PANEL_WIDTH } from "@/features/editor/store/panelLayout";
 
 /** 키보드로 한 번 누를 때 늘고 주는 폭(px). */
 const KEYBOARD_STEP = 16;
@@ -20,12 +20,20 @@ const KEYBOARD_STEP = 16;
 export function PanelResizeHandle({
   side,
   width,
+  maxWidth,
   onResize,
   onCommit,
   label,
 }: {
   side: "left" | "right";
   width: number;
+  /**
+   * 지금 창 폭·반대쪽 패널 기준의 실제 상한(#287 리뷰 5차 대응,
+   * `usePanelResize.ts`의 `maxWidth` 참고) — `aria-valuemax`에 정적
+   * `MAX_PANEL_WIDTH`를 그대로 공표하면, 반대쪽 패널 때문에 실제로는
+   * 더 못 늘어나는데도 스크린 리더가 "더 늘릴 수 있다"고 말해 버린다.
+   */
+  maxWidth: number;
   /** 드래그 중(mousemove)·키 조절마다 부른다 — state만 바꾼다(저장 안 함). */
   onResize: (nextWidth: number) => void;
   /** 드래그가 끝나거나(mouseup) 키 조절 한 번이 끝났을 때 한 번 불러 저장한다. */
@@ -111,7 +119,7 @@ export function PanelResizeHandle({
       aria-orientation="vertical"
       aria-label={label}
       aria-valuemin={MIN_PANEL_WIDTH}
-      aria-valuemax={MAX_PANEL_WIDTH}
+      aria-valuemax={maxWidth}
       aria-valuenow={width}
       tabIndex={0}
       onMouseDown={handleMouseDown}
