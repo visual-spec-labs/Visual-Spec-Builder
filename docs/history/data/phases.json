@@ -73,7 +73,7 @@
       "title": "표현의 폭을 넓히다 — 스키마와 편집 모델",
       "start": "2026-09-01",
       "end": "2026-09-11",
-      "summary": "노드 5종·여러 페이지 프로젝트(v0.2)로 스키마를 넓히고, 노드·페이지 필드 편집을 Command에 연결했다. 노드 삽입과 페이지 추가·삭제의 Undo는 이후 #142에서 이어졌다.",
+      "summary": "노드 5종·여러 페이지 프로젝트(v0.2)로 스키마를 넓히고, 노드·페이지 필드 편집을 Command에 연결했다.",
       "stats": {
         "phase": "p3",
         "mergedPRs": 32,
@@ -140,12 +140,12 @@
       "title": "몰아친 하루 — 배경과 반응형",
       "start": "2026-10-03",
       "end": "2026-10-04",
-      "summary": "캔버스 드래그, 채우기 겹 배경(v0.3), 반응형 스키마와 그룹이 하루에 들어왔다. 커밋 142개.",
+      "summary": "캔버스 드래그, 채우기 겹 배경(v0.3), 반응형 스키마와 그룹이 이어졌다.",
       "stats": {
         "phase": "p6",
         "mergedPRs": 24,
         "approved": 3,
-        "commits": 142,
+        "commits": 130,
         "issuesOpened": 22,
         "prAuthors": {
           "dogui1018": 1,
@@ -157,15 +157,15 @@
       "id": "p7",
       "order": 7,
       "slug": "first-run",
-      "title": "첫 완주 — MVP 전 구간 검증",
+      "title": "첫 완주 — 로그인 예제의 전체 흐름 검증",
       "start": "2026-10-05",
       "end": "2026-10-05",
-      "summary": "반응형·이미지 배경·실행 정책을 마무리하고, 로그인 예제의 설치부터 Export·독립 앱 통합까지 실제 Codex 3웨이브·4티켓으로 검증했다. 인증 기능·픽셀 동일성·AI 생성 출력 전반의 검증은 아니다.",
+      "summary": "로그인 예제를 실제 Codex 3웨이브·4티켓으로 생성하고, Export한 코드를 독립 앱에서 검증했다.",
       "stats": {
         "phase": "p7",
         "mergedPRs": 13,
         "approved": 1,
-        "commits": 25,
+        "commits": 37,
         "issuesOpened": 29,
         "prAuthors": {
           "Yumesa2025": 13
@@ -194,5 +194,22 @@
         }
       }
     }
-  ]
+  ],
+  "aggregation": {
+    "timezone": "Asia/Seoul",
+    "commits": {
+      "source": "commits.json",
+      "dateField": "committedAt",
+      "includeMergeCommits": true
+    },
+    "mergedPRs": {
+      "source": "events.json",
+      "dateField": "mergedAt"
+    },
+    "issuesOpened": {
+      "source": "issues.json",
+      "dateField": "createdAt"
+    },
+    "approved": "Number of PR records with review == approved in the original collection"
+  }
 }

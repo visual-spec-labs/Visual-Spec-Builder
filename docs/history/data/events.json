@@ -2641,7 +2641,8 @@
         "deletions": 63,
         "files": 13
       },
-      "issues": [
+      "issues": [],
+      "pullRequests": [
         237,
         261
       ]
@@ -2661,7 +2662,8 @@
         "deletions": 34,
         "files": 7
       },
-      "issues": [
+      "issues": [],
+      "pullRequests": [
         263
       ]
     },
