@@ -65,10 +65,11 @@ describe("effectivePanelWidth (#287)", () => {
 });
 
 describe("maxResizableWidth (#287 리뷰 대응 — 양쪽 MAX로 끌어도 Canvas 최소 폭을 지킨다)", () => {
-  it("넉넉한 창에서는 MAX_PANEL_WIDTH 그대로다", () => {
-    // 1920 - 350(반대쪽) - MIN_CANVAS_WIDTH = 1920-350-300=1270, MAX보다 커서
-    // 상한에 안 걸린다 — clampPanelWidth가 그 뒤에 다시 480으로 자른다.
-    expect(maxResizableWidth(1920, 350)).toBeGreaterThanOrEqual(MAX_PANEL_WIDTH);
+  it("넉넉한 창에서는 MAX_PANEL_WIDTH에서 멈춘다 — 이 함수 자신이 그 상한을 넘지 않는다(#287 리뷰 6차 대응)", () => {
+    // 1920 - 350(반대쪽) - MIN_CANVAS_WIDTH = 1920-350-300=1270인데, 그 값을
+    // 그대로 돌려주지 않는다 — aria-valuemax처럼 이 값을 그대로 보여주는
+    // 자리에서 실제로는 못 늘어나는 수치(1270)를 공표하면 안 되기 때문이다.
+    expect(maxResizableWidth(1920, 350)).toBe(MAX_PANEL_WIDTH);
   });
 
   it("최소 지원 폭(1024px)에서 반대쪽이 기본값(350)이면 그만큼 깎는다", () => {

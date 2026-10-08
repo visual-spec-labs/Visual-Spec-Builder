@@ -75,17 +75,25 @@ export function effectivePanelWidth(collapsed: boolean, width: number): number {
 }
 
 /**
- * 지금 창 폭에서 이 패널이 가질 수 있는 최대 폭(#287 리뷰 대응). 반대쪽
- * 패널이 지금 실제로 차지하는 폭(접혀 있으면 레일 폭)과 Canvas 최소 폭을
- * 뺀 나머지다. 창이 아주 좁아 그 나머지가 MIN_PANEL_WIDTH보다도 작아지면
- * MIN_PANEL_WIDTH를 돌려준다 — 이 함수는 "더 못 늘리게" 막는 상한일
- * 뿐이고, 하한(MIN_PANEL_WIDTH)을 침범하지는 않는다(펼친 패널이 그보다
- * 좁아지면 280px 결정 자체가 다시 깨진다, `clampPanelWidth` 참고). 그런
- * 아주 좁은 창에서는 Canvas가 더 줄어드는 쪽을 받아들인다 — 패널을 접는
- * 것이 그 상황의 실제 해법이다.
+ * 지금 창 폭에서 이 패널이 가질 수 있는 **실제로 달성 가능한** 최대 폭(#287
+ * 리뷰 대응). 반대쪽 패널이 지금 실제로 차지하는 폭(접혀 있으면 레일 폭)과
+ * Canvas 최소 폭을 뺀 나머지이되, 정적 상한(`MAX_PANEL_WIDTH`)도 넘지
+ * 않는다(#287 리뷰 6차 대응) — 창이 아주 넉넉해서 그 나머지가 480px보다
+ * 커도, 어차피 `clampPanelWidth`가 480에서 막으므로 그 이상은 "달성
+ * 가능"이 아니다. 이 캡이 없으면 `aria-valuemax`처럼 이 값을 그대로
+ * 보여주는 자리에서 실제로는 못 늘어나는 수치(예: 716px)를 공표하게
+ * 된다. 창이 아주 좁아 반대쪽+Canvas 최소 폭만으로도 모자라면
+ * `MIN_PANEL_WIDTH`를 돌려준다 — 이 함수는 "더 못 늘리게" 막는 상한일
+ * 뿐이고, 하한(`MIN_PANEL_WIDTH`)을 침범하지는 않는다(펼친 패널이 그보다
+ * 좁아지면 280px 결정 자체가 다시 깨진다). 그런 아주 좁은 창에서는
+ * Canvas가 더 줄어드는 쪽을 받아들인다 — 패널을 접는 것이 그 상황의 실제
+ * 해법이다.
  */
 export function maxResizableWidth(windowWidth: number, otherPanelEffectiveWidth: number): number {
-  return Math.max(MIN_PANEL_WIDTH, windowWidth - otherPanelEffectiveWidth - MIN_CANVAS_WIDTH);
+  return Math.min(
+    MAX_PANEL_WIDTH,
+    Math.max(MIN_PANEL_WIDTH, windowWidth - otherPanelEffectiveWidth - MIN_CANVAS_WIDTH),
+  );
 }
 
 /**
