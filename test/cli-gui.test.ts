@@ -119,6 +119,28 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
     }
   });
 
+  it("GUI 개발 서버는 React production 빌드로 띄우고, VISUAL_SPEC_REACT_DEV=1이면 개발 모드로 띄운다 (#314)", () => {
+    // 사용자 GUI가 React 개발 모드로 돌면 노드 1000개 편집 한 번에 약 175ms가 걸린다
+    // (docs/22-performance-baseline.md). 확인하려는 건 CLI가 넘기는 NODE_ENV뿐이다.
+    const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-fake-root-"));
+    try {
+      const binDir = join(fakeRoot, "node_modules", "vite", "bin");
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(join(binDir, "vite.js"), 'console.log("NODE_ENV=" + process.env.NODE_ENV);\n');
+
+      // 바깥 NODE_ENV(vitest는 test)와 상관없이 production이다.
+      const production = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot, NODE_ENV: "test" });
+      expect(production.exitCode).toBe(0);
+      expect(production.stdout.trim()).toBe("NODE_ENV=production");
+
+      const development = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot, VISUAL_SPEC_REACT_DEV: "1" });
+      expect(development.exitCode).toBe(0);
+      expect(development.stdout.trim()).toBe("NODE_ENV=development");
+    } finally {
+      rmSync(fakeRoot, { recursive: true, force: true });
+    }
+  });
+
   // vitest 자체의 기본 테스트 타임아웃(5초)보다 넉넉하게 잡는다 — 셋째 인자로
   // 안 주면 내부 Promise가 끝나기 전에 vitest가 먼저 테스트를 죽인다. CI에서
   // 실제로 5초 타임아웃에 걸리는 걸 보고 여유를 뒀다(느려서가 아니라 아래

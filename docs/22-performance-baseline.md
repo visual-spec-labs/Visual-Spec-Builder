@@ -19,6 +19,22 @@
 
 1~4·6은 각각 별도 이슈로 연다. 1은 사용자 실행 경로를 바꾸므로 HMR·StrictMode·에러 표시 차이와 CLI 동작을 함께 설계해야 한다.
 
+## 후속 1(#314) 적용 뒤
+
+`visual-spec` CLI가 GUI 개발 서버를 `NODE_ENV=production`으로 띄우게 바꿨다(`bin/visual-spec.mjs`의 `guiNodeEnv`, `VISUAL_SPEC_REACT_DEV=1`이면 개발 모드). 측정 스크립트의 기본값도 같은 production으로 바꿨다(개발 모드는 `--node-env development`). 원자료: [qa/2026-10-08-perf-314.json](qa/2026-10-08-perf-314.json) — 다섯 시나리오 모두 다시 잰 반복 0회.
+
+| 시나리오 | 홈 | 열기 | 편집 (JS / 화면) | Undo (JS / 화면) | Export | #314 이전 대비 편집 JS |
+|---|---|---|---|---|---|---|
+| S1 10 · 100 | 123 (165) | 47 (60) | 5 / 33 | 5 / 33 | 7 | 14 → 5 |
+| S2 100 · 100 | 183 (206) | 53 (66) | 4 / 33 | 4 / 34 | 8 | 14 → 4 |
+| S3 10 · 1000 | 179 (198) | 136 (146) | 23 / 33 | 23 / 33 | 22 | **174 → 23** |
+| S4 100 · 1000 | **1,038** (1,046) | 297 (301) | 24 / 33 | 22 / 33 | 22 | **180 → 24** |
+| S5 10 · 100 · 이미지 | 121 (127) | 47 (49) | 4 / 33 | 5 / 33 | 137 | 13 → 4 |
+
+- 값은 위 "비교 — React production 빌드" 표와 같은 수준이다(같은 방식이므로 기대한 대로다).
+- 같은 production 모드로 GUI 주요 흐름을 헤드리스 Chrome으로 직접 조작해 확인했다. 홈 진입, 열기, 편집, Undo, Save(디스크 반영), 에이전트 연결 `gui-state.json` 공개, 디스크 변경 감지·불러오기, Export 패널이 모두 동작했고 콘솔 오류·예외는 없었다.
+- 남은 병목은 후속 2(#315, 홈 미리보기 — S4 홈 1.0초·DOM 17만 개)다. 편집은 노드 1000개에서 JS 23~24ms로 한 프레임 예산을 넘는다(#317).
+
 ## 측정 환경
 
 | 항목 | 값 |
@@ -120,9 +136,9 @@
 ```bash
 # 저장소 루트에서. Chrome 경로는 자동으로 찾고, 없으면 --chrome 또는 CHROME_BIN.
 # Node 22 이상은 그대로, Node 20(20.10+)은 스크립트가 --experimental-websocket을 붙여 스스로 다시 실행한다.
-# --node-env를 생략하면 development다(셸의 NODE_ENV를 물려받지 않는다).
-node scripts/perf/measure.mjs --reps 5 --json out.json                 # 지금(개발 모드)
-node scripts/perf/measure.mjs --reps 5 --node-env production           # 비교
+# --node-env를 생략하면 CLI와 같은 production이다(셸의 NODE_ENV를 물려받지 않는다).
+node scripts/perf/measure.mjs --reps 5 --json out.json                 # 사용자 GUI와 같은 production(#314부터 기본)
+node scripts/perf/measure.mjs --reps 5 --node-env development          # #314 이전·pnpm dev 비교
 node scripts/perf/measure.mjs --reps 1 --scenario S3,S4 --profile --json prof.json  # 병목 프로파일(별도 반복)
 ```
 
