@@ -9,12 +9,20 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 // test/cli-init.test.ts와 같은 이유로 bin/visual-spec.mjs를 정적 import하지 않는다.
 const CLI_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../bin/visual-spec.mjs");
 
-function runCli(args: string[], cwd: string, env?: Record<string, string>) {
+function runCli(
+  args: string[],
+  cwd: string,
+  env?: Record<string, string>,
+  options: { unsetEnv?: string[]; timeoutMs?: number } = {},
+) {
+  const childEnv = { ...process.env, ...env };
+  for (const name of options.unsetEnv ?? []) delete childEnv[name];
   try {
     const stdout = execFileSync("node", [CLI_PATH, ...args], {
       cwd,
       encoding: "utf8",
-      env: { ...process.env, ...env },
+      env: childEnv,
+      timeout: options.timeoutMs ?? 15000,
     });
     return { stdout, exitCode: 0 };
   } catch (error) {
@@ -47,7 +55,12 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
     // 환경 변수는 이 CLI의 공개 인터페이스가 아니다(bin/visual-spec.mjs 상단 주석 참고).
     const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-fake-root-"));
     try {
-      const result = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot });
+      const result = runCli(
+        [],
+        projectDir,
+        { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot },
+        { unsetEnv: ["NODE_PATH"], timeoutMs: 5000 },
+      );
 
       expect(result.exitCode).not.toBe(0);
       expect(result.stderr).toContain("pnpm install");
@@ -75,6 +88,31 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
       expect(result.exitCode).toBe(0);
       // 사용자의 cwd(projectDir) 기준이어야 한다. 이 패키지 루트 기준이면 GUI가
       // 엉뚱한 폴더를 작업공간으로 쓰게 된다 — 이 이슈의 핵심 함정이다.
+      expect(result.stdout.trim()).toBe(`WORKSPACE=${join(projectDir, ".visual-spec")}`);
+    } finally {
+      rmSync(fakeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("pnpm hoisted 의존성도 Node 모듈 해석으로 찾아 GUI를 실행한다", () => {
+    const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-hoisted-root-"));
+    try {
+      const viteRoot = join(fakeRoot, ".pnpm", "node_modules", "vite");
+      mkdirSync(join(viteRoot, "dist", "node"), { recursive: true });
+      mkdirSync(join(viteRoot, "bin"), { recursive: true });
+      writeFileSync(join(viteRoot, "package.json"), JSON.stringify({ name: "vite", main: "dist/node/index.js" }));
+      writeFileSync(join(viteRoot, "dist", "node", "index.js"), "module.exports = {};\n");
+      writeFileSync(
+        join(viteRoot, "bin", "vite.js"),
+        'console.log("WORKSPACE=" + process.env.VISUAL_SPEC_WORKSPACE);\n',
+      );
+
+      const result = runCli([], projectDir, {
+        VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot,
+        NODE_PATH: join(fakeRoot, ".pnpm", "node_modules"),
+      });
+
+      expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe(`WORKSPACE=${join(projectDir, ".visual-spec")}`);
     } finally {
       rmSync(fakeRoot, { recursive: true, force: true });
