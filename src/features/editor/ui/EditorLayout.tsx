@@ -1,6 +1,7 @@
-import type { MouseEvent } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 
 import { useExportStore } from "@/features/editor/store/exportStore";
+import { PANEL_RAIL_WIDTH } from "@/features/editor/store/panelLayout";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { Canvas } from "@/features/editor/ui/Canvas";
@@ -44,14 +45,27 @@ function handleContextMenu(event: MouseEvent<HTMLElement>) {
  */
 export function EditorLayout() {
   const showPanels = useViewStore((s) => s.showPanels);
+  const treeCollapsed = useViewStore((s) => s.treeCollapsed);
+  const treeWidth = useViewStore((s) => s.treeWidth);
+  const propsCollapsed = useViewStore((s) => s.propsCollapsed);
+  const propsWidth = useViewStore((s) => s.propsWidth);
   const showTickets = useTicketStore((s) => s.isOpen);
   // 코드 Export 패널이 구현 티켓 패널보다 앞선다 — 둘 다 열려 있으면 **방금 연 쪽**이
   // Export다(티켓을 보다가 내보내는 순서라서). 닫으면 그대로 티켓 패널로 돌아간다.
   const showExport = useExportStore((s) => s.isOpen);
 
-  const gridColsClass = showPanels
-    ? "grid-cols-[var(--layout-tree-width)_1fr_var(--layout-props-width)]"
-    : "grid-cols-[var(--layout-tree-width-collapsed)_1fr_var(--layout-props-width-collapsed)]";
+  // 패널 폭은 이제 사용자가 드래그로 바꾸는 런타임 값이라 CSS 토큰(고정값 전용,
+  // DESIGN-TOKEN-RULES.md)이 아니라 인라인 스타일로 계산한다 — Canvas.tsx의 노드
+  // 크기·위치와 같은 자리다(#287, docs/22-panel-collapse-resize.md "결정" 5번).
+  // 전체 토글(showPanels)이 꺼지면 0 — 개별 접힘(treeCollapsed/propsCollapsed)은
+  // 레일 폭(PANEL_RAIL_WIDTH), 둘 다 아니면 사용자가 맞춘 폭이다.
+  function columnWidth(collapsed: boolean, width: number): number {
+    if (!showPanels) return 0;
+    return collapsed ? PANEL_RAIL_WIDTH : width;
+  }
+  const gridStyle: CSSProperties = {
+    gridTemplateColumns: `${columnWidth(treeCollapsed, treeWidth)}px 1fr ${columnWidth(propsCollapsed, propsWidth)}px`,
+  };
 
   return (
     // overflow-hidden 이 필요하다. transform 은 레이아웃 박스를 바꾸지 않지만
@@ -60,7 +74,8 @@ export function EditorLayout() {
     // 앱 셸은 화면 크기에 딱 맞아야 하므로 여기서 잘라낸다.
     <div
       onContextMenu={handleContextMenu}
-      className={`relative grid h-screen w-screen overflow-hidden ${gridColsClass} grid-rows-[var(--layout-menubar-height)_1fr_auto] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'_'ai_ai_ai'] bg-surface-sunken text-content`}
+      style={gridStyle}
+      className="relative grid h-screen w-screen overflow-hidden grid-rows-[var(--layout-menubar-height)_1fr_auto] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'_'ai_ai_ai'] bg-surface-sunken text-content"
     >
       <MenuBar />
       {showPanels && <LayerTree />}

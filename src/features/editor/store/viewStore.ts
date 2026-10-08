@@ -1,5 +1,12 @@
 import { create } from "zustand";
 
+import {
+  clampPanelWidth,
+  loadPanelLayout,
+  savePanelLayout,
+  type PanelLayoutState,
+} from "@/features/editor/store/panelLayout";
+
 /**
  * 캔버스 뷰(줌·그리드·패널 표시) 전용 스토어.
  * IR/선택 상태를 다루는 editorStore와 분리한다 — docs/EDITOR_STORE_CONTRACT.md의
@@ -27,6 +34,20 @@ export interface ViewState {
   showGrid: boolean;
   /** 좌우 패널(레이어 트리·세부설정) 동시 표시 여부. */
   showPanels: boolean;
+  /**
+   * 개별 패널 접기·폭(#287). `showPanels`와 독립이다 — 전체 토글은 둘 다
+   * 숨기고, 이건 한쪽만 좁은 레일로 접거나 폭을 조절한다. 둘 다 켜져 있으면
+   * `showPanels`가 우선한다(둘 다 안 보인다, `EditorLayout.tsx`).
+   * docs/22-panel-collapse-resize.md "결정" 참고.
+   */
+  treeCollapsed: boolean;
+  treeWidth: number;
+  propsCollapsed: boolean;
+  propsWidth: number;
+  toggleTreeCollapsed: () => void;
+  togglePropsCollapsed: () => void;
+  setTreeWidth: (width: number) => void;
+  setPropsWidth: (width: number) => void;
   /** 캔버스 뷰포트의 실측 크기(여백 제외). 캔버스가 올려준다. */
   viewport: Dimensions | null;
   /** 화면(아트보드) 크기. 캔버스가 활성 페이지의 size를 올려준다. */
@@ -117,10 +138,17 @@ function sameSize(a: Dimensions | null, b: Dimensions): boolean {
   return a !== null && a.width === b.width && a.height === b.height;
 }
 
+/** ViewState에서 panelLayout.ts의 PanelLayoutState 네 필드만 뽑는다(저장용). */
+function panelLayoutOf(state: ViewState): PanelLayoutState {
+  const { treeCollapsed, treeWidth, propsCollapsed, propsWidth } = state;
+  return { treeCollapsed, treeWidth, propsCollapsed, propsWidth };
+}
+
 export const useViewStore = create<ViewState>((set, get) => ({
   zoom: ZOOM_DEFAULT,
   showGrid: true,
   showPanels: true,
+  ...loadPanelLayout(),
   viewport: null,
   content: null,
   canvasAtBottom: false,
@@ -154,4 +182,28 @@ export const useViewStore = create<ViewState>((set, get) => ({
   fitToScreen: () => set((state) => ({ zoom: fitZoom(state.viewport, state.content) })),
   toggleGrid: () => set((state) => ({ showGrid: !state.showGrid })),
   togglePanels: () => set((state) => ({ showPanels: !state.showPanels })),
+  toggleTreeCollapsed: () =>
+    set((state) => {
+      const next = { ...panelLayoutOf(state), treeCollapsed: !state.treeCollapsed };
+      savePanelLayout(next);
+      return next;
+    }),
+  togglePropsCollapsed: () =>
+    set((state) => {
+      const next = { ...panelLayoutOf(state), propsCollapsed: !state.propsCollapsed };
+      savePanelLayout(next);
+      return next;
+    }),
+  setTreeWidth: (width) =>
+    set((state) => {
+      const next = { ...panelLayoutOf(state), treeWidth: clampPanelWidth(width) };
+      savePanelLayout(next);
+      return next;
+    }),
+  setPropsWidth: (width) =>
+    set((state) => {
+      const next = { ...panelLayoutOf(state), propsWidth: clampPanelWidth(width) };
+      savePanelLayout(next);
+      return next;
+    }),
 }));

@@ -1,13 +1,13 @@
 /**
  * primitives/layout.css — Primitive 레이아웃 치수 토큰
  * 규칙: docs/DESIGN-TOKEN-RULES.md — Primitive = 실제 값(px).
- * 에디터 셸의 고정 치수(사이드바 폭·바 높이) 원시 값.
+ * 에디터 셸의 고정 치수(바 높이) 원시 값.
+ *
+ * 좌우 패널 폭 토큰(`--size-0`·`--size-300`·`--size-350`)은 #287에서 지웠다 —
+ * 이제 런타임 값이라 `store/panelLayout.ts`의 TS 상수가 단일 소스다.
  */
 
 @theme inline {
   /* 전체 UI 스케일 한 단계 확대에 맞춰 셸 치수도 비례 확대. */
-  --size-0: 0px;
   --size-60: 60px;
-  --size-300: 300px;
-  --size-350: 350px;
 }

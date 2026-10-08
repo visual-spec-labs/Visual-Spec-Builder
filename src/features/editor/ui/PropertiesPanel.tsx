@@ -1,6 +1,10 @@
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
+
 import { ResponsivePanel } from "@/features/editor/responsive/ResponsivePanel";
 import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useViewStore } from "@/features/editor/store/viewStore";
+import { PanelResizeHandle } from "@/features/editor/ui/PanelResizeHandle";
 
 import { ExportJsonButton } from "./properties/ExportJsonButton";
 import { NodeSectionList } from "./properties/NodeSectionList";
@@ -16,8 +20,28 @@ const TYPE_LABEL: Record<string, string> = {
   input: "Input",
 };
 
+/** 패널 접기 버튼 — 노드 미선택/선택 두 헤더가 같이 쓴다(#287). */
+function CollapseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="속성 패널 접기"
+      className="shrink-0 rounded-control p-1 text-content-muted hover:bg-hover hover:text-content"
+    >
+      <PanelRightClose className="size-4" aria-hidden="true" />
+    </button>
+  );
+}
+
 /** 노드 이름 + 타입 배지 + 표시 토글. 패널 맨 위 공통 영역. */
-function NodeHeader({ typeLabel }: { typeLabel: string }) {
+function NodeHeader({
+  typeLabel,
+  onCollapse,
+}: {
+  typeLabel: string;
+  onCollapse: () => void;
+}) {
   const { breakpoint } = useResponsiveScreen();
   const [name, setName] = useNodeField<string>("name");
   const [visible, setVisible] = useNodeField<boolean>("visible");
@@ -36,6 +60,7 @@ function NodeHeader({ typeLabel }: { typeLabel: string }) {
         <span className="shrink-0 rounded-control bg-surface-raised px-1.5 py-0.5 text-xs text-content-muted">
           {typeLabel}
         </span>
+        <CollapseButton onClick={onCollapse} />
       </div>
       <ToggleField label="표시" value={visible ?? true} onChange={setVisible} />
     </header>
@@ -55,14 +80,49 @@ export function PropertiesPanel() {
   // 화면 크기를 바꿀 자리가 있는 편이 낫고, 캔버스 여백을 누르면 바로 여기로 온다.
   const showPage = node === undefined || selectedId === page.root;
 
+  const panelCollapsed = useViewStore((s) => s.propsCollapsed);
+  const togglePanelCollapsed = useViewStore((s) => s.togglePropsCollapsed);
+  const panelWidth = useViewStore((s) => s.propsWidth);
+  const setPanelWidth = useViewStore((s) => s.setPropsWidth);
+
+  // 접힌 상태는 펼치기 버튼 하나만 있는 좁은 레일이다(#287) — LayerTree.tsx와
+  // 같은 패턴. docs/22-panel-collapse-resize.md "결정" 1번 참고.
+  if (panelCollapsed) {
+    return (
+      <aside className="flex flex-col items-center overflow-hidden border-l border-line bg-surface py-2 [grid-area:props]">
+        <button
+          type="button"
+          onClick={togglePanelCollapsed}
+          aria-label="속성 패널 펼치기"
+          className="rounded-control p-1 text-content-muted hover:bg-hover hover:text-content"
+        >
+          <PanelRightOpen className="size-4" aria-hidden="true" />
+        </button>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="flex flex-col overflow-hidden border-l border-line bg-surface [grid-area:props]">
+    <aside className="relative flex flex-col overflow-hidden border-l border-line bg-surface [grid-area:props]">
+      <PanelResizeHandle
+        side="left"
+        width={panelWidth}
+        onResize={setPanelWidth}
+        label="속성 패널 폭 조절"
+      />
       {node === undefined ? (
-        <h2 className="border-b border-line px-3 py-3 text-xs font-semibold tracking-wide text-content-muted uppercase">
-          Properties
-        </h2>
+        <div className="flex items-center justify-between border-b border-line px-3 py-3">
+          <h2 className="text-xs font-semibold tracking-wide text-content-muted uppercase">
+            Properties
+          </h2>
+          <CollapseButton onClick={togglePanelCollapsed} />
+        </div>
       ) : (
-        <NodeHeader key={`${pageId}:${breakpoint}`} typeLabel={TYPE_LABEL[node.type] ?? node.type} />
+        <NodeHeader
+          key={`${pageId}:${breakpoint}`}
+          typeLabel={TYPE_LABEL[node.type] ?? node.type}
+          onCollapse={togglePanelCollapsed}
+        />
       )}
 
       <div className="flex-1 overflow-auto">

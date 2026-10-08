@@ -10,6 +10,8 @@ import {
   Frame as FrameIcon,
   Image as ImageIcon,
   MousePointerClick as ButtonIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Redo2,
   TextCursorInput as InputIcon,
@@ -25,7 +27,9 @@ import { canRedo, canUndo } from "@/features/editor/command/history";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
 import { resolveImportParent } from "@/features/editor/store/resolveImportParent";
+import { useViewStore } from "@/features/editor/store/viewStore";
 import { resolveLayerDrop } from "@/features/editor/ui/layerDrop";
+import { PanelResizeHandle } from "@/features/editor/ui/PanelResizeHandle";
 import type { FrameNode, Node, NodeId, PageId } from "@/features/editor/schema";
 
 /** 깊이별 들여쓰기 — Tailwind 스페이싱 스케일만 사용(임의값 금지). */
@@ -403,6 +407,11 @@ export function LayerTree() {
   const canUndoNow = useEditorStore((state) => canUndo(state.history));
   const canRedoNow = useEditorStore((state) => canRedo(state.history));
 
+  const panelCollapsed = useViewStore((s) => s.treeCollapsed);
+  const togglePanelCollapsed = useViewStore((s) => s.toggleTreeCollapsed);
+  const panelWidth = useViewStore((s) => s.treeWidth);
+  const setPanelWidth = useViewStore((s) => s.setTreeWidth);
+
   useEffect(() => {
     function isEditableTarget(target: EventTarget | null): boolean {
       if (!(target instanceof HTMLElement)) return false;
@@ -506,11 +515,45 @@ export function LayerTree() {
     insertNode(parentId, id, blankFrameNode());
   }
 
+  // 접힌 상태는 펼치기 버튼 하나만 있는 좁은 레일이다(#287) — 전체 토글
+  // (showPanels)의 "완전히 숨김"과 다르게, 다시 펼치려고 메뉴를 찾지 않아도
+  // 된다. docs/22-panel-collapse-resize.md "결정" 1번 참고.
+  if (panelCollapsed) {
+    return (
+      <aside className="flex flex-col items-center overflow-hidden border-r border-line bg-surface py-2 [grid-area:tree]">
+        <button
+          type="button"
+          onClick={togglePanelCollapsed}
+          aria-label="레이어 패널 펼치기"
+          className="rounded-control p-1 text-content-muted hover:bg-hover hover:text-content"
+        >
+          <PanelLeftOpen className="size-4" aria-hidden="true" />
+        </button>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="flex flex-col overflow-hidden border-r border-line bg-surface [grid-area:tree]">
-      <h2 className="px-3 pt-3 pb-2 text-xs font-semibold tracking-wide text-content-muted uppercase">
-        Layers
-      </h2>
+    <aside className="relative flex flex-col overflow-hidden border-r border-line bg-surface [grid-area:tree]">
+      <PanelResizeHandle
+        side="right"
+        width={panelWidth}
+        onResize={setPanelWidth}
+        label="레이어 패널 폭 조절"
+      />
+      <div className="flex items-center justify-between px-3 pt-3 pb-2">
+        <h2 className="text-xs font-semibold tracking-wide text-content-muted uppercase">
+          Layers
+        </h2>
+        <button
+          type="button"
+          onClick={togglePanelCollapsed}
+          aria-label="레이어 패널 접기"
+          className="rounded-control p-1 text-content-muted hover:bg-hover hover:text-content"
+        >
+          <PanelLeftClose className="size-4" aria-hidden="true" />
+        </button>
+      </div>
 
       <ul className="flex-1 overflow-auto px-1 pb-2 text-sm">
         {pageOrder.map((pageId) => (

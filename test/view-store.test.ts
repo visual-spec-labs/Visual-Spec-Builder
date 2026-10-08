@@ -1,5 +1,12 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 
+import {
+  DEFAULT_PROPS_WIDTH,
+  DEFAULT_TREE_WIDTH,
+  loadPanelLayout,
+  MAX_PANEL_WIDTH,
+  MIN_PANEL_WIDTH,
+} from "@/features/editor/store/panelLayout";
 import {
   useViewStore,
   ZOOM_DEFAULT,
@@ -8,15 +15,45 @@ import {
   ZOOM_STEP,
 } from "@/features/editor/store/viewStore";
 
+/** test/panel-layout.test.ts와 같은 최소 구현 — savePanelLayout이 실제로 쓸 곳이 필요하다. */
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>();
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, value);
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size;
+    },
+  } as Storage;
+}
+
 describe("viewStore", () => {
   beforeEach(() => {
+    vi.stubGlobal("localStorage", createMemoryStorage());
     useViewStore.setState({
       zoom: ZOOM_DEFAULT,
       showGrid: true,
       showPanels: true,
+      treeCollapsed: false,
+      treeWidth: DEFAULT_TREE_WIDTH,
+      propsCollapsed: false,
+      propsWidth: DEFAULT_PROPS_WIDTH,
       viewport: null,
       content: null,
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("zoomIn은 ZOOM_STEP만큼 늘리고 ZOOM_MAX에서 멈춘다", () => {
@@ -79,5 +116,35 @@ describe("viewStore", () => {
 
     useViewStore.getState().togglePanels();
     expect(useViewStore.getState().showPanels).toBe(true);
+  });
+
+  it("toggleTreeCollapsed/togglePropsCollapsed는 각자의 접힘 상태만 반전한다 — 서로 안 건드린다(#287)", () => {
+    useViewStore.getState().toggleTreeCollapsed();
+    expect(useViewStore.getState().treeCollapsed).toBe(true);
+    expect(useViewStore.getState().propsCollapsed).toBe(false);
+
+    useViewStore.getState().togglePropsCollapsed();
+    expect(useViewStore.getState().treeCollapsed).toBe(true);
+    expect(useViewStore.getState().propsCollapsed).toBe(true);
+  });
+
+  it("setTreeWidth/setPropsWidth는 MIN_PANEL_WIDTH..MAX_PANEL_WIDTH로 자른다(#287)", () => {
+    useViewStore.getState().setTreeWidth(1);
+    expect(useViewStore.getState().treeWidth).toBe(MIN_PANEL_WIDTH);
+
+    useViewStore.getState().setPropsWidth(9999);
+    expect(useViewStore.getState().propsWidth).toBe(MAX_PANEL_WIDTH);
+  });
+
+  it("패널 상태 변경은 localStorage에 남아 다음 로드에 읽힌다(#287)", () => {
+    useViewStore.getState().toggleTreeCollapsed();
+    useViewStore.getState().setPropsWidth(420);
+
+    expect(loadPanelLayout()).toEqual({
+      treeCollapsed: true,
+      treeWidth: DEFAULT_TREE_WIDTH,
+      propsCollapsed: false,
+      propsWidth: 420,
+    });
   });
 });

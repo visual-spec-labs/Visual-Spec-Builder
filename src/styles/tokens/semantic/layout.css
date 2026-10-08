@@ -2,12 +2,13 @@
  * semantic/layout.css — Semantic 레이아웃 토큰
  * 규칙: docs/DESIGN-TOKEN-RULES.md — Semantic = UI 역할, Primitive를 var()로 참조.
  * 에디터 5분할 셸의 영역 치수 역할.
+ *
+ * 좌우 패널(레이어 트리·세부설정) 폭은 여기 없다(#287) — 사용자가 드래그로
+ * 바꾸는 런타임 값이라 "고정 치수"가 아니다. `EditorLayout.tsx`가
+ * `store/panelLayout.ts`의 상태로 매 렌더 계산해 인라인 스타일로 적용한다.
+ * 자세한 이유는 docs/22-panel-collapse-resize.md "결정" 5번 참고.
  */
 
 @theme inline {
   --layout-menubar-height: var(--size-60); /* 상단 메뉴바 높이 */
-  --layout-tree-width: var(--size-300); /* 좌측 레이어 트리 폭 */
-  --layout-props-width: var(--size-350); /* 우측 세부설정 패널 폭 */
-  --layout-tree-width-collapsed: var(--size-0); /* Panels/Sidebars 숨김 시 좌측 폭 */
-  --layout-props-width-collapsed: var(--size-0); /* Panels/Sidebars 숨김 시 우측 폭 */
 }

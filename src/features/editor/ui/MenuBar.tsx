@@ -78,6 +78,10 @@ export function MenuBar() {
   const toggleGrid = useViewStore((s) => s.toggleGrid);
   const showPanels = useViewStore((s) => s.showPanels);
   const togglePanels = useViewStore((s) => s.togglePanels);
+  const treeCollapsed = useViewStore((s) => s.treeCollapsed);
+  const toggleTreeCollapsed = useViewStore((s) => s.toggleTreeCollapsed);
+  const propsCollapsed = useViewStore((s) => s.propsCollapsed);
+  const togglePropsCollapsed = useViewStore((s) => s.togglePropsCollapsed);
 
   const FILE_MENU: MenuEntry[] = [
     { kind: "action", label: "New", onSelect: () => void newSpec() },
@@ -102,6 +106,10 @@ export function MenuBar() {
     { kind: "separator" },
     { kind: "toggle", label: "Show Grid", checked: showGrid, onToggle: toggleGrid },
     { kind: "toggle", label: "Panels/Sidebars", checked: showPanels, onToggle: togglePanels },
+    // 개별 패널 접기(#287) — "Panels/Sidebars"는 둘 다 숨기고, 이 둘은 한쪽만
+    // 좁은 레일로 접는다. 체크 표시는 "펼쳐져 있는가"다(접힘의 반대).
+    { kind: "toggle", label: "Layers Panel", checked: !treeCollapsed, onToggle: toggleTreeCollapsed },
+    { kind: "toggle", label: "Properties Panel", checked: !propsCollapsed, onToggle: togglePropsCollapsed },
   ];
 
   useEffect(() => {
