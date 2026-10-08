@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { consumeHomeDraft } from "@/features/editor/store/homeDraft";
 import type { ProjectSpec } from "@/features/editor/schema";
 import {
   describeCommandIssues,
@@ -87,6 +88,21 @@ export function NaturalLanguageBar() {
   const [instruction, setInstruction] = useState("");
   const [scopeOverride, setScopeOverride] = useState<NlScopeKind | null>(null);
   const [feedback, setFeedback] = useState<Feedback>({ kind: "none" });
+  const instructionInputRef = useRef<HTMLInputElement>(null);
+
+  // 홈 화면의 "자연어로 초안 만들기" 패널이 적재해 둔 문구가 있으면 한 번만
+  // 꺼내 입력칸에 채우고 포커스한다(#286). 전송은 하지 않는다 — 에이전트가
+  // 아직 안 켜져 있으면 "요청"은 사용자가 준비한 뒤 직접 누른다
+  // (docs/21-home-screen-nl-draft.md "결정" 참고). `App.tsx`가 홈 ↔ 에디터를
+  // 완전히 다른 서브트리로 마운트/언마운트하므로 이 effect는 에디터에 들어올
+  // 때마다 정확히 한 번 실행된다.
+  useEffect(() => {
+    const draft = consumeHomeDraft();
+    if (draft !== null) {
+      setInstruction(draft);
+      instructionInputRef.current?.focus();
+    }
+  }, []);
 
   // 페이지를 바꿨다 돌아오거나 Undo로 같은 참조를 복원해도 낡은 동의는 재사용하지 않는다.
   const revisionRef = useRef(0);
@@ -264,6 +280,7 @@ export function NaturalLanguageBar() {
 
       <form onSubmit={submit} className="flex items-center gap-2">
         <input
+          ref={instructionInputRef}
           type="text"
           value={instruction}
           onChange={(event) => setInstruction(event.target.value)}

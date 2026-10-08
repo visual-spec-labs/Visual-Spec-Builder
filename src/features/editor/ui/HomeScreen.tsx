@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   Node as SpecNode,
@@ -7,8 +7,10 @@ import type {
   ScreenSpec,
 } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { setHomeDraft } from "@/features/editor/store/homeDraft";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
+import { HOME_DRAFT_EXAMPLES } from "@/features/editor/ui/homeDraftExamples";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import {
@@ -43,9 +45,14 @@ const PREVIEW_HEIGHT = 140;
  * 목록에서 조용히 뺀다** — 깨진 파일 하나 때문에 카드 전체가 안 뜨는 것보다 낫다.
  * 결과가 0개면 상태 2, 1개 이상이면 상태 1 — 같은 조건 하나로 갈린다.
  *
- * **"자연어로 초안 만들기"는 지금 "빈 캔버스에서 시작"과 똑같이 동작한다** — 실제
- * 자연어 작성은 에디터 안 `ui/NaturalLanguageBar.tsx`에서만 되고, 홈 화면에 별도
- * 입력창을 새로 만드는 건 이 이슈(파일 목록 배선) 범위 밖이다.
+ * **"자연어로 초안 만들기"는 홈 화면 안에서 먼저 작성한다**(#286). 상태 2(빈
+ * 목록)에서 그 타일을 고르면 입력창·초안 예시·수동 에이전트 안내를 보여주는
+ * 인라인 패널(`draftMode`)로 바뀐다. "초안 만들기"를 누르면 빈 프로젝트를 열고
+ * 그 문구를 `store/homeDraft.ts`에 적재한다 — 새로 마운트되는
+ * `ui/NaturalLanguageBar.tsx`가 그 문구를 한 번 읽어 입력칸에 채우고 포커스한다.
+ * **전송("요청")은 보내지 않는다** — 에이전트가 아직 안 켜져 있으면 3분 뒤
+ * timeout으로 끝나므로, #283이 확립한 "수동 전달" 원칙과 같은 이유로 사용자가
+ * 직접 누르게 둔다(`docs/21-home-screen-nl-draft.md` "결정" 참고).
  *
  * 목록의 opt-in mtime 메타데이터로 최근 수정순 정렬한다(#227 일부).
  * 동률은 파일명순이다. 이름 변경은 표시 이름과 실제 파일명을 함께 바꾸고 동명 파일은 보존한다.
@@ -68,6 +75,12 @@ export function HomeScreen() {
   const [renaming, setRenaming] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [state, setState] = useState<HomeState>({ kind: "loading" });
+  // 상태 2(빈 목록)의 "자연어로 초안 만들기" 인라인 패널(#286). 다른 상태(목록이
+  // 있거나 로딩 중)에서는 쓰이지 않는다.
+  const [draftMode, setDraftMode] = useState(false);
+  const [draftText, setDraftText] = useState("");
+  const [submittingDraft, setSubmittingDraft] = useState(false);
+  const draftInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +98,35 @@ export function HomeScreen() {
   // 파일을 덮어쓴다. 둘이 같은 동작이라 정의는 ui/newSpec.ts 한 곳에 있다.
   async function handleNewScreen() {
     if (await newSpec()) openEditor();
+  }
+
+  // 상태 2-nl의 "초안 만들기"(#286). 빈 프로젝트를 여는 동작은 handleNewScreen과
+  // 같지만, 작성한 문구를 store/homeDraft.ts에 적재해 새로 마운트될
+  // NaturalLanguageBar가 입력칸에 채워 넣게 한다. 요청을 대신 보내지는 않는다
+  // (docs/21-home-screen-nl-draft.md "결정" 참고).
+  //
+  // handleRename의 renaming 가드와 같은 이유로 submittingDraft를 둔다(자체
+  // code-review 대응) — Enter와 클릭이 겹치거나 Enter를 빠르게 두 번 누르면
+  // newSpec()의 await 구간(settle()이 포함된다) 동안 handleCreateDraft가 다시
+  // 들어와 newSpec()+setHomeDraft()+openEditor()가 겹쳐 실행될 수 있다.
+  //
+  // 같은 플래그로 아래 입력창·예시 칩·뒤로 버튼도 모두 잠근다(PR #312 리뷰
+  // 대응) — 실제 autosave Web Lock 경합으로 newSpec()의 settle()이 지연되는
+  // 동안 입력창이 열려 있으면, text를 캡처한 뒤에도 화면에서는 새 글자를
+  // 계속 칠 수 있다. 그 상태로 await가 끝나면 에디터에는 캡처해 둔 옛 값이
+  // 전달되는데 화면엔 사용자가 방금 친 새 값이 보이고 있었다 — 보이는 값과
+  // 실제로 전달되는 값이 조용히 갈라지는 결함이었다.
+  async function handleCreateDraft() {
+    if (submittingDraft) return;
+    const text = draftText.trim();
+    if (text === "") return;
+    setSubmittingDraft(true);
+    if (await newSpec()) {
+      setHomeDraft(text);
+      openEditor();
+      return;
+    }
+    setSubmittingDraft(false);
   }
 
   async function handleOpenProject(project: HomeProject) {
@@ -134,6 +176,78 @@ export function HomeScreen() {
           onRename: () => void handleRename(project),
         }));
 
+  if (cards.length === 0 && draftMode) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-content-strong">자연어로 초안 만들기</p>
+          <p className="mt-1 text-sm text-content-muted">만들고 싶은 화면을 설명해 주세요</p>
+        </div>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleCreateDraft();
+          }}
+          className="flex w-full max-w-sm flex-col gap-3"
+        >
+          <input
+            ref={draftInputRef}
+            type="text"
+            value={draftText}
+            onChange={(event) => setDraftText(event.target.value)}
+            disabled={submittingDraft}
+            autoFocus
+            aria-label="자연어 초안 설명"
+            placeholder="예: 로그인 화면 — 이메일, 비밀번호 입력창과 로그인 버튼이 있는 화면"
+            className="rounded-control border border-line bg-surface px-3 py-2 text-sm text-content placeholder:text-content-muted disabled:opacity-60"
+          />
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-content-muted">예시</span>
+            {HOME_DRAFT_EXAMPLES.map((example) => (
+              <button
+                key={example.label}
+                type="button"
+                disabled={submittingDraft}
+                onClick={() => {
+                  setDraftText(example.text);
+                  draftInputRef.current?.focus();
+                }}
+                className="rounded-control border border-line px-2 py-1 text-content hover:bg-hover disabled:opacity-50"
+              >
+                {example.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-content-muted">
+            이 요청은 별도 터미널에서 실행한 Claude Code나 Codex가 처리합니다.
+            아직 실행하지 않았다면 지금 준비해 두세요 — 에디터에서 준비되면
+            지시를 복사해 전달할 수 있습니다.
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={submittingDraft}
+              onClick={() => {
+                setDraftMode(false);
+                setDraftText("");
+              }}
+              className="rounded-control border border-line px-3 py-1.5 text-sm text-content hover:bg-hover disabled:opacity-50"
+            >
+              뒤로
+            </button>
+            <button
+              type="submit"
+              disabled={draftText.trim() === "" || submittingDraft}
+              className="rounded-control bg-primary px-3 py-1.5 text-sm font-medium text-text-on-accent hover:opacity-90 disabled:opacity-50"
+            >
+              초안 만들기
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
   if (cards.length === 0) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
@@ -144,7 +258,7 @@ export function HomeScreen() {
         <div className="flex w-full max-w-sm flex-col divide-y divide-line overflow-hidden rounded-panel border border-line bg-surface">
           <button
             type="button"
-            onClick={() => void handleNewScreen()}
+            onClick={() => setDraftMode(true)}
             className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
           >
             <span className="text-sm font-medium text-content-strong">자연어로 초안 만들기</span>
