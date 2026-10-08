@@ -1,0 +1,681 @@
+{
+ "when": "2026-10-08T02:21:34.812Z",
+ "node": "v26.4.0",
+ "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+ "browser": "Chrome/154.0.8037.98",
+ "results": [
+  {
+   "key": "S1",
+   "label": "프로젝트 10 · 노드 100",
+   "reps": 5,
+   "imageBytes": 0,
+   "nodeEnv": "production",
+   "retries": 0,
+   "home": {
+    "median": 137.1,
+    "max": 138.4
+   },
+   "homeAll": {
+    "median": 137.3,
+    "max": 138.8
+   },
+   "open": {
+    "median": 42.7,
+    "max": 45.7
+   },
+   "edit": {
+    "median": 4.2,
+    "max": 4.9
+   },
+   "undo": {
+    "median": 4.6,
+    "max": 4.8
+   },
+   "editFrame": {
+    "median": 33.3,
+    "max": 34
+   },
+   "undoFrame": {
+    "median": 33.4,
+    "max": 34.1
+   },
+   "typing": {
+    "missed": {
+     "median": 0,
+     "max": 0
+    },
+    "gapP95": {
+     "median": 16.7,
+     "max": 16.8
+    },
+    "gapMax": {
+     "median": 16.8,
+     "max": 16.8
+    },
+    "slowEvents": {
+     "median": 23,
+     "max": 26
+    },
+    "eventP95": {
+     "median": 16,
+     "max": 16
+    },
+    "eventMax": {
+     "median": 16,
+     "max": 16
+    }
+   },
+   "drag": {
+    "missed": {
+     "median": 0,
+     "max": 0
+    },
+    "gapP95": {
+     "median": 16.8,
+     "max": 16.8
+    },
+    "gapMax": {
+     "median": 16.8,
+     "max": 16.8
+    },
+    "slowEvents": {
+     "median": 66,
+     "max": 66
+    },
+    "eventP95": {
+     "median": 16,
+     "max": 16
+    },
+    "eventMax": {
+     "median": 24,
+     "max": 24
+    }
+   },
+   "dragMoved": true,
+   "export": {
+    "median": 10.3,
+    "max": 14.4
+   },
+   "zipKB": 5,
+   "generatedFiles": 7,
+   "heapMB": {
+    "home": {
+     "median": 13.7,
+     "max": 13.7
+    },
+    "open": {
+     "median": 15.1,
+     "max": 15.1
+    },
+    "end": {
+     "median": 17.3,
+     "max": 17.3
+    }
+   },
+   "domNodes": {
+    "home": {
+     "median": 1926,
+     "max": 1926
+    },
+    "open": {
+     "median": 2804,
+     "max": 2804
+    }
+   },
+   "raw": [
+    {
+     "typing": {
+      "frames": 51,
+      "missed": 0,
+      "gapP95": 16.700000000000045,
+      "gapMax": 16.799999999999955,
+      "slowEvents": 26,
+      "eventP95": 16,
+      "eventMax": 16
+     },
+     "drag": {
+      "frames": 53,
+      "missed": 0,
+      "gapP95": 16.799999999999727,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 61,
+      "eventP95": 16,
+      "eventMax": 24,
+      "moved": true
+     },
+     "homeMs": 137.0999999642372,
+     "homeAllMs": 137.30000001192093,
+     "openMs": 34.5,
+     "editMs": 4.900000035762787,
+     "editFrameMs": 33.40000003576279,
+     "undoMs": 4.799999952316284,
+     "undoFrameMs": 33.19999998807907,
+     "exportMs": 6.899999976158142,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 13.7,
+      "domNodes": 1926
+     },
+     "openRes": {
+      "heapMB": 15.1,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 17.3,
+      "domNodes": 3113
+     }
+    },
+    {
+     "typing": {
+      "frames": 51,
+      "missed": 0,
+      "gapP95": 16.700000000000045,
+      "gapMax": 16.799999999999955,
+      "slowEvents": 21,
+      "eventP95": 16,
+      "eventMax": 16
+     },
+     "drag": {
+      "frames": 53,
+      "missed": 0,
+      "gapP95": 16.799999999999727,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 66,
+      "eventP95": 16,
+      "eventMax": 24,
+      "moved": true
+     },
+     "homeMs": 120.19999998807907,
+     "homeAllMs": 120.60000002384186,
+     "openMs": 42.69999998807907,
+     "editMs": 4.300000011920929,
+     "editFrameMs": 32.89999997615814,
+     "undoMs": 4.599999964237213,
+     "undoFrameMs": 34,
+     "exportMs": 9.400000035762787,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 13.7,
+      "domNodes": 1926
+     },
+     "openRes": {
+      "heapMB": 15.1,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 17.3,
+      "domNodes": 3113
+     }
+    },
+    {
+     "typing": {
+      "frames": 51,
+      "missed": 0,
+      "gapP95": 16.799999999999955,
+      "gapMax": 16.799999999999955,
+      "slowEvents": 20,
+      "eventP95": 16,
+      "eventMax": 16
+     },
+     "drag": {
+      "frames": 52,
+      "missed": 0,
+      "gapP95": 16.700000000000273,
+      "gapMax": 16.700000000000273,
+      "slowEvents": 66,
+      "eventP95": 16,
+      "eventMax": 16,
+      "moved": true
+     },
+     "homeMs": 137.19999998807907,
+     "homeAllMs": 137.5,
+     "openMs": 42.60000002384186,
+     "editMs": 3.800000011920929,
+     "editFrameMs": 33.299999952316284,
+     "undoMs": 4.699999988079071,
+     "undoFrameMs": 33.40000003576279,
+     "exportMs": 13.600000023841858,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 13.7,
+      "domNodes": 1926
+     },
+     "openRes": {
+      "heapMB": 15.1,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 17.3,
+      "domNodes": 3113
+     }
+    },
+    {
+     "typing": {
+      "frames": 51,
+      "missed": 0,
+      "gapP95": 16.700000000000045,
+      "gapMax": 16.799999999999955,
+      "slowEvents": 23,
+      "eventP95": 16,
+      "eventMax": 16
+     },
+     "drag": {
+      "frames": 51,
+      "missed": 0,
+      "gapP95": 16.799999999999955,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 66,
+      "eventP95": 16,
+      "eventMax": 24,
+      "moved": true
+     },
+     "homeMs": 138.39999997615814,
+     "homeAllMs": 138.79999995231628,
+     "openMs": 44.5,
+     "editMs": 4,
+     "editFrameMs": 32.700000047683716,
+     "undoMs": 4.300000011920929,
+     "undoFrameMs": 34.09999996423721,
+     "exportMs": 14.399999976158142,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 13.7,
+      "domNodes": 1926
+     },
+     "openRes": {
+      "heapMB": 15.1,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 17.3,
+      "domNodes": 3113
+     }
+    },
+    {
+     "typing": {
+      "frames": 51,
+      "missed": 0,
+      "gapP95": 16.800000000000182,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 23,
+      "eventP95": 16,
+      "eventMax": 16
+     },
+     "drag": {
+      "frames": 52,
+      "missed": 0,
+      "gapP95": 16.799999999999727,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 66,
+      "eventP95": 16,
+      "eventMax": 16,
+      "moved": true
+     },
+     "homeMs": 118.69999998807907,
+     "homeAllMs": 119.19999998807907,
+     "openMs": 45.69999998807907,
+     "editMs": 4.199999988079071,
+     "editFrameMs": 34,
+     "undoMs": 4.300000011920929,
+     "undoFrameMs": 33,
+     "exportMs": 10.300000011920929,
+     "zipBytes": 5488,
+     "files": 7,
+     "homeRes": {
+      "heapMB": 13.7,
+      "domNodes": 1926
+     },
+     "openRes": {
+      "heapMB": 15.1,
+      "domNodes": 2804
+     },
+     "endRes": {
+      "heapMB": 17.3,
+      "domNodes": 3113
+     }
+    }
+   ]
+  },
+  {
+   "key": "S3",
+   "label": "프로젝트 10 · 노드 1000",
+   "reps": 5,
+   "imageBytes": 0,
+   "nodeEnv": "production",
+   "retries": 0,
+   "home": {
+    "median": 182.6,
+    "max": 185.1
+   },
+   "homeAll": {
+    "median": 184.3,
+    "max": 186.2
+   },
+   "open": {
+    "median": 126.6,
+    "max": 127.4
+   },
+   "edit": {
+    "median": 23,
+    "max": 23.3
+   },
+   "undo": {
+    "median": 21.7,
+    "max": 21.8
+   },
+   "editFrame": {
+    "median": 33.4,
+    "max": 34.4
+   },
+   "undoFrame": {
+    "median": 33.3,
+    "max": 33.6
+   },
+   "typing": {
+    "missed": {
+     "median": 0,
+     "max": 1
+    },
+    "gapP95": {
+     "median": 16.8,
+     "max": 16.8
+    },
+    "gapMax": {
+     "median": 16.8,
+     "max": 33.4
+    },
+    "slowEvents": {
+     "median": 60,
+     "max": 60
+    },
+    "eventP95": {
+     "median": 24,
+     "max": 24
+    },
+    "eventMax": {
+     "median": 24,
+     "max": 24
+    }
+   },
+   "drag": {
+    "missed": {
+     "median": 0,
+     "max": 1
+    },
+    "gapP95": {
+     "median": 16.8,
+     "max": 16.8
+    },
+    "gapMax": {
+     "median": 16.8,
+     "max": 33.3
+    },
+    "slowEvents": {
+     "median": 48,
+     "max": 56
+    },
+    "eventP95": {
+     "median": 16,
+     "max": 40
+    },
+    "eventMax": {
+     "median": 48,
+     "max": 48
+    }
+   },
+   "dragMoved": true,
+   "export": {
+    "median": 34.1,
+    "max": 41.2
+   },
+   "zipKB": 16,
+   "generatedFiles": 53,
+   "heapMB": {
+    "home": {
+     "median": 21.3,
+     "max": 21.3
+    },
+    "open": {
+     "median": 30.8,
+     "max": 30.8
+    },
+    "end": {
+     "median": 43.3,
+     "max": 43.3
+    }
+   },
+   "domNodes": {
+    "home": {
+     "median": 17516,
+     "max": 17516
+    },
+    "open": {
+     "median": 25081,
+     "max": 25081
+    }
+   },
+   "raw": [
+    {
+     "typing": {
+      "frames": 79,
+      "missed": 1,
+      "gapP95": 16.799999999999955,
+      "gapMax": 33.299999999999955,
+      "slowEvents": 60,
+      "eventP95": 24,
+      "eventMax": 24
+     },
+     "drag": {
+      "frames": 52,
+      "missed": 0,
+      "gapP95": 16.800000000000182,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 56,
+      "eventP95": 16,
+      "eventMax": 48,
+      "moved": true
+     },
+     "homeMs": 185.0999999642372,
+     "homeAllMs": 186.19999998807907,
+     "openMs": 126.60000002384186,
+     "editMs": 22.80000001192093,
+     "editFrameMs": 33.39999997615814,
+     "undoMs": 21.19999998807907,
+     "undoFrameMs": 33.30000001192093,
+     "exportMs": 34.09999996423721,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 21.3,
+      "domNodes": 17516
+     },
+     "openRes": {
+      "heapMB": 30.8,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 43.3,
+      "domNodes": 25390
+     }
+    },
+    {
+     "typing": {
+      "frames": 80,
+      "missed": 0,
+      "gapP95": 16.700000000000273,
+      "gapMax": 16.799999999999727,
+      "slowEvents": 60,
+      "eventP95": 24,
+      "eventMax": 24
+     },
+     "drag": {
+      "frames": 52,
+      "missed": 0,
+      "gapP95": 16.799999999999727,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 33,
+      "eventP95": 40,
+      "eventMax": 40,
+      "moved": true
+     },
+     "homeMs": 182.60000002384186,
+     "homeAllMs": 184.30000001192093,
+     "openMs": 127.19999998807907,
+     "editMs": 23.299999952316284,
+     "editFrameMs": 34.39999997615814,
+     "undoMs": 21.799999952316284,
+     "undoFrameMs": 33.10000002384186,
+     "exportMs": 41.19999998807907,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 21.3,
+      "domNodes": 17516
+     },
+     "openRes": {
+      "heapMB": 30.8,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 43.3,
+      "domNodes": 25390
+     }
+    },
+    {
+     "typing": {
+      "frames": 79,
+      "missed": 1,
+      "gapP95": 16.799999999999955,
+      "gapMax": 33.40000000000009,
+      "slowEvents": 60,
+      "eventP95": 24,
+      "eventMax": 24
+     },
+     "drag": {
+      "frames": 53,
+      "missed": 0,
+      "gapP95": 16.799999999999727,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 56,
+      "eventP95": 16,
+      "eventMax": 48,
+      "moved": true
+     },
+     "homeMs": 185.10000002384186,
+     "homeAllMs": 186.19999998807907,
+     "openMs": 125.80000001192093,
+     "editMs": 22.799999952316284,
+     "editFrameMs": 33.39999997615814,
+     "undoMs": 21.5,
+     "undoFrameMs": 33.299999952316284,
+     "exportMs": 29.5,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 21.3,
+      "domNodes": 17516
+     },
+     "openRes": {
+      "heapMB": 30.8,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 43.3,
+      "domNodes": 25390
+     }
+    },
+    {
+     "typing": {
+      "frames": 80,
+      "missed": 0,
+      "gapP95": 16.799999999999727,
+      "gapMax": 16.799999999999955,
+      "slowEvents": 60,
+      "eventP95": 24,
+      "eventMax": 24
+     },
+     "drag": {
+      "frames": 53,
+      "missed": 1,
+      "gapP95": 16.700000000000273,
+      "gapMax": 33.29999999999973,
+      "slowEvents": 48,
+      "eventP95": 16,
+      "eventMax": 48,
+      "moved": true
+     },
+     "homeMs": 180.80000001192093,
+     "homeAllMs": 182.10000002384186,
+     "openMs": 126.40000003576279,
+     "editMs": 23,
+     "editFrameMs": 33.39999997615814,
+     "undoMs": 21.700000047683716,
+     "undoFrameMs": 33.30000001192093,
+     "exportMs": 40.30000001192093,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 21.3,
+      "domNodes": 17516
+     },
+     "openRes": {
+      "heapMB": 30.8,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 43.3,
+      "domNodes": 25390
+     }
+    },
+    {
+     "typing": {
+      "frames": 80,
+      "missed": 0,
+      "gapP95": 16.799999999999955,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 60,
+      "eventP95": 24,
+      "eventMax": 24
+     },
+     "drag": {
+      "frames": 54,
+      "missed": 0,
+      "gapP95": 16.700000000000273,
+      "gapMax": 16.800000000000182,
+      "slowEvents": 43,
+      "eventP95": 16,
+      "eventMax": 40,
+      "moved": true
+     },
+     "homeMs": 182.5,
+     "homeAllMs": 183.69999998807907,
+     "openMs": 127.40000003576279,
+     "editMs": 23,
+     "editFrameMs": 33.200000047683716,
+     "undoMs": 21.700000047683716,
+     "undoFrameMs": 33.59999996423721,
+     "exportMs": 21.400000035762787,
+     "zipBytes": 16385,
+     "files": 53,
+     "homeRes": {
+      "heapMB": 21.3,
+      "domNodes": 17516
+     },
+     "openRes": {
+      "heapMB": 30.8,
+      "domNodes": 25081
+     },
+     "endRes": {
+      "heapMB": 43.3,
+      "domNodes": 25390
+     }
+    }
+   ]
+  }
+ ],
+ "note": "#317 실제 입력 경로 측정. node scripts/perf/measure.mjs --reps 5 --scenario S1,S3 --input (production). 타이핑: 속성 패널 '텍스트' 칸에 30자, CDP Input.insertText를 차례로 보내고 16ms 쉼(각 글자 처리가 끝나야 다음을 보내 실제 간격은 처리 시간+16ms). 드래그: 카드 c1을 c3 위치로 20단계(16ms 간격), 노드가 실제로 옮겨졌는지 확인(dragMoved). missed = 25ms 넘는 프레임 간격 수, events = Event Timing 16ms 넘는 입력 이벤트(8ms 단위)."
+}

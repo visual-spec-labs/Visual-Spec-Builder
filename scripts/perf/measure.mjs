@@ -54,13 +54,15 @@ const SCENARIOS = {
 };
 
 function parseArgs(argv) {
-  const args = { reps: 5, scenarios: Object.keys(SCENARIOS), chrome: undefined, json: undefined, profile: false, nodeEnv: "production" };
+  const args = { reps: 5, scenarios: Object.keys(SCENARIOS), chrome: undefined, json: undefined, profile: false, input: false, nodeEnv: "production" };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--reps") args.reps = Number(argv[++i]);
     else if (argv[i] === "--scenario") args.scenarios = argv[++i].split(",");
     else if (argv[i] === "--chrome") args.chrome = argv[++i];
     else if (argv[i] === "--json") args.json = argv[++i];
     else if (argv[i] === "--profile") args.profile = true;
+    // 실제 입력 경로(속성 패널 타이핑·캔버스 드래그)의 프레임 누락·입력 지연도 잰다(#317).
+    else if (argv[i] === "--input") args.input = true;
     // 개발 서버의 NODE_ENV. 생략하면 CLI와 같은 production이다(부모 셸의 NODE_ENV를 물려받지 않는다 — 실행과 기록이 어긋나지 않게).
     else if (argv[i] === "--node-env") args.nodeEnv = argv[++i];
   }
@@ -158,6 +160,9 @@ const firstScreenFilled = (projects) => `(() => { const cards = document.querySe
   if (cards.length >= ${projects}) return true; const last = cards[cards.length - 1];
   return last !== undefined && last.getBoundingClientRect().bottom >= innerHeight; })()`;
 
+/** 타이핑 측정의 키 간격(ms). 16ms는 키를 누르고 있을 때의 자동 반복에 가깝다(사람의 빠른 타이핑은 80~150ms). */
+const INPUT_KEY_INTERVAL_MS = Number(process.env.VSB_KEY_INTERVAL_MS ?? 16);
+
 const VISIBLE_PREVIEWS_READY = `[...document.querySelectorAll('[data-preview="pending"]')].every((e) => {
   const r = e.getBoundingClientRect(); return r.bottom <= 0 || r.top >= innerHeight; })`;
 
@@ -191,6 +196,55 @@ window.__perf = {
     const task = performance.now() - t0;
     await this.frame();
     return { task, frame: performance.now() - t0 };
+  },
+  // 실제 입력 경로 측정(#317). start로 프레임 간격·입력 이벤트 처리 시간 기록을 켜고, CDP가 키·마우스를
+  // 보낸 뒤 stop으로 모은다.
+  inputStart() {
+    const record = { frames: [], events: [], running: true };
+    const loop = (t) => { record.frames.push(t); if (record.running) requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+    record.observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) record.events.push({ name: entry.name, duration: entry.duration });
+    });
+    record.observer.observe({ type: "event", durationThreshold: 16, buffered: false });
+    this.record = record;
+    return true;
+  },
+  inputStop() {
+    const record = this.record;
+    record.running = false;
+    record.observer.disconnect();
+    const gaps = record.frames.slice(1).map((t, i) => t - record.frames[i]);
+    const sorted = [...gaps].sort((a, b) => a - b);
+    const durations = record.events.map((e) => e.duration).sort((a, b) => a - b);
+    return {
+      frames: record.frames.length,
+      // 60Hz에서 한 번에 25ms를 넘으면 vsync를 한 번 이상 놓쳤다.
+      missed: gaps.filter((g) => g > 25).length,
+      gapP95: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
+      gapMax: sorted[sorted.length - 1] ?? 0,
+      // Event Timing: 처리+화면 반영까지 16ms를 넘은 입력 이벤트(키·마우스)
+      slowEvents: durations.length,
+      eventP95: durations[Math.floor(durations.length * 0.95)] ?? 0,
+      eventMax: durations[durations.length - 1] ?? 0,
+    };
+  },
+  async selectAndFocus(id) {
+    const editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
+    editor.getState().select(id);
+    await this.frame();
+    const field = [...document.querySelectorAll("textarea, input")].find((el) => el.value === editor.getState().spec.pages[editor.getState().activePageId].nodes[id].content);
+    if (!field) throw new Error("텍스트 칸 없음");
+    field.focus();
+    field.setSelectionRange(field.value.length, field.value.length);
+    return true;
+  },
+  dragPoints(fromId, toId) {
+    const find = (id) => document.querySelector('[data-node-id="' + id + '"]');
+    const a = find(fromId), b = find(toId);
+    if (!a || !b) throw new Error("드래그 대상 없음");
+    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    return { from: { x: ra.left + ra.width / 2, y: ra.top + ra.height / 2 }, to: { x: rb.left + rb.width / 2, y: rb.top + rb.height / 2 + 4 } };
   },
   async editAndUndo(times) {
     const editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
@@ -262,7 +316,7 @@ function topSelfTime(profile, limit = 15) {
     .map(([name, ms]) => ({ name, ms: round(ms), share: round((ms / total) * 100) }));
 }
 
-async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
+async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, input }) {
   const dir = mkdtempSync(join(tmpdir(), `vsb-perf-${key}-`));
   const { workspace, target, imageBytes } = writeWorkspace(dir, scenario);
   const [port, debugPort] = await freePorts(2);
@@ -358,6 +412,39 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
         profiles.editUndo = topSelfTime(cpu);
         process.stderr.write(`  편집·Undo 10회 CPU 자기 시간 상위:\n${profiles.editUndo.map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
       }
+      let typing = null;
+      let drag = null;
+      if (input && rep !== profileRep) {
+        // 타이핑: 속성 패널 "텍스트" 칸에 30자를 INPUT_KEY_INTERVAL_MS 간격으로 친다(16ms = 키를 누르고 있을 때의 반복).
+        await step(`window.__perf.selectAndFocus("t0")`);
+        await step("window.__perf.inputStart()");
+        for (const char of "가나다라마바사아자차카타파하abcdefghijklmnop") {
+          await cdp.send("Input.insertText", { text: char }, sessionId);
+          await sleep(INPUT_KEY_INTERVAL_MS);
+        }
+        await sleep(200);
+        typing = await step("window.__perf.inputStop()");
+        await step(`(async () => { const e = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState();
+          while (e.history?.past?.length ?? 0) { (await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState().undo(); if (!(await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState().history.past.length) break; } return true; })()`);
+        // 드래그: 캔버스의 카드 c1을 c3 위치로 20단계에 걸쳐 끈다(같은 섹션 안 순서 바꾸기).
+        const { from, to } = await step(`window.__perf.dragPoints("c1", "c3")`);
+        // 끌 대상은 클릭과 같은 규칙으로 정해진다 — 카드를 먼저 선택해 두어야 바깥 섹션이 아니라 카드가 잡힌다.
+        await step(`(async () => { const e = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
+          e.getState().select("c1"); await window.__perf.frame(); window.__perf.specBeforeDrag = e.getState().spec; return true; })()`);
+        await step("window.__perf.inputStart()");
+        await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: from.x, y: from.y, button: "left", buttons: 1, clickCount: 1 }, sessionId);
+        for (let i = 1; i <= 20; i += 1) {
+          const x = from.x + ((to.x - from.x) * i) / 20, y = from.y + ((to.y - from.y) * i) / 20;
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "left", buttons: 1 }, sessionId);
+          await sleep(16);
+        }
+        await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: to.x, y: to.y, button: "left", buttons: 0, clickCount: 1 }, sessionId);
+        await sleep(200);
+        drag = await step("window.__perf.inputStop()");
+        // 드래그가 실제로 노드를 옮겼는가(순서 바꿈은 Undo 한 단계) — 옮기지 않았으면 측정이 무효다.
+        drag.moved = await step(`(async () => (await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState().spec
+          !== window.__perf.specBeforeDrag)()`);
+      }
       if (rep === -1) await step(`window.__perf.prepareExport(${scenario.image !== undefined})`);
       const exported = await step("window.__perf.exportZip()");
       const endRes = await metrics(cdp, sessionId);
@@ -367,7 +454,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
       await cdp.send("Target.disposeBrowserContext", { browserContextId });
       opened.contextId = null;
       if (rep >= 0 && rep !== profileRep) {
-        results.push({ homeMs, homeAllMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
+        results.push({ typing, drag, homeMs, homeAllMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
           undoMs: median(undos.map((e) => e.task)), undoFrameMs: median(undos.map((e) => e.frame)), exportMs: exported.ms,
           zipBytes: exported.zipBytes, files: exported.files, homeRes, openRes, endRes });
       }
@@ -401,6 +488,11 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
     ...(profile ? { profiles } : {}),
     home: summary((r) => r.homeMs), homeAll: summary((r) => r.homeAllMs), open: summary((r) => r.openMs), edit: summary((r) => r.editMs),
     undo: summary((r) => r.undoMs), editFrame: summary((r) => r.editFrameMs), undoFrame: summary((r) => r.undoFrameMs),
+    ...(input ? {
+      typing: Object.fromEntries(["missed", "gapP95", "gapMax", "slowEvents", "eventP95", "eventMax"].map((k) => [k, summary((r) => r.typing[k])])),
+      drag: Object.fromEntries(["missed", "gapP95", "gapMax", "slowEvents", "eventP95", "eventMax"].map((k) => [k, summary((r) => r.drag[k])])),
+      dragMoved: results.every((r) => r.drag.moved),
+    } : {}),
     export: summary((r) => r.exportMs),
     zipKB: Math.round(results[0].zipBytes / 1024), generatedFiles: results[0].files,
     heapMB: { home: summary((r) => r.homeRes.heapMB), open: summary((r) => r.openRes.heapMB), end: summary((r) => r.endRes.heapMB) },
@@ -418,9 +510,16 @@ for (const key of args.scenarios) {
   const scenario = SCENARIOS[key];
   if (scenario === undefined) throw new Error(`알 수 없는 시나리오: ${key}`);
   process.stderr.write(`${key} ${scenario.label} — ${args.reps}회…\n`);
-  const result = await runScenario(key, scenario, { reps: args.reps, chrome, profile: args.profile, nodeEnv: args.nodeEnv });
+  const result = await runScenario(key, scenario, { reps: args.reps, chrome, profile: args.profile, nodeEnv: args.nodeEnv, input: args.input });
   out.push(result);
   const f = (s) => `${s.median} (최대 ${s.max})`;
   console.log(`| ${key} ${result.label} | ${f(result.home)} / 전체 ${result.homeAll.median} | ${f(result.open)} | ${f(result.edit)} / ${result.editFrame.median} | ${f(result.undo)} / ${result.undoFrame.median} | ${f(result.export)} | ${result.heapMB.home.median} / ${result.heapMB.open.median} / ${result.heapMB.end.median} | ${result.domNodes.home.median} / ${result.domNodes.open.median} |`);
+}
+for (const result of out) {
+  if (result.typing) {
+    const g = (o) => `놓친 프레임 ${o.missed.median}·간격 p95 ${o.gapP95.median}·최대 ${o.gapMax.median}ms·느린 입력 ${o.slowEvents.median}건(p95 ${o.eventP95.median}·최대 ${o.eventMax.median}ms)`;
+    console.log(`  ${result.key} 타이핑 30자: ${g(result.typing)}`);
+    console.log(`  ${result.key} 드래그 20단계: ${g(result.drag)} · 노드가 옮겨졌는가 ${result.dragMoved}`);
+  }
 }
 if (args.json) writeFileSync(args.json, JSON.stringify({ when: new Date().toISOString(), node: process.version, chrome, browser: versions.browser, results: out }, null, 2));
