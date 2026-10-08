@@ -3,10 +3,9 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { ResponsivePanel } from "@/features/editor/responsive/ResponsivePanel";
 import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { effectivePanelWidth, maxResizableWidth } from "@/features/editor/store/panelLayout";
-import { useViewStore } from "@/features/editor/store/viewStore";
 import { PanelRail } from "@/features/editor/ui/PanelRail";
 import { PanelResizeHandle } from "@/features/editor/ui/PanelResizeHandle";
+import { usePanelResize } from "@/features/editor/ui/usePanelResize";
 
 import { ExportJsonButton } from "./properties/ExportJsonButton";
 import { NodeSectionList } from "./properties/NodeSectionList";
@@ -82,24 +81,13 @@ export function PropertiesPanel() {
   // 화면 크기를 바꿀 자리가 있는 편이 낫고, 캔버스 여백을 누르면 바로 여기로 온다.
   const showPage = node === undefined || selectedId === page.root;
 
-  const panelCollapsed = useViewStore((s) => s.propsCollapsed);
-  const togglePanelCollapsed = useViewStore((s) => s.togglePropsCollapsed);
-  const panelWidth = useViewStore((s) => s.propsWidth);
-  const setPropsWidth = useViewStore((s) => s.setPropsWidth);
-  const treeCollapsed = useViewStore((s) => s.treeCollapsed);
-  const treeWidth = useViewStore((s) => s.treeWidth);
-  const commitPanelLayout = useViewStore((s) => s.commitPanelLayout);
-
-  // 창 폭 대비 동적 상한(#287 리뷰 대응) — window는 여기(ui/)에서만 읽는다,
-  // panelLayout.ts의 maxResizableWidth 참고. 반대쪽(레이어 트리) 패널이
-  // 지금 쓰는 폭을 빼 Canvas 최소 폭을 지킨다.
-  function setPanelWidth(width: number) {
-    const max = maxResizableWidth(
-      window.innerWidth,
-      effectivePanelWidth(treeCollapsed, treeWidth),
-    );
-    setPropsWidth(Math.min(width, max));
-  }
+  const {
+    collapsed: panelCollapsed,
+    width: panelWidth,
+    setWidth: setPanelWidth,
+    toggleCollapsed: togglePanelCollapsed,
+    commitPanelLayout,
+  } = usePanelResize("props");
 
   // 접힌 상태는 펼치기 버튼 하나만 있는 좁은 레일이다(#287) — LayerTree.tsx와
   // 같은 패턴(공유 컴포넌트 PanelRail, 자체 code-review 대응으로 중복 제거).

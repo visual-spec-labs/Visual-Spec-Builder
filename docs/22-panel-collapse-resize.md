@@ -468,6 +468,30 @@ React Testing Library 등 렌더 테스트 인프라가 없어서(`docs/20-manua
 못 더했다 — 순수 함수 쪽(핵심 계산)은 고정했고, 그 위에 한 줄짜리 호출만
 얹은 래퍼는 코드 추론으로 확인했다.
 
+## 리팩터링 — 공유 훅 `usePanelResize` 추출 (2026-10-08, 커밋 ceecbb5 이후)
+
+직전 라운드에서 `setPanelWidth` 래퍼(창 폭 대비 동적 상한 계산)를
+`LayerTree.tsx`와 `PropertiesPanel.tsx`에 거의 그대로 복사해 뒀다 — tree↔props
+라벨만 바뀐 똑같은 코드였다. `viewStore`의 네 값(`collapsed`·`width`·
+`toggleCollapsed`·`commitPanelLayout`)을 읽어오는 줄들도 같은 모양으로
+반복됐다. 실제로 이 계산 로직 자체가 이번 작업 중 자리를 한 번 옮긴 적도
+있어서(처음엔 `store/`에 두려다 `window` 타입 문제로 `ui/`로 옮겼다, 위
+"자체 code-review 대응 2차" 1번) — 두 군데에 흩어져 있으면 다음에 또
+손볼 때 한쪽만 고치고 잊기 쉽다고 판단했다.
+
+`src/features/editor/ui/usePanelResize.ts`로 뽑았다 — `side: "tree" | "props"`
+하나만 받아 `{ collapsed, width, setWidth, toggleCollapsed, commitPanelLayout }`
+를 돌려준다. `LayerTree.tsx`·`PropertiesPanel.tsx`는 이제 각자
+`usePanelResize("tree")`/`usePanelResize("props")` 한 줄만 쓰고, 개별
+`useViewStore` 구독·`setPanelWidth` 함수 정의를 더 안 가진다. 동작은
+그대로다 — 순수 리팩터링이라 공개 동작도, 테스트도 안 바뀐다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1681개
+통과/2개 건너뜀 — 동작을 안 바꾼 리팩터링이라 테스트 수·내용 모두 그대로다.
+
 ## 범위 밖
 
 - 창 폭에 따른 자동 접기/축소(위 6번) — 수동 접기+상태 유지로 같은 목적을 푼다.
