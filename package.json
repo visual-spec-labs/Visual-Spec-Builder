@@ -16,6 +16,7 @@
     "docs/11-ticket-schema-freeze.md",
     "docs/16-responsive-codegen-qa.md",
     "examples",
+    "public",
     "skills",
     "src",
     "index.html",

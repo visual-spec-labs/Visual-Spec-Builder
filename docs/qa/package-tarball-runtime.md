@@ -18,6 +18,7 @@
   잡은 뒤 `runtime/nl-request.json`을 쓰고, 생성 코드 경로
   `generated/pages/Home.tsx`에도 파일을 썼다. 모든 요청이 HTTP 200이었다.
 - Export 회귀 테스트 6개와 pnpm hoisted Vite 의존성 경로 회귀 테스트 1개가 통과했다.
+- `test/package-tarball-smoke.test.ts`는 tarball pack → 저장소 바깥 새 프로젝트에 production 의존성만 설치 → `init`·`skills`·`validate` → 설치본 GUI의 앱 소스·작업공간 API·favicon 응답을 검사한다. `NODE_PATH`를 비워 저장소 의존성이 소비자 설치를 대신하지 않도록 한다.
 
 ## 검증 명령
 

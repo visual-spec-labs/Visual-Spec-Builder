@@ -9,12 +9,20 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 // test/cli-init.test.ts와 같은 이유로 bin/visual-spec.mjs를 정적 import하지 않는다.
 const CLI_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../bin/visual-spec.mjs");
 
-function runCli(args: string[], cwd: string, env?: Record<string, string>) {
+function runCli(
+  args: string[],
+  cwd: string,
+  env?: Record<string, string>,
+  options: { unsetEnv?: string[]; timeoutMs?: number } = {},
+) {
+  const childEnv = { ...process.env, ...env };
+  for (const name of options.unsetEnv ?? []) delete childEnv[name];
   try {
     const stdout = execFileSync("node", [CLI_PATH, ...args], {
       cwd,
       encoding: "utf8",
-      env: { ...process.env, ...env },
+      env: childEnv,
+      timeout: options.timeoutMs ?? 15000,
     });
     return { stdout, exitCode: 0 };
   } catch (error) {
@@ -47,7 +55,12 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
     // 환경 변수는 이 CLI의 공개 인터페이스가 아니다(bin/visual-spec.mjs 상단 주석 참고).
     const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-fake-root-"));
     try {
-      const result = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot });
+      const result = runCli(
+        [],
+        projectDir,
+        { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot },
+        { unsetEnv: ["NODE_PATH"], timeoutMs: 5000 },
+      );
 
       expect(result.exitCode).not.toBe(0);
       expect(result.stderr).toContain("pnpm install");
