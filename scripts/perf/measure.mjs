@@ -31,6 +31,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { writeWorkspace } from "./fixtures.mjs";
+import { collectChromeRss, formatRss, summarizeRss } from "./rss.mjs";
 
 // DevTools 연결에 Node 내장 WebSocket을 쓴다. Node 22부터는 기본으로 있고, 이 저장소가 지원하는 Node 20은
 // `--experimental-websocket`이 있어야 한다 — 없으면 그 플래그를 붙여 이 스크립트를 한 번 다시 실행한다(PR #313 리뷰).
@@ -51,6 +52,12 @@ const SCENARIOS = {
   S3: { projects: 10, nodes: 1000, label: "프로젝트 10 · 노드 1000" },
   S4: { projects: 100, nodes: 1000, label: "프로젝트 100 · 노드 1000" },
   S5: { projects: 10, nodes: 100, image: { width: 2400, height: 1600 }, label: "프로젝트 10 · 노드 100 · 큰 이미지(11.5MB PNG)" },
+  // 프로젝트마다 다른 이미지 — 디코딩·비트맵이 공유되지 않는다(#318).
+  S6: { projects: 10, nodes: 100, image: { width: 2400, height: 1600, distinct: true }, label: "프로젝트 10 · 노드 100 · 프로젝트마다 다른 큰 이미지(11.5MB PNG × 10)" },
+  // 홈이 그리는 카드(화면에 보이는 것과 그 아래 근처)보다 많은 프로젝트가 각자 다른 이미지를 쓴다(#318).
+  S7: { projects: 50, nodes: 100, image: { width: 2400, height: 1600, distinct: true }, label: "프로젝트 50 · 노드 100 · 프로젝트마다 다른 큰 이미지(11.5MB PNG × 50)" },
+  // 한 페이지에 서로 다른 큰 이미지 5장 — 열었을 때 캔버스(#318).
+  S8: { projects: 1, nodes: 100, image: { width: 2400, height: 1600, distinct: true, perPage: 5 }, label: "프로젝트 1 · 노드 100 · 한 페이지에 다른 큰 이미지 5장" },
 };
 
 function parseArgs(argv) {
@@ -152,6 +159,29 @@ async function metrics(cdp, sessionId) {
 }
 
 // 페이지 안에서 도는 측정 코드. 앱과 같은 모듈 URL을 동적 import하므로 같은 스토어 인스턴스를 쓴다.
+// 이미지가 실제로 그려진 시각(#318). 이미지는 CSS 배경이라 로드·디코딩이 비동기다 — Element Timing은 배경
+// 이미지에도 renderTime(화면에 그려진 시각)을 준다. 앱을 고치지 않고, 페이지가 뜨기 전에 배경 이미지가 있는
+// 요소에 elementtiming 속성을 붙이는 감시를 심는다.
+const ELEMENT_TIMING_SETUP = String.raw`
+window.__vsbImages = [];
+// 요소별 그려진 시각. 개수가 아니라 요소로 맞춘다 — 다시 마운트된 요소의 옛 항목을 세지 않게.
+window.__vsbPainted = new WeakMap();
+new PerformanceObserver((list) => {
+  for (const e of list.getEntries()) {
+    const renderTime = e.renderTime || e.loadTime;
+    window.__vsbImages.push({ url: e.url, renderTime, width: e.naturalWidth });
+    if (e.element) window.__vsbPainted.set(e.element, renderTime);
+  }
+}).observe({ type: "element", buffered: true });
+const mark = (el) => { if (el.nodeType === 1 && !el.hasAttribute("elementtiming") && /url\(/.test(el.style?.backgroundImage ?? "")) el.setAttribute("elementtiming", "vsb-image"); };
+new MutationObserver((records) => {
+  for (const r of records) {
+    if (r.type === "attributes") mark(r.target);
+    for (const n of r.addedNodes ?? []) { mark(n); n.querySelectorAll?.("[style]").forEach(mark); }
+  }
+}).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["style"] });
+`;
+
 // 화면에 보이는 카드의 미리보기가 모두 그려졌는가(#315부터 미리보기는 화면 근처에 들어온 카드만
 // 그린다 — data-preview="pending"). 그 전 버전은 카드와 미리보기를 한 번에 그려 pending이 없다.
 // 첫 화면이 찼는가: 카드가 모두 들어왔거나, 마지막 카드가 화면 아래 끝에 닿았다(#316 — 앞에서부터
@@ -176,6 +206,7 @@ window.__perf = {
     const card = [...document.querySelectorAll("button")].find((b) => !b.getAttribute("aria-label") && b.textContent.includes(target));
     if (!card) throw new Error("카드 없음: " + target);
     const t0 = performance.now();
+    this.openStartedAt = t0;
     card.click();
     for (;;) {
       if (nav.getState().screen === "editor" && editor.getState().spec.name === target) break;
@@ -269,9 +300,12 @@ window.__perf = {
     const editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
     const { spec, activePageId } = editor.getState();
     const scan = await scanGeneratedCode(spec.pages[activePageId]);
+    // 페이지 파일은 이 페이지의 이미지 노드가 가리키는 실제 파일을 import한다(S6는 프로젝트마다 다르다).
+    // 페이지의 이미지 노드를 모두 import한다(S8은 한 페이지에 5장).
+    const assets = withImage ? Object.values(spec.pages[activePageId].nodes).filter((n) => n.type === "image").map((n) => n.src.split("/").pop()) : [];
     for (const entry of scan.report.coverage) {
       const isPage = entry.expectedPath.startsWith("pages/");
-      const body = (withImage && isPage ? 'import heroImageUrl from "../assets/big.png";\n' : "")
+      const body = (isPage ? assets.map((name, k) => 'import image' + k + ' from "../assets/' + name + '";\n').join("") : "")
         + "export " + (isPage ? "default " : "") + "function " + entry.componentName + "() {\n  return null;\n}\n";
       await writeWorkspaceFile("generated/" + entry.expectedPath, body, "text/plain");
     }
@@ -365,6 +399,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
       await cdp.send("HeapProfiler.enable", {}, sessionId);
       await cdp.send("Runtime.enable", {}, sessionId);
       await cdp.send("Page.enable", {}, sessionId);
+      if (scenario.image !== undefined) await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: ELEMENT_TIMING_SETUP }, sessionId);
       if (rep === profileRep) {
         await cdp.send("Profiler.enable", {}, sessionId);
         await cdp.send("Profiler.setSamplingInterval", { interval: 100 }, sessionId);
@@ -400,9 +435,44 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
         process.stderr.write(`  홈 첫 진입 CPU 자기 시간 상위:\n${profiles.home.map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
       }
       const homeRes = await metrics(cdp, sessionId);
+      // 홈: 화면에 보이는 미리보기 이미지가 모두 그려질 때까지(그려진 이미지 수가 보이는 이미지 요소 수에 닿으면).
+      let homeImages = null;
+      if (scenario.image !== undefined) {
+        const imageWait = Date.now() + 30_000;
+        while (homeImages === null) {
+          homeImages = await step(`(() => {
+            // 화면 안이고, 카드 미리보기 영역(overflow hidden)에 잘려 나가지 않은 이미지만 — 잘린 것은 그려지지 않는다.
+            const visible = [...document.querySelectorAll('[data-preview] [elementtiming="vsb-image"]')].filter((el) => {
+              const r = el.getBoundingClientRect(); const c = el.closest("[data-preview]").getBoundingClientRect();
+              const top = Math.max(r.top, c.top), bottom = Math.min(r.bottom, c.bottom);
+              return r.width > 0 && bottom > top && bottom > 0 && top < innerHeight; });
+            const times = visible.map((el) => window.__vsbPainted.get(el));
+            return visible.length > 0 && times.every((t) => t !== undefined) ? { ms: Math.max(...times), count: visible.length } : null; })()`);
+          if (homeImages === null) { if (Date.now() > imageWait) throw new Error("홈 이미지 표시 시간 초과"); await sleep(20); }
+        }
+      }
+      // 브라우저 전체 메모리(RSS) — 이미지가 있으면 보이는 이미지가 그려진 뒤.
+      const homeRssCollection = collectChromeRss(browser.pid);
+      const homeRssMB = homeRssCollection.valueMB;
       await step(PAGE_HELPERS);
       const openMs = await step(`window.__perf.open(${JSON.stringify(target)})`);
       const openRes = await metrics(cdp, sessionId);
+      // 열기: 에디터 캔버스의 이미지가 그려질 때까지(카드 클릭 시각 기준).
+      let openImages = null;
+      if (scenario.image !== undefined) {
+        const imageWait = Date.now() + 30_000;
+        while (openImages === null) {
+          // 캔버스(노드 요소)의 이미지가 모두 그려질 때까지 — 홈 미리보기의 늦은 이미지는 세지 않는다.
+          openImages = await step(`(() => { const start = window.__perf.openStartedAt;
+            const canvas = [...document.querySelectorAll('[data-node-id][elementtiming="vsb-image"]')];
+            const times = canvas.map((el) => window.__vsbPainted.get(el));
+            return canvas.length > 0 && times.every((t) => t !== undefined && t > start)
+              ? { ms: Math.max(...times) - start, count: canvas.length } : null; })()`);
+          if (openImages === null) { if (Date.now() > imageWait) throw new Error("열기 이미지 표시 시간 초과"); await sleep(20); }
+        }
+      }
+      const openRssCollection = collectChromeRss(browser.pid);
+      const openRssMB = openRssCollection.valueMB;
       if (rep === profileRep) {
         await cdp.send("Profiler.enable", {}, sessionId);
         await cdp.send("Profiler.setSamplingInterval", { interval: 100 }, sessionId);
@@ -460,7 +530,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
       await cdp.send("Target.disposeBrowserContext", { browserContextId });
       opened.contextId = null;
       if (rep >= 0 && rep !== profileRep) {
-        results.push({ typing, drag, homeMs, homeAllMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
+        results.push({ homeImages, openImages, homeRssMB, openRssMB, homeRssCollection, openRssCollection, typing, drag, homeMs, homeAllMs, openMs, editMs: median(edits.map((e) => e.task)), editFrameMs: median(edits.map((e) => e.frame)),
           undoMs: median(undos.map((e) => e.task)), undoFrameMs: median(undos.map((e) => e.frame)), exportMs: exported.ms,
           zipBytes: exported.zipBytes, files: exported.files, homeRes, openRes, endRes });
       }
@@ -502,6 +572,11 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
     } : {}),
     export: summary((r) => r.exportMs),
     zipKB: Math.round(results[0].zipBytes / 1024), generatedFiles: results[0].files,
+    rssMB: { home: summarizeRss(results.map((r) => r.homeRssCollection)), open: summarizeRss(results.map((r) => r.openRssCollection)) },
+    ...(scenario.image !== undefined ? {
+      homeImagesMs: summary((r) => r.homeImages.ms), homeImagesCount: summary((r) => r.homeImages.count),
+      openImagesMs: summary((r) => r.openImages.ms),
+    } : {}),
     heapMB: { home: summary((r) => r.homeRes.heapMB), open: summary((r) => r.openRes.heapMB), end: summary((r) => r.endRes.heapMB) },
     domNodes: { home: summary((r) => r.homeRes.domNodes), open: summary((r) => r.openRes.domNodes) },
     raw: results,
@@ -523,6 +598,8 @@ for (const key of args.scenarios) {
   console.log(`| ${key} ${result.label} | ${f(result.home)} / 전체 ${result.homeAll.median} | ${f(result.open)} | ${f(result.edit)} / ${result.editFrame.median} | ${f(result.undo)} / ${result.undoFrame.median} | ${f(result.export)} | ${result.heapMB.home.median} / ${result.heapMB.open.median} / ${result.heapMB.end.median} | ${result.domNodes.home.median} / ${result.domNodes.open.median} |`);
 }
 for (const result of out) {
+  console.log(`  ${result.key} 브라우저 RSS: 홈 ${formatRss(result.rssMB.home)} · 열기 뒤 ${formatRss(result.rssMB.open)}${result.homeImagesMs
+    ? ` · 이미지 그려짐: 홈 ${result.homeImagesMs.median}ms(보이는 ${result.homeImagesCount.median}장) · 열기 ${result.openImagesMs.median}ms` : ""}`);
   if (result.typing) {
     const g = (o) => `놓친 프레임 ${o.missed.median}·간격 p95 ${o.gapP95.median}·최대 ${o.gapMax.median}ms·느린 입력 ${o.slowEvents.median}건(p95 ${o.eventP95.median}·최대 ${o.eventMax.median}ms)`;
     console.log(`  ${result.key} 텍스트 삽입 30자: ${g(result.typing)} · 들어갔는가 ${result.typingApplied}`);
