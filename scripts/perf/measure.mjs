@@ -3,23 +3,25 @@
 //
 //   node scripts/perf/measure.mjs [--reps 5] [--scenario S1,S2] [--chrome <path>] [--json out.json]
 //                                 [--node-env production] [--profile]
-//   --node-env production  비교 실험: 개발 서버를 NODE_ENV=production으로 띄워 React production 빌드를 쓴다.
+//   --node-env <값>        개발 서버의 NODE_ENV(development 기본 | production — React production 빌드 비교 실험).
 //   --profile              측정 반복 뒤 별도 반복 하나에서 홈 진입·편집 구간 CPU 자기 시간 상위를 뽑는다
 //                          (결과 중앙값에는 섞지 않는다. --json이면 함께 저장한다).
 //
 // 사용자가 실제로 쓰는 방식 그대로 Vite 개발 서버(GUI)를 픽스처 작업공간으로 띄우고, 헤드리스
-// Chrome을 DevTools 프로토콜(Node 내장 WebSocket)로 몬다. 외부 패키지를 쓰지 않는다.
+// Chrome을 DevTools 프로토콜(Node 내장 WebSocket — Node 22 이상, Node 20은 자동으로 --experimental-websocket)로
+// 몬다. 외부 패키지를 쓰지 않는다.
 // 반복마다 새 브라우저 컨텍스트(저장소·캐시 분리)에서 잰다.
 //
 // 재는 것(모두 페이지의 performance.now 기준, ms):
 //   home   — 내비게이션 시작 → 홈 카드가 모두 그려질 때까지
 //   open   — 카드 클릭 → 에디터 화면에 그 프로젝트가 그려질 때까지(두 프레임 뒤)
-//   edit   — text 노드 내용 변경(setNodeField) → 다음 태스크까지(JS 작업)와 두 프레임 뒤까지(화면 반영), 10회 중앙값
-//   undo   — undo() → 같은 두 값, 10회 중앙값
+//   edit   — text 노드 내용 변경(setNodeField) → 다음 태스크(setTimeout 0)까지 경과와 두 번째 rAF까지 경과, 10회 중앙값.
+//            앞은 JS CPU 시간만이 아니고, 뒤는 화면 표시 완료를 보장하지 않는다. 편집이 실제로 적용됐는지 확인한다
+//   undo   — undo() → 같은 두 값, 10회 중앙값(원래 값으로 돌아왔는지 확인한다)
 //   export — 생성 코드 훑기·검증(scanGeneratedCode) + 자산 읽기 + ZIP 만들기(다운로드 클릭 제외)
 // 자원: 단계마다 GC를 강제한 뒤의 JS 힙 사용량·DOM 노드 수(Performance.getMetrics).
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -27,6 +29,17 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { writeWorkspace } from "./fixtures.mjs";
+
+// DevTools 연결에 Node 내장 WebSocket을 쓴다. Node 22부터는 기본으로 있고, 이 저장소가 지원하는 Node 20은
+// `--experimental-websocket`이 있어야 한다 — 없으면 그 플래그를 붙여 이 스크립트를 한 번 다시 실행한다(PR #313 리뷰).
+if (typeof WebSocket === "undefined") {
+  if (process.execArgv.includes("--experimental-websocket")) {
+    console.error("이 Node에는 WebSocket이 없습니다. Node 22 이상, 또는 Node 20.10 이상에서 실행하세요.");
+    process.exit(1);
+  }
+  const rerun = spawnSync(process.execPath, [...process.execArgv, "--experimental-websocket", ...process.argv.slice(1)], { stdio: "inherit" });
+  process.exit(rerun.status ?? 1);
+}
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -39,16 +52,17 @@ const SCENARIOS = {
 };
 
 function parseArgs(argv) {
-  const args = { reps: 5, scenarios: Object.keys(SCENARIOS), chrome: undefined, json: undefined, profile: false, nodeEnv: undefined };
+  const args = { reps: 5, scenarios: Object.keys(SCENARIOS), chrome: undefined, json: undefined, profile: false, nodeEnv: "development" };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--reps") args.reps = Number(argv[++i]);
     else if (argv[i] === "--scenario") args.scenarios = argv[++i].split(",");
     else if (argv[i] === "--chrome") args.chrome = argv[++i];
     else if (argv[i] === "--json") args.json = argv[++i];
     else if (argv[i] === "--profile") args.profile = true;
-    // 비교 실험: 개발 서버를 NODE_ENV=production으로 띄워 React production 빌드를 쓰게 한다.
+    // 개발 서버의 NODE_ENV. 생략하면 development다(부모 셸의 NODE_ENV를 물려받지 않는다 — 실행과 기록이 어긋나지 않게).
     else if (argv[i] === "--node-env") args.nodeEnv = argv[++i];
   }
+  if (!["development", "production"].includes(args.nodeEnv)) throw new Error(`--node-env는 development 또는 production이어야 합니다(받음: ${args.nodeEnv}).`);
   return args;
 }
 
@@ -153,8 +167,10 @@ window.__perf = {
     await this.frame();
     return performance.now() - t0;
   },
-  // 한 번 바꾸고 (1) 다음 태스크까지 = 동기 렌더·마이크로태스크를 포함한 JS 작업 시간,
-  // (2) 두 프레임 뒤까지 = 화면 반영 시간(60Hz에서 하한 약 33ms)을 함께 잰다.
+  // 한 번 바꾸고 두 경과 구간을 잰다(PR #313 리뷰 — 이름은 잰 구간 그대로다):
+  // (1) task: 호출부터 setTimeout(0) 콜백까지 — 동기 렌더·마이크로태스크와 그 사이 끼어든 다른 태스크를 포함한
+  //     경과 시간이다. JS CPU 시간만이 아니다.
+  // (2) frame: 호출부터 requestAnimationFrame 두 번째 콜백까지 — 화면 표시 완료를 보장하지 않으며 하한도 없다.
   async step(action) {
     const t0 = performance.now();
     action();
@@ -165,10 +181,16 @@ window.__perf = {
   },
   async editAndUndo(times) {
     const editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
+    const content = () => { const s = editor.getState(); return s.spec.pages[s.activePageId].nodes.t0?.content; };
+    const original = content();
+    if (original === undefined) throw new Error("편집 대상 t0이 없습니다");
     const edits = [], undos = [];
     for (let i = 0; i < times; i += 1) {
       edits.push(await this.step(() => editor.getState().setNodeField("t0", "content", "측정 " + i)));
+      // 편집·Undo가 실제로 적용됐는지 확인한다 — 아니면 아무 일도 안 한 시간을 잰 셈이다(PR #313 리뷰).
+      if (content() !== "측정 " + i) throw new Error("편집이 적용되지 않았습니다");
       undos.push(await this.step(() => editor.getState().undo()));
+      if (content() !== original) throw new Error("Undo가 적용되지 않았습니다");
     }
     return { edits, undos };
   },
@@ -232,7 +254,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
   const { workspace, target, imageBytes } = writeWorkspace(dir, scenario);
   const [port, debugPort] = await freePorts(2);
   const vite = spawn(process.execPath, [join(REPO, "node_modules/vite/bin/vite.js"), "--port", String(port), "--strictPort", "--host", "127.0.0.1"], {
-    cwd: REPO, env: { ...process.env, VISUAL_SPEC_WORKSPACE: workspace, ...(nodeEnv ? { NODE_ENV: nodeEnv } : {}) }, stdio: "ignore",
+    cwd: REPO, env: { ...process.env, VISUAL_SPEC_WORKSPACE: workspace, NODE_ENV: nodeEnv }, stdio: "ignore",
   });
   let viteExit = null;
   vite.once("exit", (code, signal) => { viteExit = `개발 서버가 종료됐습니다(code ${code}, signal ${signal})`; });
@@ -316,7 +338,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
   }
   const summary = (pick) => ({ median: round(median(results.map(pick))), max: round(Math.max(...results.map(pick))) });
   return {
-    key, label: scenario.label, reps, imageBytes, nodeEnv: nodeEnv ?? "development",
+    key, label: scenario.label, reps, imageBytes, nodeEnv,
     ...(profile ? { profiles } : {}),
     home: summary((r) => r.homeMs), open: summary((r) => r.openMs), edit: summary((r) => r.editMs),
     undo: summary((r) => r.undoMs), editFrame: summary((r) => r.editFrameMs), undoFrame: summary((r) => r.undoFrameMs),
