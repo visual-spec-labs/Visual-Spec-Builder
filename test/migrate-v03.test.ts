@@ -185,7 +185,9 @@ describe("migrateToV03 — 렌더 스타일이 변환 전과 같다", () => {
         const { background: legacyBackground, ...withoutBackground } = legacy;
 
         for (const styler of STYLERS[type as keyof typeof STYLERS]) {
-          const style = (styler as (n: Node, d: undefined) => Record<string, unknown>);
+          // 미리보기 스타일은 이미지 src 바꾸기를 받는다 — 여기서는 원본을 그대로 쓴다(#322).
+          const style = (n: Node, d: undefined) =>
+            (styler as (n: Node, d: undefined, src: (s: string) => string) => Record<string, unknown>)(n, d, (s) => s);
           const before = {
             ...style(withoutBackground as unknown as Node, undefined),
             background: legacyBackground?.color,

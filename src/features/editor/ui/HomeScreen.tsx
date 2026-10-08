@@ -1,6 +1,7 @@
-import { type RefObject, useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type {
+  Background,
   Node as SpecNode,
   NodeId,
   ProjectSpec,
@@ -22,7 +23,9 @@ import {
   previewInputStyle,
   previewScale,
   previewTextStyle,
+  type PreviewImageSrc,
 } from "@/features/editor/ui/homePreview";
+import { beginPreviewVisit, collectImageSrcs, endPreviewVisit, usePreviewThumbnails } from "@/features/editor/ui/previewThumbnail";
 import { renameProject } from "./renameProject";
 import {
   loadWorkspaceProjects,
@@ -34,6 +37,14 @@ import {
 
 const PREVIEW_WIDTH = 208;
 const PREVIEW_HEIGHT = 140;
+/**
+ * 미리보기 축소 이미지의 짧은 변(px, #322). 카드의 긴 변 × 기기 픽셀 비율이면 카드 안 어떤 상자에서도
+ * 화면 픽셀보다 거칠지 않다(`thumbnailSize`). 비율은 첫 렌더 때 한 번 읽는다 — 창을 다른 배율의
+ * 모니터로 옮겨도 이미 줄인 이미지를 다시 만들지는 않는다.
+ */
+const THUMBNAIL_SHORT_SIDE = Math.ceil(
+  Math.max(PREVIEW_WIDTH, PREVIEW_HEIGHT) * Math.max(1, globalThis.devicePixelRatio ?? 1),
+);
 
 /**
  * 홈(진입) 화면. docs/04-gui-spec.md §2의 상태 1(목록)·상태 2(첫 실행, 빈 목록,
@@ -83,6 +94,16 @@ type HomeState =
   | { kind: "ready"; projects: HomeProject[]; failures: HomeProjectFailure[]; loading: boolean };
 
 export function HomeScreen() {
+  // 홈에 들어올 때마다 미리보기 이미지의 원본이 바뀌었는지 한 번씩 확인한다(#322). 카드의 effect
+  // (자식이라 이 화면의 effect보다 먼저 돈다)보다 먼저 돌아야 하므로 layout effect에서 부른다 —
+  // layout effect는 모두 일반 effect보다 먼저 돈다. 렌더 중에 부르지 않는 것은 StrictMode·재시도
+  // 렌더가 방문을 두 번 세지 않게 하려는 것이고, 같은 마운트의 effect 재실행은 `visitOwner`로 걸러진다.
+  const visitOwner = useRef({});
+  useLayoutEffect(() => {
+    const owner = visitOwner.current;
+    beginPreviewVisit(owner);
+    return () => endPreviewVisit(owner);
+  }, []);
   const spec = useEditorStore((s) => s.spec);
   const openEditor = useNavigationStore((s) => s.openEditor);
   const [renaming, setRenaming] = useState(false);
@@ -512,6 +533,9 @@ function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
   const scale = previewScale(width, height, PREVIEW_WIDTH, PREVIEW_HEIGHT);
   const [ref, seen] = useSeenOnce<HTMLDivElement>(scrollRoot, drawn);
   useEffect(() => { if (seen) onDrawn(); }, [seen, onDrawn]);
+  // 이미지는 원본이 아니라 카드 크기로 줄인 것을 쓴다(#322). 줄이는 동안은 그 이미지만 비워 둔다.
+  const imageSrcs = useMemo(() => collectImageSrcs(page.nodes, page.root), [page.nodes, page.root]);
+  const imageSrc = usePreviewThumbnails(imageSrcs, seen, THUMBNAIL_SHORT_SIDE);
 
   // 미리보기는 그림이다 — 카드 버튼의 접근 가능한 이름은 프로젝트 이름·페이지 정보로 충분하다.
   // 미리보기 안의 텍스트까지 이름에 들어가면 그렸는지(스크롤 위치)에 따라 이름이 바뀌고 매우 길어진다.
@@ -528,7 +552,7 @@ function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
           className="absolute top-0 left-0"
           style={{ width, height, transform: `scale(${scale})`, transformOrigin: "top left" }}
         >
-          <PreviewNode id={page.root} nodes={page.nodes} />
+          <PreviewNode id={page.root} nodes={page.nodes} imageSrc={imageSrc} />
         </div>
       )}
     </div>
@@ -538,10 +562,12 @@ function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
 function PreviewNode({
   id,
   nodes,
+  imageSrc,
   parentDirection,
 }: {
   id: NodeId;
   nodes: Record<NodeId, SpecNode>;
+  imageSrc: PreviewImageSrc;
   parentDirection?: Direction;
 }) {
   const node = nodes[id];
@@ -551,12 +577,13 @@ function PreviewNode({
 
   if (node.type === "frame") {
     return (
-      <div style={previewFrameStyle(node, parentDirection)}>
+      <div style={previewFrameStyle(node, parentDirection, imageSrc)} data-preview-image={imageMark(node.background)}>
         {node.children.map((child) => (
           <PreviewNode
             key={child.node}
             id={child.node}
             nodes={nodes}
+            imageSrc={imageSrc}
             parentDirection={node.layout.direction}
           />
         ))}
@@ -569,12 +596,23 @@ function PreviewNode({
   }
 
   if (node.type === "button") {
-    return <div style={previewButtonStyle(node, parentDirection)}>{node.content}</div>;
+    return <div style={previewButtonStyle(node, parentDirection, imageSrc)} data-preview-image={imageMark(node.background)}>{node.content}</div>;
   }
 
   if (node.type === "input") {
-    return <div style={previewInputStyle(node, parentDirection)}>{node.placeholder}</div>;
+    return <div style={previewInputStyle(node, parentDirection, imageSrc)} data-preview-image={imageMark(node.background)}>{node.placeholder}</div>;
   }
 
-  return <div style={previewImageStyle(node, parentDirection)} />;
+  return <div style={previewImageStyle(node, parentDirection, imageSrc)} data-preview-image={node.src === "" ? undefined : "1"} />;
+}
+
+/**
+ * 이미지를 그려야 하는 미리보기 요소 표시(`data-preview-image`, 값은 서로 다른 이미지 수). 축소본이 준비되기 전에는 배경 이미지가
+ * 없어 스타일만으로는 이미지 자리인지 알 수 없다 — 성능 측정(`scripts/perf/measure.mjs`)이 화면의 이미지가
+ * 모두 그려졌는지 셀 때 쓴다(#322).
+ */
+function imageMark(background: Background | undefined): string | undefined {
+  // 겹 수가 아니라 서로 다른 src 수다 — 같은 이미지를 두 겹에 쓰면 브라우저는 한 번만 그렸다고 알린다.
+  const srcs = new Set(background?.flatMap((fill) => (fill.type === "image" && fill.src !== "" ? [fill.src] : [])));
+  return srcs.size === 0 ? undefined : String(srcs.size);
 }

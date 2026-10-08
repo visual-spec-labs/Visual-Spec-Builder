@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { ImageNode } from "@/features/editor/schema";
 import { previewImageStyle, previewScale } from "@/features/editor/ui/homePreview";
 
+/** 축소본 없이 원본을 그대로 쓰는 경우(SVG·축소 실패) — 예전 동작과 같다. */
+const original = (src: string) => src;
+
 describe("previewScale", () => {
   it("콘텐츠가 박스보다 크면 축소한다", () => {
     // 1440x900을 208x140 박스에 — 가로 기준 208/1440, 세로 기준 140/900 중 더 작은 쪽
@@ -38,20 +41,20 @@ describe("previewImageStyle — url() 인용", () => {
     // CSSOM 이 조용히 버리므로, 오류 하나 없이 미리보기 이미지만 사라졌다.
     // 작업공간 상대 경로는 파일 라우트를 거쳐 나간다(#133 — imageSrc.ts의 resolveImageSrc).
     // PR #145 리뷰 이후로는 세그먼트마다 URL 인코딩까지 한다 — 공백은 `%20`이 된다.
-    const style = previewImageStyle(image("assets/hero image.png"), "column");
+    const style = previewImageStyle(image("assets/hero image.png"), "column", original);
 
     expect(style.backgroundImage).toBe('url("/__vs/file/assets/hero%20image.png")');
   });
 
   it("#이 든 이름도 미리보기에서 살아남는다 (PR #145 리뷰)", () => {
     // 인코딩하지 않으면 `#`부터가 조각이라 서버에 `hero`까지만 닿는다.
-    const style = previewImageStyle(image("assets/hero#1.png"), "column");
+    const style = previewImageStyle(image("assets/hero#1.png"), "column", original);
 
     expect(style.backgroundImage).toBe('url("/__vs/file/assets/hero%231.png")');
   });
 
   it("따옴표와 역슬래시를 이스케이프해 문자열을 못 닫게 한다", () => {
-    const style = previewImageStyle(image('/a"b\\c.png'), "column");
+    const style = previewImageStyle(image('/a"b\\c.png'), "column", original);
 
     expect(style.backgroundImage).toBe('url("/a\\"b\\\\c.png")');
   });

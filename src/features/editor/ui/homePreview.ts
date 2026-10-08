@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import type {
+  Background,
   ButtonNode,
   FrameNode,
   ImageNode,
@@ -61,6 +62,7 @@ function previewDisplayStyle(layout: FrameNode["layout"]): CSSProperties {
 export function previewFrameStyle(
   node: FrameNode,
   parentDirection: Direction | undefined,
+  imageSrc: PreviewImageSrc,
 ): CSSProperties {
   const { layout } = node;
   return {
@@ -73,7 +75,7 @@ export function previewFrameStyle(
     justifyContent: MAIN_AXIS[layout.mainAxis],
     alignItems: CROSS_AXIS[layout.crossAxis],
     ...boxStyle(node.box, parentDirection),
-    ...backgroundStyle(node.background),
+    ...backgroundStyle(previewBackground(node.background, imageSrc)),
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
       : undefined,
@@ -100,13 +102,39 @@ export function previewTextStyle(
   };
 }
 
+/**
+ * 미리보기에 쓸 이미지 주소(#322). 원본 대신 카드 크기로 줄인 이미지의 blob URL을 주고,
+ * null이면 아직 준비되지 않아 그 이미지를 그리지 않는다. `previewThumbnail.ts`가 만든다.
+ */
+export type PreviewImageSrc = (src: string) => string | null;
+
+/**
+ * 배경의 이미지 겹 src를 미리보기용(`imageSrc`)으로 바꾼다. 아직 준비되지 않은 겹은 뺀다 —
+ * 원본을 잠깐이라도 그리면 그 디코드가 바로 #322가 없애려는 메모리다. 나머지 겹의 순서와
+ * 맨 아래 단색은 그대로라 겹이 준비되는 대로 카드가 원래 모습으로 채워진다.
+ */
+export function previewBackground(
+  background: Background | undefined,
+  imageSrc: PreviewImageSrc,
+): Background | undefined {
+  if (background === undefined) return undefined;
+  return background.flatMap((fill): Background => {
+    if (fill.type !== "image") return [fill];
+    const src = imageSrc(fill.src);
+    return src === null ? [] : [{ ...fill, src }];
+  });
+}
+
+/** 이미지 노드. 미리보기용 src가 아직 없으면 같은 크기의 빈 상자만 둔다. */
 export function previewImageStyle(
   node: ImageNode,
   parentDirection: Direction | undefined,
+  imageSrc: PreviewImageSrc,
 ): CSSProperties {
+  const src = imageSrc(node.src);
   return {
     ...boxStyle(node.box, parentDirection),
-    backgroundImage: imageUrlCss(node.src),
+    backgroundImage: src === null ? undefined : imageUrlCss(src),
     backgroundSize: node.fit === "fill" ? "100% 100%" : node.fit,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
@@ -116,6 +144,7 @@ export function previewImageStyle(
 export function previewButtonStyle(
   node: ButtonNode,
   parentDirection: Direction | undefined,
+  imageSrc: PreviewImageSrc,
 ): CSSProperties {
   const { typography } = node;
   return {
@@ -130,7 +159,7 @@ export function previewButtonStyle(
     lineHeight: `${typography.lineHeight}px`,
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
-    ...backgroundStyle(node.background),
+    ...backgroundStyle(previewBackground(node.background, imageSrc)),
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
       : undefined,
@@ -142,6 +171,7 @@ export function previewButtonStyle(
 export function previewInputStyle(
   node: InputNode,
   parentDirection: Direction | undefined,
+  imageSrc: PreviewImageSrc,
 ): CSSProperties {
   const { typography } = node;
   return {
@@ -156,7 +186,7 @@ export function previewInputStyle(
     lineHeight: `${typography.lineHeight}px`,
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
-    ...backgroundStyle(node.background),
+    ...backgroundStyle(previewBackground(node.background, imageSrc)),
     border: node.border
       ? `${node.border.width}px solid ${node.border.color}`
       : undefined,
