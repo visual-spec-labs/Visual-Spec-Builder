@@ -1,0 +1,46 @@
+{
+  "people": [
+    {
+      "handle": "Yumesa2025",
+      "name": "김태환",
+      "gitNames": [
+        "Yumesa2025",
+        "KAIREN_2026",
+        "KIM TAEHWAN",
+        "Codex"
+      ],
+      "note": "AI 워커가 만든 커밋·PR도 이 계정으로 기록된다"
+    },
+    {
+      "handle": "GAMMJ",
+      "name": "김민재",
+      "gitNames": [
+        "GAMMJ",
+        "MinJae Kim"
+      ]
+    },
+    {
+      "handle": "wook3964",
+      "name": "박용욱",
+      "gitNames": [
+        "박용욱",
+        "wook_ᕦ(ò_ó)ᕤ"
+      ]
+    },
+    {
+      "handle": "dogui1018",
+      "name": "김도국",
+      "gitNames": [
+        "dogui1018"
+      ]
+    },
+    {
+      "handle": "SunMyunC",
+      "name": "정선영",
+      "gitNames": [
+        "SunMyunC",
+        "Sunyeong Jeong"
+      ]
+    }
+  ]
+}
