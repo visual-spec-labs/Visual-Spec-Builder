@@ -44,7 +44,13 @@ function nextFrames(): Promise<void> {
   // 숨긴 탭은 프레임이 오지 않는다 — 그대로 기다리면 돌아올 때까지 읽기가 멈춘다.
   const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
   if (typeof requestAnimationFrame !== "function" || hidden) return new Promise((resolve) => { setTimeout(resolve, 0); });
-  return new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(() => resolve())); });
+  // 기다리는 사이 탭이 숨겨져도 멈추지 않게 짧은 타이머와 겨룬다(먼저 오는 쪽).
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => { if (!settled) { settled = true; resolve(); } };
+    requestAnimationFrame(() => requestAnimationFrame(finish));
+    setTimeout(finish, 100);
+  });
 }
 
 /**
