@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Render/check the chronicle from frozen inputs; never fetch or advance the cutoff.
 
+Requires Python 3.9+ and IANA timezone data (system database or the optional
+tzdata package, commonly needed on Windows: python -m pip install tzdata).
+Files are UTF-8; generated output always uses LF.
+
 python scripts/history.py --write       # update phase statistics and appendix
 python scripts/history.py --verify-git  # check output and the frozen Git universe
 """
@@ -11,17 +15,20 @@ import json
 from pathlib import Path
 import re
 import subprocess
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 ROOT = Path(__file__).resolve().parents[1]
 HISTORY = ROOT / 'docs/history'
 DATA = HISTORY / 'data'
-KST = ZoneInfo('Asia/Seoul')
+try:
+    KST = ZoneInfo('Asia/Seoul')
+except ZoneInfoNotFoundError as error:
+    raise SystemExit('Asia/Seoul timezone data is required. Install system IANA data or run: python -m pip install tzdata') from error
 REPO_URL = 'https://github.com/visual-spec-labs/Visual-Spec-Builder'
 
 
 def load(name):
-    return json.loads((DATA / f'{name}.json').read_text())
+    return json.loads((DATA / f'{name}.json').read_text(encoding='utf-8'))
 
 
 def date(value):
@@ -68,7 +75,7 @@ def main():
     assert reachable == set(by_sha)
     assert commits_doc['dateField'] == 'committer' and commits_doc['includeMergeCommits'] is True
     if args.verify_git:
-        log = subprocess.check_output(['git', 'log', commits_doc['snapshotCommit'], '--format=%H%x09%cI%x09%P'], cwd=ROOT, text=True)
+        log = subprocess.check_output(['git', 'log', commits_doc['snapshotCommit'], '--format=%H%x09%cI%x09%P'], cwd=ROOT, text=True, encoding='utf-8')
         actual = {}
         for line in log.splitlines():
             sha, committed_at, parents = line.split('\t')
@@ -133,9 +140,10 @@ def main():
     outputs = {DATA / 'phases.json': json.dumps(phases_doc, ensure_ascii=False, indent=2) + '\n', HISTORY / 'appendix.md': '\n'.join(lines) + '\n'}
     for path, content in outputs.items():
         if args.write:
-            path.write_text(content)
+            with path.open('w', encoding='utf-8', newline='\n') as output:
+                output.write(content)
         else:
-            assert path.read_text() == content, f'{path.relative_to(ROOT)} is stale; run --write'
+            assert path.read_text(encoding='utf-8') == content, f'{path.relative_to(ROOT)} is stale; run --write'
     print(f'OK: {len(commits)} commits, {len(events)} PRs, {len(issues)} issues; phase commits: ' + ', '.join(str(commit_counts[p['id']]) for p in phases))
 
 
