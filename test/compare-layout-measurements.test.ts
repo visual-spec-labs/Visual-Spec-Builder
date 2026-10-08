@@ -32,6 +32,7 @@ function measurement(y = 0): Measurement {
       height: 844,
       devicePixelRatio: 1,
       visualViewportScale: 1,
+      canvasZoomPercent: 100,
       fontStatus: "loaded",
       fontFaces: ["Pretendard/normal/400/loaded"],
     },
@@ -42,13 +43,20 @@ function measurement(y = 0): Measurement {
   };
 }
 
-function compare(gui: Measurement, generated: Measurement) {
+function compare(gui: unknown, generated: unknown) {
   scratch = mkdtempSync(join(tmpdir(), "vsb-layout-compare-"));
   const guiPath = join(scratch, "gui.json");
   const generatedPath = join(scratch, "generated.json");
   writeFileSync(guiPath, JSON.stringify(gui));
   writeFileSync(generatedPath, JSON.stringify(generated));
   return spawnSync(process.execPath, [SCRIPT, guiPath, generatedPath], { encoding: "utf8" });
+}
+
+function mutableJson(measurementValue: Measurement) {
+  return JSON.parse(JSON.stringify(measurementValue)) as {
+    viewport: Record<string, unknown>;
+    nodes: Record<string, unknown>;
+  };
 }
 
 afterEach(() => {
@@ -85,4 +93,43 @@ it("viewport/font 조건과 노드 ID가 다르면 실패한다", () => {
     expect.stringContaining("viewport.fontFaces"),
     expect.stringContaining("unexpected generated node: subtitle"),
   ]));
+});
+
+it("필수 노드 측정이 null이거나 필수 viewport 치수가 없으면 실패한다", () => {
+  const generated = mutableJson(measurement());
+  generated.nodes.title = null;
+
+  const missingNode = compare(measurement(), generated);
+  expect(missingNode.status).toBe(2);
+  expect(missingNode.stderr).toContain("nodes.title 측정값이 객체가 아닙니다");
+
+  const missingViewport = mutableJson(measurement());
+  delete missingViewport.viewport.height;
+  const invalidViewport = compare(measurement(), missingViewport);
+  expect(invalidViewport.status).toBe(2);
+  expect(invalidViewport.stderr).toContain("viewport.height는 유한한 숫자여야 합니다");
+});
+
+it("문자열 좌표와 음수 치수는 측정값으로 허용하지 않는다", () => {
+  const stringCoordinate = mutableJson(measurement());
+  stringCoordinate.nodes.title = { ...(stringCoordinate.nodes.title as Bounds), x: "20" };
+  const invalidCoordinate = compare(measurement(), stringCoordinate);
+  expect(invalidCoordinate.status).toBe(2);
+  expect(invalidCoordinate.stderr).toContain("nodes.title.x는 유한한 숫자여야 합니다");
+
+  const negativeSize = mutableJson(measurement());
+  negativeSize.nodes.title = { ...(negativeSize.nodes.title as Bounds), width: -1 };
+  const invalidSize = compare(measurement(), negativeSize);
+  expect(invalidSize.status).toBe(2);
+  expect(invalidSize.stderr).toContain("width/height는 음수일 수 없습니다");
+});
+
+it("Canvas 확대율이 100%가 아니면 좌표 비교를 통과시키지 않는다", () => {
+  const generated = measurement();
+  generated.viewport.canvasZoomPercent = 50;
+  const result = compare(measurement(), generated);
+  const report = JSON.parse(result.stdout) as { errors: string[] };
+
+  expect(result.status).toBe(1);
+  expect(report.errors).toContain("generated canvasZoomPercent must be 100");
 });

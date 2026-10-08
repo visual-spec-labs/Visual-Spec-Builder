@@ -12,8 +12,11 @@
 - GUI 아트보드는 `min-height: screen.size.height`이고 column flex 컨테이너다. root는
   `width: 100%; flex: 1 0 auto`라 짧은 콘텐츠는 첫 화면까지 자라고, 긴 콘텐츠는 줄지 않고
   아트보드를 확장한다. root의 JSON `box`는 페이지 크기를 정하지 않는다.
-- 생성 페이지는 이 동작을 재현하는 페이지 셸을 사용한다. 셸의 너비는 viewport와
-  `screen.size.width` 중 작은 값, 최소 높이는 `max(100dvh, screen.size.height)`다.
+- 고정 폭 생성 페이지 셸은 viewport와 `screen.size.width` 중 작은 너비를 쓴다.
+  `screen.responsive`가 있는 페이지는 에디터 responsive preview width를 측정 브라우저의
+  viewport 너비로 맞추고 생성 셸도 `width: 100%`로 둔다. 이때 preview width는 초기
+  `screen.size.width`와 별개이며 responsive breakpoint 계산에도 같은 값을 사용한다.
+  두 경우 모두 최소 높이는 `max(100dvh, screen.size.height)`다.
   고정 `height`, `height:100%`/`h-full`, `overflow:hidden`은 쓰지 않는다.
 - 앱 기본 스타일은 Canvas와 같은 Tailwind Preflight 값이어야 한다: margin/padding 0,
   `box-sizing:border-box`, `border:0 solid`, input/button 폰트 상속. input placeholder는
@@ -36,22 +39,35 @@
 - root를 제외한 별도 스크롤 위치는 0으로 맞춘다. 페이지 상단에 정렬한 뒤 측정하며,
   문서가 844px보다 길면 `scrollHeight`가 콘텐츠를 포함하는지 별도로 확인한다.
 - root 및 모든 보이는 노드의 각 bounds(`x/y/width/height`) 차이는 **1 CSS px 이하**여야
-  한다. 양쪽 노드 ID 집합은 같아야 한다. 숨김 breakpoint에서도 노드가 DOM에 남는 경우에는
-  양쪽 모두의 visibility/display를 맞춘 뒤 표시 중인 노드의 bounds를 비교한다.
+  한다. 양쪽 노드 ID 집합은 같아야 한다. `display:none` 또는 `visibility:hidden/collapse`인
+  노드와 그런 조상 아래의 자손은 양쪽 캡처에서 제외한다. 비교 대상은 양쪽 모두 실제로
+  보이는 노드이며, breakpoint에서 숨겨진 노드가 DOM에 남는 것은 ID 불일치가 아니다.
 - 폰트 준비 상태나 loaded font 목록이 다르면 측정은 무효다. 이를 레이아웃 성공/실패로
   채점하지 않고 조건을 맞춘 뒤 다시 실행한다.
 
-Capture JSON은 다음과 같이 만든다. `rootId`는 Visual Spec의 root 노드 ID이며 각 좌표는
+Capture JSON은 다음과 같이 만든다. GUI 캔버스에서는 zoom reset 단축키를 실행하고 배지가
+`100%`인지 확인한다. 자동 `fitToScreen`이 실행된 직후에는 반드시 다시 reset한다. 생성 페이지의
+브라우저 zoom도 100%여야 한다. `rootId`는 Visual Spec의 root 노드 ID이며 각 좌표는
 root의 `getBoundingClientRect().left/top` 기준이다. `fontFaces`는 두 탭에서 같은 문자열
 형식(`family/style/weight/status`)으로 정렬해 기록한다.
 
 ```js
 const rootId = "root";
-const elements = [...document.querySelectorAll("[data-node-id]")];
-const root = elements.find((element) => element.dataset.nodeId === rootId);
-if (!root || new Set(elements.map((element) => element.dataset.nodeId)).size !== elements.length) {
-  throw new Error("root가 없거나 data-node-id가 중복됐습니다.");
+const allElements = [...document.querySelectorAll("[data-node-id]")];
+const ids = allElements.map((element) => element.dataset.nodeId);
+if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {
+  throw new Error("data-node-id가 비어 있거나 중복됐습니다.");
 }
+function isVisible(element) {
+  for (let current = element; current instanceof Element; current = current.parentElement) {
+    const style = getComputedStyle(current);
+    if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return false;
+  }
+  return element.getClientRects().length > 0;
+}
+const elements = allElements.filter(isVisible);
+const root = elements.find((element) => element.dataset.nodeId === rootId);
+if (!root) throw new Error("표시 중인 root가 없습니다.");
 await Promise.all(elements.map((element) => {
   const style = getComputedStyle(element);
   return document.fonts.load(`${style.fontWeight} ${style.fontSize} ${style.fontFamily}`);
@@ -65,6 +81,7 @@ JSON.stringify({
     height: innerHeight,
     devicePixelRatio,
     visualViewportScale: visualViewport?.scale ?? 1,
+    canvasZoomPercent: 100,
     fontStatus: document.fonts.status,
     fontFaces: [...document.fonts].map((font) =>
       `${font.family}/${font.style}/${font.weight}/${font.status}`,
@@ -92,7 +109,7 @@ node scripts/compare-layout-measurements.mjs gui.json generated.json
 1 CSS px 초과 차이를 실패로 반환한다.
 
 회귀 테스트 `pnpm test -- test/compare-layout-measurements.test.ts`는 1px 경계 통과,
-1px 초과 실패, viewport/font/노드 ID 불일치를 확인한다. 이는 비교기 동작 테스트이며
+1px 초과 실패, viewport/font/노드 ID 불일치, null/누락/비수치/음수 측정, Canvas 줌 조건을 확인한다. 이는 비교기 동작 테스트이며
 GUI와 실제 생성 앱의 실측 결과가 아니다.
 
 ## 필수 사례와 현황
@@ -108,7 +125,8 @@ GUI와 실제 생성 앱의 실측 결과가 아니다.
 ## 저장소 검증 결과
 
 - `pnpm run typecheck`, `pnpm run lint`, `pnpm run build`: 통과.
-- `pnpm test -- test/compare-layout-measurements.test.ts`: 3개 테스트 통과.
+- 비교기 테스트의 이전 검증에서는 3개 테스트가 통과했다. 이번 리뷰 수정으로 입력 검증과
+  Canvas zoom 조건 테스트를 추가했으며, 새 테스트는 아직 실행하지 않았다.
 - 전체 `pnpm test`: 99개 파일 통과, 6개 파일 실패, 2개 건너뜀(총 17개 테스트 실패).
   실패는 검증기 번들/티켓 응답 예제 불일치와 Windows 경로·권한·symlink 제약 등이었다.
   이 전체 테스트 결과는 비교기 회귀 테스트 결과와 구분한다.

@@ -251,10 +251,12 @@ fallback 뒤에 동적 모바일 viewport를 덮는다. `height: 100%`, `h-full`
 <style>{`
 @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css");
 html, body, #root { width: 100%; min-height: 100%; margin: 0; }
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
-button, input { font: inherit; letter-spacing: inherit; color: inherit; }
-::placeholder { color: currentColor; opacity: .6; }
-.vsb-page { display: flex; flex-direction: column; width: min(100%, var(--vsb-page-width));
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
+  button, input { font: inherit; letter-spacing: inherit; color: inherit; }
+  ::placeholder { color: currentColor; opacity: .6; }
+}
+.vsb-page { display: flex; flex-direction: column; width: var(--vsb-page-width);
   min-height: max(100vh, var(--vsb-page-height));
   min-height: max(100dvh, var(--vsb-page-height)); margin-inline: auto; }
 `}</style>
@@ -265,12 +267,16 @@ button, input { font: inherit; letter-spacing: inherit; color: inherit; }
 </main>
 ```
 
-화면마다 CSS 변수에는 해당 `screen.size` 값을 넣는다. 반응형 override가 있어도 기반 폭·높이는
-같게 둔다. 자식이 길어진 때는 root의 `flex-basis:auto`와 `flex-shrink:0`이 콘텐츠 높이를
-보존한다. `size.height`는 첫 화면 최소 높이이지 페이지 전체 높이가 아니다.
+고정 폭 페이지는 `--vsb-page-width`에 `screen.size.width`를 넣는다. `screen.responsive`가
+있으면 비교하는 브라우저 viewport를 에디터의 responsive preview width와 같게 하고
+`--vsb-page-width: 100%`로 둔다. 반응형 GUI는 초기 `screen.size.width`보다 넓거나 좁은
+독립 preview width를 사용하므로, 초기 아트보드 폭으로 생성 셸을 제한하지 않는다. 화면마다
+`screen.size.height`를 최소 높이에 넣는다. 자식이 길어진 때는 root의 `flex-basis:auto`와
+`flex-shrink:0`이 콘텐츠 높이를 보존한다. `size.height`는 첫 화면 최소 높이지 페이지 전체 높이가 아니다.
 
-이 reset은 Canvas의 Tailwind Preflight와 맞춘다. 대상 앱에서 Preflight를 끄면 위 규칙을
-빠짐없이 포함한다. 텍스트는 Canvas처럼 기본 margin 0과 `pre-wrap`을 쓴다. 버튼은
+이 reset은 Canvas의 Tailwind Preflight와 맞춘다. reset은 Tailwind utilities보다 낮은
+`@layer base`에 둬야 유틸리티 padding/border/font/color가 reset에 덮이지 않는다. 대상 앱에서
+Tailwind를 사용하지 않거나 Preflight를 끄면 같은 base 규칙을 일반 CSS로 포함한다. 텍스트는 Canvas처럼 기본 margin 0과 `pre-wrap`을 쓴다. 버튼은
 `flex items-center justify-center`, input은 `flex items-center`를 추가해 Canvas의 중앙 정렬과
 44px 높이를 재현한다. input의 `placeholder`는 기본 UA 색·opacity를 그대로 두지 않고
 `placeholder:text-current placeholder:opacity-[0.6]`를 지정한다. GUI가 안내 문구를 노드 색의
