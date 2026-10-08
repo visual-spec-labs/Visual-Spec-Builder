@@ -283,6 +283,16 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
       opened.contextId = browserContextId;
       const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank", browserContextId });
       const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true });
+      // 개발 서버가 측정 도중 페이지를 새로 고쳤는가. 어느 단계에서든 새로 고쳐졌으면 이 반복은 버린다.
+      const reloaded = async () => (await evaluate(cdp, sessionId,
+        `performance.getEntriesByType("navigation")[0]?.type ?? null`).catch(() => null)) === "reload";
+      const step = async (expression) => {
+        try { return await evaluate(cdp, sessionId, expression); }
+        catch (error) {
+          if (await reloaded()) throw new Error(`page navigated or closed (개발 서버 재로드): ${error.message}`);
+          throw error;
+        }
+      };
       await cdp.send("Performance.enable", {}, sessionId);
       await cdp.send("HeapProfiler.enable", {}, sessionId);
       await cdp.send("Runtime.enable", {}, sessionId);
@@ -314,23 +324,25 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv }) {
         process.stderr.write(`  홈 첫 진입 CPU 자기 시간 상위:\n${profiles.home.map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
       }
       const homeRes = await metrics(cdp, sessionId);
-      await evaluate(cdp, sessionId, PAGE_HELPERS);
-      const openMs = await evaluate(cdp, sessionId, `window.__perf.open(${JSON.stringify(target)})`);
+      await step(PAGE_HELPERS);
+      const openMs = await step(`window.__perf.open(${JSON.stringify(target)})`);
       const openRes = await metrics(cdp, sessionId);
       if (rep === profileRep) {
         await cdp.send("Profiler.enable", {}, sessionId);
         await cdp.send("Profiler.setSamplingInterval", { interval: 100 }, sessionId);
         await cdp.send("Profiler.start", {}, sessionId);
       }
-      const { edits, undos } = await evaluate(cdp, sessionId, "window.__perf.editAndUndo(10)");
+      const { edits, undos } = await step("window.__perf.editAndUndo(10)");
       if (rep === profileRep) {
         const { profile: cpu } = await cdp.send("Profiler.stop", {}, sessionId);
         profiles.editUndo = topSelfTime(cpu);
         process.stderr.write(`  편집·Undo 10회 CPU 자기 시간 상위:\n${profiles.editUndo.map((row) => `    ${row.ms}ms ${row.share}% ${row.name}`).join("\n")}\n`);
       }
-      if (rep === -1) await evaluate(cdp, sessionId, `window.__perf.prepareExport(${scenario.image !== undefined})`);
-      const exported = await evaluate(cdp, sessionId, "window.__perf.exportZip()");
+      if (rep === -1) await step(`window.__perf.prepareExport(${scenario.image !== undefined})`);
+      const exported = await step("window.__perf.exportZip()");
       const endRes = await metrics(cdp, sessionId);
+      // 단계 사이(평가와 평가 사이)에 새로 고쳐져 오류 없이 지나간 경우도 결과에 넣지 않는다.
+      if (await reloaded()) throw new Error("page navigated or closed (개발 서버 재로드)");
       await cdp.send("Target.closeTarget", { targetId });
       await cdp.send("Target.disposeBrowserContext", { browserContextId });
       opened.contextId = null;
