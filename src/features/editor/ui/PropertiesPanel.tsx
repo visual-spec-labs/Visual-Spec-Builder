@@ -4,6 +4,7 @@ import { ResponsivePanel } from "@/features/editor/responsive/ResponsivePanel";
 import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
+import { PanelRail } from "@/features/editor/ui/PanelRail";
 import { PanelResizeHandle } from "@/features/editor/ui/PanelResizeHandle";
 
 import { ExportJsonButton } from "./properties/ExportJsonButton";
@@ -84,21 +85,20 @@ export function PropertiesPanel() {
   const togglePanelCollapsed = useViewStore((s) => s.togglePropsCollapsed);
   const panelWidth = useViewStore((s) => s.propsWidth);
   const setPanelWidth = useViewStore((s) => s.setPropsWidth);
+  const commitPanelLayout = useViewStore((s) => s.commitPanelLayout);
 
   // 접힌 상태는 펼치기 버튼 하나만 있는 좁은 레일이다(#287) — LayerTree.tsx와
-  // 같은 패턴. docs/22-panel-collapse-resize.md "결정" 1번 참고.
+  // 같은 패턴(공유 컴포넌트 PanelRail, 자체 code-review 대응으로 중복 제거).
+  // docs/22-panel-collapse-resize.md "결정" 1번 참고.
   if (panelCollapsed) {
     return (
-      <aside className="flex flex-col items-center overflow-hidden border-l border-line bg-surface py-2 [grid-area:props]">
-        <button
-          type="button"
-          onClick={togglePanelCollapsed}
-          aria-label="속성 패널 펼치기"
-          className="rounded-control p-1 text-content-muted hover:bg-hover hover:text-content"
-        >
-          <PanelRightOpen className="size-4" aria-hidden="true" />
-        </button>
-      </aside>
+      <PanelRail
+        gridArea="props"
+        border="left"
+        icon={PanelRightOpen}
+        label="속성 패널 펼치기"
+        onExpand={togglePanelCollapsed}
+      />
     );
   }
 
@@ -108,6 +108,7 @@ export function PropertiesPanel() {
         side="left"
         width={panelWidth}
         onResize={setPanelWidth}
+        onCommit={commitPanelLayout}
         label="속성 패널 폭 조절"
       />
       {node === undefined ? (

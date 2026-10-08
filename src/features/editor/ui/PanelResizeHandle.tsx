@@ -21,11 +21,15 @@ export function PanelResizeHandle({
   side,
   width,
   onResize,
+  onCommit,
   label,
 }: {
   side: "left" | "right";
   width: number;
+  /** 드래그 중(mousemove)·키 조절마다 부른다 — state만 바꾼다(저장 안 함). */
   onResize: (nextWidth: number) => void;
+  /** 드래그가 끝나거나(mouseup) 키 조절 한 번이 끝났을 때 한 번 불러 저장한다. */
+  onCommit: () => void;
   label: string;
 }) {
   const sign = side === "right" ? 1 : -1;
@@ -46,6 +50,9 @@ export function PanelResizeHandle({
     function end() {
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", end);
+      // 드래그 내내 mousemove마다 localStorage에 쓰지 않는다(자체 code-review
+      // 대응) — 끝났을 때 한 번만 저장한다.
+      onCommit();
     }
 
     window.addEventListener("mousemove", handleMove);
@@ -61,6 +68,9 @@ export function PanelResizeHandle({
       return;
     }
     event.preventDefault();
+    // 키 입력 한 번은 그 자체로 완결된 조절이다(드래그처럼 연속 이벤트가
+    // 아니다) — 바로 저장한다.
+    onCommit();
   }
 
   return (
@@ -74,8 +84,12 @@ export function PanelResizeHandle({
       tabIndex={0}
       onMouseDown={handleMouseDown}
       onKeyDown={handleKeyDown}
+      // 부모 <aside>가 overflow-hidden이라(자체 code-review 대응) 경계 바깥으로
+      // 반쯤 튀어나오게 두면(translate-x-1/2 등) 그 바깥 절반은 클릭도 hover도
+      // 안 먹는다 — 패널 안쪽에 완전히 들어오도록 translate 없이 right-0/left-0
+      // 그대로 둔다.
       className={`absolute top-0 bottom-0 z-10 w-1 cursor-ew-resize ${
-        side === "right" ? "right-0 translate-x-1/2" : "left-0 -translate-x-1/2"
+        side === "right" ? "right-0" : "left-0"
       } hover:bg-primary focus-visible:bg-primary focus-visible:outline-none`}
     />
   );

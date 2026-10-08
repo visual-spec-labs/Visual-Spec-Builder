@@ -29,6 +29,7 @@ import { generateNodeId } from "@/features/editor/store/nodeId";
 import { resolveImportParent } from "@/features/editor/store/resolveImportParent";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { resolveLayerDrop } from "@/features/editor/ui/layerDrop";
+import { PanelRail } from "@/features/editor/ui/PanelRail";
 import { PanelResizeHandle } from "@/features/editor/ui/PanelResizeHandle";
 import type { FrameNode, Node, NodeId, PageId } from "@/features/editor/schema";
 
@@ -411,6 +412,7 @@ export function LayerTree() {
   const togglePanelCollapsed = useViewStore((s) => s.toggleTreeCollapsed);
   const panelWidth = useViewStore((s) => s.treeWidth);
   const setPanelWidth = useViewStore((s) => s.setTreeWidth);
+  const commitPanelLayout = useViewStore((s) => s.commitPanelLayout);
 
   useEffect(() => {
     function isEditableTarget(target: EventTarget | null): boolean {
@@ -520,16 +522,13 @@ export function LayerTree() {
   // 된다. docs/22-panel-collapse-resize.md "결정" 1번 참고.
   if (panelCollapsed) {
     return (
-      <aside className="flex flex-col items-center overflow-hidden border-r border-line bg-surface py-2 [grid-area:tree]">
-        <button
-          type="button"
-          onClick={togglePanelCollapsed}
-          aria-label="레이어 패널 펼치기"
-          className="rounded-control p-1 text-content-muted hover:bg-hover hover:text-content"
-        >
-          <PanelLeftOpen className="size-4" aria-hidden="true" />
-        </button>
-      </aside>
+      <PanelRail
+        gridArea="tree"
+        border="right"
+        icon={PanelLeftOpen}
+        label="레이어 패널 펼치기"
+        onExpand={togglePanelCollapsed}
+      />
     );
   }
 
@@ -539,6 +538,7 @@ export function LayerTree() {
         side="right"
         width={panelWidth}
         onResize={setPanelWidth}
+        onCommit={commitPanelLayout}
         label="레이어 패널 폭 조절"
       />
       <div className="flex items-center justify-between px-3 pt-3 pb-2">

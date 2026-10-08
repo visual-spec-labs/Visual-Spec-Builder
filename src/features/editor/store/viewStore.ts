@@ -46,8 +46,16 @@ export interface ViewState {
   propsWidth: number;
   toggleTreeCollapsed: () => void;
   togglePropsCollapsed: () => void;
+  /**
+   * 드래그 중(mousemove)에 쓴다 — state만 갱신하고 저장하지 않는다(자체
+   * code-review 대응). 드래그 한 번에 수십~수백 번 불릴 수 있어, 매번
+   * localStorage에 쓰면 그 I/O가 드래그 중 버벅임으로 보인다.
+   * `commitPanelLayout`이 드래그가 끝난 뒤 한 번만 저장한다.
+   */
   setTreeWidth: (width: number) => void;
   setPropsWidth: (width: number) => void;
+  /** 지금 패널 상태를 localStorage에 한 번 저장한다. 드래그 끝(mouseup)·키보드 조절마다 부른다. */
+  commitPanelLayout: () => void;
   /** 캔버스 뷰포트의 실측 크기(여백 제외). 캔버스가 올려준다. */
   viewport: Dimensions | null;
   /** 화면(아트보드) 크기. 캔버스가 활성 페이지의 size를 올려준다. */
@@ -194,16 +202,7 @@ export const useViewStore = create<ViewState>((set, get) => ({
       savePanelLayout(next);
       return next;
     }),
-  setTreeWidth: (width) =>
-    set((state) => {
-      const next = { ...panelLayoutOf(state), treeWidth: clampPanelWidth(width) };
-      savePanelLayout(next);
-      return next;
-    }),
-  setPropsWidth: (width) =>
-    set((state) => {
-      const next = { ...panelLayoutOf(state), propsWidth: clampPanelWidth(width) };
-      savePanelLayout(next);
-      return next;
-    }),
+  setTreeWidth: (width) => set({ treeWidth: clampPanelWidth(width) }),
+  setPropsWidth: (width) => set({ propsWidth: clampPanelWidth(width) }),
+  commitPanelLayout: () => savePanelLayout(panelLayoutOf(get())),
 }));

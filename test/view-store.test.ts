@@ -136,9 +136,30 @@ describe("viewStore", () => {
     expect(useViewStore.getState().propsWidth).toBe(MAX_PANEL_WIDTH);
   });
 
-  it("패널 상태 변경은 localStorage에 남아 다음 로드에 읽힌다(#287)", () => {
+  it("setTreeWidth/setPropsWidth만으로는 저장되지 않는다 — 드래그 중 매 프레임 I/O를 막기 위함이다(#287 리뷰 대응)", () => {
+    useViewStore.getState().setPropsWidth(420);
+    expect(loadPanelLayout()).toEqual({
+      treeCollapsed: false,
+      treeWidth: DEFAULT_TREE_WIDTH,
+      propsCollapsed: false,
+      propsWidth: DEFAULT_PROPS_WIDTH, // 아직 커밋 전이라 저장된 값은 그대로다.
+    });
+  });
+
+  it("toggleTreeCollapsed/togglePropsCollapsed는 (드래그와 달리 단발성이라) 즉시 저장한다(#287)", () => {
+    useViewStore.getState().toggleTreeCollapsed();
+    expect(loadPanelLayout()).toEqual({
+      treeCollapsed: true,
+      treeWidth: DEFAULT_TREE_WIDTH,
+      propsCollapsed: false,
+      propsWidth: DEFAULT_PROPS_WIDTH,
+    });
+  });
+
+  it("commitPanelLayout은 지금 상태를 한 번에 저장한다(#287 리뷰 대응 — 드래그 끝/키 조절마다 호출)", () => {
     useViewStore.getState().toggleTreeCollapsed();
     useViewStore.getState().setPropsWidth(420);
+    useViewStore.getState().commitPanelLayout();
 
     expect(loadPanelLayout()).toEqual({
       treeCollapsed: true,

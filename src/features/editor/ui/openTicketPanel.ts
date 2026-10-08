@@ -20,6 +20,9 @@ export function openTicketPanel(): void {
   const { spec, activePageId } = useEditorStore.getState();
   const view = useViewStore.getState();
   if (!view.showPanels) view.togglePanels();
+  // 전체 토글만 켜고 개별 접힘(#287)을 안 풀면, 패널이 32px 레일로 접힌 채
+  // 티켓 목록이 그 좁은 칸에 그대로 렌더된다(자체 code-review 대응).
+  if (view.propsCollapsed) view.togglePropsCollapsed();
   if (useExportStore.getState().isOpen) useExportStore.getState().close();
   useTicketStore.getState().compile(activePageId, spec.pages[activePageId]);
 }

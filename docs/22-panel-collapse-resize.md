@@ -260,6 +260,41 @@ px**만 본다. 브라우저 확대는 창 크기를 바꾸는 것과 동일하�
       깨지지 않는지(패널이 보일 때만 그 안의 상호작용이 가능하므로, 접혔을
       때는 애초에 해당 UI가 없다 — 회귀 가능성은 낮지만 눈으로 확인 필요)
 
+## 자체 code-review 대응 (2026-10-08, 커밋 b628631 이후)
+
+`/code-review`를 돌려 다섯 건을 찾아 고쳤다.
+
+1·2. **Export/구현 티켓을 열 때 전체 토글만 풀고 개별 접힘은 안 풀었다.**
+   `openExportPanel.ts`·`openTicketPanel.ts`는 `showPanels`가 꺼져 있으면
+   켜지만, 속성 패널이 레일로 접혀 있으면(`propsCollapsed`) 그건 안 건드려서
+   Export/티켓 내용이 32px 레일에 그대로 그려질 수 있었다. 두 파일 모두
+   `if (view.propsCollapsed) view.togglePropsCollapsed();`를 더했다.
+3. **드래그 핸들이 `overflow-hidden`에 반쯤 잘렸다.** 경계에 걸치려고
+   `translate-x-1/2`로 패널 바깥까지 반을 밀어냈는데, 부모 `<aside>`가
+   `overflow-hidden`이라 그 바깥 절반은 클릭도 hover도 안 먹었다 —
+   클릭 가능 영역이 설계한 4px의 절반(~2px)으로 좁아져 있었다. translate를
+   빼고 패널 안쪽에 완전히 들어오게 고쳤다(`right-0`/`left-0` 그대로).
+4. **드래그 중 mousemove마다 localStorage에 썼다.** `CanvasResizeHandles.tsx`
+   는 끝날 때만 커밋하는데 이쪽은 매 픽셀마다 `savePanelLayout`을 불러 빠른
+   드래그에서 버벅일 수 있었다. `setTreeWidth`/`setPropsWidth`를 state만
+   바꾸는 함수로 좁히고, `commitPanelLayout`(지금 상태를 한 번 저장)을
+   새로 둬 드래그 끝(mouseup)과 키보드 조절 한 번(그 자체로 완결된 동작이라
+   매번 커밋)마다만 부르게 했다. `toggleTreeCollapsed`/`togglePropsCollapsed`
+   는 단발성 클릭이라 그대로 즉시 저장한다.
+5. **접힌 레일 JSX가 LayerTree.tsx·PropertiesPanel.tsx에 거의 그대로
+   중복돼 있었다.** `PanelRail.tsx`로 뽑았다 — 둘의 유일한 차이(그리드
+   영역·테두리 위치·아이콘·라벨)만 props로 받는다. 런타임에 Tailwind 클래스
+   이름을 이어붙이지 않는다(`grid-area:${x}`처럼 쓰면 빌드 시점에 Tailwind가
+   못 찾는다) — `gridArea`/`border` 값마다 완결된 리터럴 클래스 문자열을
+   삼항으로 고른다, `EditorLayout.tsx`의 기존 패턴과 같다.
+
+### 회귀 확인
+
+`pnpm run typecheck` · `pnpm run lint` · `pnpm run build` 모두 통과했다.
+`pnpm test`는 기존과 동일한 17개 실패(Windows 심링크·권한 등, 무관)/1671개
+통과/2개 건너뜀 — `test/view-store.test.ts`에 `commitPanelLayout`과
+"setTreeWidth/setPropsWidth만으로는 저장 안 됨"을 고정하는 테스트를 더했다.
+
 ## 범위 밖
 
 - 창 폭에 따른 자동 접기/축소(위 6번) — 수동 접기+상태 유지로 같은 목적을 푼다.
