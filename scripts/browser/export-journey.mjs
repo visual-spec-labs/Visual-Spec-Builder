@@ -1,4 +1,4 @@
-// Handwritten fixtures only. No agent/model process is invoked.
+// 수동 fixture만 사용한다. 에이전트·모델 프로세스는 실행하지 않는다.
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -29,7 +29,7 @@ try {
   await page.goto(runner.url);
   await page.getByRole("button").filter({ hasText: /Journey.*페이지/s }).click();
   await page.getByRole("button", { name: "File", exact: true }).waitFor();
-  // Read state for identity assertions; user actions below go through the GUI.
+  // 문서 신원 단언을 위해 상태를 읽는다. 아래 사용자 조작은 GUI로 실행한다.
   await page.evaluate(async () => {
     window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
     window.documentStore = (await import("/src/features/editor/store/documentStore.ts")).useDocumentStore;
@@ -55,7 +55,7 @@ try {
   assert.deepEqual(await snapshot(), before);
   console.log("PASS Export page switch invalidates old results; rescan targets Beta and preserves document identity/history");
 
-  // Simulate a real file disappearing between the successful scan and download.
+  // 검사 성공 후 다운로드 전에 실제 자산 파일이 사라지는 상황을 재현한다.
   await rm(join(workspace, "assets/hero.png"));
   await page.getByRole("button", { name: "결과 폴더 ZIP 내려받기", exact: true }).click();
   await page.getByRole("alert").getByText("hero.png", { exact: true }).waitFor();
@@ -65,7 +65,7 @@ try {
   await page.getByRole("button", { name: "전체 ZIP 다시 시도", exact: true }).click();
   const download = await downloadEvent;
   const bytes = await readFile(await download.path());
-  // Current bundle uses uncompressed ZIP entries; inspect payload and names.
+  // 현재 ZIP의 비압축 항목에서 파일명과 실제 바이트를 확인한다.
   const entries = new Map();
   for (let offset = 0; bytes.readUInt32LE(offset) === 0x04034b50;) {
     assert.equal(bytes.readUInt16LE(offset + 8), 0);

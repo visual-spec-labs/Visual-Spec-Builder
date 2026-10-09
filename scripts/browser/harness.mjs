@@ -1,7 +1,8 @@
-// Shared optional runner: isolated workspace, ephemeral port, no external traffic.
+// 선택적 공용 실행기: 격리한 작업공간·임의 포트·외부 요청 차단.
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
+import { waitForViteUrl } from "./vite-ready.mjs";
 
 export async function startBrowserWorkspace(workspace) {
   const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
@@ -22,20 +23,12 @@ export async function startBrowserWorkspace(workspace) {
     }
   }
   try {
-    const url = await new Promise((resolve, reject) => {
-      let output = "";
-      const timer = setTimeout(() => reject(new Error(`Vite startup timed out: ${output}`)), 30000);
-      server.once("error", error => { clearTimeout(timer); reject(error); });
-      server.once("exit", code => { clearTimeout(timer); reject(new Error(`Vite exited ${code}: ${output}`)); });
-      server.stderr.on("data", chunk => { output += chunk; });
-      server.stdout.on("data", chunk => {
-        output += chunk;
-        const match = output.match(/http:\/\/127\.0\.0\.1:\d+\//);
-        if (match) { clearTimeout(timer); resolve(match[0]); }
-      });
-    });
+    const url = await waitForViteUrl(server);
+    // 준비 이후에도 파이프를 비워 Vite의 후속 로그가 서버를 막지 않게 한다.
+    server.stdout.resume();
+    server.stderr.resume();
     browser = await chromium.launch({ executablePath: process.env.CHROME_BIN, args: ["--no-sandbox"] });
-    // All callers use this factory so fixture runs cannot reach model endpoints.
+    // 모든 호출자가 이 팩토리를 사용해 모델 endpoint 등 외부 요청을 차단한다.
     const newContext = async options => {
       const context = await browser.newContext({ ...options, serviceWorkers: "block" });
       await context.route("**/*", route => {

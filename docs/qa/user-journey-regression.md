@@ -21,10 +21,38 @@ node scripts/browser/export-journey.mjs
 node scripts/browser/project-dialogs.mjs
 ```
 
-Linux Chromium과 그 시스템 라이브러리는 실행 환경에 미리 준비한다. Playwright가 설치한
-브라우저를 쓰려면 `CHROME_BIN`을 생략할 수 있다. 모듈이나 브라우저가 없으면 이 명령은
-실패하며 조용히 skip하지 않는다. 스크립트는 자체 Vite 서버를 임의의 로컬 포트에 띄우고,
-임시 작업공간과 브라우저를 정리한다. 별도의 `pnpm dev`나 실제 사용자 파일은 필요 없다.
+Linux 시스템 Chromium을 사용하는 위 예에서는 브라우저와 시스템 라이브러리를 미리 준비한다.
+Playwright 관리 Chromium을 쓰려면 **같은 QA 도구 폴더에서 먼저 설치**하고 `CHROME_BIN`을
+지운 뒤 두 스크립트를 실행한다. Linux 시스템 라이브러리 설치 권한이 필요한 환경은 관리자에게 준비를 요청한다.
+
+```bash
+pnpm --dir /tmp/vsb-browser-tools exec playwright install chromium
+unset CHROME_BIN
+# Linux 시스템 라이브러리까지 준비할 때: playwright install --with-deps chromium
+```
+
+Windows PowerShell에서는 다음처럼 실행한다. `PLAYWRIGHT_MODULE`은 동적 ESM import 대상이므로
+`C:/...` 또는 `C:\...` 문자열 대신 **file:/// URL**을 지정해야 한다. 아래 URI 변환은 공백도
+인코딩한다. 반면 `CHROME_BIN`은 실행 파일 경로이므로 file URL로 바꾸지 않는다.
+
+```powershell
+$qaTools = Join-Path $env:TEMP "vsb-browser-tools"
+New-Item -ItemType Directory -Force $qaTools | Out-Null
+pnpm --dir $qaTools add playwright@1.57.0
+pnpm --dir $qaTools exec playwright install chromium
+$modulePath = Join-Path $qaTools "node_modules/playwright/index.mjs"
+$env:PLAYWRIGHT_MODULE = ([System.Uri]$modulePath).AbsoluteUri
+Remove-Item Env:CHROME_BIN -ErrorAction SilentlyContinue
+# 시스템 Chrome을 쓸 경우 위 줄 대신:
+# $env:CHROME_BIN = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+node scripts/browser/export-journey.mjs
+node scripts/browser/project-dialogs.mjs
+```
+
+모듈이나 브라우저가 없으면 명령은 실패하며 조용히 skip하지 않는다. 스크립트는 자체 Vite
+서버를 임의의 로컬 포트에 띄우고, 임시 작업공간과 브라우저를 정리한다. 별도의 `pnpm dev`나
+실제 사용자 파일은 필요 없다. 준비 URL은 ANSI 색 코드를 제거한 누적 출력에서 찾으므로
+Windows의 색 출력과 청크 경계에서 분리된 색 코드도 처리한다.
 공용 `scripts/browser/harness.mjs`는 브라우저 HTTP 요청을 해당 서버 origin으로 제한하고
 service worker를 차단한다. 외부 폰트도 읽지 않으므로 폰트 일치/픽셀 비교를 주장하지 않는다.
 외부 에이전트 프로세스·모델 API·새 계정·자격증명은 사용하지 않는다.
@@ -110,3 +138,20 @@ COREPACK_HOME=/tmp/vsb-corepack XDG_DATA_HOME=/tmp/vsb-data \
   XDG_CACHE_HOME=/tmp/vsb-cache npm_config_store_dir=/tmp/vsb-pnpm-store \
   corepack pnpm test
 ```
+
+## #338 리뷰 반영 검증
+
+13:47 UTC 리뷰의 Windows 색 출력은 준비 URL 인식의 실제 결함이다. `vite-ready.mjs`가
+누적 출력의 ANSI 코드를 제거한 뒤 URL을 찾으며, `browser-vite-ready.test.ts`의 5개 회귀가
+일반 출력·색 출력·분할 색 코드/URL·조기 종료·timeout을 확인한다. 전역 색 환경을 강제로
+바꾸는 대신 입력 파싱을 수정했다. 새 주석은 한국어로 정리했다.
+
+Windows ESM file URL과 브라우저 설치 절차도 위에 추가했다. Windows 실제 OS 재실행은
+이 Linux 환경에서 수행하지 않았으며, 리뷰어의 기존 Windows 결과와 신규 플랫폼 독립 회귀를
+구분한다. CI workflow 확장은 #291 담당이므로 유지했다. 일반 CI에는 새 준비 회귀가 포함되지만
+독립 사용자 여정 스크립트 실행은 여전히 별도다. #336 Grid 수정은 중복 구현·통합하지 않았다.
+
+리뷰 반영 후 Linux 재실행: 타입·lint·build·생성 타입 일치 PASS, 전체 110파일/1,778테스트
+PASS(선택적 3 skip). `FORCE_COLOR=1`, `PLAYWRIGHT_MODULE=file:///.../playwright/index.mjs`로
+실제 Chromium Export 2건·대화상자 6건 PASS. responsive/page-shell 실측도 PASS이며,
+미통합 Grid의 기존 `--dump-dom` timeout은 이 변경의 성공에 포함하지 않는다.
