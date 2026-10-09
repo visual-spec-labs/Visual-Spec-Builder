@@ -86,6 +86,7 @@ docs: 기여 규칙과 라이선스 파일 추가
   (저장소 밖 새 소비 폴더에 production 의존성 설치, CLI·GUI 응답 확인).
 - Chromium 잡은 Python 3.12와 Playwright 1.62.0 및 그 버전에 대응하는 Chromium을 설치한다.
   기존 fixture의 `/usr/bin/chromium` 경로도 이 브라우저로 연결하고 opt-in 검사 3개를 명시 실행한다.
+  Grid도 Playwright로 CSS viewport를 직접 지정해 브라우저 창 테두리와 `--dump-dom` 종료에 의존하지 않는다.
   이는 수동 fixture의 DOM/레이아웃 검사이며 실제 AI 실행이나 전체 사용자 여정 검증은 아니다.
 - #291의 첫 단계다. #262 수정 PR 준비 후 Windows 기본 Git 설정의 새 checkout에서 회귀를
   검증하고 별도 Windows 잡을 `build.needs`와 성공 판정에 연결한다. #292 사용자 여정 harness는
