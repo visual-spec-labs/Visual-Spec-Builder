@@ -80,17 +80,21 @@ docs: 기여 규칙과 라이선스 파일 추가
   예: `fix: 탭 저장이 앞 탭의 변경을 덮어쓰지 않게 한다 (#232)`
 - 라벨은 제목 접두어와 같은 것 **1개**만 단다. 규칙은 [라벨 7종](#라벨-7종)과 같다.
 - CI의 필수 체크 이름은 `build`로 유지한다. Linux Node `20.19.0`·`22.12.0`·`24` 검사와
-  별도 Chromium 검사가 모두 성공해야 `build`가 성공한다. 실패·취소·skip은 성공으로 취급하지 않는다.
-- Linux 각 버전에서 frozen install → typecheck → lint → 전체 테스트 → production build →
+  Windows Server 2025 / Node `24`, 별도 Chromium 검사가 모두 성공해야 `build`가 성공한다. 실패·취소·skip은 성공으로 취급하지 않는다.
+- Linux 각 버전과 Windows에서 frozen install → typecheck → lint → 전체 테스트 → production build →
   스키마 드리프트 검사를 실행한다. 전체 테스트에는 기존 fresh tarball smoke가 포함된다
   (저장소 밖 새 소비 폴더에 production 의존성 설치, CLI·GUI 응답 확인).
 - Chromium 잡은 Python 3.12와 Playwright 1.62.0 및 그 버전에 대응하는 Chromium을 설치한다.
   기존 fixture의 `/usr/bin/chromium` 경로도 이 브라우저로 연결하고 opt-in 검사 3개를 명시 실행한다.
   Grid도 Playwright로 CSS viewport를 직접 지정해 브라우저 창 테두리와 `--dump-dom` 종료에 의존하지 않는다.
   이는 수동 fixture의 DOM/레이아웃 검사이며 실제 AI 실행이나 전체 사용자 여정 검증은 아니다.
-- #291의 첫 단계다. #262 수정 PR 준비 후 Windows 기본 Git 설정의 새 checkout에서 회귀를
-  검증하고 별도 Windows 잡을 `build.needs`와 성공 판정에 연결한다. #292 사용자 여정 harness는
-  준비된 뒤 별도로 통합한다. 브랜치 보호·배포 설정은 이 단계에서 변경하지 않는다.
+- Windows 잡은 새 hosted runner에서 checkout **전에** `core.autocrlf=true`를 설정한다.
+  checkout 뒤 설정값과 CRLF/mixed 파일 부재를 검사해 #262의 `.gitattributes` 회귀를 확인한다.
+  기존 Windows 작업 트리의 줄바꿈 문제와 안전한 새 checkout 방법은
+  [시작 가이드](docs/14-getting-started.md#기존-windows-체크아웃의-줄바꿈-262)를 참고한다.
+- Windows 전체 테스트에서 POSIX 권한 검사 3개와 opt-in 브라우저 3개는 명시적으로 skip한다.
+  브라우저 통과 근거는 별도 Linux Chromium 잡의 실제 실행이다. #292 사용자 여정 harness는
+  준비된 뒤 별도로 통합한다. 브랜치 보호·배포 설정은 변경하지 않는다.
 - 올리기 전에 로컬에서 아래를 실행한다. 일반 `pnpm test`의 브라우저 skip은 브라우저 통과 증거가 아니다.
 
 ```bash

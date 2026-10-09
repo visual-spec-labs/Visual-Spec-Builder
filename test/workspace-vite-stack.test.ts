@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -56,7 +56,9 @@ function raw(
 }
 
 beforeAll(async () => {
-  viteRoot = mkdtempSync(join(tmpdir(), "visual-spec-vite-"));
+  // Windows runner의 TEMP는 RUNNER~1 같은 8.3 경로일 수 있다.
+  // Vite는 ~ 경로를 차단하므로 보안 설정을 완화하지 않고 실제 긴 경로를 사용한다.
+  viteRoot = realpathSync.native(mkdtempSync(join(tmpdir(), "visual-spec-vite-")));
   workspaceRoot = mkdtempSync(join(tmpdir(), "visual-spec-vite-ws-"));
   writeFileSync(join(viteRoot, "index.html"), "<!doctype html><title>stack</title>\n");
 
@@ -102,7 +104,7 @@ describe("Vite 스택 안에서의 등록 위치", () => {
   it("__vs 밖은 그대로 Vite가 받는다 — 우리가 가로채지 않는다", async () => {
     const response = await raw("GET", "/", { host: `localhost:${port}` });
 
-    expect(response.status).toBe(200);
+    expect(response.status, response.text).toBe(200);
     expect(response.text).toContain("<title>stack</title>");
     expect(response.headers[WORKSPACE_MARKER_HEADER]).toBeUndefined();
   });
