@@ -8,8 +8,18 @@
 이번 PR은 이 문서와 README 목차만 추가한다. S0-1의 **승인·병합 전에는 S0-2나
 S1 구현에 착수하지 않는다.** 이후에도 스키마 변경은 기능과 분리한 별도 PR과 팀 승인
 최소 1명을 요구한다. 관리자 병합은 사용하지 않는다. 이 Draft의 작성은 S0-1 완료가 아니다.
-문서 번호 17은 기존 `17-codegen-layout-qa.md`와 겹치지만 이슈가 지정한 파일명을
-유지한다. 기존 문서의 이동·재번호 부여는 하지 않는다.
+문서 번호 중복을 피하려고 이 설계만 24번으로 배치했다. 기존 QA 문서는 그대로 둔다.
+#265의 파일명·README 번호 정정과 단계 계획의 미승인 차이는 §7에 구분해 기록한다.
+
+## 결정 요약 — 추천안이며 전부 미확정
+
+추천은 기존 pages 맵에 kind를 더하고 노드에 action 하나를 두는 방식이다. 첫 화면은 page로
+유지하고, 이동은 router 없는 콜백으로, 모달은 단일 호스트 상태로 생성한다. 재사용은 widget
+PageId를 참조하는 instance로 표현하며 처음에는 Text/Button의 내용·색만 덮어쓰도록 제안한다.
+
+승인자는 §2의 D1~D11 대안과 §8의 질문을 함께 검토한다. action 삭제 Command의 의미와
+프로젝트 Ticket/protocol, 첫 page 삭제 예외, #281의 신원·경로 합의가 핵심 선택이다.
+**결정 기록은 모두 대기 중이다.** 문서 수정 리뷰나 PR 병합 요청을 설계 채택으로 간주하지 않는다.
 
 ## 1. 현재 계약과 설계 사이의 차이
 
@@ -30,26 +40,27 @@ S1 구현에 착수하지 않는다.** 이후에도 스키마 변경은 기능�
 [to-react](../skills/visual-spec-to-react/SKILL.md),
 [ticket-response](../skills/visual-spec-ticket-response/SKILL.md),
 [nl-response](../skills/visual-spec-nl-response/SKILL.md)를 대조했다.
-이 체크아웃의 `.agents/skills` 및 상위 `/workspace/.agents`에는 읽을 설치 사본이 없었다.
 배포 스킬·현재 계약 문서는 이번 PR에서 수정하지 않는다.
 
 ## 2. 결정표 — 전 행 승인 대기
 
-| ID / 질문 | 대안 | 추천안과 이유 |
-|---|---|---|
-| D1. 관계 저장 위치 | 노드 action / ProjectSpec.links[] | **노드 action**. source ID 중복 없이 노드 삭제와 수명 일치. links[]는 여러 이벤트·다중 연결에 유리하나 지금은 별도 source 정리가 필요 |
-| D2. 종류/순서 | 별도 modal/widget 맵 / 기존 pages+kind | **kind?: page/modal/widget**, 생략=page. pageOrder는 세 종류 모두 포함하고 첫 항목은 page. 최소 page 한 장 유지. 종류별 강제 재정렬 없이 배지 표시 |
-| D3. action 대상 노드 | button만 / button·frame·text·image / input도 | **button·비root frame·text·image**, 하나의 활성화 action만. input·root·instance 자체에는 두지 않음. 중첩 활성화는 가장 가까운 action 하나만 실행하며 접근성 매핑을 후속 검증 |
-| D4. action 형태 | 배열/여러 이벤트 / 단일 유니온 | **navigate(target page), openModal(target modal), close(대상 없음)**. 생략=동작 없음. 반응형 override 불가. 외부 URL·조건·폼 동작·이벤트 이름은 넣지 않음 |
-| D5. 삭제/종류 변경 | 자동 제거 / 변경 거부 / 경고만 | page/modal 삭제는 영향 목록 확인 후 유입 action과 함께 제거, Undo 한 단계. 사용 중 widget 삭제·참조를 깨는 kind 변경은 거부. 무효 참조의 저장을 경고만으로 허용하지 않음 |
-| D6. 모달 | 중첩 stack / 하나만 표시 | **한 번에 하나**. openModal은 현재 모달 교체, close는 모달 해제, navigate는 모달 해제 후 콜백. backdrop 클릭은 유지, Escape·명시 close로 닫기. 크기는 §3의 kind별 제안 승인 필요 |
-| D7. 생성 기본값 | 특정 router / 자체 앱 셸 / 콜백 | **onNavigate(PageId) 콜백 + 페이지 소유 modal 상태**. URL·history·라우터·앱 셸은 사용자 앱 소유. 모달/위젯은 components에 named export 추천 |
-| D8. 위젯 override | 임의 partial / 반응형 NodeOverride 그대로 / 제한된 내용·색 | **직접 원본 노드의 content·color만** 우선. Text/Button에 한정. NodeOverride는 content를 못 받고 layout까지 허용하므로 그대로 재사용하지 않음 |
-| D9. 재사용/순환 | 이름으로 합치기 / ref 신원 | **widget PageId로만 공유**. instance 포함 그래프의 자기/간접 순환 금지. navigate/openModal 이동 그래프의 순환은 허용하며 생성 dependsOn에 그대로 옮기지 않음 |
-| D10. Command 제거 표현 | 새 unset 명령 / IR action:null / path 한정 null 삭제 | **updateNode(path=action,value=null)를 삭제 의미로 한정**하고 IR에는 필드를 생략. 새 명령 없이 JSON 왕복 가능하나 기존 set 의미의 예외이므로 §5의 팀 계약 리뷰 필요 |
-| D11. 프로젝트 Ticket | 기존 배열+외부 문맥 / sourcePageId 추가 / 새 프로젝트 계약 | **프로젝트용 Ticket v0.2·protocol 2 별도 설계**를 1차 S1-8 전에 합의. 기존 v0.1을 조용히 재해석하지 않음. 신원·경로는 #281과 공동 결정 |
+| ID / 질문 | 대안 | 추천안과 이유 | 결정 | 승인자 | 근거 |
+|---|---|---|---|---|---|
+| D1. 관계 저장 위치 | 노드 action / ProjectSpec.links[] | **노드 action**. source ID 중복 없이 노드 삭제와 수명 일치. links[]는 여러 이벤트·다중 연결에 유리하나 지금은 별도 source 정리가 필요 | 미확정 | 대기 | 미기록 |
+| D2. 종류/순서 | 별도 modal/widget 맵 / 기존 pages+kind | **kind?: page/modal/widget**, 생략=page. pageOrder는 세 종류 모두 포함하고 첫 항목은 page. 최소 page 한 장 유지. 평상시 종류별 강제 재정렬 없이 배지 표시. 첫 page 삭제 시에만 §4의 최소 재배치 예외 적용 | 미확정 | 대기 | 미기록 |
+| D3. action 대상 노드 | button만 / button·frame·text·image / input도 | **button·비root frame·text·image**, 하나의 활성화 action만. input·root·instance 자체에는 두지 않음. 중첩 활성화는 가장 가까운 action 하나만 실행하며 접근성 매핑을 후속 검증 | 미확정 | 대기 | 미기록 |
+| D4. action 형태 | 배열/여러 이벤트 / 단일 유니온 | **navigate(target page), openModal(target modal), close(대상 없음)**. 생략=동작 없음. 반응형 override 불가. 외부 URL·조건·폼 동작·이벤트 이름은 넣지 않음 | 미확정 | 대기 | 미기록 |
+| D5. 삭제/종류 변경 | 자동 제거 / 변경 거부 / 경고만 | page/modal 삭제는 영향 목록 확인 후 유입 action과 함께 제거, Undo 한 단계. 사용 중 widget 삭제·참조를 깨는 kind 변경은 거부. 무효 참조의 저장을 경고만으로 허용하지 않음 | 미확정 | 대기 | 미기록 |
+| D6. 모달 | 중첩 stack / 하나만 표시 | **한 번에 하나**. openModal은 현재 모달 교체, close는 모달 해제, navigate는 모달 해제 후 콜백. backdrop 클릭은 유지, Escape·명시 close로 닫기. 크기는 §3의 kind별 제안 승인 필요 | 미확정 | 대기 | 미기록 |
+| D7. 생성 기본값 | 특정 router / 자체 앱 셸 / 콜백 | **onNavigate(PageId) 콜백 + 페이지 소유 modal 상태**. URL·history·라우터·앱 셸은 사용자 앱 소유. 모달/위젯은 components에 named export 추천 | 미확정 | 대기 | 미기록 |
+| D8. 위젯 override | 임의 partial / 반응형 NodeOverride 그대로 / 제한된 내용·색 | **직접 원본 노드의 content·color만** 우선. Text/Button에 한정. NodeOverride는 content를 못 받고 layout까지 허용하므로 그대로 재사용하지 않음 | 미확정 | 대기 | 미기록 |
+| D9. 재사용/순환 | 이름으로 합치기 / ref 신원 | **widget PageId로만 공유**. instance 포함 그래프의 자기/간접 순환 금지. navigate/openModal 이동 그래프의 순환은 허용하며 생성 dependsOn에 그대로 옮기지 않음 | 미확정 | 대기 | 미기록 |
+| D10. Command 제거 표현 | 새 unset 명령 / IR action:null / path 한정 null 삭제 | **updateNode(path=action,value=null)를 삭제 의미로 한정**하고 IR에는 필드를 생략. 새 명령 없이 JSON 왕복 가능하나 기존 set 의미의 예외이므로 §5의 팀 계약 리뷰 필요 | 미확정 | 대기 | 미기록 |
+| D11. 프로젝트 Ticket | 기존 배열+외부 문맥 / sourcePageId 추가 / 새 프로젝트 계약 | **프로젝트용 Ticket v0.2·protocol 2 별도 설계**를 S0에서 논의하고 S1-8/9 착수 전에 합의. 기존 v0.1을 조용히 재해석하지 않음. 신원·경로는 #281과 공동 결정 | 미확정 | 대기 | 미기록 |
 
-추천을 채택하지 않은 행은 대안과 영향 범위를 갱신한다. 특히 D6/D8/D10/D11은
+결정이 나면 각 행의 결정 칸에 채택/대안과 조건, 승인자 칸에 실제 승인자, 근거 칸에
+해당 결정을 명시한 리뷰/댓글/PR 링크를 기록한다. 일반적인 문서 수정 리뷰는 설계 승인 근거로
+대신 넣지 않는다. 추천을 채택하지 않은 행은 대안과 영향 범위를 갱신한다. 특히 D6/D8/D10/D11은
 스키마/Command/Ticket PR 작성 전에 결론이 있어야 하는 항목이다.
 
 ## 3. 표현·기본값·동작 제안
@@ -110,7 +121,8 @@ button 등은 중복 호출·중첩 button DOM을 만들지 않아야 한다. Ca
 |---|---|---|
 | source 노드/서브트리 삭제 | 해당 action도 노드와 사라짐 | 기존 노드 삭제 Undo에 포함 |
 | page/modal 삭제 | 다른 모든 화면·widget에서 target이 그 ID인 action 제거. 목록/개수 확인 후 실행 | 프로젝트 전체 후보 검사 후 snapshot 한 번. 취소/실패 시 무변경 |
-| 마지막 page 삭제·첫 page kind 변경 | 거부. 첫 page 삭제 시 남은 page 중 기존 순서상 첫 page를 선두로 이동 | modal/widget을 조용히 page로 바꾸지 않음 |
+| 마지막 page 삭제·첫 page kind 변경 | 거부 | modal/widget을 조용히 page로 바꾸지 않음 |
+| 다른 page가 남은 첫 page 삭제 | 삭제 후 기존 순서상 첫 page 하나만 맨 앞으로 이동. 나머지 항목의 상대 순서는 보존 | D2의 재정렬 금지에 대한 명시적 예외. 삭제·참조 정리·재배치를 같은 Undo 한 단계로 처리 |
 | 그 밖의 kind 변경 | 유입 action/ref와 source close 등이 무효가 되면 거부 | 먼저 관계를 명시적으로 정리하도록 안내 |
 | 노드 복제·같은 프로젝트 붙여넣기 | 새 로컬 NodeId, PageId target/ref 유지 | 당시 프로젝트에서 검증. 대상이 삭제되었거나 kind가 달라졌으면 붙여넣기 거부 |
 | 페이지 복제(현재 API 없음) | 새 PageId, 내부 로컬 NodeId/반응형 참조 일관 복사. 자기 화면을 가리키던 action은 새 PageId, 외부 target/ref는 유지 | 원본은 불변. 기능을 추가할 때 한 history 동작으로 검증 |
@@ -119,6 +131,10 @@ button 등은 중복 호출·중첩 button DOM을 만들지 않아야 한다. Ca
 | Ungroup | 자식 action 보존. 해체 frame에 action이 있으면 먼저 명시 제거하도록 거부 | 현재 구현은 wrapper를 삭제하므로 action 자동 보존이라고 주장하지 않음 |
 | 사용 중 widget 삭제 | 참조 목록을 제시하고 거부 | 명시 detach 또는 instance 삭제 후 가능. 자동 cascade 삭제 없음 |
 | 위젯 원본 노드 삭제/타입 변경 | 해당 노드를 override하는 instance가 있으면 기본 거부 | override 정리 후 재시도. 모든 instance의 유효성 재검사 |
+
+예를 들어 `[pageA, modalM, widgetW, pageB, pageC]`에서 pageA를 지우면
+`[pageB, modalM, widgetW, pageC]`로 만든다는 추천이다. 종류별 전체 정렬은 하지 않는다.
+이 예외도 D2/D5의 승인 대상이며 아직 현재 동작이 아니다.
 
 페이지/프로젝트 간 출처 없는 현재 [clipboard](../src/features/editor/ui/clipboard.ts)는
 NodeSubtree만 보관한다. action/ref를 새로 싣기 전에 출처 판별을 설계해야 한다.
@@ -166,6 +182,8 @@ kind/action을 responsive에 넣는 것도 거부한다.
 Command 6종·v0.1 유지가 추천이나 [09](09-command-schema-freeze.md)의 의미 변경
 규칙 때문에 팀이 null sentinel을 승인하지 않으면 새 명령/버전 안으로 다시 설계해야 한다.
 S1-3은 S1-1뿐 아니라 S1-2 검증 완료에도 의존하도록 순서 보강을 제안한다.
+이는 현재 #265의 S1-3 선행(S1-1만)과 다르며, §7의 계획 차이 승인 전에는 epic의
+선행이 변경된 것으로 취급하지 않는다.
 GUI의 관계 편집·삭제·붙여넣기 역시 최종 ProjectSpec을 검증하고 성공할 때만 한 history
 snapshot을 만든다. NL의 기존 G1/G2/G3와 GUI의 부분 적용 계약을 같은 것으로 취급하지 않는다.
 NL 요청은 현재 page 한 장만 주므로 target을 이름으로 추측하게 하지 않고, 프로젝트의
@@ -208,7 +226,8 @@ sourcePageId와 기존 로컬 instances를 함께 보관하며 Ticket.kind는 pa
 프로젝트 웨이브는 protocol 2에서 프로젝트 snapshot·소스 문맥·전역 티켓/의존 ID를
 전달하고 protocol 1 요청을 프로젝트 요청처럼 해석하지 않는다. **정확한 필드·버전 채택·
 구형 요청 처리·파일명 규칙은 승인 전 미확정**이다. #265의 "Ticket은 2차에서 판단"보다
-앞당겨야 하는 근거가 현재 단일 화면 protocol이다.
+앞당기자는 근거가 현재 단일 화면 protocol이다. 판단 착수는 S0, 결론 시한은 S1-8/9 착수
+전으로 제안한다. 이는 v0.2/protocol 2 채택을 뜻하지 않으며 시점 변경도 §7의 승인 대상이다.
 
 | 관계 | 런타임/생성 추천 | dependsOn 정책 |
 |---|---|---|
@@ -245,6 +264,20 @@ S1-11/S2-9 실제 AI 실행 기록은 그와 구분한다.
 | S2-3~8 | S2 정본/검증과 계약별 승인 | instance/detach/widget 추출의 프로젝트 원자 연산, 캔버스·GUI·Ticket·Export·NL·스킬. 새 Command 필요 시 09의 버전 합의 |
 | S2-9 | S2-4~8 완료 | 공용 widget 예제, 07/14/15/README, 실제 AI·ZIP·독립 앱 검증 |
 
+### #265 본문과의 차이 및 갱신 시점
+
+이 PR은 #265 본문을 수정하지 않는다. 문서 경로 정정과 미확정 단계 변경을 구분하여
+epic 담당자에게 전달한다. 아래 계획 변경의 채택 여부도 §8에서 답을 받아 기록한다.
+
+| 항목 | 현재 #265 | 이 문서의 정정/제안 | epic에 반영할 위치와 조건 |
+|---|---|---|---|
+| 문서 번호 | 문서 절과 S0-1 제목의 파일명이 구 번호이며 README 목차도 17번으로 지정 | 중복을 피한 `docs/24-screen-relations-design.md`, README 24번 | 문서 절·S0-1 제목의 파일명 두 곳, S0-1 완료 항목의 목차 번호를 정정. 제품 결정 변경과는 별개 |
+| S1-3 선행 | S1-1만 명시. 의존 관계도에서 S1-2와 병렬 | S1-1 **및 S1-2 완료** 후 S1-3 착수 | **팀이 채택한 뒤** S1-3 작업의 선행과 의존 관계도를 함께 갱신. S1-2 오류를 잡는 수용 조건과 맞춤 |
+| D11 판단 시점 | 버전 표는 Ticket을 2차에서 판단, S1-8은 스키마 영향이 있으면 11 절차를 따름 | S0에서 프로젝트 문맥 설계 논의, **S1-8/9 착수 전** Ticket/protocol 및 #281 경계 합의 | **팀이 채택한 뒤** 버전 표의 판단 시점, S1-8/9 선행, 의존 관계 요약·병렬 가능 구간에 공통 합의 게이트를 명시. 합의 후 두 작업은 병행 가능 |
+
+Ticket 버전 숫자와 protocol 형식은 위 시점 변경을 승인해도 자동 확정되지 않는다.
+기존 v0.1을 유지하는 대안을 택하면 그 문맥 전달 방식과 호환성 근거를 D11에 기록한다.
+
 조율 대상은 읽기만 했으며 이 PR에서 이슈/브랜치/구현을 변경하지 않는다.
 
 - [#280](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/280): modal/widget의 size·viewport·폰트·reset·좌표 비교를 page 계약과 조율. 기존 QA를 새 kind 검증으로 재사용했다고 주장하지 않는다.
@@ -257,15 +290,29 @@ S1-11/S2-9 실제 AI 실행 기록은 그와 구분한다.
 다음은 **아직 답이 없는 질문**이다. 답·승인자·근거 PR을 기록한 뒤에만 해당 제안을
 결정으로 승격한다. 문서 병합만으로 답이 생긴 것으로 처리하지 않는다.
 
-| 대상 | 승인 전에 필요한 질문 |
-|---|---|
-| 사용자/제품 | D2: page 한 장 필수·modal/widget 단독 프로젝트 불가를 받아들일까? D3: 비button 활성화도 첫 단계에 넣을까? |
-| 사용자/제품 | D5: 화면 삭제 시 유입 action 동시 제거(영향 확인), widget은 사용 중 삭제 거부가 맞을까? |
-| 사용자/제품·#280 | D6: 단일 modal 교체·Escape 닫기·backdrop 클릭 유지와 패널 size 해석을 채택할까? |
-| 사용자/제품 | D7: router 없는 필수 onNavigate 콜백과 컴포넌트 묶음 출력으로 충분할까? |
-| 사용자/제품 | D8: 첫 override를 Text/Button content·color로 제한하고 모든 폭에서 우선할까? |
-| 계약 담당 | D10: action 전용 null 삭제 의미와 Command v0.1 유지에 합의할까, 새 명령/버전이 필요할까? |
-| 계약 담당·#281 | D11: S1부터 프로젝트 Ticket v0.2/protocol 2를 설계할까? sourcePageId·안정 ID·경로/소유권을 어떤 공통 계약으로 연결할까? |
+| ID | 대상 | 승인 전에 필요한 질문 |
+|---|---|---|
+| D1 | 사용자/제품·계약 담당 | 노드 action을 채택할까, 프로젝트 links[]가 필요할까? |
+| D2 | 사용자/제품 | page 한 장 필수·modal/widget 단독 프로젝트 불가와 첫 page 삭제 때만 남은 첫 page를 선두로 옮기는 예외를 받아들일까? |
+| D3 | 사용자/제품 | 비button 활성화도 첫 단계에 넣고 input·root·instance 자체는 제외할까? |
+| D4 | 사용자/제품·계약 담당 | 노드당 navigate/openModal/close 하나, 생략=동작 없음, 반응형 override 불가로 제한할까? |
+| D5 | 사용자/제품 | 화면 삭제 시 유입 action 동시 제거(영향 확인), widget은 사용 중 삭제 거부가 맞을까? |
+| D6 | 사용자/제품·#280 | 단일 modal 교체·Escape 닫기·backdrop 클릭 유지와 패널 size 해석을 채택할까? |
+| D7 | 사용자/제품 | router 없는 필수 onNavigate 콜백과 컴포넌트 묶음 출력으로 충분할까? |
+| D8 | 사용자/제품 | 첫 override를 Text/Button content·color로 제한하고 모든 폭에서 우선할까? |
+| D9 | 사용자/제품·계약 담당 | widget PageId로만 공유하고 instance 자기/간접 순환은 금지하되, 이동 순환은 허용하여 생성 의존 DAG와 분리할까? |
+| D10 | 계약 담당 | action 전용 null 삭제 의미와 Command v0.1 유지에 합의할까, 새 명령/버전이 필요할까? |
+| D11 | 계약 담당·#281 | S0에서 판단을 시작해 S1-8/9 전에 합의하도록 시점을 앞당길까? 프로젝트 Ticket v0.2/protocol 2와 v0.1 유지 대안 중 무엇을 택하고 sourcePageId·안정 ID·경로/소유권을 어떻게 연결할까? |
+
+단계 계획에도 별도 답이 필요하다: **S1-3의 선행에 S1-2 완료를 추가할까?**
+채택되면 아래 기록과 §7의 표, #265 작업 목록·의존 관계도를 함께 맞춘다.
+
+| 계획 변경 | 결정 | 승인자 | 근거 |
+|---|---|---|---|
+| S1-3에 S1-2 선행 추가 | 미확정 | 대기 | 미기록 |
+
+D1~D11의 답·승인자·근거는 §2의 해당 행에 기록한다. D11 시점 변경의 답과 버전 선택은
+같은 행에 각각 명시하며, 한쪽만 합의됐다면 나머지는 계속 미확정으로 남긴다.
 
 **이 문서 PR의 검증:** 근거 파일/상대 링크 존재, README 항목, whitespace, 변경 범위가
 두 Markdown 파일인지, 정본·생성 타입·동결 계약이 그대로인지 확인한다. 실행한 기존
