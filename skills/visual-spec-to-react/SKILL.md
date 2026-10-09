@@ -249,7 +249,7 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 
 ```tsx
 <style>{`
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css");
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css");
 html, body, #root { width: 100%; min-height: 100%; margin: 0; }
 @layer base {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
@@ -284,7 +284,9 @@ Tailwind를 사용하지 않거나 Preflight를 끄면 같은 base 규칙을 일
 60% opacity로 그리기 때문이다. 플랫폼 기본 input padding이나 border를 추가하지 않는다.
 
 GUI는 `src/styles/fonts.css`가 불러오는 Pretendard를 사용한다. 대상 앱도 같은 폰트 파일과
-fallback 순서를 로드해야 줄바꿈과 글자 폭을 비교할 수 있다. 폰트 파일·버전이 다르면 치수
+fallback 순서를 로드해야 줄바꿈과 글자 폭을 비교할 수 있다. 위 셸의 `@import` URL(static
+dynamic-subset, family `Pretendard`)을 다른 배포본으로 바꾸지 않는다. variable 배포 CSS는 family가
+`Pretendard Variable`이라 `[font-family:'Pretendard']` 텍스트가 OS 폴백 폰트로 그려진다. 폰트 파일·버전이 다르면 치수
 차이를 레이아웃 회귀라고 판정하지 않는다. 생성 요소마다 `data-node-id`에 Visual Spec 노드 ID를
 남긴다. 이 속성은 각 노드의 브라우저 실측을 Canvas와 연결하는 QA 표식이다.
 

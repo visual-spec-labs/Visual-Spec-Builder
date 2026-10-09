@@ -156,6 +156,8 @@ fixture 성공이나 [과거 로그인 QA](../15-workflow-qa.md)를 이 절차�
    노드 ID 집합 및 root 상대 x/y/width/height 차이 ≤1 CSS px를 기존
    `scripts/compare-layout-measurements.mjs`로 판정한다. 스크린샷·좌표 JSON·폰트/이미지 로딩
    증거를 함께 보존하고, 비교 조건 불일치는 성공이 아니라 측정 무효로 기록한다.
+   `scripts/browser/layout-parity.mjs --generated-dir <Export 폴더>`가 이 수집·판정을 같은 조건으로
+   실행한다([25](../25-layout-parity-contract.md) 3절).
 
 결과 기록은 사례별 `입력/출력/ZIP 해시 · 모델/요청 ID · GUI 수정 내용 · 독립 앱 검사 명령과
 exit code · 브라우저/viewport · 좌표 비교 결과 · 증거 경로 · PASS/FAIL/미실행/차단 이유`를
