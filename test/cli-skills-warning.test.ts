@@ -56,6 +56,22 @@ describe("GUI 시작 시 스킬 사본 경고 (#229)", () => {
     expect(result.status).toBe(0); expect(result.stdout).toContain("GUI_STARTED");
     expect(result.stderr).toBe(""); expect(statSync(path).mtimeMs).toBe(before);
   });
+  it("LF·CRLF·바이너리 사본은 원본 바이트를 보존하고 줄바꿈 차이도 명시 갱신한다", () => {
+    const source = join(pkg, "skills/visual-spec/SKILL.md");
+    writeFileSync(source, "first\nsecond\n");
+    const binary = Buffer.from([0, 13, 10, 255, 128]);
+    writeFileSync(join(pkg, "skills/visual-spec/image.png"), binary);
+    expect(run(["skills"]).status).toBe(0);
+    const target = join(project, relativeSkill);
+    expect(readFileSync(target)).toEqual(readFileSync(source));
+    expect(readFileSync(join(project, ".claude/skills/visual-spec/image.png"))).toEqual(binary);
+    writeFileSync(target, "first\r\nsecond\r\n");
+    expect(run().stderr).toContain(`내용 다름: ${relativeSkill}`);
+    expect(readFileSync(target, "utf8")).toBe("first\r\nsecond\r\n");
+    expect(run(["skills"]).status).toBe(0);
+    expect(readFileSync(target)).toEqual(readFileSync(source));
+    expect(run().stderr).toBe("");
+  });
   it("Codex 위치(.agents/skills) 사본의 차이도 같은 방식으로 경고만 한다 (#278)", () => {
     expect(run(["skills"]).status).toBe(0);
     const path = join(project, ".agents/skills/visual-spec/SKILL.md"); writeFileSync(path, "local edits");
@@ -99,7 +115,8 @@ describe("GUI 시작 시 스킬 사본 경고 (#229)", () => {
     const warning = run();
     expect(warning.status).toBe(0);
     expect(warning.stderr).toContain("패키지에 없는 파일:");
-    expect(warning.stderr).toContain("references/old.md");
+    expect(warning.stderr).toContain("패키지에 없는 파일: .claude/skills/visual-spec/references/old.md");
+    expect(warning.stderr).toContain("없음: .claude/skills/visual-spec/references/new.md");
     expect(readFileSync(oldTarget, "utf8")).toBe("old reference");
     const update = run(["skills"]);
     expect(update.status).toBe(0); expect(update.stdout).toContain("갱신함");
@@ -173,7 +190,7 @@ describe("GUI 시작 시 스킬 사본 경고 (#229)", () => {
     expect(result.status).toBe(0); expect(result.stderr).toContain("unreadable");
     expect(result.stderr).not.toContain("내용 다름:");
   });
-  it.skipIf(process.getuid?.() === 0)("읽기 권한이 없으면 비교 불가를 알리고 변경하지 않는다", () => {
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)("읽기 권한이 없으면 비교 불가를 알리고 변경하지 않는다", () => {
     run(["skills"]); const path = join(project, relativeSkill); chmodSync(path, 0);
     try {
       const result = run(); expect(result.status).toBe(0); expect(result.stderr).toContain("unreadable");
