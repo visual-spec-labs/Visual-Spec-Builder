@@ -208,5 +208,8 @@ export function parseTicketResponse(
     return { kind: "malformed", message: "results 항목 모양이 규약과 다릅니다." };
   }
 
+  if (new Set(body.results.map((item) => item.ticketId)).size !== body.results.length) {
+    return { kind: "malformed", message: "응답 티켓 ID가 중복됩니다." };
+  }
   return { kind: "results", results: body.results };
 }

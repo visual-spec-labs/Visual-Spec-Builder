@@ -16,6 +16,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const workspace = vi.hoisted(() => ({
   files: new Map<string, string>(),
   offline: false,
+  beforeRead: null as null | ((path: string) => Promise<void>),
+  afterWrite: null as null | ((path: string) => void),
+  owner: null as string | null,
 }));
 
 vi.mock("@/features/editor/ui/workspaceClient", () => {
@@ -31,12 +34,15 @@ vi.mock("@/features/editor/ui/workspaceClient", () => {
     isWorkspaceAvailable: async () => !workspace.offline,
     listWorkspaceFiles: async (dir: string, options?: { recursive?: boolean }) => list(dir, options),
     readWorkspaceTextFile: async (path: string) => (workspace.offline ? null : workspace.files.get(path) ?? null),
-    readWorkspaceTextFileStrict: async (path: string) =>
-      workspace.offline ? { ok: false } : { ok: true, text: workspace.files.get(path) ?? null },
+    readWorkspaceTextFileStrict: async (path: string) => {
+      await workspace.beforeRead?.(path);
+      return workspace.offline ? { ok: false } : { ok: true, text: workspace.files.get(path) ?? null };
+    },
     readWorkspaceBinaryFile: async () => null,
     writeWorkspaceFile: async (path: string, body: string) => {
       if (workspace.offline) return { ok: false, error: "fetch failed" };
       workspace.files.set(path, body);
+      workspace.afterWrite?.(path);
       return { ok: true, path };
     },
   };
@@ -44,16 +50,20 @@ vi.mock("@/features/editor/ui/workspaceClient", () => {
 
 // 서버 잠금(`workspace/requestLock.ts`)처럼 풀 때 요청 id가 주인과 같은 요청 파일만 지운다.
 vi.mock("@/features/editor/ui/agentRequestLock", () => ({
-  holdRequestLock: async (kind: string, owner: string) => ({
-    renew: async () => true,
+  holdRequestLock: async (kind: string, owner: string) => {
+    workspace.owner = owner;
+    return ({
+    renew: async () => workspace.owner === owner,
     release: () => {
+      if (workspace.owner !== owner) return;
+      workspace.owner = null;
       const path = `runtime/${kind}-request.json`;
       const request = workspace.files.get(path);
       if (request !== undefined && (JSON.parse(request) as { id: string }).id === owner) {
         workspace.files.delete(path);
       }
     },
-  }),
+  }); },
 }));
 
 import { GENERATION_MANIFEST_PATH, parseGenerationManifest } from "@/features/editor/export/generationManifest";
@@ -115,6 +125,9 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-10-10T00:00:00Z"));
   workspace.files.clear();
   workspace.offline = false;
+  workspace.beforeRead = null;
+  workspace.afterWrite = null;
+  workspace.owner = null;
   useEditorStore.getState().loadSpec(seedSpec);
   useTicketStore.setState({
     tickets: [], sourcePageId: null, sourcePage: null, sourceDocumentId: null, isOpen: false,
@@ -391,5 +404,65 @@ describe("timeout → 연장 / 재시도", () => {
     expect(useTicketStore.getState().runError).toBeNull();
     expect(workspace.files.get(`generated/${HEADER}`)).toBe(B_BYTES);
     expect((await exportScan()).byTicket.Header).toBe("current");
+  });
+});
+
+
+describe("승격 중 재진입 회귀", () => {
+  it("임시 파일 읽기 동안 잠금을 유지하고 Stop 이후 다음 웨이브를 보내지 않는다", async () => {
+    const run = runAllTickets();
+    await tick();
+    const request = currentRequest();
+    for (const item of request.tickets) agentWrites(request.id, item.filePath, B_BYTES);
+    workspace.afterWrite = (path) => { if (path.startsWith("generated/")) cancelTicketRun(); };
+    agentResponds(request.id, request.tickets.map((item) => ({ ticketId: item.id, status: "done" })));
+    await tick();
+    await run;
+    expect(status("Content")).toBe("pending");
+    expect(workspace.files.has(TICKET_REQUEST_PATH)).toBe(false);
+    expect(useTicketStore.getState().running).toBe(false);
+  });
+
+  it.each(["cancel", "compile", "lost"])("지연된 staging 읽기 중 %s이면 이전 정상 파일을 보존한다", async (action) => {
+    workspace.files.set(`generated/${HEADER}`, B_BYTES);
+    const run = runOneTicket("Header");
+    await tick();
+    const request = currentRequest();
+    let resume!: () => void;
+    const barrier = new Promise<void>((resolve) => { resume = resolve; });
+    workspace.beforeRead = async (path) => {
+      if (path.startsWith("staging/")) {
+        expect(workspace.owner).toBe(request.id);
+        await barrier;
+      }
+    };
+    agentWrites(request.id, HEADER, A_BYTES);
+    agentResponds(request.id, [{ ticketId: "Header", status: "done" }]);
+    await tick();
+    if (action === "cancel") cancelTicketRun();
+    if (action === "compile") compileCurrent();
+    if (action === "lost") workspace.owner = "newer-tab";
+    resume();
+    await run;
+    expect(workspace.files.get(`generated/${HEADER}`)).toBe(B_BYTES);
+    expect(workspace.files.has(GENERATION_MANIFEST_PATH)).toBe(false);
+  });
+
+  it.each([
+    [{ ticketId: "Header", status: "done" as const }, { ticketId: "Header", status: "failed" as const }],
+    [{ ticketId: "Header", status: "done" as const }, { ticketId: "Content", status: "done" as const }],
+    [],
+  ])("중복·예상 밖·누락 응답은 확정 전에 거절한다: %j", async (...results) => {
+    const run = runOneTicket("Header");
+    await tick();
+    const request = currentRequest();
+    agentWrites(request.id, HEADER, A_BYTES);
+    agentResponds(request.id, results);
+    await tick();
+    await run;
+    expect(workspace.files.has(`generated/${HEADER}`)).toBe(false);
+    expect(workspace.files.has(GENERATION_MANIFEST_PATH)).toBe(false);
+    expect(status("Header")).not.toBe("in-progress");
+    expect(status("Content")).toBe("pending");
   });
 });

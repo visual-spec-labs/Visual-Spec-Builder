@@ -185,7 +185,15 @@ async function waitForNlResponse(
       files !== null && files.includes(NL_RESPONSE_FILE)
         ? parseNlResponse(await readWorkspaceTextFile(NL_RESPONSE_PATH), request.id)
         : ({ kind: "stale" } as const);
-    if (result.kind !== "stale") return { kind: "response", result };
+    if (cancel.cancelled) return { kind: "cancelled" };
+    if (!wait.expired() && result.kind !== "stale") {
+      // A slow response GET may outlive the lease. Verify ownership again before accepting it.
+      if (lock !== null && !await lock.renew(true)) {
+        return { kind: "lockLost", message: "응답 수용 전에 요청 잠금을 확인하지 못했습니다. 다시 요청하세요." };
+      }
+      if (cancel.cancelled) return { kind: "cancelled" };
+      if (!wait.expired()) return { kind: "response", result };
+    }
 
     if (wait.expired()) {
       // 원시 경로는 더 이상 이 문구에 넣지 않는다(#283) — 입력창이 "자세히"로

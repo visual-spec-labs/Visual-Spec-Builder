@@ -699,8 +699,11 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
       } else {
         // 공유 요청 파일은 잠금 주인만 덮어쓴다(#273) — 기다리는 다른 탭의 요청을 지우지 않는다.
         // 에이전트 편집 결과도 연결된 탭만 쓴다(#279).
-        const lockKind = requestLockKindForPath(resolved.relativePath);
         const owner = req.headers[WORKSPACE_REQUEST_OWNER_HEADER];
+        // Fence promotion at the actual write, including delayed request bodies and expired tabs.
+        const promotion = owner !== undefined && (resolved.relativePath.startsWith("generated/") ||
+          resolved.relativePath === "runtime/generation-manifest.json");
+        const lockKind = promotion ? "ticket" : requestLockKindForPath(resolved.relativePath);
         if (lockKind !== undefined && !holdsRequestLock(root, lockKind, typeof owner === "string" ? owner : undefined)) {
           sendError(res, 409, "다른 탭에서 보낸 요청이 아직 응답을 기다리고 있거나, 이 요청의 잠금이 만료됐습니다.");
           return;

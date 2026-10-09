@@ -66,7 +66,7 @@ export type TicketBatchOutcome =
    */
   | { kind: "connectionLost"; message: string }
   | { kind: "cancelled" }
-  | { kind: "response"; result: TicketResponseResult };
+  | { kind: "response"; result: TicketResponseResult; lock?: HeldRequestLock };
 
 /** 취소 신호. 호출부(ticketStore)가 "중지"를 누르면 `cancelled`를 세운다. */
 export interface TicketCancelToken {
@@ -104,9 +104,11 @@ export async function requestTicketBatch(
   input: BuildTicketRequestInput,
   cancel: TicketCancelToken,
   wait: AgentRequestWait = createAgentRequestWait(),
+  /** 출력 확정 호출자는 true로 넘기고 response.lock을 finally에서 해제한다. */
+  retainLock = false,
 ): Promise<TicketBatchOutcome> {
   try {
-    return await sendTicketBatch(input, cancel, wait);
+    return await sendTicketBatch(input, cancel, wait, retainLock);
   } finally {
     wait.settle();
   }
@@ -116,6 +118,7 @@ async function sendTicketBatch(
   input: BuildTicketRequestInput,
   cancel: TicketCancelToken,
   wait: AgentRequestWait,
+  retainLock: boolean,
 ): Promise<TicketBatchOutcome> {
   const request = buildTicketRequest(input);
 
@@ -128,13 +131,19 @@ async function sendTicketBatch(
       message: "다른 탭(창)에서 보낸 티켓 실행 요청이 아직 응답을 기다리고 있습니다. 그 요청이 끝나거나 취소된 뒤 다시 시도하세요.",
     };
   }
+  let transferred = false;
   try {
     // 잠금을 기다리는 사이 취소됐으면 요청 파일을 쓰지 않는다 — 쓰면 외부 에이전트가 정리 전에
     // 읽고 실행할 수 있다(PR #296 리뷰). 잠금은 아래 finally가 푼다.
     if (cancel.cancelled) return { kind: "cancelled" };
-    return await waitForTicketResponse(request, cancel, wait, lock === "unavailable" ? null : lock);
+    const outcome = await waitForTicketResponse(request, cancel, wait, lock === "unavailable" ? null : lock);
+    if (retainLock && outcome.kind === "response" && lock !== "unavailable") {
+      transferred = true;
+      return { ...outcome, lock };
+    }
+    return outcome;
   } finally {
-    if (lock !== "unavailable") lock.release();
+    if (!transferred && lock !== "unavailable") lock.release();
   }
 }
 
@@ -191,7 +200,15 @@ async function waitForTicketResponse(
       files !== null && files.includes(TICKET_RESPONSE_FILE)
         ? parseTicketResponse(await readWorkspaceTextFile(TICKET_RESPONSE_PATH), request.id)
         : ({ kind: "stale" } as const);
-    if (result.kind !== "stale") return { kind: "response", result };
+    if (cancel.cancelled) return { kind: "cancelled" };
+    if (!wait.expired() && result.kind !== "stale") {
+      // A slow response GET may outlive the lease. Verify ownership again before accepting it.
+      if (lock !== null && !await lock.renew(true)) {
+        return { kind: "lockLost", message: "응답 수용 전에 요청 잠금을 확인하지 못했습니다. 다시 요청하세요." };
+      }
+      if (cancel.cancelled) return { kind: "cancelled" };
+      if (!wait.expired()) return { kind: "response", result };
+    }
 
     if (wait.expired()) {
       // 원시 경로는 더 이상 이 문구에 넣지 않는다(#283) — 패널이 "자세히"로

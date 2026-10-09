@@ -30,11 +30,13 @@ export interface TicketOutputAcceptanceInput {
   /** 요청에 실었던 입력 — 수용 기록의 입력 지문이 된다. 지금 편집 중인 페이지가 아니다. */
   pageId: PageId;
   page: ScreenSpec;
-  /** 이 웨이브에 실었던 티켓들. 결과에 다른 id가 섞여 있으면 무시한다. */
+  /** 이 웨이브 전체와 결과 ID 집합이 정확히 같아야 한다. */
   waveTickets: Ticket[];
   results: TicketResultItem[];
   /** 기록 시각. 테스트가 고정한다. */
   now?: () => Date;
+  isCurrent: () => boolean;
+  renew: () => Promise<boolean>;
 }
 
 export interface TicketOutputAcceptance {
@@ -55,8 +57,15 @@ export async function acceptTicketOutputs({
   waveTickets,
   results,
   now = () => new Date(),
+  isCurrent,
+  renew,
 }: TicketOutputAcceptanceInput): Promise<TicketOutputAcceptance> {
   const byId = new Map(waveTickets.map((ticket) => [ticket.id, ticket]));
+  // Validate the whole wave before any I/O: no contradictory, foreign or omitted status.
+  const ids = new Set(results.map((result) => result.ticketId));
+  if (ids.size !== results.length || ids.size !== byId.size || [...ids].some((id) => !byId.has(id))) {
+    return { results: waveTickets.map((ticket) => failed(ticket.id, "응답 티켓이 중복되거나 요청 목록과 다릅니다. 다시 전달하세요.")), manifestError: null };
+  }
   const fingerprint = inputFingerprint(pageId, page);
   const accepted: TicketResultItem[] = [];
   const entries: Record<string, ManifestEntry> = {};
@@ -68,6 +77,7 @@ export async function acceptTicketOutputs({
       continue;
     }
 
+    if (!isCurrent()) { accepted.push(failed(ticket.id, "취소되거나 다시 생성된 요청입니다.")); continue; }
     const filePath = ticketFilePath(ticket);
     const staged = await readWorkspaceTextFileStrict(ticketOutputPath(requestId, filePath));
     // 에이전트의 "done"만으로는 완료로 치지 않는다 — 이 요청의 임시 출력이 실제로 있어야 한다.
@@ -81,10 +91,16 @@ export async function acceptTicketOutputs({
       continue;
     }
 
+    if (!isCurrent() || !await renew() || !isCurrent()) {
+      accepted.push(failed(ticket.id, "요청이 취소되거나 잠금을 잃어 확정하지 않았습니다."));
+      continue;
+    }
     const written = await writeWorkspaceFile(
       `${GENERATED_DIR}/${filePath}`,
       staged.text,
       "text/plain; charset=utf-8",
+      undefined,
+      requestId,
     );
     if (!written.ok) {
       accepted.push(failed(ticket.id, `${filePath} 확정에 실패했습니다 — ${written.error}`));
@@ -103,7 +119,7 @@ export async function acceptTicketOutputs({
   }
 
   if (Object.keys(entries).length === 0) return { results: accepted, manifestError: null };
-  return { results: accepted, manifestError: await recordAcceptance(entries) };
+  return { results: accepted, manifestError: await recordAcceptance(entries, requestId) };
 }
 
 /**
@@ -111,7 +127,7 @@ export async function acceptTicketOutputs({
  * 덮으면 다른 파일들의 기록까지 지운다. 실패해도 판정은 "확인 불가"로 기울 뿐 거짓 "현재"가
  * 되지 않는다(docs/26 "수용 기록 형식").
  */
-async function recordAcceptance(entries: Record<string, ManifestEntry>): Promise<string | null> {
+async function recordAcceptance(entries: Record<string, ManifestEntry>, requestId: string): Promise<string | null> {
   const current = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
   if (!current.ok) {
     return "생성 기록을 읽지 못해 이번 확정을 기록하지 않았습니다. Export에서 이 파일들은 확인 불가로 보입니다.";
@@ -121,6 +137,8 @@ async function recordAcceptance(entries: Record<string, ManifestEntry>): Promise
     GENERATION_MANIFEST_PATH,
     JSON.stringify(next, null, 2),
     "application/json",
+    undefined,
+    requestId,
   );
   return written.ok
     ? null

@@ -18,7 +18,7 @@ const BUSY_RETRIES = 5;
 
 export interface HeldRequestLock {
   /** 연장 간격이 지났으면 연장한다. 잠금을 잃었으면(기한 만료 뒤 다른 탭이 가져감) false. */
-  renew: () => Promise<boolean>;
+  renew: (verify?: boolean) => Promise<boolean>;
   release: () => void;
 }
 
@@ -51,15 +51,15 @@ export async function holdRequestLock(
   if (typeof window !== "undefined") window.addEventListener("pagehide", onPageHide);
 
   return {
-    async renew() {
+    async renew(verify = false) {
       if (released) return false;
-      if (Date.now() - renewedAt < RENEW_INTERVAL_MS) return true;
+      if (!verify && Date.now() - renewedAt < RENEW_INTERVAL_MS) return true;
       // 새로 잡기가 아니라 연장이다 — 끊긴 사이 다른 탭이 가져갔다가 풀었어도 알아챈다.
       const renewed = await acquireRequestLock(kind, owner, true);
       if (renewed === "busy") return false;
       // 일시적으로 서버에 닿지 않으면 다음 회차에 다시 시도한다 — 폴링도 같은 서버를 본다.
       if (renewed === "acquired") renewedAt = Date.now();
-      return true;
+      return !verify || renewed === "acquired";
     },
     release: () => release(),
   };

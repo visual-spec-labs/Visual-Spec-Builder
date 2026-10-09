@@ -50,7 +50,7 @@ function isWorkspaceResponse(response: Response): boolean {
 let cachedStatus: { ok: true; root: string | null } | undefined;
 
 /** `/__vs/status`를 한 번 묻는다. 실패해도 예외를 던지지 않는다. */
-async function fetchWorkspaceStatus(signal?: AbortSignal): Promise<{ ok: boolean; root: string | null }> {
+async function fetchWorkspaceStatus(signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<{ ok: boolean; root: string | null }> {
   if (cachedStatus !== undefined) return cachedStatus;
 
   try {
@@ -69,7 +69,7 @@ async function fetchWorkspaceStatus(signal?: AbortSignal): Promise<{ ok: boolean
 }
 
 /** 작업공간이 연결돼 있는지 한 번 물어보고 결과를 기억한다. */
-export async function isWorkspaceAvailable(signal?: AbortSignal): Promise<boolean> {
+export async function isWorkspaceAvailable(signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<boolean> {
   return (await fetchWorkspaceStatus(signal)).ok;
 }
 
@@ -89,11 +89,12 @@ export async function listWorkspaceFiles(
   dir: WorkspaceDir,
   options: { recursive?: boolean; signal?: AbortSignal } = {},
 ): Promise<string[] | null> {
-  if (!(await isWorkspaceAvailable())) return null;
+  const signal = options.signal ?? AbortSignal.timeout(10_000);
+  if (!(await isWorkspaceAvailable(signal))) return null;
 
   const query = options.recursive === true ? `?${WORKSPACE_LIST_RECURSIVE_PARAM}=1` : "";
   try {
-    const response = await fetch(`${WORKSPACE_LIST_ROUTE}${dir}${query}`, { signal: options.signal });
+    const response = await fetch(`${WORKSPACE_LIST_ROUTE}${dir}${query}`, { signal });
     if (!response.ok || !isWorkspaceResponse(response)) return null;
     const body: unknown = await response.json();
     const files = (body as { files?: unknown }).files;
@@ -124,8 +125,8 @@ export async function listWorkspaceFileEntries(dir: WorkspaceDir): Promise<Works
 }
 
 /** 텍스트 파일 내용. 없거나 읽을 수 없으면 null. */
-export async function readWorkspaceTextFile(relativePath: string, signal?: AbortSignal): Promise<string | null> {
-  if (!(await isWorkspaceAvailable())) return null;
+export async function readWorkspaceTextFile(relativePath: string, signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<string | null> {
+  if (!(await isWorkspaceAvailable(signal))) return null;
 
   try {
     const response = await fetch(workspaceFileUrl(relativePath), { signal });
@@ -142,9 +143,9 @@ export async function readWorkspaceTextFile(relativePath: string, signal?: Abort
  * 연결 복원, #279)에서 쓴다.
  */
 export async function readWorkspaceTextFileStrict(
-  relativePath: string, signal?: AbortSignal,
+  relativePath: string, signal: AbortSignal = AbortSignal.timeout(10_000),
 ): Promise<{ ok: true; text: string | null } | { ok: false }> {
-  if (!(await isWorkspaceAvailable())) return { ok: false };
+  if (!(await isWorkspaceAvailable(signal))) return { ok: false };
   try {
     const response = await fetch(workspaceFileUrl(relativePath), { signal });
     if (!isWorkspaceResponse(response)) return { ok: false };
@@ -177,7 +178,7 @@ export async function readWorkspaceBinaryFile(
 }
 
 /** The token belongs to these exact bytes, not a later Save-time read. */
-export async function readWorkspaceSpecSnapshot(relativePath: string, signal?: AbortSignal): Promise<{ text: string; revision: string } | null> {
+export async function readWorkspaceSpecSnapshot(relativePath: string, signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<{ text: string; revision: string } | null> {
   if (!(await isWorkspaceAvailable(signal))) return null;
   try {
     const response = await fetch(workspaceFileUrl(relativePath), { signal });
@@ -203,9 +204,9 @@ export async function writeWorkspaceFile(
   /** 잠금으로 보호되는 요청 파일(#273)에 쓸 때 잠금 주인. */
   requestOwner?: string,
   /** 취소(시간 제한) 신호. 응답 없는 요청이 호출 측을 무기한 붙잡지 않게 한다(#279). */
-  signal?: AbortSignal,
+  signal: AbortSignal = AbortSignal.timeout(10_000),
 ): Promise<WriteResult> {
-  if (!(await isWorkspaceAvailable())) {
+  if (!(await isWorkspaceAvailable(signal))) {
     return { ok: false, error: "작업공간에 연결돼 있지 않습니다." };
   }
 
@@ -245,7 +246,7 @@ export async function acquireRequestLock(
   kind: RequestLockKind,
   owner: string,
   renew = false,
-  signal?: AbortSignal,
+  signal: AbortSignal = AbortSignal.timeout(10_000),
 ): Promise<RequestLockOutcome> {
   try {
     const query = renew ? `?${WORKSPACE_REQUEST_LOCK_RENEW_PARAM}=1` : "";

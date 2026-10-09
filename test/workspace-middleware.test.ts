@@ -1003,6 +1003,40 @@ describe("runtime/ 요청 파일 잠금(#273)", () => {
     }
   });
 
+  it("승격 PUT 본문이 늦으면 새 탭의 출력·manifest를 덮지 못한다 (#284)", async () => {
+    for (const file of ["generated/components/Header.tsx", "runtime/generation-manifest.json"]) {
+      const kind = "ticket";
+      expect((await lock("POST", kind, "tab-a")).status).toBe(200);
+
+      // A의 PUT — 헤더와 본문 일부만 보내고 멈춘다.
+      const late = new Promise<{ status: number; text: string }>((resolve, reject) => {
+        const req = request({ host: "127.0.0.1", port, method: "PUT", path: `/__vs/file/${file}`,
+          headers: { "x-visual-spec-expected-revision": "missing", "x-visual-spec-request-owner": "tab-a", "content-type": "application/json" } }, (res) => {
+          let text = "";
+          res.setEncoding("utf8");
+          res.on("data", (chunk: string) => (text += chunk));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, text }));
+        });
+        req.on("error", reject);
+        req.write('{"protocol":1,');
+        (lateRequests ??= []).push(() => req.end('"id":"tab-a"}'));
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // 그 사이 A가 잠금을 풀고(탭 닫기 등) B가 잡아 자기 요청을 쓴다.
+      await lock("DELETE", kind, "tab-a");
+      expect((await lock("POST", kind, "tab-b")).status).toBe(200);
+      expect((await rawRequest("PUT", `/__vs/file/${file}`, JSON.stringify({ id: "tab-b" }), { "x-visual-spec-request-owner": "tab-b" })).status).toBe(200);
+
+      // A의 남은 본문이 도착한다.
+      lateRequests!.shift()!();
+      const result = await late;
+      expect(result.status, kind).toBe(409);
+      expect(JSON.parse(readFileSync(join(workspaceRoot, file), "utf8")).id, kind).toBe("tab-b");
+      await lock("DELETE", kind, "tab-b");
+    }
+  });
+
   it("gui 잠금(#279): 연결된 탭만 gui-state.json을 쓰고, 풀면 그 탭의 상태 파일이 정리된다", async () => {
     expect((await lock("POST", "gui", "tab-a")).status).toBe(200);
     expect((await lock("POST", "gui", "tab-b")).status).toBe(409);
