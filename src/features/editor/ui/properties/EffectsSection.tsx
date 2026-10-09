@@ -38,7 +38,7 @@ export function EffectsSection({ withShadow = false }: { withShadow?: boolean })
   }
 
   return (
-    <PropertySection title="Effects">
+    <PropertySection title="효과 (Effects)">
       <FieldRow>
         {/*
           "투명도"가 아니라 "불투명도"다. 100%가 불투명(그대로 보임), 0%가 완전

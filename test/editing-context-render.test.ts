@@ -1,3 +1,4 @@
+import { TextField, NumberField, SelectField, SizeField, ColorField } from "@/features/editor/ui/properties/fields";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -57,7 +58,7 @@ describe("실제 PropertiesPanel + ResponsivePanel 렌더 (#340)", () => {
     expect(liveRegion(markup)).toContain(scope);
     expect(liveRegion(markup)).toContain(mode);
     expect(markup).toContain(guidance);
-    expect(markup.includes('>Page<')).toBe(showPage);
+    expect(markup.includes('>페이지 (Page)<')).toBe(showPage);
     expect(markup).toContain('aria-label="반응형 편집"');
     expect(markup).toContain('미리보기 폭에 따라 편집 기준도 바뀝니다.');
     if (selection) {
@@ -80,5 +81,30 @@ describe("실제 PropertiesPanel + ResponsivePanel 렌더 (#340)", () => {
     useResponsiveViewStore.getState().reportError("폭은 양수여야 합니다.");
     const markup = renderToStaticMarkup(createElement(PropertiesPanel));
     expect(markup).toMatch(/<p role="alert"[^>]*>오류: 폭은 양수여야 합니다\.<\/p>/);
+  });
+});
+
+// 실제 컴포넌트의 label/id 연결을 검사한다. 입력/오류/IME/undo는 브라우저 회귀에서 검증한다.
+describe("속성 입력 접근 가능한 이름과 정상적인 빈 값", () => {
+  it.each([
+    [TextField, { label: "내용", value: "", onChange: () => {} }, "input"],
+    [TextField, { label: "내용", value: "", multiline: true, onChange: () => {} }, "textarea"],
+    [NumberField, { label: "간격", value: undefined, onChange: () => {} }, "input"],
+    [SelectField, { label: "종류", value: "one", options: [{value:"one",label:"하나"}], onChange: () => {} }, "select"],
+  ])("라벨과 %s 입력 연결", (Component, props, tag) => {
+    const html = renderToStaticMarkup(createElement(Component as typeof TextField, props));
+    const target = html.match(/<label[^>]*for="([^"]+)"/)?.[1];
+    expect(target).toBeTruthy();
+    expect(html).toContain(`<${tag} id="${target}"`);
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain('aria-invalid="true"');
+  });
+  it("미지정 크기·색상은 오류가 아니고 한국어 크기 안내를 제공한다", () => {
+    const html = renderToStaticMarkup(createElement("div", null,
+      createElement(SizeField, {label:"너비",value:undefined,onChange:()=>{}}),
+      createElement(ColorField, {label:"색",value:undefined,onChange:()=>{}})));
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain('aria-invalid="true"');
+    for (const text of ["고정 (Fixed)", "내용 맞춤 (Hug)", "공간 채움 (Fill)"]) expect(html).toContain(text);
   });
 });

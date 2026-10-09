@@ -1,4 +1,5 @@
-import { blurOnWheel, Field, inputClass, invalidClass } from "./Field";
+import { useId } from "react";
+import { blurOnWheel, Field, FieldError, inputClass, invalidClass } from "./Field";
 import { isUnchangedNumber } from "./unchangedCommit";
 import { useDraftInput } from "./useDraftInput";
 
@@ -33,7 +34,7 @@ interface NumberFieldProps {
   unit?: string;
 }
 
-/** 숫자 입력. 유효할 때만 즉시 커밋하고, 파싱 실패 시 빨간 테두리. */
+/** 숫자 입력. 유효할 때만 즉시 커밋하고, 파싱 실패 시 입력을 보존하고 오류 설명을 제공한다. */
 export function NumberField({
   label,
   value,
@@ -45,6 +46,8 @@ export function NumberField({
   integer = false,
   unit,
 }: NumberFieldProps) {
+  const id = useId();
+  const errorId = `${id}-error`;
   const { draft, invalid, handleChange, handleBlur } = useDraftInput(value, {
     toDraft: (v) => (v === undefined ? "" : String(v)),
     parse: (raw) => {
@@ -65,9 +68,12 @@ export function NumberField({
   });
 
   return (
-    <Field label={label}>
+    <Field label={label} htmlFor={id}>
       <div className="relative">
         <input
+          id={id}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? errorId : undefined}
           type="number"
           onWheel={blurOnWheel}
           inputMode={integer ? "numeric" : "decimal"}
@@ -85,6 +91,7 @@ export function NumberField({
           </span>
         ) : null}
       </div>
+      {invalid && <FieldError id={errorId}>{integer ? "정수" : "숫자"}를 입력하세요{min !== undefined ? ` · ${min} 이상` : ""}{max !== undefined ? ` · ${max} ${maxExclusive ? "미만" : "이하"}` : ""}. 유효한 값만 반영됩니다.</FieldError>}
     </Field>
   );
 }

@@ -1,4 +1,5 @@
-import { blurOnWheel, Field, inputClass, invalidClass } from "./Field";
+import { useId } from "react";
+import { blurOnWheel, Field, FieldError, inputClass, invalidClass } from "./Field";
 import { isUnchangedNumber } from "./unchangedCommit";
 import { useDraftInput } from "./useDraftInput";
 
@@ -24,12 +25,15 @@ function modeOf(value: Size | undefined): Mode {
 const MODE_PLACEHOLDER: Record<Mode, string | undefined> = {
   fixed: undefined,
   // Figma 용어를 따른다 — 스키마 값은 "auto"지만 UI는 Hug로 부른다.
-  auto: "Hug",
-  fill: "Fill",
+  auto: "내용 맞춤",
+  fill: "공간 채움",
 };
 
 /** box.width / height 전용. Fixed(px) / Hug / Fill 중 선택. */
 export function SizeField({ label, value, onChange, measured }: SizeFieldProps) {
+  const id = useId();
+  const errorId = `${id}-error`;
+  const helpId = `${id}-help`;
   const mode = modeOf(value);
 
   /**
@@ -65,11 +69,14 @@ export function SizeField({ label, value, onChange, measured }: SizeFieldProps) 
   const placeholder = mode === "fixed" ? undefined : MODE_PLACEHOLDER[mode];
 
   return (
-    <Field label={label}>
+    <Field label={label} htmlFor={id}>
       {/* 패널이 좁아(칸당 약 155px) 가로로 나란히 두면 px 칸이 남지 않는다. 세로로 쌓는다. */}
       <div className="flex flex-col gap-1">
         <div className="relative">
           <input
+            id={id}
+            aria-invalid={invalid}
+            aria-describedby={invalid ? `${helpId} ${errorId}` : helpId}
             type="number"
             onWheel={blurOnWheel}
             inputMode="decimal"
@@ -87,15 +94,18 @@ export function SizeField({ label, value, onChange, measured }: SizeFieldProps) 
         </div>
         <select
           aria-label={`${label} 크기 모드`}
+          aria-describedby={helpId}
           className={inputClass}
           value={mode}
           onChange={(event) => handleMode(event.target.value as Mode)}
         >
-          <option value="fixed">Fixed</option>
-          <option value="auto">Hug</option>
-          <option value="fill">Fill</option>
+          <option value="fixed">고정 (Fixed)</option>
+          <option value="auto">내용 맞춤 (Hug)</option>
+          <option value="fill">공간 채움 (Fill)</option>
         </select>
       </div>
+      <p id={helpId} className="text-xs text-content-muted">{mode === "fixed" ? "고정: 지정한 px 크기입니다." : mode === "auto" ? "내용 맞춤: 내용에 맞춰 크기가 정해집니다." : "공간 채움: 부모의 남는 공간을 채웁니다."}{mode !== "fixed" && " 숫자를 입력하면 고정 크기로 바뀝니다."}</p>
+      {invalid && <FieldError id={errorId}>0 이상의 숫자를 입력하세요. 유효한 값만 반영됩니다.</FieldError>}
     </Field>
   );
 }
