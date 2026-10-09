@@ -210,6 +210,54 @@ try {
   assert.deepEqual(agentRequests, []);
   console.log("PASS simultaneous Resume has one owner; owner close permits exact-UUID handoff, edits and reload; no agent requests");
 
+  // A leaves; B resumes its UUID without editing; A returns with copied identity
+  // but a failed ownership claim. Same-key Resume must refuse B's active lock,
+  // then explicitly reacquire after B closes (not keep a forever-false ready).
+  const returning = await browser.newContext();
+  const tabA = await returning.newPage();
+  tabA.on("dialog", d => d.accept());
+  await tabA.goto(url);
+  await tabA.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
+  await tabA.getByRole("button", {name: "File", exact: true}).waitFor();
+  await edit("Return ownership fixture", tabA);
+  const returningDraft = await state(tabA);
+  await tabA.goto("about:blank");
+  const tabB = await returning.newPage();
+  await tabB.goto(url);
+  const row = target => target.getByRole("listitem").filter({hasText: returningDraft.key.split(":").pop()});
+  await row(tabB).getByRole("button", {name: "이어서 열기"}).click();
+  const tabBPrompt = tabB.getByRole("alertdialog").getByRole("button", {name: "초안 보관 후 이동", exact: true});
+  await tabBPrompt.click();
+  await tabB.getByRole("button", {name: "File", exact: true}).waitFor();
+  assert.deepEqual(await state(tabB), returningDraft);
+  await tabA.goBack();
+  await row(tabA).getByRole("button", {name: "이어서 열기"}).click();
+  await tabA.getByText(/다른 탭에서 사용 중인 초안/).waitFor();
+  assert.deepEqual(await state(tabA), returningDraft);
+  await tabA.reload();
+  await row(tabA).getByRole("button", {name: "이어서 열기"}).click();
+  await tabA.getByText(/다른 탭에서 사용 중인 초안/).waitFor();
+  assert.deepEqual(await state(tabB), returningDraft);
+  await tabB.close();
+  await row(tabA).getByRole("button", {name: "이어서 열기"}).click();
+  await tabA.getByRole("button", {name: "File", exact: true}).waitFor();
+  await edit("Reacquired after owner closed", tabA);
+  const reacquired = await state(tabA);
+  assert.equal(reacquired.key, returningDraft.key);
+  assert.deepEqual(await tabA.evaluate(key => JSON.parse(localStorage.getItem(key)).spec, returningDraft.key), reacquired.spec);
+  await tabA.evaluate(async () => {
+    const {saveSpecAs} = await import("/src/features/editor/ui/exportSpecAsJson.ts");
+    const {useEditorStore} = await import("/src/features/editor/store/editorStore.ts");
+    window.pending = saveSpecAs(useEditorStore.getState().spec);
+  });
+  await tabA.getByRole("alertdialog").getByRole("textbox").fill("Reacquired fixture");
+  await tabA.getByRole("alertdialog").getByRole("button", {name: "저장", exact: true}).click();
+  await tabA.evaluate(() => window.pending);
+  assert.equal((await state(tabA)).file, "Reacquired fixture.json");
+  assert.deepEqual(JSON.parse(await readFile(join(specs, "Reacquired fixture.json"), "utf8")), reacquired.spec);
+  await returning.close();
+  console.log("PASS Back/reload while B owns same UUID refuses Resume; B close permits explicit reacquisition, autosave and disk Save");
+
   const isolated = await browser.newContext();
   const noWorkspace = await isolated.newPage();
   await noWorkspace.route("**/__vs/**", route => route.fulfill({status:404, body:"missing"}));
@@ -225,7 +273,7 @@ try {
   const memory = await withoutLocks.newPage();
   memory.on("pageerror", error => errors.push(error.message));
   await memory.goto(url);
-  await memory.getByText("프로젝트 1개", {exact: true}).waitFor();
+  await memory.getByText("프로젝트 2개", {exact: true}).waitFor();
   await memory.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
   await edit("Memory-only fixture", memory);
   const memoryState = await state(memory);

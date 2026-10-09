@@ -34,6 +34,11 @@
 - 실제 비교/쓰기에는 기존 `<draft key>` 잠금을 그대로 사용한다. 두 탭 동시 Resume는
   한 탭만 UUID를 채택하며, 다른 탭의 메모리와 캐시는 유지한다. 시간제 lease 만료로
   숨긴 탭의 소유권을 빼앗지 않는다. StrictMode/HMR의 자체 해제 완료를 기다린 뒤 재획득한다.
+- reload/Back/Forward 복구가 같은 UUID여도 다른 탭이 소유 중이면 Resume를 거부한다.
+  소유 탭 종료 후 명시적 Resume에서 실패한 잠금을 재획득하고 원문 기준을 다시 확인한다.
+  이전에 중단된 debounce도 다시 예약한다. 다른 탭이 내용을 바꿨으면 충돌 상태와 양쪽 내용을
+  보존하며 명시적으로 최신 내용을 채택하기 전에는 쓰지 않는다. Web Locks 미지원만 메모리
+  재개 경로를 사용한다.
 - reload/Back/Forward는 현재 UUID를 유지한다. opener가 sessionStorage를 복사해 준 새 탭은
   같은 내용의 독립 UUID를 받는다. 보관 UUID로 이동하려면 명시적 Resume와 소유권 검사를 거친다.
 - #337의 `beginDocumentTransition()`과 각 await 뒤 `current()` 검사를 재사용한다.
@@ -42,13 +47,14 @@
 
 ## 로컬 검증 기록
 
-기준은 #337 `cf26d1187c45ac6aee0e671f6c8b940cf99502f1` 위의 #319 작업이다.
+기준은 #337 `8211a46fe43e97646db6fe82b5a17143ed489151` 위의 #319 작업이다.
 최종 테스트 커밋과 CI 결과는 PR 본문에 기록한다.
 
 - 단위 회귀: `test/unnamed-drafts.test.ts` — 검증/필터, named→unnamed UUID 채택,
   현재 탭 선택/history 유지, 다른 탭 소유권, 오래된 원문, 취소/중복/지연 전환,
   명시적 삭제와 오래된 세션, Save 성공/실패, Web Locks 부재, StrictMode 해제 경합,
-  보관 대기 중 현재 탭 재개, edit→Undo 이후 오래된 Resume 승인 거부와 Redo 보존.
+  보관 대기 중 현재 탭 재개, edit→Undo 이후 오래된 Resume 승인 거부와 Redo 보존,
+  Back 복귀 탭의 실패한 소유권 거부/재획득과 storage 이벤트 전 최신 원문 보호.
 - Chromium: `scripts/browser/unnamed-drafts.mjs` — 임시 workspace와 일반 fixture만 사용한다.
   빈/기존 파일 workspace, Home/Resume/reload/Back/Forward, 실제 opener의 독립 UUID,
   다른 활성 탭 Resume/삭제 거부, 동시 Resume의 단일 소유자, 소유 탭 종료 후 인계,
@@ -58,11 +64,12 @@
   UUID와 구조적 내용 일치를 검사하고 초기 fixture의 SHA-256을 출력한다.
 - 공통 확인창 회귀: `scripts/browser/document-transitions.mjs`와
   `scripts/browser/project-dialogs.mjs`를 실제 Chromium으로 실행한다.
-- 최종 결과와 미실행 항목은 PR에 기록한다. unrelated opt-in codegen/page-shell 브라우저
-  테스트 3개는 이 작업에서 실행하지 않았다.
+- 최종 결과와 미실행 항목은 PR에 기록한다. 강화 CI 통합 후 기존 opt-in codegen/page-shell
+  브라우저 테스트 3개도 명시 실행해 전부 통과했다.
 
 현재 로컬 결과(2026-10-09): pnpm 10.33.0, Node 24.19.0. typecheck/lint/build 통과,
-전체 110파일 1,796테스트 통과, opt-in 3파일 3테스트 미실행. 생성 타입 드리프트와
+일반 전체 테스트 110파일 1,800개 통과(기본 opt-in 3개 skip), 이어서 opt-in 3파일 3테스트도
+명시 실행해 통과했다. 총 1,803개를 검증했다. 생성 타입 드리프트와
 `git diff --check` 통과. 위 Chromium 스크립트 3개 통과. 브라우저 회귀는 비동기
 Resume 클릭 뒤 File 메뉴가 나타나는 완료 시점까지 기다려 UUID/내용을 비교한다.
 

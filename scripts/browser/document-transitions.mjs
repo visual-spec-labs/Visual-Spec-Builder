@@ -134,6 +134,7 @@ try {
   accepted.on("dialog", async d => { notices.push(d.message()); await d.dismiss(); });
   await accepted.goto(url);
   await accepted.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
+  await accepted.getByRole("button", {name: "File", exact: true}).waitFor();
   await accepted.evaluate(async () => {
     const {useEditorStore: e} = await import("/src/features/editor/store/editorStore.ts");
     e.getState().setPageField(e.getState().activePageId, "name", "Accept draft");

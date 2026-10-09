@@ -361,9 +361,26 @@ export function startSpecAutosave() {
     const expectedDocument = serializeStoredDocument(current());
     try {
       const own = key === draft.key && document.fileName === null;
-      // Returning to this tab's editor never replaces content or needs a shared
-      // write. It also works before debounce and when storage/locks are blocked.
-      if (!deleting && own) return transition.current() && serializeStoredDocument(document) === draft.raw ? "ok" : "changed";
+      // Reload/history can recover the UUID while another tab owns its lock.
+      // Same identity is not ownership. Only unsupported Web Locks may use the
+      // memory-only path; a failed claim must be retried explicitly on Resume.
+      if (!deleting && own) {
+        if (!transition.current() || serializeStoredDocument(document) !== draft.raw) return "changed";
+        if (!navigator.locks) return "ok";
+        if (!await ownership?.ready) {
+          if (!transition.current()) return "changed";
+          await ownership?.release();
+          if (!transition.current()) return "changed";
+          ownership = claimDraft(key);
+          if (!await ownership.ready) return "busy";
+          if (!transition.current()) return "changed";
+          // A previous debounce may have stopped at the failed claim. Requeue
+          // it only after ownership and the original cache baseline both pass.
+          clearTimeout(timer);
+          timer = setTimeout(() => { void flush(); }, 500);
+        }
+        return transition.current() && serializeStoredDocument(document) === draft.raw ? "ok" : "changed";
+      }
       if (!navigator.locks) return "unavailable";
       claim = own ? ownership : claimDraft(draft.key);
       if (!await claim?.ready) return "busy";

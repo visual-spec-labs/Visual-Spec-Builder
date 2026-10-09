@@ -183,3 +183,43 @@ it("edit then Undo cannot revive an old Resume approval even with the exact sour
   expect(useEditorStore.getState().history.future).toHaveLength(1);
   expect(localStorage.getItem(draft.key)).toBe(draft.raw);
 });
+
+it("a returning tab refuses the same UUID owned by another tab and can reacquire it after close", async () => {
+  const draft = seed();
+  const other = claimDraft(draft.key);
+  expect(await other.ready).toBe(true);
+  useEditorStore.getState().loadSpec(draft.document.spec);
+  writeRecovery({ document: draft.document, key: draft.key, baseline: draft.raw, conflicted: false });
+  stop = startSpecAutosave();
+  try {
+    expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("busy");
+    expect(readRecovery()?.key).toBe(draft.key);
+    expect(localStorage.getItem(draft.key)).toBe(draft.raw);
+  } finally { await other.release(); }
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("ok");
+  await edit();
+  expect(readRecovery()?.key).toBe(draft.key);
+  expect(JSON.parse(localStorage.getItem(draft.key)!).spec).toEqual(useEditorStore.getState().spec);
+  const write = vi.fn(async () => true);
+  expect(await useSaveConflictStore.getState().save("reacquired.json", JSON.stringify(useEditorStore.getState().spec), write)).toBe(true);
+  expect(write).toHaveBeenCalledOnce();
+});
+
+it("ownership retry never overwrites the newer owner revision, even before a storage event", async () => {
+  const draft = seed(); const other = claimDraft(draft.key); expect(await other.ready).toBe(true);
+  useEditorStore.getState().loadSpec(draft.document.spec);
+  writeRecovery({ document: draft.document, key: draft.key, baseline: draft.raw, conflicted: false });
+  stop = startSpecAutosave();
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("busy");
+  const newer = seed("saved-uuid", { ...initial, spec: { ...initial.spec, name: "Other owner revision" } });
+  await other.release();
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("changed");
+  expect(useSaveConflictStore.getState().paused).toBe(true);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(localStorage.getItem(draft.key)).toBe(newer.raw);
+  expect(useEditorStore.getState().spec).toEqual(draft.document.spec);
+  expect(useSaveConflictStore.getState().loadLatest()).toBe(true);
+  expect(await useUnnamedDraftStore.getState().resume(useUnnamedDraftStore.getState().active!)).toBe("ok");
+  await edit();
+  expect(JSON.parse(localStorage.getItem(draft.key)!).spec.name).toBe("Other owner revision");
+});
