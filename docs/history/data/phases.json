@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T11:02:17.618Z",
+  "generatedAt": "2026-10-09T18:02:12.708Z",
   "repo": "visual-spec-labs/Visual-Spec-Builder",
   "branch": "develop",
   "phases": [
@@ -171,17 +171,17 @@
       "title": "제품으로 다듬다",
       "start": "2026-10-06",
       "end": null,
-      "summary": "생성 코드와 캔버스의 정합성, 편집 안정성, 접근성, 설치 가능한 런타임을 다듬고 있다.",
+      "summary": "생성 코드와 캔버스의 정합성, 편집 안정성, 접근성, 설치 가능한 런타임에 이어 성능과 필수 검사를 다듬고 있다.",
       "stats": {
         "phase": "p8",
-        "mergedPRs": 21,
-        "commits": 125,
+        "mergedPRs": 42,
+        "commits": 218,
         "issuesOpened": 10,
         "prAuthors": {
-          "Yumesa2025": 1,
-          "wook3964": 8,
-          "GAMMJ": 7,
-          "dogui1018": 5
+          "Yumesa2025": 13,
+          "wook3964": 15,
+          "GAMMJ": 8,
+          "dogui1018": 6
         }
       }
     }

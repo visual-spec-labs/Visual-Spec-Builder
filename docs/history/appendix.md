@@ -15,9 +15,9 @@
 | [5. 말이 화면이 되다 — 자연어와 코드 생성](#5-words-to-screens) | 09-27 ~ 10-02 | 14 | 33 | 14 |
 | [6. 몰아친 하루 — 배경과 반응형](#6-busiest-day) | 10-03 ~ 10-04 | 24 | 130 | 22 |
 | [7. 첫 완주 — 로그인 예제의 전체 흐름 검증](#7-first-run) | 10-05 ~ 10-05 | 13 | 37 | 29 |
-| [8. 제품으로 다듬다](#8-polishing) | 10-06 ~ 10-08 수집 시점 | 21 | 125 | 10 |
+| [8. 제품으로 다듬다](#8-polishing) | 10-06 ~ 10-10 수집 시점 | 42 | 218 | 10 |
 
-커밋은 병합 커밋을 포함한 고유 SHA 수이며, **committer 시각을 KST로 변환**해 나눈다. 예를 들어 [906126d](https://github.com/visual-spec-labs/Visual-Spec-Builder/commit/906126dd4c322e325cfab76bb9d8cee171172e32)는 UTC 10월 4일이지만 KST 10월 5일에 속한다. 수집 시점의 develop([408c53c](https://github.com/visual-spec-labs/Visual-Spec-Builder/commit/408c53c04d34dd33d47852fb66d8aa429cd01291))에서 도달 가능한 커밋은 모두 656개다.
+커밋은 병합 커밋을 포함한 고유 SHA 수이며, **committer 시각을 KST로 변환**해 나눈다. 예를 들어 [906126d](https://github.com/visual-spec-labs/Visual-Spec-Builder/commit/906126dd4c322e325cfab76bb9d8cee171172e32)는 UTC 10월 4일이지만 KST 10월 5일에 속한다. 수집 시점의 develop([42e622a](https://github.com/visual-spec-labs/Visual-Spec-Builder/commit/42e622a67cc25ce89e9fe9428c86bb15321103f5))에서 도달 가능한 커밋은 모두 749개다.
 
 이슈는 생성일로 배치하고 PR과 구분했다. 제목은 각 항목을 수집한 시점의 표기다.
 
@@ -467,10 +467,10 @@
 
 ## 8. 제품으로 다듬다
 
-10-06 ~ 10-08 수집 시점 · 생성 코드와 캔버스의 정합성, 편집 안정성, 접근성, 설치 가능한 런타임을 다듬고 있다.
+10-06 ~ 10-10 수집 시점 · 생성 코드와 캔버스의 정합성, 편집 안정성, 접근성, 설치 가능한 런타임에 이어 성능과 필수 검사를 다듬고 있다.
 
-- 병합 PR 21건 · 커밋 125개 · 새 이슈 10건
-- PR 작성: wook3964 8 · GAMMJ 7 · dogui1018 5 · Yumesa2025 1
+- 병합 PR 42건 · 커밋 218개 · 새 이슈 10건
+- PR 작성: wook3964 15 · Yumesa2025 13 · GAMMJ 8 · dogui1018 6
 
 ### 병합 PR
 
@@ -497,6 +497,27 @@
 | 10-08 | [#320](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/320) | feat: 설치 가능한 GUI 런타임 패키지 구성 | GAMMJ |
 | 10-08 | [#329](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/329) | docs: PR 스킬의 base 브랜치 규칙을 명확히 한다 ([#328](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/328)) | GAMMJ |
 | 10-08 | [#321](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/321) | style: 좌우 패널을 개별로 접고 폭을 조절할 수 있게 한다 ([#287](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/287)) | dogui1018 |
+| 10-08 | [#313](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/313) | chore: 프로젝트·노드·이미지 규모별 성능을 실측하고 후속 우선순위를 정한다 ([#293](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/293)) | wook3964 |
+| 10-08 | [#323](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/323) | chore: CLI로 띄우는 GUI를 React production 빌드로 실행한다 ([#314](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/314)) | wook3964 |
+| 10-08 | [#324](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/324) | refactor: 홈 카드 미리보기를 스크롤 영역 근처 카드만 그린다 ([#315](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/315)) | wook3964 |
+| 10-08 | [#325](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/325) | refactor: 홈 목록을 앞에서부터 묶음으로 파싱·검증해 첫 화면 카드를 먼저 그린다 ([#316](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/316)) | wook3964 |
+| 10-08 | [#326](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/326) | chore: 실제 입력 경로 측정 결과를 기록하고 최적화 검토를 남긴다 ([#317](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/317)) | wook3964 |
+| 10-08 | [#327](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/327) | chore: 큰 이미지 표시 시간과 RSS를 측정하고 수집 실패를 구분한다 ([#318](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/318)) | wook3964 |
+| 10-09 | [#333](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/333) | docs: 생성 화면 레이아웃 계약과 비교 도구 추가 ([#280](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/280)) | GAMMJ |
+| 10-09 | [#332](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/332) | feat: 홈 화면의 프로젝트/화면 용어를 통일하고 Open·Save as·Rename 다이얼로그를 앱 내 모달로 바꾼다 ([#288](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/288)) | dogui1018 |
+| 10-09 | [#334](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/334) | refactor: 홈 미리보기가 원본 대신 카드 크기로 줄인 이미지를 쓴다 ([#322](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/322)) | wook3964 |
+| 10-09 | [#336](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/336) | chore: CI에 Linux 빌드와 기존 브라우저 검사를 필수 연결한다 | Yumesa2025 |
+| 10-09 | [#335](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/335) | fix: Windows 스킬 경고 경로와 LF 체크아웃을 보정한다 ([#262](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/262)) | Yumesa2025 |
+| 10-09 | [#337](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/337) | fix: 문서 전환 확인을 비차단 모달로 처리한다 ([#302](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/302)) | Yumesa2025 |
+| 10-09 | [#338](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/338) | test: Export 사용자 여정 fixture와 독립 브라우저 검증 절차 추가 | Yumesa2025 |
+| 10-09 | [#331](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/331) | docs: 제작 연대기와 재현 가능한 단계별 기록을 추가한다 | Yumesa2025 |
+| 10-09 | [#340](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/340) | style: 선택 범위와 반응형 편집 기준을 명확히 표시한다 | Yumesa2025 |
+| 10-09 | [#342](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/342) | chore: Windows fresh checkout 검사를 CI 필수 집계에 연결한다 | Yumesa2025 |
+| 10-09 | [#343](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/343) | test: 복구 회귀를 실제 HTTP 완료와 I/O 예산에 맞춰 기다린다 | Yumesa2025 |
+| 10-09 | [#341](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/341) | fix: 이름 없는 초안을 Home에서 같은 UUID로 재개한다 ([#319](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/319)) | Yumesa2025 |
+| 10-10 | [#344](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/344) | style: 파일 저장과 브라우저 초안 상태 구분 | Yumesa2025 |
+| 10-10 | [#345](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/345) | style: 속성 패널 용어와 입력 안내 접근성 정리 | Yumesa2025 |
+| 10-10 | [#346](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/346) | test: 기존 사용자 여정 5개를 필수 Chromium CI에 연결 | Yumesa2025 |
 
 ### 새 이슈
 

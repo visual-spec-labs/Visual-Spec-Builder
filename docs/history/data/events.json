@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T11:02:17.618Z",
+  "generatedAt": "2026-10-09T18:02:12.708Z",
   "repo": "visual-spec-labs/Visual-Spec-Builder",
   "branch": "develop",
   "events": [
@@ -2900,6 +2900,366 @@
       "issues": [
         287
       ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 313,
+      "title": "chore: 프로젝트·노드·이미지 규모별 성능을 실측하고 후속 우선순위를 정한다 (#293)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T12:12:53Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 3180,
+        "deletions": 0,
+        "files": 6
+      },
+      "issues": [
+        293
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 323,
+      "title": "chore: CLI로 띄우는 GUI를 React production 빌드로 실행한다 (#314)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T12:13:48Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 4202,
+        "deletions": 9,
+        "files": 15
+      },
+      "issues": [
+        314
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 324,
+      "title": "refactor: 홈 카드 미리보기를 스크롤 영역 근처 카드만 그린다 (#315)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T12:14:53Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "refactor",
+      "size": {
+        "additions": 4666,
+        "deletions": 21,
+        "files": 17
+      },
+      "issues": [
+        315
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 325,
+      "title": "refactor: 홈 목록을 앞에서부터 묶음으로 파싱·검증해 첫 화면 카드를 먼저 그린다 (#316)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T12:15:34Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "refactor",
+      "size": {
+        "additions": 5251,
+        "deletions": 37,
+        "files": 20
+      },
+      "issues": [
+        316
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 326,
+      "title": "chore: 실제 입력 경로 측정 결과를 기록하고 최적화 검토를 남긴다 (#317)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T14:37:13Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 833,
+        "deletions": 4,
+        "files": 3
+      },
+      "issues": [
+        317
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 327,
+      "title": "chore: 큰 이미지 표시 시간과 RSS를 측정하고 수집 실패를 구분한다 (#318)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T14:37:51Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 2796,
+        "deletions": 14,
+        "files": 9
+      },
+      "issues": [
+        318
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 333,
+      "title": "docs: 생성 화면 레이아웃 계약과 비교 도구 추가 (#280)",
+      "author": "GAMMJ",
+      "mergedAt": "2026-10-08T17:39:59Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "docs",
+      "size": {
+        "additions": 1100,
+        "deletions": 12,
+        "files": 7
+      },
+      "issues": [
+        280
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 332,
+      "title": "feat: 홈 화면의 프로젝트/화면 용어를 통일하고 Open·Save as·Rename 다이얼로그를 앱 내 모달로 바꾼다 (#288)",
+      "author": "dogui1018",
+      "mergedAt": "2026-10-09T02:16:04Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "feat",
+      "size": {
+        "additions": 1229,
+        "deletions": 213,
+        "files": 19
+      },
+      "issues": [
+        288
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 334,
+      "title": "refactor: 홈 미리보기가 원본 대신 카드 크기로 줄인 이미지를 쓴다 (#322)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-09T05:30:08Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "refactor",
+      "size": {
+        "additions": 2380,
+        "deletions": 22,
+        "files": 11
+      },
+      "issues": [
+        322
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 336,
+      "title": "chore: CI에 Linux 빌드와 기존 브라우저 검사를 필수 연결한다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T13:54:55Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 137,
+        "deletions": 47,
+        "files": 3
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 335,
+      "title": "fix: Windows 스킬 경고 경로와 LF 체크아웃을 보정한다 (#262)",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:01:47Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "fix",
+      "size": {
+        "additions": 96,
+        "deletions": 22,
+        "files": 7
+      },
+      "issues": [
+        262
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 337,
+      "title": "fix: 문서 전환 확인을 비차단 모달로 처리한다 (#302)",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:14:38Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "fix",
+      "size": {
+        "additions": 588,
+        "deletions": 62,
+        "files": 13
+      },
+      "issues": [
+        302
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 338,
+      "title": "test: Export 사용자 여정 fixture와 독립 브라우저 검증 절차 추가",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:17:00Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "test",
+      "size": {
+        "additions": 372,
+        "deletions": 22,
+        "files": 8
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 331,
+      "title": "docs: 제작 연대기와 재현 가능한 단계별 기록을 추가한다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:19:01Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "docs",
+      "size": {
+        "additions": 6384,
+        "deletions": 0,
+        "files": 11
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 340,
+      "title": "style: 선택 범위와 반응형 편집 기준을 명확히 표시한다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:21:00Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "style",
+      "size": {
+        "additions": 438,
+        "deletions": 36,
+        "files": 8
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 342,
+      "title": "chore: Windows fresh checkout 검사를 CI 필수 집계에 연결한다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:22:59Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 60,
+        "deletions": 12,
+        "files": 3
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 343,
+      "title": "test: 복구 회귀를 실제 HTTP 완료와 I/O 예산에 맞춰 기다린다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:37:32Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "test",
+      "size": {
+        "additions": 38,
+        "deletions": 7,
+        "files": 1
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 341,
+      "title": "fix: 이름 없는 초안을 Home에서 같은 UUID로 재개한다 (#319)",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:40:15Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "fix",
+      "size": {
+        "additions": 956,
+        "deletions": 17,
+        "files": 15
+      },
+      "issues": [
+        319
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 344,
+      "title": "style: 파일 저장과 브라우저 초안 상태 구분",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T15:14:46Z",
+      "date": "2026-10-10",
+      "phase": "p8",
+      "label": "style",
+      "size": {
+        "additions": 806,
+        "deletions": 33,
+        "files": 13
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 345,
+      "title": "style: 속성 패널 용어와 입력 안내 접근성 정리",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T15:42:48Z",
+      "date": "2026-10-10",
+      "phase": "p8",
+      "label": "style",
+      "size": {
+        "additions": 441,
+        "deletions": 73,
+        "files": 26
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 346,
+      "title": "test: 기존 사용자 여정 5개를 필수 Chromium CI에 연결",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T17:05:02Z",
+      "date": "2026-10-10",
+      "phase": "p8",
+      "label": "test",
+      "size": {
+        "additions": 198,
+        "deletions": 84,
+        "files": 9
+      },
+      "issues": []
     }
   ]
 }
