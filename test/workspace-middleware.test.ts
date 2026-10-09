@@ -123,8 +123,8 @@ describe("resolveWorkspaceRoot — 워크스페이스 루트 전달", () => {
 });
 
 describe("ensureWorkspaceDirs", () => {
-  it("화이트리스트 네 폴더를 만든다 — init 없이 GUI만 띄워도 Save가 되어야 한다", () => {
-    for (const dir of ["specs", "assets", "generated", "runtime"]) {
+  it("화이트리스트 폴더를 모두 만든다 — init 없이 GUI만 띄워도 Save가 되어야 한다", () => {
+    for (const dir of ["specs", "assets", "generated", "runtime", "staging"]) {
       expect(existsSync(join(workspaceRoot, dir))).toBe(true);
     }
   });
@@ -142,7 +142,7 @@ describe("GET /__vs/status", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       ok: true,
-      dirs: ["specs", "assets", "generated", "runtime"],
+      dirs: ["specs", "assets", "generated", "runtime", "staging"],
     });
   });
 

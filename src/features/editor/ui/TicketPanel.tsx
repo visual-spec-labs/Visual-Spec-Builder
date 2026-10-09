@@ -6,12 +6,13 @@ import { TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH } from "@/features/editor/tic
 import { isAllDone, isReady, readyTickets } from "@/features/editor/ticket/ticketStatus";
 import type { TicketStatus } from "@/features/editor/ticket/types";
 import { buildTicketAgentInstruction } from "@/features/editor/ui/agentHandoff";
-import { CopyButton } from "@/features/editor/ui/CopyButton";
+import { AgentWaitStatus } from "@/features/editor/ui/AgentWaitStatus";
 import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
 import { openExportPanel } from "@/features/editor/ui/openExportPanel";
 import {
   cancelTicketRun,
+  extendTicketWait,
   runAllTickets,
   runOneTicket,
   STALE_TICKET_MESSAGE,
@@ -54,6 +55,8 @@ export function TicketPanel() {
   const running = useTicketStore((state) => state.running);
   const runError = useTicketStore((state) => state.runError);
   const runErrorRetryable = useTicketStore((state) => state.runErrorRetryable);
+  const wait = useTicketStore((state) => state.wait);
+  const acceptanceWarning = useTicketStore((state) => state.acceptanceWarning);
   const compile = useTicketStore((state) => state.compile);
   const markStatus = useTicketStore((state) => state.markStatus);
   const close = useTicketStore((state) => state.close);
@@ -83,6 +86,7 @@ export function TicketPanel() {
   const isStale = sourceDocumentId !== documentId || sourcePageId !== pageId || sourcePage !== page;
   const canExecute = workspaceAvailable === true && !isStale;
   const readyWave = readyTickets(tickets);
+  const waveSize = tickets.filter((ticket) => ticket.status === "in-progress").length;
 
   return (
     <aside className="flex flex-col overflow-hidden border-l border-line bg-surface [grid-area:props]">
@@ -125,7 +129,9 @@ export function TicketPanel() {
         </button>
       </header>
 
-      <HandoffStageIndicator current="handoff" />
+      {/* 이 요청의 임시 출력이 보이면 그때부터 "코드 생성" 단계다 — GUI가 가진 유일한 근거라
+          그 전에는 단정하지 않는다(#284, docs/20 "코드 생성"). */}
+      <HandoffStageIndicator current={running && (wait?.stagedFiles ?? 0) > 0 ? "generate" : "handoff"} />
 
       {isStale && (
         <p className="border-b border-line bg-surface-raised px-3 py-2 text-xs text-content-muted">
@@ -209,6 +215,12 @@ export function TicketPanel() {
         )}
       </div>
 
+      {acceptanceWarning !== null && !isStale && (
+        <p role="alert" className="border-t border-line px-3 py-2 text-xs text-error">
+          {acceptanceWarning}
+        </p>
+      )}
+
       <div role="status" aria-live="polite" className="border-t border-line px-3 py-2 text-xs">
         {workspaceAvailable !== true ? (
           <span className="text-content-muted">
@@ -228,7 +240,8 @@ export function TicketPanel() {
             {runErrorRetryable && (
               <span className="text-content-muted">
                 다시 전달하려면 위쪽 "에이전트에 전달"을 다시 눌러 새 요청을 만든
-                뒤 그 지시를 에이전트에 전달하세요.
+                뒤 그 지시를 에이전트에 전달하세요. 새 요청은 새 ID로 나가며, 이전
+                요청이 늦게 쓴 응답·파일은 반영하지 않습니다.
               </span>
             )}
             {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, ticketAgentClient.ts) —
@@ -240,18 +253,15 @@ export function TicketPanel() {
             />
           </div>
         ) : running ? (
-          <div className="flex flex-col gap-1 text-content-muted">
-            <span className="flex flex-wrap items-center gap-2">
-              에이전트 응답 대기 중 — 아직 전달하지 않았다면 지시를 복사해 에이전트에
-              붙여 넣으세요.
-              <CopyButton text={buildTicketAgentInstruction()} />
-            </span>
-            <HandoffDetails
-              requestPath={TICKET_REQUEST_PATH}
-              responsePath={TICKET_RESPONSE_PATH}
-              workspaceRoot={workspaceRoot}
-            />
-          </div>
+          <AgentWaitStatus
+            progress={wait}
+            instruction={buildTicketAgentInstruction()}
+            requestPath={TICKET_REQUEST_PATH}
+            responsePath={TICKET_RESPONSE_PATH}
+            workspaceRoot={workspaceRoot}
+            expectedOutputs={waveSize}
+            onExtend={extendTicketWait}
+          />
         ) : tickets.length === 0 ? null : isAllDone(tickets) && !isStale ? (
           <span className="text-content-muted">
             모든 티켓이 완료됐습니다. 다음:{" "}
