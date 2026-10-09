@@ -1,4 +1,4 @@
-import type { ReactNode, WheelEvent } from "react";
+import { useId, type ReactNode, type WheelEvent } from "react";
 
 /** 필드/그룹 라벨 공통 텍스트 스타일. */
 export function FieldLabel({ children }: { children: ReactNode }) {
@@ -10,10 +10,11 @@ export function FieldLabel({ children }: { children: ReactNode }) {
 }
 
 /** 라벨 + 컨트롤 세로 배치. 모든 필드 컨트롤의 공통 껍데기. */
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children, htmlFor }: { label: string; children: ReactNode; htmlFor?: string }) {
+  const labelId = useId();
   return (
-    <div className="flex flex-col gap-1">
-      <FieldLabel>{label}</FieldLabel>
+    <div className="flex min-w-0 flex-col gap-1" role={htmlFor ? undefined : "group"} aria-labelledby={htmlFor ? undefined : labelId}>
+      <label id={labelId} htmlFor={htmlFor}><FieldLabel>{label}</FieldLabel></label>
       {children}
     </div>
   );
@@ -26,7 +27,7 @@ export function FieldRow({ children }: { children: ReactNode }) {
 
 /** 필드 컨트롤이 공유하는 인풋 스타일. */
 export const inputClass =
-  "w-full rounded-control border border-line bg-surface px-2 py-1.5 text-sm text-content tabular-nums focus:border-primary focus:outline-none";
+  "min-w-0 w-full rounded-control border border-line bg-surface px-2 py-1.5 text-sm text-content tabular-nums focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-content";
 
 /** 잘못된 값일 때 덧입히는 스타일. */
 export const invalidClass = "border-error focus:border-error";
@@ -47,4 +48,9 @@ export const invalidClass = "border-error focus:border-error";
  */
 export function blurOnWheel(event: WheelEvent<HTMLElement>) {
   event.currentTarget.blur();
+}
+
+/** 오류는 테두리 색만으로 전달하지 않는다. 무효 draft는 입력칸에 보존한다. */
+export function FieldError({ id, children }: { id: string; children: ReactNode }) {
+  return <p id={id} role="alert" className="text-xs text-content">오류: {children}</p>;
 }

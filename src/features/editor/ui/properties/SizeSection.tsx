@@ -18,7 +18,7 @@ export function SizeSection() {
   const measured = useMeasureStore((state) => state.size);
 
   return (
-    <PropertySection title="Size">
+    <PropertySection title="크기 (Size)">
       <FieldRow>
         <SizeField
           label="너비 (W)"

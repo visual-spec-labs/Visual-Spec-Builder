@@ -22,7 +22,7 @@ export function PropertySection({
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between px-3 py-2.5 text-2xs font-semibold tracking-wide text-content-muted uppercase hover:text-content"
+        className="flex w-full items-center justify-between px-3 py-2.5 text-2xs font-semibold tracking-wide text-content-muted uppercase hover:text-content focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-content"
       >
         {title}
         {open ? (

@@ -158,7 +158,7 @@ export function LayoutSection() {
   }
 
   return (
-    <PropertySection title="Layout">
+    <PropertySection title="배치 (Layout)">
       <SegmentedControl
         label="방향"
         value={direction}
