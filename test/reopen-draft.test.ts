@@ -61,7 +61,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("localStorage", storage());
   vi.stubGlobal("sessionStorage", storage());
-  vi.stubGlobal("navigator", { locks: { request: async (_key: string, fn: () => void) => fn() } });
+  vi.stubGlobal("navigator", { locks: { request: async (_key: string, options: unknown, callback?: (lock: object) => unknown) => callback ? callback({}) : (options as () => unknown)() } });
   vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn(),
     alert: vi.fn(), confirm: vi.fn(() => true) });
   useEditorStore.getState().loadSpec(initial);
@@ -161,9 +161,12 @@ describe("Web Locks가 없는 브라우저 (PR #294 리뷰)", () => {
     const confirm = vi.mocked(window.confirm);
     stop = startSpecAutosave();
     editPageName("기록 못 한 편집");
-    confirm.mockReturnValueOnce(false);
-    expect(await newSpec()).toBe(false);
-    expect(confirm).toHaveBeenCalledOnce();
+    const pending = newSpec();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(usePromptDialogStore.getState().state.kind).toBe("confirm");
+    usePromptDialogStore.getState().resolve(null);
+    expect(await pending).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
   });
 });
 
@@ -271,9 +274,12 @@ describe("편집하지 않은 첫 실행 데모 문서는 묻지 않는다 (#297
     stop();
     stop = startSpecAutosave();
 
-    confirm.mockReturnValueOnce(false);
-    expect(await newSpec()).toBe(false);
-    expect(confirm).toHaveBeenCalledOnce();
+    const pending = newSpec();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(usePromptDialogStore.getState().state.kind).toBe("confirm");
+    usePromptDialogStore.getState().resolve(null);
+    expect(await pending).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
   });
 
   /**
@@ -296,9 +302,12 @@ describe("편집하지 않은 첫 실행 데모 문서는 묻지 않는다 (#297
   it("대조: 같은 조건에서 즉시 재시작하면 넘겨받은 편집 여부로 묻는다", async () => {
     const confirm = vi.mocked(window.confirm);
     await restartWithEditedUntitledAndEmptyStorage(false);
-    confirm.mockReturnValueOnce(false);
-    expect(await newSpec()).toBe(false);
-    expect(confirm).toHaveBeenCalledOnce();
+    const pending = newSpec();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(usePromptDialogStore.getState().state.kind).toBe("confirm");
+    usePromptDialogStore.getState().resolve(null);
+    expect(await pending).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
   });
 
   it("넘겨받는 값은 같은 커밋이 끝나면 버려져, 그 뒤 시작은 저장소 판정을 따른다", async () => {
@@ -329,9 +338,12 @@ describe("편집하지 않은 첫 실행 데모 문서는 묻지 않는다 (#297
     stop();
     await Promise.resolve();
     stop = startSpecAutosave(); // 재시작이 아니다 — 탭 복구에서 복원한 문서로 판단한다
-    confirm.mockReturnValueOnce(false);
-    expect(await newSpec()).toBe(false);
-    expect(confirm).toHaveBeenCalledOnce();
+    const pending = newSpec();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(usePromptDialogStore.getState().state.kind).toBe("confirm");
+    usePromptDialogStore.getState().resolve(null);
+    expect(await pending).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
   });
 });
 

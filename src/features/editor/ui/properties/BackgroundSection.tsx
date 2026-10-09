@@ -54,7 +54,7 @@ export function BackgroundSection() {
   }
 
   return (
-    <PropertySection title="Background">
+    <PropertySection title="배경 (Background)">
       <button
         type="button"
         onClick={() => commit(addFill(background))}
@@ -64,6 +64,7 @@ export function BackgroundSection() {
         <span>채우기 추가</span>
       </button>
 
+      {fills.length === 0 && <p className="text-xs text-content-muted">배경 채우기가 없습니다. 채우기 추가로 단색·그라디언트·이미지를 넣으세요.</p>}
       {fills.map((fill, index) => (
         // 겹은 id가 없어 자리로 key를 단다. 이동하면 같은 자리의 칸이 다른 겹의 값을
         // 받아 다시 그려진다 — 입력칸은 값이 바뀌면 draft를 새로 맞춘다(useDraftInput).

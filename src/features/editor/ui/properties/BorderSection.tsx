@@ -68,7 +68,7 @@ export function BorderSection() {
   }
 
   return (
-    <PropertySection title="Border">
+    <PropertySection title="테두리 (Border)">
       <FieldRow>
         <NumberField
           label="두께"

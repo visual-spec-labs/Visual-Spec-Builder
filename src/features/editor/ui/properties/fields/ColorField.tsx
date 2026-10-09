@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 import { composeColor, HEX6, parseColor } from "./colorValue";
-import { blurOnWheel, Field, inputClass, invalidClass } from "./Field";
+import { blurOnWheel, Field, FieldError, inputClass, invalidClass } from "./Field";
 import { isUnchangedColor } from "./unchangedCommit";
 import { useDraftInput } from "./useDraftInput";
 
@@ -15,6 +15,7 @@ interface ColorFieldProps {
 /** 색상 입력. 스와치 + hex(6자리) + 불투명도(%). rgba는 #RRGGBBAA로 저장. */
 export function ColorField({ label, value, onChange }: ColorFieldProps) {
   const helpId = useId();
+  const opacityErrorId = `${helpId}-opacity`;
   const opacity = useDraftInput(value, {
     toDraft: (v) => String(parseColor(v).opacity),
     parse: (raw) => {
@@ -55,11 +56,11 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
 
   return (
     <Field label={label}>
-      <div className="flex items-center gap-2">
+      <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-2">
         <input
           type="color"
           aria-label={`${label} 색상 선택`}
-          className="h-8 w-8 shrink-0 cursor-pointer rounded-control border border-line bg-surface p-0.5"
+          className="h-8 w-8 shrink-0 cursor-pointer rounded-control border border-line bg-surface p-0.5 focus-visible:outline-2 focus-visible:outline-content"
           value={swatch}
           onChange={(event) => hex.handleChange(event.target.value)}
           onBlur={hex.handleBlur}
@@ -70,34 +71,40 @@ export function ColorField({ label, value, onChange }: ColorFieldProps) {
           value={hex.draft}
           aria-label={`${label} hex`}
           aria-invalid={hex.invalid}
+          aria-describedby={!validHex ? helpId : undefined}
           spellCheck={false}
           onChange={(event) => hex.handleChange(event.target.value)}
           onBlur={hex.handleBlur}
         />
-        <div className="relative w-20 shrink-0">
-          <input
-            type="number"
-            onWheel={blurOnWheel}
-            min={0}
-            max={100}
-            aria-label={`${label} 불투명도`}
-            disabled={!validHex}
-            aria-describedby={!validHex ? helpId : undefined}
-            className={`${inputClass} pr-6 disabled:opacity-50`}
-            value={opacity.draft}
-            onChange={(event) => opacity.handleChange(event.target.value)}
-            onBlur={opacity.handleBlur}
-          />
-          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-muted">
-            %
-          </span>
+        <div className="col-span-2 flex items-center justify-between gap-2">
+          <span className="text-xs text-content-muted">불투명도</span>
+          <div className="relative w-20 shrink-0">
+            <input
+              type="number"
+              onWheel={blurOnWheel}
+              min={0}
+              max={100}
+              aria-label={`${label} 불투명도`}
+              disabled={!validHex}
+              aria-invalid={opacity.invalid}
+              aria-describedby={!validHex ? helpId : opacity.invalid ? opacityErrorId : undefined}
+              className={`${inputClass} ${opacity.invalid ? invalidClass : ""} pr-6 disabled:opacity-50`}
+              value={opacity.draft}
+              onChange={(event) => opacity.handleChange(event.target.value)}
+              onBlur={opacity.handleBlur}
+            />
+            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-content-muted">
+              %
+            </span>
+          </div>
         </div>
       </div>
       {!validHex && (
-        <p id={helpId} className="mt-1 text-xs text-content-muted">
-          불투명도를 변경하려면 먼저 6자리 hex 색상을 입력하거나 색상을 선택하세요.
+        <p id={helpId} role={hex.invalid ? "alert" : undefined} className="mt-1 text-xs text-content">{hex.invalid ? "오류: " : ""}
+          불투명도를 변경하려면 먼저 6자리 16진수 색상(예: #A1B2C3)을 입력하거나 색상을 선택하세요.
         </p>
       )}
+      {opacity.invalid && validHex && <FieldError id={opacityErrorId}>불투명도는 0~100 사이 숫자로 입력하세요. 유효한 값만 반영됩니다.</FieldError>}
     </Field>
   );
 }

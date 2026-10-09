@@ -6,7 +6,7 @@ import type { NodeId } from "@/features/editor/schema";
 import { BackgroundSection } from "./BackgroundSection";
 import { BorderSection } from "./BorderSection";
 import { ColorSection } from "./ColorSection";
-import { ContentSection } from "./ContentSection";
+import { ContentSection, FIT_OPTIONS } from "./ContentSection";
 import { EffectsSection } from "./EffectsSection";
 import { LayoutSection } from "./LayoutSection";
 import { hasShadow, sectionsFor, type NodeType, type SectionId } from "./nodeSections";
@@ -64,7 +64,5 @@ export function NodeSectionList({
 
 function ResponsiveImageFit() {
   const [fit, setFit] = useNodeField<"cover" | "contain" | "fill">("fit");
-  return <div className="p-3"><SegmentedControl label="채우기 방식 (fit)" value={fit} onChange={setFit} options={[
-    { value: "cover", content: "채우기" }, { value: "contain", content: "맞추기" }, { value: "fill", content: "늘이기" },
-  ]} /></div>;
+  return <div className="p-3"><SegmentedControl label="채우기 방식 (fit)" value={fit} onChange={setFit} options={FIT_OPTIONS} /></div>;
 }

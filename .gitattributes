@@ -1,0 +1,14 @@
+# Git 원본·Windows 체크아웃·설치된 스킬 사본의 텍스트 줄바꿈을 LF로 유지한다.
+* text=auto eol=lf
+
+# 바이너리 자산에는 텍스트 변환을 적용하지 않는다.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.zip binary

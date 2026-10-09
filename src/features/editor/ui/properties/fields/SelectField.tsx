@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Field, inputClass } from "./Field";
 
 export interface SelectOption<T extends string> {
@@ -19,9 +20,11 @@ export function SelectField<T extends string>({
   options,
   onChange,
 }: SelectFieldProps<T>) {
+  const id = useId();
   return (
-    <Field label={label}>
+    <Field label={label} htmlFor={id}>
       <select
+        id={id}
         className={inputClass}
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value as T)}

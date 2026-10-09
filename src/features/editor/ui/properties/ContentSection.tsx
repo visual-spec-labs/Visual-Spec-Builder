@@ -74,7 +74,7 @@ function ImageFields() {
             <button
               type="button"
               onClick={() => setSrc("")}
-              className="shrink-0 rounded-control border border-line px-2 py-1.5 text-sm text-content-muted hover:text-content"
+              className="shrink-0 rounded-control focus-visible:outline-2 focus-visible:outline-content border border-line px-2 py-1.5 text-sm text-content-muted hover:text-content"
             >
               지우기
             </button>
@@ -84,6 +84,7 @@ function ImageFields() {
           </FieldLabel>
         </Field>
       )}
+      {!src && <p className="text-xs text-content-muted">이미지가 비어 있습니다. 경로를 입력하세요. File → Import는 새 이미지 노드를 추가합니다.</p>}
       <SegmentedControl
         label="채우기 방식 (fit)"
         value={fit}
@@ -103,7 +104,7 @@ function ImageFields() {
  */
 export function ContentSection({ type }: { type: NodeType }) {
   return (
-    <PropertySection title="Content">
+    <PropertySection title="내용 (Content)">
       {type === "text" && <TextContentField multiline />}
       {type === "button" && <TextContentField multiline={false} />}
       {type === "input" && <PlaceholderField />}
