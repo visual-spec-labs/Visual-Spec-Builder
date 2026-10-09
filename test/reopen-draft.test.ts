@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { parseStoredDocument, projectStorageKey, saveSpecToStorage, serializeStoredDocument } from "@/features/editor/store/specStorage";
 import { openHomeProject } from "@/features/editor/ui/homeProjects";
@@ -41,13 +42,28 @@ function editPageName(name: string) {
 }
 const storedName = (pageId: string) => parseStoredDocument(localStorage.getItem(key))?.spec.pages[pageId].name;
 
+/**
+ * `openSpec`은 `window.prompt`가 아니라 `promptPick` 모달을 쓴다(#288). 이 파일은
+ * 가짜 타이머를 쓰므로(`vi.useFakeTimers()`) 다이얼로그가 열리기를 `vi.waitFor`로
+ * 기다리는 대신, 이미 이 파일 전체가 쓰는 `vi.advanceTimersByTimeAsync(0)`로 마이크로
+ * 태스크를 흘려보낸다 — `listWorkspaceFiles`의 mock resolve 뒤 `promptPick`이 여는
+ * 그 한 틱이면 충분하다. 이 파일의 모든 Open은 같은 파일을 다시 여는 시나리오라
+ * 답은 항상 "same.json" 하나다.
+ */
+async function openSpecSame(): Promise<void> {
+  const pending = openSpec();
+  await vi.advanceTimersByTimeAsync(0);
+  usePromptDialogStore.getState().resolve("same.json");
+  await pending;
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("localStorage", storage());
   vi.stubGlobal("sessionStorage", storage());
   vi.stubGlobal("navigator", { locks: { request: async (_key: string, fn: () => void) => fn() } });
   vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn(),
-    alert: vi.fn(), prompt: () => "same.json", confirm: vi.fn(() => true) });
+    alert: vi.fn(), confirm: vi.fn(() => true) });
   useEditorStore.getState().loadSpec(initial);
   useDocumentStore.getState().setFileName("same.json", "loaded-revision");
   useSaveConflictStore.setState({ paused: false, unavailable: false, reason: "remote" });
@@ -60,7 +76,7 @@ describe("같은 파일 다시 열기 (#267 리뷰)", () => {
     stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
     const pageId = editPageName("Open 직전 편집");
 
-    await openSpec();
+    await openSpecSame();
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "draft" });
@@ -83,7 +99,7 @@ describe("같은 파일 다시 열기 (#267 리뷰)", () => {
   it("초안을 버리기로 고르면 그때만 디스크 내용으로 바뀐다", async () => {
     stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
     const pageId = editPageName("버릴 편집");
-    await openSpec();
+    await openSpecSame();
     useSaveConflictStore.getState().discardDraft();
     await vi.advanceTimersByTimeAsync(500);
     expect(storedName(pageId)).toBe(initial.pages[pageId].name);
@@ -91,7 +107,7 @@ describe("같은 파일 다시 열기 (#267 리뷰)", () => {
 
   it("편집이 없으면 같은 파일을 다시 열어도 묻지 않는다", async () => {
     stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
-    await openSpec();
+    await openSpecSame();
     await vi.advanceTimersByTimeAsync(1000);
     expect(useSaveConflictStore.getState().paused).toBe(false);
   });
@@ -100,7 +116,7 @@ describe("같은 파일 다시 열기 (#267 리뷰)", () => {
     stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
     const pageId = editPageName("디스크 변경 전 편집");
     vi.mocked(readWorkspaceSpecSnapshot).mockResolvedValue(disk("changed-on-disk"));
-    await openSpec();
+    await openSpecSame();
     await vi.advanceTimersByTimeAsync(1000);
     expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "draft" });
     expect(storedName(pageId)).toBe("디스크 변경 전 편집");
@@ -111,7 +127,7 @@ describe("같은 파일 다시 열기 (#267 리뷰)", () => {
     const pageId = useEditorStore.getState().activePageId;
     const newer = { ...initial, pages: { ...initial.pages, [pageId]: { ...initial.pages[pageId], name: "외부에서 바뀜" } } };
     vi.mocked(readWorkspaceSpecSnapshot).mockResolvedValue({ text: JSON.stringify(newer), revision: "changed-on-disk" });
-    await openSpec();
+    await openSpecSame();
     await vi.advanceTimersByTimeAsync(1000);
     expect(useSaveConflictStore.getState().paused).toBe(false);
     expect(useEditorStore.getState().spec.pages[pageId].name).toBe("외부에서 바뀜");
@@ -122,7 +138,7 @@ describe("같은 파일 다시 열기 (#267 리뷰)", () => {
     stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
     editPageName("잠깐 바꿈");
     useEditorStore.getState().undo();
-    await openSpec();
+    await openSpecSame();
     await vi.advanceTimersByTimeAsync(1000);
     expect(useSaveConflictStore.getState().paused).toBe(false);
   });
@@ -136,7 +152,7 @@ describe("Web Locks가 없는 브라우저 (PR #294 리뷰)", () => {
     stop = startSpecAutosave();
     expect(await newSpec()).toBe(true);
     expect(await newSpec()).toBe(true);
-    await openSpec();
+    await openSpecSame();
     expect(await openHomeProject({ fileName: "same.json", spec: initial, diskRevision: "loaded-revision" })).toBe(true);
     expect(confirm).not.toHaveBeenCalled();
   });
@@ -171,7 +187,7 @@ describe("sessionStorage 없는 새 탭이 복원한 이름 있는 초안 (PR #2
     const pageId = restoreInFreshTab("다른 탭의 미저장 초안");
     stop = startSpecAutosave();
 
-    await openSpec();
+    await openSpecSame();
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(useSaveConflictStore.getState()).toMatchObject({ paused: true, reason: "draft" });
@@ -195,7 +211,7 @@ describe("sessionStorage 없는 새 탭이 복원한 이름 있는 초안 (PR #2
     const pageId = restoreInFreshTab(initial.pages[useEditorStore.getState().activePageId].name);
     stop = startSpecAutosave();
 
-    await openSpec();
+    await openSpecSame();
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(useSaveConflictStore.getState().paused).toBe(false);
@@ -205,12 +221,12 @@ describe("sessionStorage 없는 새 탭이 복원한 이름 있는 초안 (PR #2
   it("초안을 버리고 디스크 내용으로 계속한 뒤에는 편집 없이 다시 열어도 묻지 않는다", async () => {
     restoreInFreshTab("버릴 초안");
     stop = startSpecAutosave();
-    await openSpec();
+    await openSpecSame();
     expect(useSaveConflictStore.getState().reason).toBe("draft");
     useSaveConflictStore.getState().discardDraft(); // 대화상자의 "저장된 파일 내용으로 계속"
     await vi.advanceTimersByTimeAsync(1000);
 
-    await openSpec();
+    await openSpecSame();
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(useSaveConflictStore.getState().paused).toBe(false);

@@ -4,6 +4,7 @@ import { useEffect, type RefObject } from "react";
 import { useContextMenuStore } from "@/features/editor/store/contextMenuStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
+import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
 import { fitZoom, useViewStore, ZOOM_DEFAULT } from "@/features/editor/store/viewStore";
 
@@ -51,6 +52,11 @@ export function useCanvasKeys(
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (useSaveConflictStore.getState().paused) return;
+      // PromptDialog(#288)는 window.prompt와 달리 메인 스레드를 막지 않는 React
+      // 오버레이다 — 안 걸러 주면 다이얼로그의 버튼에 포커스가 있는 동안(목록
+      // 항목·확인/취소 전부 input이 아닌 button이라 isTypingTarget을 안 탄다)
+      // Delete/Escape가 그대로 캔버스까지 와 선택을 지우거나 해제한다.
+      if (usePromptDialogStore.getState().state.kind !== "closed") return;
       // 도구 모음이 막 포커스를 떼 간 다음의 Tab 한 번인가(#275 리뷰 대응,
       // Toolbar.tsx의 같은 이름 신호 주석 참고). Ctrl/Cmd/Alt가 안 눌린 `Tab`
       // 에서만 읽고 끈다(1회성) — shouldConsumeToolbarFocusHandoff 주석 참고.

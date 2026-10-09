@@ -13,25 +13,43 @@ export interface HomeProject {
   diskRevision?: string;
 }
 
-/** 읽은 파일 하나를 ProjectSpec으로 정규화한다. 못 읽었거나 검증에 실패하면 null. */
-function toHomeProject(fileName: string, snapshot: { text: string; revision: string } | null): HomeProject | null {
-  if (snapshot === null) return null;
+/**
+ * 못 읽거나 검증에 실패한 파일의 사유(#288). `readWorkspaceSpecSnapshot`이
+ * 워크스페이스 미연결·네트워크 오류·HTTP 오류·revision 헤더 없음을 전부 `null`로
+ * 뭉개므로(`workspaceClient.ts`) "읽기 실패"를 더 세분화할 근거 있는 정보가 없다.
+ * "검증 실패"는 읽기는 됐으므로 원문(`rawText`)을 들고 있다 — 손상 파일 안내가
+ * 원본 다운로드를 제공하는 유일한 경우다.
+ */
+export type HomeProjectFailure =
+  | { fileName: string; reason: "read-failed" }
+  | { fileName: string; reason: "invalid"; issueCount: number; rawText: string };
+
+export type HomeProjectResult = ({ ok: true } & HomeProject) | ({ ok: false } & HomeProjectFailure);
+
+/** 읽은 파일 하나를 ProjectSpec으로 정규화한다. 못 읽었거나 검증에 실패하면 사유를 돌려준다(#288). */
+function toHomeProject(fileName: string, snapshot: { text: string; revision: string } | null): HomeProjectResult {
+  if (snapshot === null) return { ok: false, fileName, reason: "read-failed" };
 
   const result = parseSpecJson(snapshot.text);
-  if (!result.ok) return null;
+  if (!result.ok) return { ok: false, fileName, reason: "invalid", issueCount: result.issueCount, rawText: snapshot.text };
 
   const spec = "screen" in result.spec ? migrateV01(result.spec) : result.spec;
-  return { fileName, spec, diskRevision: snapshot.revision };
+  return { ok: true, fileName, spec, diskRevision: snapshot.revision };
 }
 
 /**
- * `specs/`의 프로젝트 전부를 읽는다. 작업공간이 없으면 null(호출자가 메모리 spec
- * 한 장으로 되돌아간다). 있으면 배열이다(비어 있을 수 있다 — 그때가 상태 2).
+ * `specs/`의 프로젝트 전부를 한 번에 읽는다. 작업공간이 없으면 null(호출자가 메모리 spec
+ * 한 장으로 되돌아간다). 있으면 `{ projects, failures }`다(둘 다 비어 있을 수 있다 — projects가
+ * 비면 상태 2). 못 읽거나 검증에 실패한 파일도 `failures`에 사유와 함께 남는다(#288) — 예전엔
+ * 조용히 사라졌다. `loadWorkspaceProjectsProgressively`를 한 묶음(`firstBatch: Infinity`)으로
+ * 부르는 얇은 래퍼다 — 양보할 "다음 묶음"이 없어 프레임을 기다릴 필요가 없다.
  */
-export async function loadWorkspaceProjects(): Promise<HomeProject[] | null> {
-  let result: HomeProject[] = [];
-  // 한 번에 돌려주므로 묶음·프레임 양보가 필요 없다 — 한 묶음으로 끝까지 읽는다.
-  const exists = await loadWorkspaceProjectsProgressively((projects) => { result = projects; }, { firstBatch: Infinity });
+export async function loadWorkspaceProjects({ signal }: { signal?: AbortSignal } = {}): Promise<{ projects: HomeProject[]; failures: HomeProjectFailure[] } | null> {
+  let result: { projects: HomeProject[]; failures: HomeProjectFailure[] } = { projects: [], failures: [] };
+  const exists = await loadWorkspaceProjectsProgressively(
+    (projects, failures) => { result = { projects, failures }; },
+    { firstBatch: Infinity, signal, isCancelled: () => signal?.aborted ?? false },
+  );
   return exists ? result : null;
 }
 
@@ -79,13 +97,13 @@ export function homeFirstBatch(width = typeof window === "undefined" ? 0 : windo
  * (최근 수정순)대로 첫 묶음 `firstBatch`개, 그 뒤 `batch`개씩 하며 묶음 사이에 이벤트 루프를 양보한다. 그래서 첫 화면 카드가
  * 나머지를 기다리지 않고 먼저 그려진다.
  *
- * 묶음이 끝날 때마다 `onProgress(지금까지의 목록, 다 읽었는가)`를 부른다. 목록은 매번 새 배열이고
- * 순서는 최종 순서와 같다 — 못 읽거나 검증에 실패한 파일은 빠지지만 이미 낸 카드의 순서는 바뀌지
- * 않는다(뒤에 이어 붙기만 한다). 마지막 호출의 `done`은 true다. `isCancelled()`가 true가 되면
- * 그 자리에서 멈춘다. 작업공간이 없으면 `onProgress`를 부르지 않고 false다.
+ * 묶음이 끝날 때마다 `onProgress(지금까지의 목록, 지금까지의 손상 파일, 다 읽었는가)`를 부른다.
+ * 둘 다 매번 새 배열이고 순서는 최종 순서와 같다 — 이미 낸 항목의 순서는 바뀌지 않는다(뒤에 이어
+ * 붙기만 한다). 마지막 호출의 `done`은 true다. `isCancelled()`가 true가 되면 그 자리에서 멈춘다.
+ * 작업공간이 없으면 `onProgress`를 부르지 않고 false다.
  */
 export async function loadWorkspaceProjectsProgressively(
-  onProgress: (projects: HomeProject[], done: boolean) => void,
+  onProgress: (projects: HomeProject[], failures: HomeProjectFailure[], done: boolean) => void,
   { firstBatch = homeFirstBatch(), batch = HOME_PARSE_BATCH, isCancelled = () => false, signal }:
     { firstBatch?: number; batch?: number; isCancelled?: () => boolean; signal?: AbortSignal } = {},
 ): Promise<boolean> {
@@ -99,14 +117,16 @@ export async function loadWorkspaceProjectsProgressively(
   // 취소(`signal`)하면 아직 내려받는 요청도 멈춘다.
   const snapshots = ordered.map((entry) => readWorkspaceSpecSnapshot(`${SPEC_DIR}/${entry.name}`, signal));
   const projects: HomeProject[] = [];
+  const failures: HomeProjectFailure[] = [];
   for (let start = 0, size = firstBatch; start < ordered.length || start === 0; start += size, size = batch) {
     for (let index = start; index < Math.min(start + size, ordered.length); index += 1) {
-      const project = toHomeProject(ordered[index].name, await snapshots[index]);
-      if (project !== null) projects.push(project);
+      const result = toHomeProject(ordered[index].name, await snapshots[index]);
+      if (result.ok) projects.push(result);
+      else failures.push(result);
     }
     if (isCancelled()) return true;
     const done = start + size >= ordered.length;
-    onProgress([...projects], done);
+    onProgress([...projects], [...failures], done);
     if (done) break;
     await nextFrames();
     if (isCancelled()) return true;
@@ -128,4 +148,3 @@ export async function openHomeProject(project: HomeProject): Promise<boolean> {
   useDocumentStore.getState().setFileName(project.fileName, project.diskRevision);
   return true;
 }
-
