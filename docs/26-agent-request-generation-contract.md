@@ -116,19 +116,19 @@ manifest·해시는 규약을 따르지 않는 쓰기(구버전 스킬, 사람�
 6. staging 읽기·사용자 확인 뒤에도 미취소·동일 세대이며 기존 요청 잠금 소유권을 서버에서 확인했다.
 7. (#282) 기존 파일이 마지막 정상 생성 그대로이거나 사용자가 덮어쓰기를 선택했다.
 8. 출력·manifest 쓰기는 요청 ID를 보내며 실제 mutation 시점에 CAS와 잠금을 확인한다.
-   실패/취소 시 이미 쓴 파일은 새 mutation lease로 조건부 보상한다. 보상 실패는 복구 경로를 남긴다.
+   실패/취소 시 이미 쓴 파일은 유효 lease와 provenance를 확인해 조건부 보상한다. 보상 실패는 복구 경로를 남긴다.
 
 응답 GET 뒤 기한과 취소를 다시 확인하며 티켓 잠금은 출력·manifest 처리까지 유지한다.
 중지 또는 재컴파일은 승격 잠금을 즉시 해제 요청하고 후속 파일과 다음 웨이브를 막는다.
-긴 확인 대기로 임대가 만료되면 그 요청을 재획득하지 않고 중단한다. 보상과 undo는 완료된 요청 ID를
-재사용하지 않고 별도 새 lease를 얻는다. 잠금을 얻지 못하면 파일을 건드리지 않고 복구를 미완료로 남긴다.
+긴 확인 대기로 임대가 만료되면 그 요청을 재획득하지 않고 중단한다. 보상은 원래 lease가 유효하면
+유지하며, 이미 잃었다면 새 lease와 manifest provenance를 모두 검증한다. undo는 별도 새 lease를 얻는다. 잠금을 얻지 못하면 파일을 건드리지 않고 복구를 미완료로 남긴다.
 확정한 파일만 manifest에 기록하며 에이전트의 done 주장만으로는 done이 되지 않는다.
 
 확정 중에도 취소·재컴파일을 확인한다. 임시 파일을 이미 읽었어도 쓰기 전에 취소·세대·소유권을
 다시 확인하며, 잠금 해제 또는 새 요청으로 인계된 뒤 오래된 PUT은 서버 mutation 시점에 거부한다.
 미확정 티켓은 pending으로 돌아가 재시도할 수 있고 새 계획에는 이전 결과를 반영하지 않는다.
 #349 단독 구현의 이미 쓴 파일 미복구 한계는 이 통합에서 #282의 조건부 보상으로 확장했다.
-보상도 별도 유효 lease와 CAS를 요구하므로 항상 원자적인 전체 복구를 보장하지는 않는다.
+보상도 유효 lease·manifest provenance·CAS를 요구하므로 항상 원자적인 전체 복구를 보장하지는 않는다.
 manifest 저장에 실패하면 Export가 확인 불가로 표시할 수 있다.
 
 ### 수용 기록(manifest) 형식
@@ -279,6 +279,7 @@ manifest 저장에 실패하면 Export가 확인 불가로 표시할 수 있다.
 ```json
 {
   "protocol": 2,
+  "phase": "committed",
   "runId": "…",
   "requestId": "…",
   "createdAt": "…",
@@ -385,7 +386,8 @@ undo는 경로별 immutable intent/done 기록과 previousRevision을 확인한�
 읽기/저장이 실패하면, 다음 재시도는 원본 바이트와 진행 기록을 검증하고 metadata만 복구한다.
 done 뒤 다시 바뀐 파일은 이전 출력과 같은 바이트여도 다시 쓰지 않는다. undo와 commit/보상은
 같은 탭의 직렬화 queue를 공유하며, 재컴파일 후 이전 undo는 새 run의 running/tickets/lastRun을
-덮지 않는다. 보상과 undo의 generated PUT/DELETE·manifest PUT은 새 mutation lease로 fence하며
+덮지 않는다. 보상은 가능한 원래 lease를 유지하고, 잃었으면 새 lease로 fence한다. undo도 새
+mutation lease를 사용한다. 모든 generated PUT/DELETE·manifest PUT은 fence되며
 undo 중 세대 전환은 해당 lease를 즉시 폐기한다.
 
 
@@ -421,3 +423,25 @@ undo 중 세대 전환은 해당 lease를 즉시 폐기한다.
   `XDG_DATA_HOME=/tmp/vsb-data XDG_CACHE_HOME=/tmp/vsb-cache`로 재실행해 smoke 포함 통과했다.
 - 외부 모델·실제 180초 대기는 실행하지 않았다. 새 브라우저 검사는 실제 UI/HTTP/파일 I/O이나
   모델 응답과 임대 만료 유도는 fixture다. 인증 비밀·보호 설정은 변경하지 않았다.
+
+
+### 최종 확정 지점과 동일 바이트의 다른 요청
+
+출력 PUT과 manifest 시도가 끝난 뒤 취소/세대를 확인한 지점이 commit point다. 그 전 취소는
+중단/보상한다. 그 뒤 `run.json` 저장은 복구 범위 기록 마무리이며, 이 대기 중 Stop은 이미 확정된
+티켓을 pending으로 되돌리지 않고 후속 웨이브만 막는다. 재컴파일한 새 티켓은 수정하지 않는다.
+복구 handle/경고는 직렬화 queue를 넘기기 전에 등록하여 재컴파일 중에도 유지하며, 나중 B의
+handle을 늦은 A가 덮지 않는다. UI는 이미 확정된 적용임을 안내한다. 이후 수동 변경은 undo CAS로 보호한다.
+
+새 lease는 현재 mutation을 보호할 뿐 같은 바이트의 역사적 소유권을 증명하지 않는다. 보상은
+가능하면 기존 유효 lease를 유지한다. 재획득한 lease를 포함하여 모든 보상/undo는 현재 manifest의
+requestId·ticketId·contentHash를 확인한다. 보상은 정확히 이전 manifest entry가 유지된 경우도
+허용하지만, 다른 요청 B로 수용 기록이 갱신됐으면 같은 바이트여도 복구하지 않는다. 정상 적용 undo는
+해당 요청의 수용 기록을 요구한다. metadata-only 재시도는 durable intent와 previousRevision 및
+이전 entry를 함께 확인한다. 손상/읽기 실패/확인 불가는 자동 복구를 거부하고 백업과 handle을 유지한다.
+`run.json.phase`는 committed/recovery를 구분하며 이 필드가 없는 이전 범위 기록도 자동 복구하지 않는다.
+
+검증: `manual-change-guard.test.ts`의 최종 run.json afterWrite barrier(Stop·재컴파일·새 B·수동 수정),
+동일 바이트 B provenance 및 손상 기록 회귀. `scripts/browser/recovery-provenance.mjs`는 실제 HTTP와
+Chromium 두 탭으로 A PUT 반영/응답 유실 → A lease 만료 → B 동일 바이트 수용 → A 보상·undo 거부와
+정상 A 뒤 동일 바이트 B 재수용 → 이전 A undo 거부를 실측한다. #281 안정 ID 구현은 포함하지 않는다.

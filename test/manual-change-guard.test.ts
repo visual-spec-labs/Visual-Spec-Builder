@@ -655,7 +655,7 @@ it.each(["read", "write"])("undo 바이트 복구 뒤 manifest %s 실패는 meta
   answerOverwriteReview({ [HEADER]: "overwrite" });
   await finish(run);
   const recovery = useTicketStore.getState().lastRun;
-  if (failure === "read") workspace.beforeRead = (path) => { if (path === GENERATION_MANIFEST_PATH) workspace.offline = true; };
+  if (failure === "read") workspace.beforeRead = (path) => { if (path === GENERATION_MANIFEST_PATH && textOf(workspace, G_HEADER) === M_HEADER && textOf(workspace, G_CARD) === L_CARD) workspace.offline = true; };
   else workspace.failWrite = (path) => path === GENERATION_MANIFEST_PATH ? "manifest failed" : null;
   await restoreLastRun();
   expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
@@ -728,7 +728,7 @@ it("undo 대기 중 재컴파일과 새 run은 이전 undo 완료가 running/las
   expect(useTicketStore.getState().lastRun?.runId).not.toBe(originalRun.runId);
 });
 
-it("완료 요청 ID를 재사용하지 않고 보상과 undo가 새 lease로 모든 mutation을 fence한다", async () => {
+it("유효 lease는 보상까지 유지하고 완료 요청 undo는 새 lease로 모든 mutation을 fence한다", async () => {
   await seedLastGoodAndManualEdit();
   const { run, request } = await secondRoundToReview();
   let first = true;
@@ -740,7 +740,7 @@ it("완료 요청 ID를 재사용하지 않고 보상과 undo가 새 lease로 �
   answerOverwriteReview({ [HEADER]: "overwrite" });
   await finish(run);
   expect(workspace.mutationOwners[0]).toBe(request.id);
-  expect(workspace.mutationOwners.some((owner) => owner.startsWith("recovery-"))).toBe(true);
+  expect(workspace.mutationOwners.every((owner) => owner === request.id)).toBe(true);
   expect(workspace.mutationOwners).not.toContain("unfenced");
   workspace.afterWrite = undefined;
   compileCurrent();
@@ -810,4 +810,144 @@ it("새 run의 확정은 이전 undo의 대기·정리가 끝날 때까지 직�
   await next;
   expect(textOf(workspace, G_HEADER)).toBe(`${N_HEADER}// serialized B\n`);
   expect(useTicketStore.getState().lastRun?.runId).not.toBe(originalRun.runId);
+});
+
+it.each(["stop", "compile"])("최종 run.json 저장 대기 중 %s은 이미 확정한 출력과 undo handle을 유지한다", async (action) => {
+  await seedLastGoodAndManualEdit();
+  const { run, request } = await secondRoundToReview();
+  let release!: () => void;
+  const gate = new Promise<void>((done) => { release = done; });
+  let scopePath: string | undefined;
+  workspace.afterWrite = async (path) => {
+    if (path.endsWith("/run.json")) { scopePath = path; await gate; }
+    return null;
+  };
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await tick();
+  expect(scopePath).toBeDefined();
+  expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
+  expect(manifest().entries[HEADER]?.requestId).toBe(request.id);
+  if (action === "stop") cancelTicketRun();
+  else compileCurrent();
+  const generation = useTicketStore.getState().generation;
+  release();
+  await run;
+  expect(useTicketStore.getState().generation).toBe(generation);
+  expect(status("Header")?.status).toBe(action === "stop" ? "done" : "pending");
+  expect(useTicketStore.getState().lastRun?.backupRoot + "/run.json").toBe(scopePath);
+  expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
+  expect(textOf(workspace, G_CARD)).toBe(N_CARD);
+  expect(useTicketStore.getState().restoreMessage).toContain("이미 확정");
+  workspace.afterWrite = undefined;
+  await restoreLastRun();
+  expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+});
+
+it("최종 scope 저장 중 재컴파일한 B는 늦은 A의 handle/상태로 덮이지 않는다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  let release!: () => void;
+  const gate = new Promise<void>((done) => { release = done; });
+  let scopePath: string | undefined;
+  workspace.afterWrite = async (path) => {
+    if (path.endsWith("/run.json") && scopePath === undefined) { scopePath = path; await gate; }
+    return null;
+  };
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await tick();
+  expect(scopePath).toBeDefined();
+  compileCurrent();
+  const next = runOneTicket("Header");
+  await tick();
+  const requestB = currentRequest();
+  respond(requestB.id, { [HEADER]: `${N_HEADER}// newer B\n` });
+  await tick();
+  expect(status("Header")?.status).toBe("in-progress");
+  release();
+  await run;
+  await tick();
+  await next;
+  const latest = useTicketStore.getState().lastRun!;
+  expect(`${latest.backupRoot}/run.json`).not.toBe(scopePath);
+  expect(textOf(workspace, G_HEADER)).toBe(`${N_HEADER}// newer B\n`);
+  expect(manifest().entries[HEADER]?.requestId).toBe(requestB.id);
+  expect(status("Header")?.status).toBe("done");
+  expect(useTicketStore.getState().running).toBe(false);
+});
+
+it("최종 scope 저장 대기 중 생긴 수동 수정은 Stop과 나중 undo로 덮지 않는다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  let release!: () => void;
+  const gate = new Promise<void>((done) => { release = done; });
+  workspace.afterWrite = async (path) => { if (path.endsWith("/run.json")) await gate; return null; };
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await tick();
+  workspace.files.set(G_HEADER, "new manual edit after commit");
+  cancelTicketRun();
+  release();
+  await run;
+  expect(textOf(workspace, G_HEADER)).toBe("new manual edit after commit");
+  workspace.afterWrite = undefined;
+  await restoreLastRun();
+  expect(textOf(workspace, G_HEADER)).toBe("new manual edit after commit");
+  expect(useTicketStore.getState().restoreMessage).toContain(HEADER);
+});
+
+it("A lease 상실 후 B가 동일 바이트를 수용하면 A 보상과 undo는 B provenance를 보존한다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  let acceptedB = false;
+  workspace.afterWrite = (path) => {
+    if (path === G_HEADER && !acceptedB) {
+      acceptedB = true;
+      workspace.owner = null; // A's lease was revoked; another tab B acquired and completed its mutation.
+      const current = manifest();
+      current.entries[HEADER] = { ...current.entries[HEADER], requestId: "accepted-B", contentHash: contentHash(N_HEADER) };
+      workspace.files.set(GENERATION_MANIFEST_PATH, JSON.stringify(current));
+      return "A response lost after B accepted identical bytes";
+    }
+    return null;
+  };
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
+  expect(manifest().entries[HEADER]?.requestId).toBe("accepted-B");
+  expect(useTicketStore.getState().lastRun?.paths).toEqual([HEADER]);
+  workspace.afterWrite = undefined;
+  workspace.log.length = 0;
+  await restoreLastRun();
+  expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
+  expect(manifest().entries[HEADER]?.requestId).toBe("accepted-B");
+  expect(generatedWrites()).toEqual([]);
+});
+
+it("정상 적용 뒤 다른 요청이 동일 바이트를 수용하면 이전 run의 수동 undo도 거부한다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  const newer = manifest();
+  newer.entries[HEADER] = { ...newer.entries[HEADER], requestId: "newer-B" };
+  workspace.files.set(GENERATION_MANIFEST_PATH, JSON.stringify(newer));
+  workspace.log.length = 0;
+  await restoreLastRun();
+  expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
+  expect(manifest().entries[HEADER]?.requestId).toBe("newer-B");
+  expect(generatedWrites()).not.toContain(`PUT ${G_HEADER}`);
+  expect(useTicketStore.getState().restoreMessage).toContain(HEADER);
+});
+
+it("복구 provenance가 손상되면 동일 바이트여도 자동 undo하지 않고 handle을 유지한다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  const recovery = useTicketStore.getState().lastRun;
+  workspace.files.set(GENERATION_MANIFEST_PATH, "{invalid manifest");
+  workspace.log.length = 0;
+  await restoreLastRun();
+  expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
+  expect(generatedWrites()).toEqual([]);
+  expect(useTicketStore.getState().lastRun).toEqual(recovery);
 });

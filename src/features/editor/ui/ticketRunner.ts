@@ -277,20 +277,27 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
       useTicketStore.getState().generation === generation,
     renew: () => outcome.lock?.renew(true) ?? Promise.resolve(false),
     release: promotion.release,
+    onSettled: (settled) => {
+      const warning = [settled.recoveryWarning, settled.manifestError].filter(Boolean).join(" ");
+      useTicketStore.setState({
+        ...(warning ? { acceptanceWarning: warning } : {}),
+        ...(settled.run === null ? {} : {
+          lastRun: settled.run,
+          restoreMessage: settled.committed && (cancelToken.cancelled || useTicketStore.getState().generation !== generation)
+            ? "이전 출력 적용은 이미 확정되었습니다. 중지는 후속 전달을 막으며 이 적용의 백업과 되돌리기는 유지합니다." : null,
+        }),
+      });
+    },
   });
-  if (acceptance.recoveryWarning !== undefined) {
-    useTicketStore.setState({ acceptanceWarning: acceptance.recoveryWarning, lastRun: acceptance.run });
-  }
-  // 재컴파일된 웨이브는 출력 확정을 중단/보상한다. 복구 경고는 남기되 새 티켓 상태는 건드리지 않는다.
+  // 확정 시점 전 취소는 중단/보상한다. 그 이후 scope 저장 중 전환은 확정 결과와 handle을
+  // 보존하되 새 세대의 티켓 상태는 건드리지 않는다.
   if (useTicketStore.getState().generation !== generation) return;
 
   const results = acceptance.results;
   useTicketStore.setState((state) => ({
-    tickets: cancelToken.cancelled
+    tickets: cancelToken.cancelled && !acceptance.committed
       ? waveTickets.reduce((tickets, ticket) => markTicketStatus(tickets, ticket.id, "pending"), applyTicketResults(state.tickets, results))
       : applyTicketResults(state.tickets, results),
-    ...(acceptance.manifestError === null ? {} : { acceptanceWarning: acceptance.manifestError }),
-    ...(acceptance.run === null ? {} : { lastRun: acceptance.run, restoreMessage: null }),
   }));
 
   promotion.release();

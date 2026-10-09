@@ -29,6 +29,7 @@ import { holdRequestLock } from "./agentRequestLock";
 import { contentHash, inputFingerprint, sha256Hex } from "@/features/editor/export/contentHash";
 import {
   GENERATION_MANIFEST_PATH,
+  GENERATION_MANIFEST_PROTOCOL,
   parseGenerationManifest,
   withManifestUpdates,
   type ManifestEntry,
@@ -97,6 +98,8 @@ export interface TicketOutputAcceptance {
   /** 바꾼 파일 또는 보상 미확인 파일이 있으면 그 실행. 안전하게 중단했으면 null. */
   run: RegenerationRunSummary | null;
   recoveryWarning?: string;
+  /** Output commit point passed; Stop only prevents subsequent waves. */
+  committed?: boolean;
 }
 
 function failed(ticketId: string, message: string): TicketResultItem {
@@ -220,6 +223,7 @@ interface RunRecordFile {
 
 interface RunRecord {
   protocol: 2;
+  phase: "committed" | "recovery";
   runId: string;
   requestId: string;
   createdAt: string;
@@ -273,7 +277,12 @@ let acceptanceTail: Promise<unknown> = Promise.resolve();
 export function commitTicketOutputs(
   ...args: Parameters<typeof commitTicketOutputsNow>
 ): Promise<TicketOutputAcceptance> {
-  const result = acceptanceTail.then(() => commitTicketOutputsNow(...args));
+  const result = acceptanceTail.then(async () => {
+    const accepted = await commitTicketOutputsNow(...args);
+    // Publish the recovery handle before releasing this queue position to a newer run.
+    args[2]?.onSettled?.(accepted);
+    return accepted;
+  });
   acceptanceTail = result.catch(() => undefined);
   return result;
 }
@@ -285,6 +294,7 @@ async function commitTicketOutputsNow(
     renew = async () => false, release = () => {} }: {
     now?: () => Date; runId?: string; isCurrent?: () => boolean;
     renew?: () => Promise<boolean>; release?: () => void;
+    onSettled?: (acceptance: TicketOutputAcceptance) => void;
   } = {},
 ): Promise<TicketOutputAcceptance> {
   const byTicket = new Map(plan.targets.map((target) => [target.ticketId, target]));
@@ -325,7 +335,7 @@ async function commitTicketOutputsNow(
   }
   if (!isCurrent()) return cancelled();
   if (files.length > 0) {
-    const record: RunRecord = { protocol: 2, runId, requestId: plan.requestId, createdAt: now().toISOString(), files };
+    const record = { protocol: 2, phase: "planned", runId, requestId: plan.requestId, createdAt: now().toISOString(), files };
     const saved = await writeWorkspaceFile(runPlanPath(runId), JSON.stringify(record, null, 2), "application/json", WORKSPACE_MISSING_REVISION);
     if (!saved.ok) return abort(`되돌리기 기록을 남기지 못해 아무 파일도 바꾸지 않았습니다 — ${saved.error}.`);
   }
@@ -346,22 +356,27 @@ async function commitTicketOutputsNow(
   // 3. 쓰기. 파일마다 확인 당시 버전을 기대 버전으로 싣는다.
   const written: RunRecordFile[] = [];
   // plan.json is intent only. run.json authorizes only final confirmed/pending mutations.
-  const persistScope = (paths: string[]) => saveRecoveryRecord(runRecordPath(runId), {
-    protocol: 2, runId, requestId: plan.requestId, createdAt: now().toISOString(),
+  const persistScope = (paths: string[], phase: RunRecord["phase"]) => saveRecoveryRecord(runRecordPath(runId), {
+    protocol: 2, phase, runId, requestId: plan.requestId, createdAt: now().toISOString(),
     files: files.filter((file) => paths.includes(file.path)),
   } satisfies RunRecord);
   const compensate = async (reason: string) => {
-    // Never revive a completed/cancelled request ID for compensation.
-    release();
-    const owner = `recovery-${createRunId()}`;
-    const held = await holdRequestLock("ticket", owner);
+    // Keep a still-valid lease through compensation. If ownership was revoked, a fresh
+    // lease protects current mutations, but provenance must separately prove the old result.
     let leftovers: string[];
-    if (typeof held === "string") leftovers = written.map((file) => file.path);
-    else {
-      try { leftovers = await rollback(written, writes, { owner, renew: () => held.renew(true) }); }
-      finally { held.release(); }
+    if (isCurrent() && await renew() && isCurrent()) {
+      leftovers = await rollback(written, writes, { owner: plan.requestId, renew }, plan.requestId);
+    } else {
+      release();
+      const owner = `recovery-${createRunId()}`;
+      const held = await holdRequestLock("ticket", owner);
+      if (typeof held === "string") leftovers = written.map((file) => file.path);
+      else {
+        try { leftovers = await rollback(written, writes, { owner, renew: () => held.renew(true) }, plan.requestId); }
+        finally { held.release(); }
+      }
     }
-    const scopeSaved = await persistScope(leftovers);
+    const scopeSaved = await persistScope(leftovers, "recovery");
     const result = abort(`${reason}${leftovers.length === 0 ? " 이번 적용을 되돌렸습니다." : " 복구를 완료하지 못했습니다."}`);
     if (leftovers.length > 0) {
       result.run = { runId, paths: leftovers, backupRoot: runRoot(runId) };
@@ -424,20 +439,50 @@ async function commitTicketOutputsNow(
     if (warning !== null) restored.manifestError = warning;
     return restored;
   }
-  const scopeSaved = files.length === 0 || await persistScope(files.map((file) => file.path));
+  // Commit point: outputs and the manifest attempt have settled and cancellation was checked.
+  // Saving the immutable recovery scope is final bookkeeping. Do not undo a committed result
+  // merely because Stop/recompile happens during this await; publish its handle in queue order.
+  const scopeSaved = files.length === 0 || await persistScope(files.map((file) => file.path), "committed");
   return {
     results,
     manifestError,
+    committed: true,
     ...(scopeSaved ? {} : { recoveryWarning: `복구 범위를 저장하지 못해 자동 복구를 중단합니다. 실행 ${runId}, 백업: ${runRoot(runId)}/files/` }),
     run: files.length === 0 ? null : { runId, paths: files.map((file) => file.path), backupRoot: runRoot(runId) },
   };
 }
 
+/** A fresh mutation lease does not prove historical ownership of identical bytes. */
+async function recoveryProvenance(file: RunRecordFile, requestId: string, allowPrevious: boolean): Promise<"match" | "conflict" | "unverifiable"> {
+  const read = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
+  if (!read.ok) return "unverifiable";
+  const parsed = parseGenerationManifest(read.text);
+  if (read.text !== null) {
+    let raw: unknown;
+    try { raw = JSON.parse(read.text); } catch { return "unverifiable"; }
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return "unverifiable";
+    const root = raw as { protocol?: unknown; entries?: unknown };
+    if (root.protocol !== GENERATION_MANIFEST_PROTOCOL || typeof root.entries !== "object" || root.entries === null || Array.isArray(root.entries)) return "unverifiable";
+    if (Object.hasOwn(root.entries, file.path) && parsed.entries[file.path] === undefined) return "unverifiable";
+  }
+  const current = parsed.entries[file.path] ?? null;
+  if (current?.requestId === requestId && current.ticketId === file.ticketId &&
+      current.contentHash === `sha256:${file.writtenRevision}`) return "match";
+  if (allowPrevious) {
+    const previous = file.previousEntry;
+    if (previous === null && current === null) return "match";
+    const keys: (keyof ManifestEntry)[] = ["requestId", "ticketId", "pageId", "inputFingerprint", "contentHash", "acceptedAt", "projectKey"];
+    if (previous !== null && current !== null && keys.every((key) => previous[key] === current[key])) return "match";
+  }
+  return current === null ? "unverifiable" : "conflict";
+}
+
 /** 중간 실패 보상. 원본 복구를 확인하지 못한 경로를 돌려준다. */
-async function rollback(written: RunRecordFile[], writes: OverwriteTarget[], lease: MutationLease): Promise<string[]> {
+async function rollback(written: RunRecordFile[], writes: OverwriteTarget[], lease: MutationLease, requestId: string): Promise<string[]> {
   const byPath = new Map(writes.map((target) => [target.path, target]));
   const left: string[] = [];
   for (const file of [...written].reverse()) {
+    if (await recoveryProvenance(file, requestId, true) !== "match") { left.push(file.path); continue; }
     const previous = byPath.get(file.path)?.current?.bytes ?? null;
     const actual = await readWorkspaceFileSnapshot(`${GENERATED_DIR}/${file.path}`);
     if (actual.ok && (actual.snapshot?.revision ?? WORKSPACE_MISSING_REVISION) ===
@@ -490,7 +535,7 @@ export interface RestoreReport {
 function isRunRecord(value: unknown): value is RunRecord {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Partial<RunRecord>;
-  return record.protocol === 2 && typeof record.runId === "string" && Array.isArray(record.files) &&
+  return record.protocol === 2 && (record.phase === "committed" || record.phase === "recovery") && typeof record.runId === "string" && Array.isArray(record.files) &&
     record.files.every((file) => typeof file === "object" && file !== null && typeof file.path === "string" &&
       typeof file.writtenRevision === "string" &&
       (file.backupPath === null || typeof file.backupPath === "string") &&
@@ -542,6 +587,11 @@ async function restoreRegenerationRunNow(runId: string, isCurrent: () => boolean
     const done = await readWorkspaceTextFileStrict(donePath);
     if (!intent.ok || !done.ok || (intent.text !== null && intent.text !== progressText) ||
         (done.text !== null && done.text !== progressText)) { report.failed.push(file.path); continue; }
+    const provenance = await recoveryProvenance(file, record.requestId, record.phase === "recovery" || intent.text === progressText);
+    if (provenance !== "match") {
+      (provenance === "conflict" ? report.conflicts : report.failed).push(file.path);
+      continue;
+    }
     const present = await readWorkspaceFileSnapshot(`${GENERATED_DIR}/${file.path}`);
     if (!present.ok) { report.failed.push(file.path); continue; }
     const actual = present.snapshot?.revision ?? WORKSPACE_MISSING_REVISION;
