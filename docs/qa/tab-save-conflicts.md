@@ -81,7 +81,10 @@ Save/Save as가 기다리는 동안 New/Open으로 문서가 바뀌면, 대기 �
 ## 비차단 문서 전환 (#302)
 
 New/Open/홈 카드 열기는 `beginDocumentTransition()`을 비동기 읽기 **전에** 호출한다.
-이 함수는 앞 전환 요청을 취소하고 문서 세대·spec 참조·파일명·디스크 리비전을 캡처한다.
+이 함수는 앞 전환 요청을 취소하고 문서 세대·documentId·spec 참조·파일명·디스크 리비전을 캡처한다.
+전환 모듈은 spec/documentId/파일 메타데이터 변경마다 단조 증가하는 revision도 캡처한다.
+따라서 Open 읽기 중 편집→Undo로 원래 spec 참조에 돌아와도 요청은 무효이고 redo를 보존한다.
+같은 spec 참조를 loadSpec으로 다시 연 새 documentId도 이전 요청을 이어받지 않는다.
 각 await 뒤 `current()`로 유효성을 확인하고, 적용 직전
 `await transition.settle(nextFileName)`과 `current()`가 모두 참일 때만 동기적으로
 `loadSpec`/`setFileName`을 실행한다. 대기 중 편집도 승인 대상이 달라진 것으로 취급한다.

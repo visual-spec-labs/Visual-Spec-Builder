@@ -143,6 +143,52 @@ try {
   await accepted.getByRole("button", {name: "계속하기", exact: true}).click();
   assert.equal(await accepted.evaluate(() => window.result), true);
   assert.equal(await accepted.getByRole("alertdialog").count(), 0);
+  await accepted.getByRole("button", {name: "File", exact: true}).click();
+  await accepted.getByRole("menuitem", {name: "Open", exact: true}).click();
+  await accepted.getByRole("alertdialog").getByRole("button", {name: "Alpha.json", exact: true}).click();
+  await accepted.waitForFunction(async () =>
+    (await import("/src/features/editor/store/documentStore.ts")).useDocumentStore.getState().fileName === "Alpha.json");
+  for (const action of ["edit-undo", "same-spec-load"]) {
+    await accepted.evaluate(async () => {
+      window.abaEditor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
+      const original = window.fetch;
+      window.releaseABA = null;
+      window.fetch = async (...args) => {
+        if (String(args[0]).includes("/file/specs/Beta.json")) {
+          window.fetch = original;
+          const response = await original(...args);
+          await new Promise(resolve => { window.releaseABA = resolve; });
+          return response;
+        }
+        return original(...args);
+      };
+      window.abaOpen = (await import("/src/features/editor/ui/openSpecFromFile.ts")).openSpec();
+    });
+    await accepted.getByRole("alertdialog").getByRole("button", {name: "Beta.json", exact: true}).click();
+    await accepted.waitForFunction(() => typeof window.releaseABA === "function");
+    const proof = await accepted.evaluate(action => {
+      const before = abaEditor.getState();
+      if (action === "edit-undo") {
+        before.setPageField(before.activePageId, "name", "ABA pending edit");
+        abaEditor.getState().undo();
+      } else before.loadSpec(before.spec);
+      const after = abaEditor.getState();
+      window.abaExpected = after;
+      return {sameSpec: before.spec === after.spec, oldId: before.documentId,
+        newId: after.documentId, redo: after.history.future.length};
+    }, action);
+    assert.equal(proof.sameSpec, true);
+    if (action === "edit-undo") {
+      assert.equal(proof.oldId, proof.newId);
+      assert.equal(proof.redo, 1);
+    } else assert.ok(proof.newId > proof.oldId);
+    await accepted.evaluate(() => window.releaseABA());
+    await accepted.evaluate(() => window.abaOpen);
+    assert.equal(await accepted.evaluate(() => abaEditor.getState() === window.abaExpected), true);
+    assert.equal(await accepted.evaluate(async () =>
+      (await import("/src/features/editor/store/documentStore.ts")).useDocumentStore.getState().fileName), "Alpha.json");
+  }
+  console.log("PASS delayed Beta response rejects edit/Undo ABA (same spec, redo preserved) and same-spec load (new documentId)");
   await clean.close();
   assert.deepEqual(notices, []);
   assert.deepEqual(errors, []);

@@ -4,6 +4,15 @@ import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore"
 import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 
 let pending: AbortController | undefined;
+// These singleton stores outlive individual requests. Count observed changes, not
+// just snapshot identity: edit -> Undo may restore the exact captured spec object.
+let revision = 0;
+useEditorStore.subscribe((state, previous) => {
+  if (state.spec !== previous.spec || state.documentId !== previous.documentId) revision++;
+});
+useDocumentStore.subscribe((state, previous) => {
+  if (state.fileName !== previous.fileName || state.diskRevision !== previous.diskRevision) revision++;
+});
 
 /**
  * New/Open/card share one latest-request-wins boundary, starting BEFORE async reads.
@@ -16,9 +25,11 @@ export function beginDocumentTransition() {
   const controller = new AbortController();
   pending = controller;
   const isDocument = useSaveConflictStore.getState().captureDocument();
-  const spec = useEditorStore.getState().spec;
+  const expectedRevision = revision;
+  const { spec, documentId } = useEditorStore.getState();
   const { fileName, diskRevision } = useDocumentStore.getState();
   const current = () => pending === controller && !controller.signal.aborted && isDocument() &&
+    revision === expectedRevision && documentId === useEditorStore.getState().documentId &&
     spec === useEditorStore.getState().spec && fileName === useDocumentStore.getState().fileName &&
     diskRevision === useDocumentStore.getState().diskRevision &&
     !useSaveConflictStore.getState().paused && !useSaveConflictStore.getState().check();

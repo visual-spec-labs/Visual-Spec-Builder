@@ -66,3 +66,31 @@ it.each(["new", "edit"])("a late Open response cannot replace a newer %s", async
   await opening;
   expect(useEditorStore.getState().spec).toBe(expected);
 });
+
+it.each(["edit-undo", "same-spec-load"])("a delayed Open rejects %s ABA even with the original spec reference", async (action) => {
+  const before = useEditorStore.getState().spec;
+  useEditorStore.getState().loadSpec(before);
+  const documentId = useEditorStore.getState().documentId;
+  useDocumentStore.getState().setFileName("original.json");
+  useSaveConflictStore.setState({ paused: false, check: () => false, settle: async () => true });
+  let finish!: (value: { text: string; revision: string }) => void;
+  vi.mocked(readWorkspaceSpecSnapshot).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const opening = openSpec();
+  await answerOpenPrompt("next.json");
+  await vi.waitFor(() => expect(finish).toBeDefined());
+  if (action === "edit-undo") {
+    useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "ABA edit");
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().history.future).toHaveLength(1);
+    expect(useEditorStore.getState().documentId).toBe(documentId);
+  } else {
+    useEditorStore.getState().loadSpec(before);
+    expect(useEditorStore.getState().documentId).toBeGreaterThan(documentId);
+  }
+  expect(useEditorStore.getState().spec).toBe(before);
+  const expected = useEditorStore.getState();
+  finish({ text: JSON.stringify({ ...before, name: "stale B" }), revision: "old" });
+  await opening;
+  expect(useEditorStore.getState()).toBe(expected);
+  expect(useDocumentStore.getState().fileName).toBe("original.json");
+});
