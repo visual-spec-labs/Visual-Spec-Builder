@@ -2,7 +2,7 @@
   "repo": "visual-spec-labs/Visual-Spec-Builder",
   "cutoff": "2026-10-08T11:02:17.618Z",
   "timezone": "Asia/Seoul",
-  "source": "GitHub issue search (is:issue, created before cutoff) and individual issue API records; titles retrieved during chronicle revision, not historical title snapshots",
+  "source": "GitHub issue search (is:issue, created before cutoff). The baseline below was collected at 2026-10-08T11:02:17.618Z; later issues are appended by scripts/history/sync.mjs. Titles are as of each collection, not historical title snapshots",
   "issues": [
     {
       "number": 2,

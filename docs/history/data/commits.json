@@ -5,7 +5,7 @@
   "timezone": "Asia/Seoul",
   "dateField": "committer",
   "includeMergeCommits": true,
-  "selection": "Every unique commit reachable from snapshotCommit, including merges and the root; excludes chronicle commits and later develop merges",
+  "selection": "Every unique commit reachable from snapshotCommit (origin/develop at sync time), including merges and the root",
   "commits": [
     {"sha":"0009501db1a098cc10564310dcb22d3705e45be6","committedAt":"2026-10-06T10:48:56+09:00","parents":["7f6de2ebed116bbcf1714ad673f44b4681b71d7d"]},
     {"sha":"00e63e232d0ae5f9dd95b61129697275292e91fb","committedAt":"2026-10-04T23:14:24Z","parents":["35825644f15257edbb483375c439e0eec96103bb"]},

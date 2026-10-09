@@ -14,7 +14,6 @@
       "stats": {
         "phase": "p0",
         "mergedPRs": 1,
-        "approved": 0,
         "commits": 9,
         "issuesOpened": 0,
         "prAuthors": {
@@ -33,7 +32,6 @@
       "stats": {
         "phase": "p1",
         "mergedPRs": 11,
-        "approved": 0,
         "commits": 36,
         "issuesOpened": 6,
         "prAuthors": {
@@ -54,7 +52,6 @@
       "stats": {
         "phase": "p2",
         "mergedPRs": 18,
-        "approved": 18,
         "commits": 80,
         "issuesOpened": 26,
         "prAuthors": {
@@ -77,7 +74,6 @@
       "stats": {
         "phase": "p3",
         "mergedPRs": 32,
-        "approved": 28,
         "commits": 116,
         "issuesOpened": 25,
         "prAuthors": {
@@ -100,7 +96,6 @@
       "stats": {
         "phase": "p4",
         "mergedPRs": 29,
-        "approved": 27,
         "commits": 90,
         "issuesOpened": 27,
         "prAuthors": {
@@ -122,7 +117,6 @@
       "stats": {
         "phase": "p5",
         "mergedPRs": 14,
-        "approved": 12,
         "commits": 33,
         "issuesOpened": 14,
         "prAuthors": {
@@ -144,7 +138,6 @@
       "stats": {
         "phase": "p6",
         "mergedPRs": 24,
-        "approved": 3,
         "commits": 130,
         "issuesOpened": 22,
         "prAuthors": {
@@ -164,7 +157,6 @@
       "stats": {
         "phase": "p7",
         "mergedPRs": 13,
-        "approved": 1,
         "commits": 37,
         "issuesOpened": 29,
         "prAuthors": {
@@ -183,7 +175,6 @@
       "stats": {
         "phase": "p8",
         "mergedPRs": 21,
-        "approved": 21,
         "commits": 125,
         "issuesOpened": 10,
         "prAuthors": {
@@ -209,7 +200,6 @@
     "issuesOpened": {
       "source": "issues.json",
       "dateField": "createdAt"
-    },
-    "approved": "Number of PR records with review == approved in the original collection"
+    }
   }
 }
