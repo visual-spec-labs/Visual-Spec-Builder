@@ -2,7 +2,7 @@ import { migrateV01, type ProjectSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
-import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
+import { beginDocumentTransition } from "./documentTransition";
 import { SPEC_DIR } from "@/features/workspace/protocol";
 import { listWorkspaceFileEntries, readWorkspaceSpecSnapshot } from "./workspaceClient";
 
@@ -143,7 +143,8 @@ export async function loadWorkspaceProjectsProgressively(
  * 경우 남은 초안을 비교하게 파일명을 넘긴다(#267). false면 현재 문서를 그대로 둔다.
  */
 export async function openHomeProject(project: HomeProject): Promise<boolean> {
-  if (!await useSaveConflictStore.getState().settle(project.fileName)) return false;
+  const transition = beginDocumentTransition();
+  if (!await transition.settle(project.fileName) || !transition.current()) return false;
   useEditorStore.getState().loadSpec(project.spec);
   useDocumentStore.getState().setFileName(project.fileName, project.diskRevision);
   return true;

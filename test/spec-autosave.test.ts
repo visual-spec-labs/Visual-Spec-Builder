@@ -24,6 +24,12 @@ function remote(name: string, target = key) {
   localStorage.setItem(target, JSON.stringify(document));
   return document;
 }
+async function answerTransition(pending: Promise<boolean>, answer: boolean) {
+  await vi.advanceTimersByTimeAsync(0);
+  expect(usePromptDialogStore.getState().state.kind).toBe("confirm");
+  usePromptDialogStore.getState().resolve(answer ? "confirm" : null);
+  return pending;
+}
 function edit(name: string) { useEditorStore.getState().loadSpec({ ...initial, name }); }
 function notify(target = key) { listeners.get("storage")?.({ key: target, storageArea: localStorage }); }
 
@@ -250,7 +256,7 @@ describe("same-project autosave conflict preservation", () => {
     let editor = useEditorStore.getState(); editor.setPageField(editor.activePageId, "name", "first draft");
     await vi.advanceTimersByTimeAsync(500);
     const firstKey = readRecovery()!.key;
-    await newSpec(); editor = useEditorStore.getState(); editor.setPageField(editor.activePageId, "name", "second draft");
+    await answerTransition(newSpec(), true); editor = useEditorStore.getState(); editor.setPageField(editor.activePageId, "name", "second draft");
     await vi.advanceTimersByTimeAsync(500);
     expect(readRecovery()!.key).not.toBe(firstKey);
     expect(parseStoredDocument(localStorage.getItem(firstKey))?.spec.pages[editor.activePageId].name).toBe("first draft");
@@ -412,12 +418,11 @@ describe("document switch before the autosave debounce (#267)", () => {
     expect(await newSpec()).toBe(true);
     expect(confirm).not.toHaveBeenCalled();
     const pageId = editPageName("untitled work");
-    confirm.mockReturnValueOnce(false);
-    expect(await newSpec()).toBe(false);
-    expect(confirm).toHaveBeenCalledOnce();
+    expect(await answerTransition(newSpec(), false)).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
     expect(useEditorStore.getState().spec.pages[pageId].name).toBe("untitled work");
-    expect(await newSpec()).toBe(true);
-    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(await answerTransition(newSpec(), true)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
   });
   it("a conflicting outgoing draft keeps the current document instead of switching", async () => {
     stop = startSpecAutosave(); await vi.advanceTimersByTimeAsync(500);
@@ -436,11 +441,10 @@ describe("document switch before the autosave debounce (#267)", () => {
       removeEventListener: (name: string) => listeners.delete(name), alert: vi.fn(), confirm });
     stop = startSpecAutosave();
     const pageId = editPageName("unsaved");
-    expect(await newSpec()).toBe(false);
-    expect(confirm).toHaveBeenCalledOnce();
+    expect(await answerTransition(newSpec(), false)).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
     expect(useEditorStore.getState().spec.pages[pageId].name).toBe("unsaved");
-    confirm.mockReturnValue(true);
-    expect(await newSpec()).toBe(true);
+    expect(await answerTransition(newSpec(), true)).toBe(true);
     expect(useDocumentStore.getState().fileName).toBeNull();
   });
   it("a fresh tab restoring stored untitled work asks before New; a stored blank does not (review)", async () => {
@@ -449,8 +453,7 @@ describe("document switch before the autosave debounce (#267)", () => {
     useEditorStore.getState().loadSpec({ ...initial, name: "only copy" });
     saveSpecToStorage(useEditorStore.getState().spec, null);
     stop = startSpecAutosave();
-    confirm.mockReturnValueOnce(false);
-    expect(await newSpec()).toBe(false);
+    expect(await answerTransition(newSpec(), false)).toBe(false);
     expect(useEditorStore.getState().spec.name).toBe("only copy");
     stop();
     saveSpecToStorage(useEditorStore.getState().spec, null); // the blank New below replaces it
@@ -503,3 +506,57 @@ describe("디스크 충돌 사유 (#279)", () => {
   });
 });
 
+
+describe("nonblocking transition races (#302)", () => {
+  async function pendingDraft() {
+    useDocumentStore.getState().clearFileName();
+    stop = startSpecAutosave();
+    useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "my draft");
+    const pending = newSpec();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(usePromptDialogStore.getState().state.kind).toBe("confirm");
+    return { pending, spec: useEditorStore.getState().spec };
+  }
+  it("a replacement cancels the first request; an old response cannot answer the second", async () => {
+    const { pending, spec } = await pendingDraft();
+    const old = usePromptDialogStore.getState().state;
+    if (old.kind !== "confirm") throw new Error("expected confirm");
+    const second = newSpec();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await pending).toBe(false);
+    usePromptDialogStore.getState().resolve("confirm", old.requestId);
+    expect(useEditorStore.getState().spec).toBe(spec);
+    expect(usePromptDialogStore.getState().state.kind).toBe("confirm");
+    usePromptDialogStore.getState().resolve(null);
+    expect(await second).toBe(false);
+  });
+  it.each(["stop", "edit", "load", "conflict"])("%s cancels the pending approval and preserves recovery", async (action) => {
+    const { pending } = await pendingDraft();
+    if (action === "stop") stop?.();
+    if (action === "edit") useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "new edit");
+    if (action === "load") useEditorStore.getState().loadSpec(initial);
+    if (action === "conflict") useSaveConflictStore.getState().pause();
+    expect(await pending).toBe(false);
+    expect(usePromptDialogStore.getState().state.kind).toBe("closed");
+    expect(readRecovery()).toBeDefined();
+    expect(window.confirm).not.toHaveBeenCalled();
+  });
+  it("rechecks remote storage after approval even before its event arrives", async () => {
+    const { pending, spec } = await pendingDraft();
+    const recovery = readRecovery();
+    if (!recovery) throw new Error("missing recovery");
+    const other = remote("remote draft", recovery.key);
+    usePromptDialogStore.getState().resolve("confirm");
+    expect(await pending).toBe(false);
+    expect(useEditorStore.getState().spec).toBe(spec);
+    expect(parseStoredDocument(localStorage.getItem(recovery.key))).toEqual(other);
+    expect(useSaveConflictStore.getState().paused).toBe(true);
+  });
+  it("an edit after approval but before the caller resumes invalidates the transition", async () => {
+    const { pending } = await pendingDraft();
+    usePromptDialogStore.getState().resolve("confirm");
+    queueMicrotask(() => useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "late edit"));
+    expect(await pending).toBe(false);
+    expect(useEditorStore.getState().spec.pages[useEditorStore.getState().activePageId].name).toBe("late edit");
+  });
+});

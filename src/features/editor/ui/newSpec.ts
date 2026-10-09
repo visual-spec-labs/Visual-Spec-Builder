@@ -1,5 +1,5 @@
 import { blankSpec } from "@/features/editor/store/blankSpec";
-import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
+import { beginDocumentTransition } from "./documentTransition";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 
@@ -19,7 +19,8 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
  * 문서를 그대로 둔다 — 다른 탭과 충돌했거나 사용자가 폐기를 거절했다.
  */
 export async function newSpec(): Promise<boolean> {
-  if (!await useSaveConflictStore.getState().settle(null)) return false;
+  const transition = beginDocumentTransition();
+  if (!await transition.settle(null) || !transition.current()) return false;
   useEditorStore.getState().loadSpec(blankSpec);
   useDocumentStore.getState().clearFileName();
   return true;

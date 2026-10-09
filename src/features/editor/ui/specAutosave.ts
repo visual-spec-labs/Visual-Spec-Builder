@@ -1,3 +1,4 @@
+import { promptConfirm } from "@/features/editor/store/promptDialogStore";
 import { migrateV01 } from "@/features/editor/schema";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { seedSpec } from "@/features/editor/store/seedSpec";
@@ -43,6 +44,7 @@ export function startSpecAutosave() {
   let renameBaseline = namedRecovery?.renameBaseline ?? null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  let pendingTransition: AbortController | undefined;
   let generation = 0;
   let restoring = false;
   let ownedTarget: { key: string; raw: string } | undefined;
@@ -73,6 +75,7 @@ export function startSpecAutosave() {
     return writeRecovery({ document, key, baseline, conflicted, renameBaseline, diskConflict, reason: pauseReason });
   }
   function pause(fromDisk = false, reason: PauseReason = fromDisk ? "disk" : "remote") {
+    pendingTransition?.abort();
     diskConflict ||= fromDisk;
     conflicted = true;
     pauseReason = reason;
@@ -115,6 +118,7 @@ export function startSpecAutosave() {
   }
   function changed() {
     if (restoring) return;
+    pendingTransition?.abort();
     const next = current();
     if (next.fileName !== document.fileName) {
       generation++;
@@ -168,6 +172,7 @@ export function startSpecAutosave() {
     return adoptLatest({ fileName, spec, diskRevision: snapshot.revision }, false);
   }
   function adoptLatest(latest: StoredDocument, unsaved: boolean): boolean {
+    pendingTransition?.abort();
     restoring = true;
     generation++;
     clearTimeout(timer);
@@ -235,18 +240,37 @@ export function startSpecAutosave() {
   }
   // New/Open/home replace the document synchronously, so a debounced draft would
   // be dropped with the cancelled timer (#267). Persist it under the lock first.
-  async function settle(nextFileName?: string | null): Promise<boolean> {
-    if (!conflicted && read(key) !== serializeStoredDocument(document)) await flush();
-    if (stopped || conflicted || check()) return false;
-    reopenKey = edited && typeof nextFileName === "string" && document.fileName !== null &&
-      projectStorageKey(nextFileName, untitledId) === key ? key : null;
-    if (document.fileName === null && edited) {
-      return window.confirm("저장하지 않은 제목 없는 문서입니다. 계속하면 이 문서의 내용은 다시 열 수 없습니다. 먼저 File → Save로 저장하려면 취소하세요.");
+  async function settle(nextFileName?: string | null, signal?: AbortSignal): Promise<boolean> {
+    pendingTransition?.abort();
+    const controller = new AbortController();
+    pendingTransition = controller;
+    const abort = () => controller.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    const expectedGeneration = generation;
+    const expectedDocument = document;
+    const valid = () => !stopped && !signal?.aborted && !controller.signal.aborted &&
+      pendingTransition === controller && generation === expectedGeneration && document === expectedDocument;
+    try {
+      reopenKey = null;
+      if (!valid()) return false;
+      if (!conflicted && read(key) !== serializeStoredDocument(document)) await flush();
+      if (!valid() || conflicted || check()) return false;
+      let message: string | undefined;
+      if (document.fileName === null && edited) {
+        message = "저장하지 않은 제목 없는 문서입니다. 계속하면 이 문서의 내용은 다시 열 수 없습니다. 먼저 File → Save로 저장하려면 취소하세요.";
+      } else if (edited && read(key) !== serializeStoredDocument(document)) {
+        message = "현재 문서의 변경 내용을 자동저장하지 못했습니다. 계속하면 저장되지 않은 변경이 사라집니다. File → Export로 먼저 보관하려면 취소하세요.";
+      }
+      if (message && !await promptConfirm({ title: "현재 문서를 떠나시겠습니까?", message, signal: controller.signal })) return false;
+      // React prompts yield: never apply an approval to a changed document or a remote revision.
+      if (!valid() || conflicted || check()) return false;
+      reopenKey = edited && typeof nextFileName === "string" && document.fileName !== null &&
+        projectStorageKey(nextFileName, untitledId) === key ? key : null;
+      return true;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      if (pendingTransition === controller) pendingTransition = undefined;
     }
-    // 잠금이 없는 브라우저(보안 컨텍스트가 아닌 http 등)에서는 자동저장이 기록되지 않는다.
-    // 그래도 편집이 없으면 잃을 것이 없으므로 묻지 않는다(PR #294 리뷰).
-    if (!edited || read(key) === serializeStoredDocument(document)) return true;
-    return window.confirm("현재 문서의 변경 내용을 자동저장하지 못했습니다. 계속하면 저장되지 않은 변경이 사라집니다. File → Export로 먼저 보관하려면 취소하세요.");
   }
   // 편집한 파일을 다시 열면 자동저장에는 이 탭의 초안이 있다(settle이 방금 기록했다).
   // 다음 자동저장이 그 초안을 덮기 전에 초안과 방금 연 파일 내용 중 하나를 고르게 한다.
@@ -276,6 +300,7 @@ export function startSpecAutosave() {
     return () => !stopped && generation === expectedGeneration;
   };
   const adoptRename = (update: () => void) => {
+    pendingTransition?.abort();
     restoring = true;
     try { update(); } finally { restoring = false; }
     generation++;
@@ -320,6 +345,7 @@ export function startSpecAutosave() {
   window.addEventListener("beforeunload", beforeUnload);
   return () => {
     stopped = true;
+    pendingTransition?.abort();
     clearTimeout(timer);
     preserve();
     const handed = { serialized: serializeStoredDocument(document), edited };

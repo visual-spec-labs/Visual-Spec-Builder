@@ -9,7 +9,10 @@ import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore"
  */
 export function PromptDialog() {
   const state = usePromptDialogStore((s) => s.state);
-  const resolve = usePromptDialogStore((s) => s.resolve);
+  const resolveRequest = usePromptDialogStore((s) => s.resolve);
+  const resolve = (value: string | null) => {
+    if (state.kind !== "closed") resolveRequest(value, state.requestId);
+  };
   const paused = useSaveConflictStore((s) => s.paused);
 
   const root = useRef<HTMLDivElement>(null);
@@ -21,7 +24,7 @@ export function PromptDialog() {
     // A storage/disk conflict can arrive while an async prompt is pending.
     // Cancel that request and let the conflict dialog own focus and recovery.
     if (paused) {
-      resolve(null);
+      if (requestId !== null) resolveRequest(null, requestId);
       opener.current = null;
       return;
     }
@@ -34,7 +37,7 @@ export function PromptDialog() {
     }
     opener.current ??= document.activeElement;
     root.current?.querySelector<HTMLElement>("input, button")?.focus();
-  }, [requestId, paused, resolve]);
+  }, [requestId, paused, resolveRequest]);
 
   if (state.kind === "closed" || paused) return null;
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
@@ -57,7 +60,9 @@ export function PromptDialog() {
   }
   return (
     <div ref={root} onKeyDown={handleKeyDown} className="fixed inset-0 z-[100] flex items-center justify-center bg-surface-sunken/80">
-      {state.kind === "pick"
+      {state.kind === "confirm"
+        ? <ConfirmDialog state={state} resolve={resolve} />
+        : state.kind === "pick"
         ? <PickDialog key={state.requestId} state={state} resolve={resolve} />
         : <TextDialog key={state.requestId} state={state} resolve={resolve} />}
     </div>
@@ -148,4 +153,20 @@ function PickDialog({
       </div>
     </section>
   );
+}
+
+function ConfirmDialog({ state, resolve }: {
+  state: { title: string; message: string; confirmLabel: string; cancelLabel: string };
+  resolve: (value: string | null) => void;
+}) {
+  return <section role="alertdialog" aria-modal="true" aria-labelledby="transition-title"
+    aria-describedby="transition-message" className="w-full max-w-lg rounded-lg bg-surface-raised p-6 text-content shadow-xl">
+    <h2 id="transition-title" className="mb-3 text-lg font-semibold">{state.title}</h2>
+    <p id="transition-message" className="text-sm text-content-muted">{state.message}</p>
+    <div className="mt-4 flex justify-end gap-2">
+      <button type="button" className="rounded border px-3 py-2" onClick={() => resolve(null)}>{state.cancelLabel}</button>
+      <button type="button" className="rounded border bg-primary px-3 py-2 text-text-on-accent"
+        onClick={() => resolve("confirm")}>{state.confirmLabel}</button>
+    </div>
+  </section>;
 }
