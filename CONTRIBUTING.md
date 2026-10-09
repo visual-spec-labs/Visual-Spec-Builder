@@ -6,7 +6,7 @@
 ## 시작하기
 
 패키지 매니저는 **pnpm**이다 (`package.json`의 `packageManager: pnpm@10.33.0`).
-npm으로 설치하지 않는다. Node는 20 이상이 필요하다.
+npm으로 설치하지 않는다. Node 지원 범위는 `^20.19.0 || >=22.12.0`이다.
 
 ```bash
 git clone https://github.com/visual-spec-labs/Visual-Spec-Builder.git
@@ -79,14 +79,32 @@ docs: 기여 규칙과 라이선스 파일 추가
 - 제목은 커밋 메시지와 같은 `<접두어>: <한 일>` 형식이다. 이슈를 닫는 PR이면 끝에 `(#번호)`를 붙인다.
   예: `fix: 탭 저장이 앞 탭의 변경을 덮어쓰지 않게 한다 (#232)`
 - 라벨은 제목 접두어와 같은 것 **1개**만 단다. 규칙은 [라벨 7종](#라벨-7종)과 같다.
-- CI(`build` 잡)가 통과해야 병합한다. 검사 항목은 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)에 있고, 순서는
-  `pnpm install --frozen-lockfile` → `pnpm run typecheck` → `pnpm test` → 스키마 드리프트 검사다.
-- 올리기 전에 로컬에서 아래를 돌려보면 CI와 같은 것을 확인할 수 있다.
+- CI의 필수 체크 이름은 `build`로 유지한다. Linux Node `20.19.0`·`22.12.0`·`24` 검사와
+  별도 Chromium 검사가 모두 성공해야 `build`가 성공한다. 실패·취소·skip은 성공으로 취급하지 않는다.
+- Linux 각 버전에서 frozen install → typecheck → lint → 전체 테스트 → production build →
+  스키마 드리프트 검사를 실행한다. 전체 테스트에는 기존 fresh tarball smoke가 포함된다
+  (저장소 밖 새 소비 폴더에 production 의존성 설치, CLI·GUI 응답 확인).
+- Chromium 잡은 Python 3.12와 Playwright 1.62.0 및 그 버전에 대응하는 Chromium을 설치한다.
+  기존 fixture의 `/usr/bin/chromium` 경로도 이 브라우저로 연결하고 opt-in 검사 3개를 명시 실행한다.
+  이는 수동 fixture의 DOM/레이아웃 검사이며 실제 AI 실행이나 전체 사용자 여정 검증은 아니다.
+- #291의 첫 단계다. #262 수정 PR 준비 후 Windows 기본 Git 설정의 새 checkout에서 회귀를
+  검증하고 별도 Windows 잡을 `build.needs`와 성공 판정에 연결한다. #292 사용자 여정 harness는
+  준비된 뒤 별도로 통합한다. 브랜치 보호·배포 설정은 이 단계에서 변경하지 않는다.
+- 올리기 전에 로컬에서 아래를 실행한다. 일반 `pnpm test`의 브라우저 skip은 브라우저 통과 증거가 아니다.
 
 ```bash
+pnpm install --frozen-lockfile
 pnpm run typecheck
+pnpm run lint
 pnpm test
+pnpm run build
 pnpm run generate:types && git diff --exit-code   # 드리프트 검사
+
+# Python Playwright와 Chromium 설치는 .github/workflows/ci.yml의 browser 잡 참고
+VSB_RESPONSIVE_BROWSER=1 VSB_PAGE_SHELL_BROWSER=1 VSB_GRID_BROWSER=1 \
+  CHROME_BIN=/usr/bin/chromium pnpm exec vitest run \
+  test/responsive-codegen-browser.test.ts test/page-shell-browser.test.ts \
+  test/grid-codegen-browser.test.ts
 ```
 
 ## 라벨 7종
