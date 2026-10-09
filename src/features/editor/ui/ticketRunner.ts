@@ -14,7 +14,13 @@
  * 계속 진행되고, 다시 열면 최신 상태를 그대로 본다. 그래서 취소 토큰을 컴포넌트의
  * `useRef`가 아니라 이 모듈의 스코프에 둔다 — `useTicketStore`는 zustand 스토어라
  * 어차피 컴포넌트 생명주기와 무관하게 살아 있고, 여기서 `getState`/`setState`로
- * 직접 읽고 쓴다.
+ * 직접 읽고 쓴다. 대기 연장(`extendTicketWait`)도 같은 이유로 모듈 스코프의 대기 객체를
+ * 본다 — 패널을 닫았다 다시 열어도 같은 요청을 연장한다(#284).
+ *
+ * **응답 수용과 출력 수용을 묶는다(#284).** 응답이 이 요청의 것이어도 그 사이 취소했거나
+ * 재컴파일했으면 결과도 출력도 받지 않는다. 받을 때는 `ui/ticketOutputAcceptance.ts`가
+ * 이 요청의 임시 출력만 `generated/`로 확정하고, 출력이 없는 `done`은 `failed`로 바꾼다.
+ * 상태 전이표와 경계는 docs/26.
  */
 
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -24,6 +30,8 @@ import {
   requestTicketBatch,
   type TicketCancelToken,
 } from "@/features/editor/ticket/ticketAgentClient";
+import { createAgentRequestWait, type AgentRequestWait } from "@/features/editor/ui/agentRequestWait";
+import { acceptTicketOutputs } from "@/features/editor/ui/ticketOutputAcceptance";
 import {
   applyTicketResults,
   isReady,
@@ -34,6 +42,9 @@ import type { Ticket } from "@/features/editor/ticket/types";
 
 /** 진행 중인 웨이브의 취소 토큰. 없으면(null) 아무 웨이브도 돌고 있지 않다. */
 let activeCancel: TicketCancelToken | null = null;
+/** 진행 중인 웨이브 요청의 대기(기한·연장). 끝난 대기는 스스로 연장을 거절한다. */
+let activeWait: AgentRequestWait | null = null;
+let activePromotion: { token: TicketCancelToken; release: () => void } | null = null;
 
 // "실행"이 아니라 "전달"이다(#283 리뷰 대응) — GUI는 에이전트를 실행하지 않고
 // 요청을 전달할 뿐이다. 패널의 다른 문구는 이미 "전달"로 바뀌었는데 이 상수만
@@ -89,12 +100,22 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   // 매번 계산해 보여준다.
   if (isTicketPlanStale()) {
     activeCancel = null;
-    useTicketStore.setState({ running: false, runError: null, runErrorRetryable: false });
+    activeWait = null;
+    useTicketStore.setState({ running: false, runError: null, runErrorRetryable: false, wait: null });
     return;
   }
 
   const cancelToken: TicketCancelToken = { cancelled: false };
   activeCancel = cancelToken;
+  // 진행 보고는 이 웨이브가 아직 현재일 때만 스토어에 쓴다 — 재컴파일 뒤 이전 루프가 끝나기 전
+  // 마지막 회차를 돌며 새 계획의 화면을 덮지 않게 한다.
+  const wait = createAgentRequestWait((progress) => {
+    if (activeWait === wait && useTicketStore.getState().generation === generation) {
+      useTicketStore.setState({ wait: progress });
+    }
+  });
+  activeWait = wait;
+  const requestId = createTicketRequestId();
 
   useTicketStore.setState((state) => ({
     tickets: waveTickets.reduce(
@@ -104,16 +125,27 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     running: true,
     runError: null,
     runErrorRetryable: false,
+    wait: { phase: "saving", deadline: null },
   }));
 
   const outcome = await requestTicketBatch(
-    { id: createTicketRequestId(), pageId: sourcePageId, page: sourcePage, tickets: waveTickets },
+    { id: requestId, pageId: sourcePageId, page: sourcePage, tickets: waveTickets },
     cancelToken,
+    wait,
+    true,
   );
 
-  if (useTicketStore.getState().generation !== generation) return;
+  if (useTicketStore.getState().generation !== generation) {
+    if (outcome.kind === "response") outcome.lock?.release();
+    return;
+  }
+  if (activeWait === wait) activeWait = null;
+  useTicketStore.setState({ wait: null });
 
-  if (outcome.kind === "cancelled") {
+  // 응답을 읽은 회차와 취소 클릭이 엇갈릴 수 있다. 사용자가 취소했으면 그 요청의 응답도 출력도
+  // 받지 않는다 — 취소는 "이 요청의 결과를 수용하지 않는다"는 뜻이다(docs/26).
+  if (outcome.kind === "cancelled" || cancelToken.cancelled) {
+    if (outcome.kind === "response") outcome.lock?.release();
     revertToPending(waveTickets);
     useTicketStore.setState({ running: false });
     activeCancel = null;
@@ -126,17 +158,20 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     // 요청 파일은 이미 썼는데 더 이상 누구도 응답을 기다리지 않는 상태라 "다시
     // 눌러 새 요청을 만들라"가 맞다. unavailable·busy(요청 전 잠금 충돌)·
     // writeFailed는 애초에 요청이 안 쓰였거나 다른 탭이 잠금을 쥐고 있어, 같은
-    // 문구가 실제 원인과 안 맞는다.
+    // 문구가 실제 원인과 안 맞는다. connectionLost(#284)도 요청은 이미 썼으므로 서버를 되살린 뒤
+    // 새 요청을 만드는 것이 다음 행동이다.
     useTicketStore.setState({
       running: false,
       runError: outcome.message,
-      runErrorRetryable: outcome.kind === "timeout" || outcome.kind === "lockLost",
+      runErrorRetryable:
+        outcome.kind === "timeout" || outcome.kind === "lockLost" || outcome.kind === "connectionLost",
     });
     activeCancel = null;
     return;
   }
 
   if (outcome.result.kind !== "results") {
+    outcome.lock?.release();
     revertToPending(waveTickets);
     useTicketStore.setState({
       running: false,
@@ -148,10 +183,46 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     return;
   }
 
-  const results = outcome.result.results;
-  useTicketStore.setState((state) => ({ tickets: applyTicketResults(state.tickets, results) }));
+  // 이 요청의 임시 출력만 확정한다. 확정은 요청에 실었던 입력(sourcePage)으로 기록한다 — 그
+  // 사이 편집했다면 Export가 지문 차이로 "오래됨"을 보인다(결과 반영 정책은 #271 그대로).
+  const promotion = { token: cancelToken, release: () => outcome.lock?.release() };
+  activePromotion = promotion;
+  // Recompilation can start a new run while an old PUT body is still in flight.
+  // Revoke the old lease immediately; the server fences that delayed write.
+  const unsubscribe = useTicketStore.subscribe((state) => {
+    if (state.generation !== generation) promotion.release();
+  });
+  const acceptance = await acceptTicketOutputs({
+    requestId,
+    pageId: sourcePageId,
+    page: sourcePage,
+    waveTickets,
+    results: outcome.result.results,
+    isCurrent: () => !cancelToken.cancelled && useTicketStore.getState().generation === generation,
+    renew: () => outcome.lock?.renew(true) ?? Promise.resolve(false),
+  }).finally(() => {
+    unsubscribe();
+    promotion.release();
+    if (activePromotion === promotion) activePromotion = null;
+  });
+  // 확정하는 사이 재컴파일됐으면 지금 tickets는 이 웨이브와 무관하다. 확정한 파일은 그 요청 입력의
+  // 사실로 기록돼 있고 Export가 판정한다.
+  if (useTicketStore.getState().generation !== generation) return;
 
-  if (chain) {
+  const results = acceptance.results;
+  useTicketStore.setState((state) => {
+    let tickets = applyTicketResults(state.tickets, results);
+    // Stop leaves uncommitted work retryable; already committed files keep their result.
+    if (cancelToken.cancelled) {
+      const completed = new Set(results.filter((result) => result.status === "done").map((result) => result.ticketId));
+      for (const ticket of waveTickets) {
+        if (!completed.has(ticket.id)) tickets = markTicketStatus(tickets, ticket.id, "pending");
+      }
+    }
+    return { tickets, ...(acceptance.manifestError === null ? {} : { acceptanceWarning: acceptance.manifestError }) };
+  });
+
+  if (chain && !cancelToken.cancelled) {
     const nextWave = readyTickets(useTicketStore.getState().tickets);
     if (nextWave.length > 0) {
       await runWave(nextWave, true);
@@ -180,7 +251,21 @@ export async function runOneTicket(id: string): Promise<void> {
   await runWave([ticket], false);
 }
 
-/** 진행 중인 웨이브를 멈춘다. 다음 폴링 차례에 반영된다(즉시가 아니다). */
+/**
+ * 진행 중인 웨이브를 멈춘다. 다음 폴링 차례에 반영된다(즉시가 아니다). GUI가 기다림을 멈추고 그
+ * 요청의 결과를 받지 않는 것이지, 외부 에이전트를 멈추는 것은 아니다(docs/26).
+ */
 export function cancelTicketRun(): void {
-  if (activeCancel !== null) activeCancel.cancelled = true;
+  if (activeCancel !== null) {
+    activeCancel.cancelled = true;
+    if (activePromotion?.token === activeCancel) activePromotion.release();
+  }
+}
+
+/**
+ * 진행 중인 요청의 기한을 미룬다(#284). 같은 요청 ID 그대로다 — 새 요청은 "에이전트에 전달"을 다시
+ * 누를 때만 생긴다. 끝난 요청이면 false.
+ */
+export function extendTicketWait(): boolean {
+  return activeWait?.extend() ?? false;
 }

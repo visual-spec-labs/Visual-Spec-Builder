@@ -1,7 +1,7 @@
 # Visual Spec Builder 제작 연대기
 
 > 다섯 명의 팀이 "화면 스펙을 실제 코드 구현으로 이어 주는 도구"를 만들어 온 기록이다.
-> 2026-07-24 첫 회의부터 2026-10-08 수집 시점까지 커밋 656개, 병합된 PR 163건, 이슈 159건이 쌓였다.
+> 2026-07-24 첫 회의부터 2026-10-10 수집 시점까지 커밋 749개, 병합된 PR 184건, 이슈 159건이 쌓였다.
 > 단계별 PR·이슈 목록은 [부록](./appendix.md)에, 원본 데이터는 [`data/`](./data/)에 있다.
 
 ---
@@ -18,7 +18,7 @@
 | **5. 말이 화면이 되다** | 09-27 ~ 10-02 | 자연어 생성·수정, 코드 ZIP 내보내기, 에이전트 실행 왕복 |
 | **6. 몰아친 하루 — 배경과 반응형** | 10-03 ~ 10-04 | 캔버스 드래그, 채우기 겹 배경(v0.3), 반응형 스키마가 하루에 |
 | **7. 첫 완주** | 10-05 | 이미지 배경과 실행 정책을 마무리하고, 로그인 예제로 설치부터 Export·독립 앱 통합까지 검증 |
-| **8. 제품으로 다듬다** | 10-06 ~ | 생성 코드 정합성, 편집 안정성, 설치 가능한 런타임 |
+| **8. 제품으로 다듬다** | 10-06 ~ | 생성 코드 정합성, 편집 안정성, 설치 가능한 런타임, 성능 실측과 필수 CI |
 
 ```mermaid
 timeline
@@ -30,7 +30,7 @@ timeline
     9월 말 : 자연어 생성 · 코드 Export : 에이전트 실행 왕복
     10월 4일 : 캔버스 드래그 : 배경 Fill[] · 반응형
     10월 5일 : 로그인 예제의 전체 흐름 검증
-    10월 6일~ : 생성 코드 정합성 : 설치 가능한 런타임
+    10월 6일~ : 생성 코드 정합성 : 설치 가능한 런타임 : 성능 실측과 필수 CI
 ```
 
 ---
@@ -89,8 +89,6 @@ timeline
 - 에이전트 스킬 번들 6종 ([#17](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/17))
 - "무엇이 되고 무엇이 남았는지"를 적는 구현 현황 문서 07 ([#18](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/18))
 - 기여 규칙과 거버넌스 파일 ([#19](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/19))
-
-기여 규칙과 CI가 생긴 뒤, 8월 하순의 PR에는 리뷰 승인이 자리 잡았다. 시기별 리뷰 기록은 [부록](./appendix.md)에 모았다.
 
 ---
 
@@ -192,7 +190,7 @@ dogui1018은 티켓 패널에 **에이전트 실행 왕복**을 연결했다([#1
 
 ## 8. 제품으로 다듬다
 
-`10-06 ~ 10-08 수집 시점` · 병합 PR 21
+`10-06 ~ 10-10 수집 시점` · 병합 PR 42 · 커밋 218
 
 첫 완주 뒤의 과제는 "돌아간다"를 "믿고 쓸 수 있다"로 바꾸는 일이었다. 10월 6일 이슈·PR 제목과 라벨 규칙을 정한 뒤([#266](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/266)), 팀원들이 영역을 나눠 다듬기 시작했다.
 
@@ -202,7 +200,11 @@ dogui1018은 티켓 패널에 **에이전트 실행 왕복**을 연결했다([#1
 
 Export가 주는 것은 사용자 앱에 넣어 쓰는 **화면 단위 React 컴포넌트 묶음**이다([#311](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/311)). 앱 셸·라우터·인증·백엔드는 사용자 앱에서 맡는다([제공 범위](../21-app-scope-a11y-design.md)). 설치 경로도 저장소 클론에서 한 걸음 나아가, **로컬 tarball을 별도 폴더에 설치해 CLI와 GUI를 실행**하는 데까지 확인했다([#320](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/320), [런타임 QA](../qa/package-tarball-runtime.md)). npm 공개 배포는 아직 하지 않았다.
 
-수집 시점에 팀은 성능 측정과 함께 **화면 사이의 관계**(모달·위젯·화면 이동)를 스키마로 표현하는 다음 큰 줄기([#265](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265))를 준비하고 있다.
+10월 8일 밤부터는 **성능**과 **검증 체계**로 무게가 옮겨 갔다. wook3964가 프로젝트·노드·이미지 규모별 성능을 실측해 후속 우선순위를 정했고([#313](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/313)), 이어서 CLI가 띄우는 GUI를 React production 빌드로 바꾸고([#323](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/323)), 홈 카드 미리보기를 보이는 영역 근처에서만 그리고([#324](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/324)), 홈 목록을 앞에서부터 묶음으로 읽고([#325](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/325)), 미리보기에 카드 크기로 줄인 이미지를 쓰게 했다([#334](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/334)). 입력 경로와 큰 이미지 표시도 따로 쟀다([#326](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/326)·[#327](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/327)). GAMMJ는 GUI와 생성 화면의 레이아웃을 같은 기준으로 재는 계약과 비교 도구를 더했고([#333](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/333)), dogui1018은 홈의 프로젝트·화면 용어를 통일하고 Open·Save as·Rename을 앱 안의 모달로 바꿨다([#332](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/332)).
+
+Yumesa2025는 필수 검사를 넓혔다. 세 Node 버전의 lint·전체 테스트·production 빌드와 브라우저 fixture 검사([#336](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/336)), Windows fresh checkout 검사([#342](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/342), 줄바꿈과 경로 표시는 [#335](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/335)에서 먼저 고침), 그리고 Export 여정 fixture([#338](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/338))를 포함한 사용자 여정 5개([#346](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/346))가 모두 필수 검사 `build`에 묶였다. 편집기에서는 문서 전환 확인을 비차단 모달로 바꾸고([#337](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/337)), 이름 없는 초안을 홈에서 같은 UUID로 이어 열게 하고([#341](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/341)), 선택 범위와 반응형 편집 기준([#340](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/340)), 파일 저장과 브라우저 초안 상태([#344](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/344)), 속성 패널의 용어와 입력 안내([#345](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/345))를 분명히 했다. 이 연대기도 이 무렵 저장소에 들어왔다([#331](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/331)).
+
+수집 시점에 팀은 **화면 사이의 관계**(모달·위젯·화면 이동)를 스키마로 표현하는 다음 큰 줄기([#265](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265))를 준비하고 있다.
 
 ---
 
@@ -242,10 +244,10 @@ Export가 주는 것은 사용자 앱에 넣어 쓰는 **화면 단위 React 컴
 
 ## 이 기록에 대하여
 
-2026년 7월 24일 첫 회의부터 10월 8일 수집 시점까지의 팀 기록이다. 날짜는 한국 시간(KST)으로 통일했다. 커밋은 당시 `develop`에서 도달 가능한 이력 전체를 **committer 날짜**로 나누며 병합 커밋도 포함한다. PR은 병합일, 이슈는 생성일 기준으로 각각 한 번씩 센다. 리뷰 승인은 수집 당시 승인으로 분류된 PR 수다.
+2026년 7월 24일 첫 회의부터 10월 10일 수집 시점까지의 팀 기록이다. 날짜는 한국 시간(KST)으로 통일했다. 커밋은 수집 시점의 `develop`에서 도달 가능한 이력 전체를 **committer 날짜**로 나누며 병합 커밋도 포함한다. PR은 `develop`에 병합된 것을 병합일 기준으로(첫 스키마 PR [#1](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/1)만 `main` 대상), 이슈는 생성일 기준으로 각각 한 번씩 센다.
 
-[부록](./appendix.md)의 목록과 집계는 동결된 [커밋](./data/commits.json)·[PR](./data/events.json)·[이슈](./data/issues.json) 자료에서 생성한다. 정확한 수집 시각·기준 커밋과 원자료는 데이터 파일에, 재생성·검증 명령은 부록에 있다. 수치는 팀 저장소 전체 기준이고, 인물 표는 기록에 나타난 주 영역을 요약했다.
+[부록](./appendix.md)의 목록과 집계는 [커밋](./data/commits.json)·[PR](./data/events.json)·[이슈](./data/issues.json) 자료에서 생성한다. 자료는 갱신을 요청받을 때마다 마지막 수집 시점 이후의 `develop` 기록을 덧붙이는 방식으로 늘린다. 새 PR은 진행 중인 마지막 단계에 들어가고, 새 단계의 경계와 본문 서술은 사람이 정한다. 명령과 절차는 [갱신 절차](./UPDATING.md)에, 정확한 수집 시각·기준 커밋은 데이터 파일에 있다. 수치는 팀 저장소 전체 기준이고, 인물 표는 기록에 나타난 주 영역을 요약했다.
 
 공개 근거는 GitHub 기록과 저장소의 계약·QA 문서다. 초기 기획과 회의 내용은 [ClickUp 팀 문서](../../README.md#기획-원본)를 함께 참고했으며 접근 권한이 필요할 수 있다. QA 결과는 각 기록에 적힌 예제·코드·환경의 범위로 읽는다.
 
-*마지막 갱신: 2026-10-08*
+*마지막 갱신: 2026-10-10*

@@ -12,22 +12,28 @@
  *
  * `nlProtocol.ts`의 응답은 Command 배열이라 G1(`validateTransaction`)을 통과시켜야
  * `editorStore.applyGuardedTransaction`에 넘길 수 있다. 티켓 실행은 Command를 만들지
- * 않는다 — 에이전트가 `.visual-spec/generated/pages|components/*.tsx`를 직접 쓴다
- * (`skills/visual-spec-to-react/SKILL.md`의 고정 경로). 그래서 응답은 "이 티켓들이
- * 각각 끝났는지 실패했는지"라는 상태 보고일 뿐이고, 그 결과로 실제 파일이 맞게
- * 생겼는지는 이 파일이 아니라 `export/verifyGenerated.ts`(#157)가 검증한다 — 여기서
- * 다시 훑지 않는다.
+ * 않는다 — 에이전트가 코드 파일을 쓴다. 그래서 응답은 "이 티켓들이 각각 끝났는지
+ * 실패했는지"라는 상태 보고일 뿐이고, 그 결과로 실제 파일이 맞게 생겼는지는 이 파일이
+ * 아니라 `export/verifyGenerated.ts`(#157)가 검증한다 — 여기서 다시 훑지 않는다.
+ *
+ * ## 임시 출력과 확정 (규약 v2, 이슈 #284)
+ *
+ * v1은 에이전트가 `generated/`에 바로 썼다. 그러면 취소·만료된 요청이 늦게 쓴 파일도
+ * 현재 결과와 같은 경로에 떨어져 Export가 성공으로 보였다. v2부터 에이전트는 요청마다
+ * 다른 임시 출력 `staging/<requestId>/<filePath>`(`outputPath`)에 쓰고, GUI가 현재 요청의
+ * 출력만 읽어 `generated/<filePath>`로 확정한다(`ui/ticketOutputAcceptance.ts`). `filePath`는
+ * 그대로 "확정될 자리"이자 출력 신원이다. 근거와 경계는 docs/26.
  *
  * ## 핸드셰이크
  *
  * ```
  * GUI                                     에이전트
  *  │ PUT runtime/ticket-request.json ──▶   (읽는다)
- *  │                                        각 티켓의 filePath에 코드를 쓴다
+ *  │                                        각 티켓의 outputPath(staging)에 쓴다
  *  │ GET runtime/ticket-response.json ◀──  PUT runtime/ticket-response.json
  *  │   requestId가 같아질 때까지 폴링
  *  ▼
- * ticketStatus.applyTicketResults → ticketStore.tickets 갱신 → (전체 실행이면) 다음 웨이브
+ * 수용 검사·확정(staging → generated, #284) → ticketStore.tickets 갱신 → (전체 실행이면) 다음 웨이브
  * ```
  *
  * 요청은 한 번에 여러 티켓을 실어 보낼 수 있다 — `dependsOn`이 전부 `"done"`인
@@ -44,13 +50,13 @@
 import type { NodeId, PageId, ScreenSpec } from "@/features/editor/schema";
 import { ticketFilePath } from "@/features/editor/export/generatedPaths";
 import type { Ticket, TicketStatus } from "@/features/editor/ticket/types";
-import { RUNTIME_DIR } from "@/features/workspace/protocol";
+import { RUNTIME_DIR, STAGING_DIR } from "@/features/workspace/protocol";
 
 /**
  * 요청/응답 JSON에 함께 실리는 형식 버전. `nlProtocol.NL_PROTOCOL_VERSION`과 같은
  * 이유로 둔다 — 에이전트 쪽 구현이 GUI보다 오래된 규약을 들고 있을 수 있다.
  */
-export const TICKET_PROTOCOL_VERSION = 1;
+export const TICKET_PROTOCOL_VERSION = 2;
 
 /** GUI가 쓰는 요청 파일(작업공간 루트 기준 상대 경로). */
 export const TICKET_REQUEST_PATH = `${RUNTIME_DIR}/ticket-request.json`;
@@ -67,8 +73,23 @@ export interface TicketRequestItem {
   componentName: string;
   kind: "page" | "component";
   instances: NodeId[];
-  /** `.visual-spec/generated/` 기준 상대 경로. `export/generatedPaths.ticketFilePath`가 정한다. */
+  /**
+   * 확정될 자리 — `.visual-spec/generated/` 기준 상대 경로. `export/generatedPaths.ticketFilePath`가
+   * 정한다. 에이전트는 여기에 직접 쓰지 않는다(v2).
+   */
   filePath: string;
+  /** 에이전트가 실제로 쓰는 임시 출력 — `.visual-spec/` 기준 상대 경로(#284). */
+  outputPath: string;
+}
+
+/** 요청 하나의 임시 출력 폴더(`.visual-spec/` 기준). 요청 ID마다 다르다. */
+export function ticketOutputRoot(requestId: string): string {
+  return `${STAGING_DIR}/${requestId}`;
+}
+
+/** 확정될 자리(`generated/` 기준)에 대응하는 이 요청의 임시 출력 경로(`.visual-spec/` 기준). */
+export function ticketOutputPath(requestId: string, filePath: string): string {
+  return `${ticketOutputRoot(requestId)}/${filePath}`;
 }
 
 export interface TicketRequest {
@@ -83,6 +104,8 @@ export interface TicketRequest {
   tickets: TicketRequestItem[];
   /** 에이전트가 답을 써야 하는 자리. 규약을 문서 밖에서도 알 수 있게 실어 보낸다. */
   responsePath: string;
+  /** 이 요청의 임시 출력 폴더(`.visual-spec/` 기준, #284). 각 티켓의 `outputPath`는 이 아래다. */
+  outputRoot: string;
 }
 
 export interface BuildTicketRequestInput {
@@ -105,8 +128,10 @@ export function buildTicketRequest(input: BuildTicketRequestInput): TicketReques
       kind: ticket.kind,
       instances: ticket.instances,
       filePath: ticketFilePath(ticket),
+      outputPath: ticketOutputPath(input.id, ticketFilePath(ticket)),
     })),
     responsePath: TICKET_RESPONSE_PATH,
+    outputRoot: ticketOutputRoot(input.id),
   };
 }
 
@@ -183,5 +208,8 @@ export function parseTicketResponse(
     return { kind: "malformed", message: "results 항목 모양이 규약과 다릅니다." };
   }
 
+  if (new Set(body.results.map((item) => item.ticketId)).size !== body.results.length) {
+    return { kind: "malformed", message: "응답 티켓 ID가 중복됩니다." };
+  }
   return { kind: "results", results: body.results };
 }

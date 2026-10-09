@@ -21,7 +21,12 @@ import {
   writeWorkspaceFile,
 } from "@/features/editor/ui/workspaceClient";
 import { holdRequestLock, type HeldRequestLock } from "@/features/editor/ui/agentRequestLock";
-import { RUNTIME_DIR } from "@/features/workspace/protocol";
+import {
+  AGENT_WAIT_WINDOW_MS,
+  createAgentRequestWait,
+  type AgentRequestWait,
+} from "@/features/editor/ui/agentRequestWait";
+import { RUNTIME_DIR, STAGING_DIR } from "@/features/workspace/protocol";
 
 import {
   buildTicketRequest,
@@ -37,10 +42,10 @@ import {
 export const TICKET_POLL_INTERVAL_MS = 1000;
 
 /**
- * 기다리기를 포기하는 시각. 3분이다 — `nlAgentClient.NL_TIMEOUT_MS`와 같은 근거
- * (사람이 에이전트에 요청을 옮기는 시간이 끼는 경로).
+ * 처음 기다리는 시간. 자연어 통로와 같은 창을 쓴다 — 연장도 같은 규칙이다
+ * (`ui/agentRequestWait.ts`, #284). 고정 기한이 아니라 사용자가 "대기 연장"으로 미룰 수 있다.
  */
-export const TICKET_TIMEOUT_MS = 180_000;
+export const TICKET_TIMEOUT_MS = AGENT_WAIT_WINDOW_MS;
 
 export type TicketBatchOutcome =
   | { kind: "unavailable"; message: string }
@@ -55,8 +60,13 @@ export type TicketBatchOutcome =
   | { kind: "lockLost"; message: string }
   | { kind: "writeFailed"; message: string }
   | { kind: "timeout"; message: string }
+  /**
+   * 기한까지 작업공간 서버에 닿지 못했다(#284). `timeout`과 가르는 이유는 다음 행동이 달라서다 —
+   * 이쪽은 에이전트가 아니라 개발 서버(`npx visual-spec`)부터 확인해야 한다.
+   */
+  | { kind: "connectionLost"; message: string }
   | { kind: "cancelled" }
-  | { kind: "response"; result: TicketResponseResult };
+  | { kind: "response"; result: TicketResponseResult; lock?: HeldRequestLock };
 
 /** 취소 신호. 호출부(ticketStore)가 "중지"를 누르면 `cancelled`를 세운다. */
 export interface TicketCancelToken {
@@ -83,11 +93,32 @@ export function createTicketRequestId(): string {
  * 요청 파일을 쓰고 응답이 올 때까지 폴링한다.
  *
  * 취소는 토큰으로 받는다 — 루프가 매 회차 앞에서 토큰을 보므로, 취소가 걸리면
- * 다음 GET을 아예 보내지 않는다(`nlAgentClient.requestNlEdit`과 같은 패턴).
+ * 다음 GET을 아예 보내지 않는다(`nlAgentClient.requestNlEdit`과 같은 패턴). 취소는 GUI가
+ * 기다림을 멈추는 것이지 에이전트를 멈추는 것이 아니다 — 그 요청이 늦게 쓰는 파일은 요청
+ * 전용 임시 출력에 남고, 확정은 호출부가 현재 요청에 대해서만 한다(docs/26).
+ *
+ * `wait`는 호출부가 "대기 연장" 버튼과 진행 표시를 위해 넘긴다. 결과가 정해지면 여기서
+ * `settle`한다 — 끝난 요청은 연장되지 않는다.
  */
 export async function requestTicketBatch(
   input: BuildTicketRequestInput,
   cancel: TicketCancelToken,
+  wait: AgentRequestWait = createAgentRequestWait(),
+  /** 출력 확정 호출자는 true로 넘기고 response.lock을 finally에서 해제한다. */
+  retainLock = false,
+): Promise<TicketBatchOutcome> {
+  try {
+    return await sendTicketBatch(input, cancel, wait, retainLock);
+  } finally {
+    wait.settle();
+  }
+}
+
+async function sendTicketBatch(
+  input: BuildTicketRequestInput,
+  cancel: TicketCancelToken,
+  wait: AgentRequestWait,
+  retainLock: boolean,
 ): Promise<TicketBatchOutcome> {
   const request = buildTicketRequest(input);
 
@@ -100,19 +131,26 @@ export async function requestTicketBatch(
       message: "다른 탭(창)에서 보낸 티켓 실행 요청이 아직 응답을 기다리고 있습니다. 그 요청이 끝나거나 취소된 뒤 다시 시도하세요.",
     };
   }
+  let transferred = false;
   try {
     // 잠금을 기다리는 사이 취소됐으면 요청 파일을 쓰지 않는다 — 쓰면 외부 에이전트가 정리 전에
     // 읽고 실행할 수 있다(PR #296 리뷰). 잠금은 아래 finally가 푼다.
     if (cancel.cancelled) return { kind: "cancelled" };
-    return await waitForTicketResponse(request, cancel, lock === "unavailable" ? null : lock);
+    const outcome = await waitForTicketResponse(request, cancel, wait, lock === "unavailable" ? null : lock);
+    if (retainLock && outcome.kind === "response" && lock !== "unavailable") {
+      transferred = true;
+      return { ...outcome, lock };
+    }
+    return outcome;
   } finally {
-    if (lock !== "unavailable") lock.release();
+    if (!transferred && lock !== "unavailable") lock.release();
   }
 }
 
 async function waitForTicketResponse(
   request: ReturnType<typeof buildTicketRequest>,
   cancel: TicketCancelToken,
+  wait: AgentRequestWait,
   lock: HeldRequestLock | null,
 ): Promise<TicketBatchOutcome> {
   const written = await writeWorkspaceFile(
@@ -132,9 +170,12 @@ async function waitForTicketResponse(
       : { kind: "writeFailed", message: `요청을 저장하지 못했습니다 — ${written.error}` };
   }
 
-  const deadline = Date.now() + TICKET_TIMEOUT_MS;
+  wait.start();
+  const stagedPrefix = `${request.id}/`;
   for (;;) {
     if (cancel.cancelled) return { kind: "cancelled" };
+    // 연결이 끊긴 동안 잠금 연장은 서버에 닿지 않아 true로 지나간다. 복구된 첫 회차에 연장이
+    // 서버에 닿으면서 소유권을 다시 확인한다 — 끊긴 사이 기한이 지나 다른 탭이 가져갔으면 여기서 끝난다.
     if (lock !== null && !await lock.renew()) {
       return {
         kind: "lockLost",
@@ -144,20 +185,43 @@ async function waitForTicketResponse(
 
     // 파일을 바로 GET하지 않고 목록으로 있는지 먼저 본다 — 아직 안 온 응답을 404로
     // 반복 조회하며 콘솔을 채우지 않는다(`nlAgentClient.requestNlEdit`과 같은 이유).
+    // 목록이 null이면 작업공간 서버에 닿지 않은 것이다 — "아직 응답 없음"과 구분해 알린다.
     const files = await listWorkspaceFiles(RUNTIME_DIR);
+    if (files === null) {
+      wait.report("connectionLost");
+    } else {
+      // 이 요청의 임시 출력이 보이는지 — GUI가 가진 유일한 에이전트 활동 근거다. 표시용일 뿐
+      // 수용 판단에는 쓰지 않는다(확정은 경로별로 직접 읽는다). 목록 상한(서버 2000개)에
+      // 잘리면 덜 셀 수 있다.
+      const staged = await listWorkspaceFiles(STAGING_DIR, { recursive: true });
+      wait.report("waiting", staged?.filter((path) => path.startsWith(stagedPrefix)).length);
+    }
     const result =
       files !== null && files.includes(TICKET_RESPONSE_FILE)
         ? parseTicketResponse(await readWorkspaceTextFile(TICKET_RESPONSE_PATH), request.id)
         : ({ kind: "stale" } as const);
-    if (result.kind !== "stale") return { kind: "response", result };
+    if (cancel.cancelled) return { kind: "cancelled" };
+    if (!wait.expired() && result.kind !== "stale") {
+      // A slow response GET may outlive the lease. Verify ownership again before accepting it.
+      if (lock !== null && !await lock.renew(true)) {
+        return { kind: "lockLost", message: "응답 수용 전에 요청 잠금을 확인하지 못했습니다. 다시 요청하세요." };
+      }
+      if (cancel.cancelled) return { kind: "cancelled" };
+      if (!wait.expired()) return { kind: "response", result };
+    }
 
-    if (Date.now() >= deadline) {
+    if (wait.expired()) {
       // 원시 경로는 더 이상 이 문구에 넣지 않는다(#283) — 패널이 "자세히"로
       // 같은 경로를 보여주고, 이 문구는 사람이 다음에 할 일만 말한다.
-      return {
-        kind: "timeout",
-        message: `${Math.round(TICKET_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 지시를 다시 복사해 전달하세요.`,
-      };
+      return files === null
+        ? {
+            kind: "connectionLost",
+            message: "작업공간 연결이 끊긴 채 대기 시간이 끝났습니다. 개발 서버(`npx visual-spec`)가 실행 중인지 확인한 뒤 다시 요청하세요.",
+          }
+        : {
+            kind: "timeout",
+            message: "대기 시간 안에 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요.",
+          };
     }
     await sleep(TICKET_POLL_INTERVAL_MS);
   }
