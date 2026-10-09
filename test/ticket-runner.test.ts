@@ -27,10 +27,14 @@ vi.mock("@/features/editor/ticket/ticketAgentClient", () => ({
   requestTicketBatch: vi.fn(),
 }));
 
-// 출력 수용(staging → generated, #284)은 `ticket-output-acceptance.test.ts`가 메모리 작업공간으로
-// 따로 본다. 여기서는 오케스트레이션만 보도록 결과를 그대로 통과시킨다.
+// 출력 수용(staging → generated, #284)과 쓰기 전 확인(#282)은 `ticket-output-acceptance.test.ts`·
+// `manual-change-guard.test.ts`가 메모리 작업공간으로 따로 본다. 여기서는 오케스트레이션만 보도록
+// 확인할 파일이 없는 계획을 만들고 결과를 그대로 통과시킨다.
 vi.mock("@/features/editor/ui/ticketOutputAcceptance", () => ({
-  acceptTicketOutputs: vi.fn(async ({ results }: { results: unknown[] }) => ({ results, manifestError: null })),
+  planTicketOutputs: vi.fn(async ({ results }: { results: unknown[] }) => ({ results, targets: [] })),
+  planNeedsReview: () => false,
+  commitTicketOutputs: vi.fn(async ({ results }: { results: unknown[] }) => ({ results, manifestError: null, run: null })),
+  restoreRegenerationRun: vi.fn(),
 }));
 
 const mockedRequestTicketBatch = vi.mocked(requestTicketBatch);

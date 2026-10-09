@@ -21,8 +21,15 @@
  * 재컴파일했으면 결과도 출력도 받지 않는다. 받을 때는 `ui/ticketOutputAcceptance.ts`가
  * 이 요청의 임시 출력만 `generated/`로 확정하고, 출력이 없는 `done`은 `failed`로 바꾼다.
  * 상태 전이표와 경계는 docs/26.
+ *
+ * **쓰기 전 확인(#282).** 확정 전에 바꿀 파일을 판정해, 사람이 고쳤거나 누구 것인지 모르는 파일이
+ * 있으면 `ticketStore.overwriteReview`에 영향 목록·diff를 두고 사용자의 선택을 기다린다. 기다리는
+ * 동안 "중지"(`cancelTicketRun`)나 재컴파일이 오면 아무 파일도 쓰지 않고 끝난다.
  */
 
+import type { OverwriteDecision, OverwriteReview } from "@/features/editor/export/overwriteGuard";
+import { ticketFilePath } from "@/features/editor/export/generatedPaths";
+import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import {
@@ -31,7 +38,12 @@ import {
   type TicketCancelToken,
 } from "@/features/editor/ticket/ticketAgentClient";
 import { createAgentRequestWait, type AgentRequestWait } from "@/features/editor/ui/agentRequestWait";
-import { acceptTicketOutputs } from "@/features/editor/ui/ticketOutputAcceptance";
+import {
+  commitTicketOutputs,
+  planNeedsReview,
+  planTicketOutputs,
+  restoreRegenerationRun,
+} from "@/features/editor/ui/ticketOutputAcceptance";
 import {
   applyTicketResults,
   isReady,
@@ -44,6 +56,25 @@ import type { Ticket } from "@/features/editor/ticket/types";
 let activeCancel: TicketCancelToken | null = null;
 /** 진행 중인 웨이브 요청의 대기(기한·연장). 끝난 대기는 스스로 연장을 거절한다. */
 let activeWait: AgentRequestWait | null = null;
+/** 쓰기 전 확인을 기다리는 웨이브의 답 전달 함수(#282). 없으면 기다리는 확인이 없다. */
+let activeReview: ((answer: OverwriteAnswer) => void) | null = null;
+
+/** 쓰기 전 확인의 답. 파일별 선택이거나, 아무것도 쓰지 않는 전체 취소다. */
+export type OverwriteAnswer = Readonly<Record<string, OverwriteDecision>> | "cancel";
+
+export const OVERWRITE_CANCELLED_MESSAGE =
+  "덮어쓰기 확인을 취소했습니다. generated/의 파일은 하나도 바뀌지 않았습니다. 새 출력은 임시 출력 폴더에 남아 있습니다.";
+
+function awaitOverwriteReview(review: OverwriteReview): Promise<OverwriteAnswer> {
+  return new Promise((resolve) => {
+    activeReview = (answer) => {
+      activeReview = null;
+      useTicketStore.setState({ overwriteReview: null });
+      resolve(answer);
+    };
+    useTicketStore.setState({ overwriteReview: review });
+  });
+}
 
 // "실행"이 아니라 "전달"이다(#283 리뷰 대응) — GUI는 에이전트를 실행하지 않고
 // 요청을 전달할 뿐이다. 패널의 다른 문구는 이미 "전달"로 바뀌었는데 이 상수만
@@ -91,6 +122,8 @@ function revertToPending(waveTickets: Ticket[]): void {
  */
 async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   const { sourcePageId, sourcePage, generation } = useTicketStore.getState();
+  // 요청 때의 프로젝트(#282). 확정 기록의 소유자가 되고, 기존 파일이 이 프로젝트의 마지막 생성인지 가른다.
+  const projectKey = useDocumentStore.getState().fileName;
   if (sourcePageId === null || sourcePage === null || waveTickets.length === 0) return;
   // 첫 웨이브와 자동으로 이어지는 다음 웨이브 모두 여기서 막는다(#271). 응답을 기다리는
   // 동안 편집했다면 이미 받은 결과는 그 요청(이전 스펙)의 사실이라 반영하지만, 바뀐
@@ -178,13 +211,30 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
 
   // 이 요청의 임시 출력만 확정한다. 확정은 요청에 실었던 입력(sourcePage)으로 기록한다 — 그
   // 사이 편집했다면 Export가 지문 차이로 "오래됨"을 보인다(결과 반영 정책은 #271 그대로).
-  const acceptance = await acceptTicketOutputs({
+  // 먼저 바꿀 파일을 판정하고(#282), 확인이 필요한 파일이 있으면 사용자의 선택을 기다린다.
+  const plan = await planTicketOutputs({
     requestId,
     pageId: sourcePageId,
     page: sourcePage,
+    projectKey,
     waveTickets,
     results: outcome.result.results,
   });
+  if (useTicketStore.getState().generation !== generation) return;
+  let decisions: Readonly<Record<string, OverwriteDecision>> = {};
+  if (planNeedsReview(plan)) {
+    const answer = await awaitOverwriteReview(plan.review);
+    // 확인을 기다리는 사이 재컴파일됐으면 아무것도 쓰지 않는다 — 새 계획의 화면을 건드리지 않는다.
+    if (useTicketStore.getState().generation !== generation) return;
+    if (answer === "cancel" || cancelToken.cancelled) {
+      revertToPending(waveTickets);
+      useTicketStore.setState({ running: false, runError: OVERWRITE_CANCELLED_MESSAGE, runErrorRetryable: false });
+      activeCancel = null;
+      return;
+    }
+    decisions = answer;
+  }
+  const acceptance = await commitTicketOutputs(plan, decisions);
   // 확정하는 사이 재컴파일됐으면 지금 tickets는 이 웨이브와 무관하다. 확정한 파일은 그 요청 입력의
   // 사실로 기록돼 있고 Export가 판정한다.
   if (useTicketStore.getState().generation !== generation) return;
@@ -193,6 +243,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   useTicketStore.setState((state) => ({
     tickets: applyTicketResults(state.tickets, results),
     ...(acceptance.manifestError === null ? {} : { acceptanceWarning: acceptance.manifestError }),
+    ...(acceptance.run === null ? {} : { lastRun: acceptance.run, restoreMessage: null }),
   }));
 
   if (chain) {
@@ -230,6 +281,43 @@ export async function runOneTicket(id: string): Promise<void> {
  */
 export function cancelTicketRun(): void {
   if (activeCancel !== null) activeCancel.cancelled = true;
+  // 쓰기 전 확인을 기다리는 중이면 그 확인을 "전체 취소"로 끝낸다 — 아무 파일도 쓰지 않는다.
+  activeReview?.("cancel");
+}
+
+/**
+ * 쓰기 전 확인에 답한다(#282). 확인 대상 파일 중 `"overwrite"`로 고른 것만 백업 후 바꾸고 나머지는
+ * 보존한다. 기다리는 확인이 없으면 아무 일도 하지 않는다.
+ */
+export function answerOverwriteReview(answer: OverwriteAnswer): void {
+  activeReview?.(answer);
+}
+
+/**
+ * 마지막 적용을 되돌린다(#282). 그 적용이 쓴 바이트가 그대로인 파일만 백업으로 돌려놓고, 그 뒤 다시
+ * 바뀐 파일은 더 새로운 수정이라 건드리지 않는다(`restoreRegenerationRun`). 되돌린 파일의 티켓은
+ * 대기로 돌아간다 — 그 파일은 이제 이번 계획의 결과가 아니다.
+ */
+export async function restoreLastRun(): Promise<void> {
+  const { lastRun, running } = useTicketStore.getState();
+  if (lastRun === null || running) return;
+  useTicketStore.setState({ running: true, restoreMessage: null });
+  const report = await restoreRegenerationRun(lastRun.runId);
+  const restored = new Set(report.restored);
+  const parts = [`${report.restored.length}개 파일을 되돌렸습니다.`];
+  if (report.conflicts.length > 0) {
+    parts.push(`적용 뒤 다시 바뀐 파일은 건드리지 않았습니다: ${report.conflicts.join(", ")}.`);
+  }
+  if (report.failed.length > 0) parts.push(`되돌리지 못한 파일: ${report.failed.join(", ")}.`);
+  if (report.error !== null) parts.push(report.error);
+  if (report.conflicts.length > 0 || report.failed.length > 0) parts.push(`백업: ${lastRun.backupRoot}/`);
+  useTicketStore.setState((state) => ({
+    running: false,
+    lastRun: null,
+    restoreMessage: parts.join(" "),
+    tickets: state.tickets.map((ticket) =>
+      restored.has(ticketFilePath(ticket)) && ticket.status === "done" ? { ...ticket, status: "pending" } : ticket),
+  }));
 }
 
 /**

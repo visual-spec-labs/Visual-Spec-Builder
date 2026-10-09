@@ -21,6 +21,7 @@
  * | GET | `/__vs/list/<폴더>` | 폴더 안 파일 이름 목록 |
  * | GET | `/__vs/file/<폴더>/<경로>` | 파일 내용 |
  * | PUT | `/__vs/file/<폴더>/<경로>` | 파일 쓰기(없으면 만들고, 있으면 덮어쓴다) |
+ * | DELETE | `/__vs/file/generated/<경로>` | 기대 버전이 맞을 때만 생성 파일을 지운다(#282 되돌리기) |
  *
  * 이슈 #133이 제안한 `GET|PUT /__vs/spec/:name`·`PUT /__vs/asset/:name` 대신
  * 폴더를 경로의 첫 조각으로 받는 하나의 라우트로 합쳤다. 이유가 셋 있다.
@@ -70,6 +71,7 @@ import {
   REQUEST_LOCK_FILES,
   isRequestLockKind,
   requestLockKindForPath,
+  tracksRevision,
 } from "./protocol";
 import { migrateToV03 } from "../editor/schema/migrate";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
@@ -346,7 +348,42 @@ export function workspaceRevision(body: Buffer): string {
   return createHash("sha256").update(body).digest("hex");
 }
 
-function handleRead(res: ServerResponse, absolutePath: string, isSpec: boolean): void {
+/** 지금 디스크 바이트의 버전. 없으면 `missing`. 읽기 실패는 그대로 던진다(없음으로 보지 않는다). */
+function currentRevision(absolutePath: string): string {
+  try { return workspaceRevision(readFileSync(absolutePath)); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return WORKSPACE_MISSING_REVISION;
+    throw error;
+  }
+}
+
+/**
+ * 생성 파일을 지운다 — **기대 버전이 지금 바이트와 같을 때만**(#282).
+ *
+ * 앱이 새로 만든 생성 파일을 되돌릴 때(중간 실패 보상·사용자 되돌리기) 쓴다. 기대 버전 없이 지우는
+ * 길은 열지 않는다: 지울 수 있는 것은 앱이 직접 쓴 그 바이트뿐이고, 그 뒤 사람이 한 글자라도
+ * 고쳤으면 409로 남긴다. `generated/` 밖(스펙·에셋·백업·임시 출력)은 405다.
+ */
+function handleDelete(req: IncomingMessage, res: ServerResponse, absolutePath: string, relativePath: string): void {
+  if (!relativePath.startsWith("generated/")) { sendError(res, 405, "생성 파일만 지울 수 있습니다."); return; }
+  const expected = req.headers[WORKSPACE_EXPECTED_REVISION_HEADER];
+  if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) {
+    sendError(res, 428, "지울 파일의 기대 버전이 필요합니다."); return;
+  }
+  void withWorkspaceMutation([absolutePath], () => {
+    try {
+      if (currentRevision(absolutePath) !== expected) {
+        sendError(res, 409, "확인한 뒤 파일이 바뀌었거나 없어졌습니다. 지우지 않았습니다."); return;
+      }
+      unlinkSync(absolutePath);
+      sendJson(res, 200, { ok: true, path: relativePath });
+    } catch (error) {
+      sendError(res, 500, error instanceof Error ? error.message : String(error));
+    }
+  }).catch((error: unknown) => sendError(res, 500, String(error)));
+}
+
+function handleRead(res: ServerResponse, absolutePath: string, withRevision: boolean): void {
   let stats;
   try {
     stats = statSync(absolutePath);
@@ -365,7 +402,7 @@ function handleRead(res: ServerResponse, absolutePath: string, isSpec: boolean):
   res.setHeader("content-length", stats.size);
   // SVG는 같은 오리진의 문서로 열릴 수 있다 — 스크립트·외부 요청을 원천 차단한다.
   res.setHeader("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'");
-  if (isSpec) {
+  if (withRevision) {
     // Hash and send the same snapshot; streaming a later file could mismatch its token.
     try {
       const body = readFileSync(absolutePath);
@@ -401,6 +438,26 @@ function handleWrite(
         sendError(res, 403, "작업공간 밖으로 나가는 경로입니다.");
         return;
       }
+      // 생성 파일·백업의 기대 버전 비교(#282). `generated/`는 보낸 쓰기만 비교한다(opt-in) — 외부
+      // 에이전트는 이 라우트를 거치지 않으므로 이것이 외부 writer 보호는 아니다. 앱의 확정·되돌리기는
+      // 언제나 보내서, 사용자가 확인한 뒤 파일이 바뀌었으면 쓰지 않는다. `backups/`는 필수다.
+      if (relativePath.startsWith("generated/") || relativePath.startsWith("backups/")) {
+        const expected = req.headers[WORKSPACE_EXPECTED_REVISION_HEADER];
+        if (expected === undefined && relativePath.startsWith("backups/")) {
+          sendError(res, 428, "백업은 새 파일로만 씁니다. 기대 버전이 필요합니다."); return;
+        }
+        if (expected !== undefined) {
+          if (typeof expected !== "string" || !/^(missing|[a-f0-9]{64})$/.test(expected)) {
+            sendError(res, 400, "기대 버전 형식이 잘못됐습니다."); return;
+          }
+          if (relativePath.startsWith("backups/") && expected !== WORKSPACE_MISSING_REVISION) {
+            sendError(res, 409, "백업은 덮어쓰지 않습니다."); return;
+          }
+          if (expected !== currentRevision(absolutePath)) {
+            sendError(res, 409, "확인한 뒤 파일이 바뀌었습니다. 쓰지 않았습니다."); return;
+          }
+        }
+      }
       if (relativePath.startsWith("specs/")) {
         const expected = req.headers[WORKSPACE_EXPECTED_REVISION_HEADER];
         if (typeof expected !== "string" || !/^(missing|[a-f0-9]{64})$/.test(expected)) {
@@ -413,10 +470,7 @@ function handleWrite(
         if (aliases.some((name) => name !== basename(absolutePath))) {
           sendError(res, 409, "대소문자가 다른 같은 파일명이 이미 있습니다."); return;
         }
-        let actual = WORKSPACE_MISSING_REVISION;
-        try { actual = workspaceRevision(readFileSync(absolutePath)); }
-        catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-        if (expected !== actual) {
+        if (expected !== currentRevision(absolutePath)) {
           sendError(res, 409, "다른 화면에서 파일을 변경하거나 이동했습니다. 초안을 별도로 보존한 뒤 최신 파일을 다시 여세요.");
           return;
         }
@@ -429,7 +483,7 @@ function handleWrite(
       } else {
         writeFileAtomic(absolutePath, body);
       }
-      if (relativePath.startsWith("specs/")) res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
+      if (tracksRevision(relativePath)) res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
     } catch (error) {
       sendError(res, 500, error instanceof Error ? error.message : String(error));
       return;
@@ -680,8 +734,8 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
     }
 
     if (route.kind === "file") {
-      if (method !== "GET" && method !== "PUT") {
-        sendError(res, 405, "GET·PUT만 받습니다.");
+      if (method !== "GET" && method !== "PUT" && method !== "DELETE") {
+        sendError(res, 405, "GET·PUT·DELETE만 받습니다.");
         return;
       }
       const resolved = resolveWorkspaceFile(root, route.path);
@@ -695,7 +749,9 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
       }
 
       if (method === "GET") {
-        handleRead(res, resolved.absolutePath, resolved.relativePath.startsWith("specs/"));
+        handleRead(res, resolved.absolutePath, tracksRevision(resolved.relativePath));
+      } else if (method === "DELETE") {
+        handleDelete(req, res, resolved.absolutePath, resolved.relativePath);
       } else {
         // 공유 요청 파일은 잠금 주인만 덮어쓴다(#273) — 기다리는 다른 탭의 요청을 지우지 않는다.
         // 에이전트 편집 결과도 연결된 탭만 쓴다(#279).

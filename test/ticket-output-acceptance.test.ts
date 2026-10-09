@@ -14,33 +14,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const workspace = vi.hoisted(() => ({
-  files: new Map<string, string>(),
+  files: new Map<string, string | Uint8Array>(),
   offline: false,
+  beforeWrite: null as ((path: string) => void) | null,
+  failWrite: null as ((path: string) => string | null) | null,
+  log: [] as string[],
 }));
 
-vi.mock("@/features/editor/ui/workspaceClient", () => {
-  function list(dir: string, options: { recursive?: boolean } = {}) {
-    if (workspace.offline) return null;
-    const prefix = `${dir}/`;
-    return [...workspace.files.keys()]
-      .filter((path) => path.startsWith(prefix))
-      .map((path) => path.slice(prefix.length))
-      .filter((path) => options.recursive === true || !path.includes("/"));
-  }
-  return {
-    isWorkspaceAvailable: async () => !workspace.offline,
-    listWorkspaceFiles: async (dir: string, options?: { recursive?: boolean }) => list(dir, options),
-    readWorkspaceTextFile: async (path: string) => (workspace.offline ? null : workspace.files.get(path) ?? null),
-    readWorkspaceTextFileStrict: async (path: string) =>
-      workspace.offline ? { ok: false } : { ok: true, text: workspace.files.get(path) ?? null },
-    readWorkspaceBinaryFile: async () => null,
-    writeWorkspaceFile: async (path: string, body: string) => {
-      if (workspace.offline) return { ok: false, error: "fetch failed" };
-      workspace.files.set(path, body);
-      return { ok: true, path };
-    },
-  };
-});
+vi.mock("@/features/editor/ui/workspaceClient", async () =>
+  (await import("./fixtures/memoryWorkspace")).memoryWorkspaceClient(workspace));
 
 // 서버 잠금(`workspace/requestLock.ts`)처럼 풀 때 요청 id가 주인과 같은 요청 파일만 지운다.
 vi.mock("@/features/editor/ui/agentRequestLock", () => ({
@@ -49,13 +31,14 @@ vi.mock("@/features/editor/ui/agentRequestLock", () => ({
     release: () => {
       const path = `runtime/${kind}-request.json`;
       const request = workspace.files.get(path);
-      if (request !== undefined && (JSON.parse(request) as { id: string }).id === owner) {
+      if (typeof request === "string" && (JSON.parse(request) as { id: string }).id === owner) {
         workspace.files.delete(path);
       }
     },
   }),
 }));
 
+import { resetMemoryWorkspace, textOf } from "./fixtures/memoryWorkspace";
 import { GENERATION_MANIFEST_PATH, parseGenerationManifest } from "@/features/editor/export/generationManifest";
 import { seedSpec } from "@/features/editor/store/seedSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -81,7 +64,7 @@ function compileCurrent(): void {
 }
 
 function currentRequest(): TicketRequest {
-  const text = workspace.files.get(TICKET_REQUEST_PATH);
+  const text = textOf(workspace, TICKET_REQUEST_PATH);
   if (text === undefined) throw new Error("요청 파일이 없습니다");
   return JSON.parse(text) as TicketRequest;
 }
@@ -113,8 +96,7 @@ const tick = () => vi.advanceTimersByTimeAsync(1000);
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-10T00:00:00Z"));
-  workspace.files.clear();
-  workspace.offline = false;
+  resetMemoryWorkspace(workspace);
   useEditorStore.getState().loadSpec(seedSpec);
   useTicketStore.setState({
     tickets: [], sourcePageId: null, sourcePage: null, sourceDocumentId: null, isOpen: false,
@@ -167,7 +149,7 @@ describe("취소 A → 재시도 B 성공 → 늦은 A 응답/파일", () => {
     expect(useTicketStore.getState().running).toBe(false);
     // Export 수용
     expect(workspace.files.get(`generated/${HEADER}`)).toBe(B_BYTES);
-    const manifest = parseGenerationManifest(workspace.files.get(GENERATION_MANIFEST_PATH) ?? null);
+    const manifest = parseGenerationManifest(textOf(workspace, GENERATION_MANIFEST_PATH) ?? null);
     expect(manifest.entries[HEADER]?.requestId).toBe(requestB.id);
 
     // B 확정 뒤 A가 또 늦게 쓴다(응답·파일) — 아무도 확정하지 않는다
