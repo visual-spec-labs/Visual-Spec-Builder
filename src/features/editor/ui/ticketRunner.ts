@@ -247,7 +247,9 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     useTicketStore.setState({ running: false, runError: OVERWRITE_CANCELLED_MESSAGE });
     return;
   }
-  if (outcome.lock !== undefined && (!await outcome.lock.renew(true) || cancelToken.cancelled)) {
+  const leaseCurrent = outcome.lock === undefined || await outcome.lock.renew(true);
+  if (useTicketStore.getState().generation !== generation) return;
+  if (!leaseCurrent || cancelToken.cancelled) {
     revertToPending(waveTickets);
     useTicketStore.setState({ running: false, runError: "요청 잠금을 잃어 출력을 확정하지 않았습니다.", runErrorRetryable: true });
     return;

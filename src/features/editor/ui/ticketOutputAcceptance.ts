@@ -583,7 +583,7 @@ async function restoreRegenerationRunNow(runId: string, isCurrent: () => boolean
     }
   }
   if (Object.keys(updates).length > 0) {
-    const error = await recordAcceptance(updates, lease, isCurrent);
+    const error = await recordAcceptance(updates, lease, isCurrent, record.requestId);
     report.error = error ?? report.error;
   }
   return report;
