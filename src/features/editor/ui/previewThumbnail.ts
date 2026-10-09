@@ -118,7 +118,8 @@ const requested = new Map<string, number>();
 const pending = new Map<string, { visit: number; job: Promise<string> }>();
 /** 자리를 기다리는 요청 — 줄 선 태스크별 묶음. */
 const waiting: Array<Array<() => void>> = [];
-let batchOpen = false;
+/** 이번 태스크에 줄 선 요청이 들어가는 묶음. 태스크가 끝나면 닫힌다(null). */
+let openBatch: Array<() => void> | null = null;
 /** 이 모듈이 만든 축소본 blob URL. 해제는 이것만 한다 — 스펙의 src가 blob URL일 수도 있다. */
 const created = new Set<string>();
 /** 결과가 바뀌면 알림을 받는 카드들(`usePreviewThumbnails`). */
@@ -153,6 +154,12 @@ export function beginPreviewVisit(owner: object): number {
     notify();
     revokeIfBlob(entry.result);
   }
+  // 결과 없이 끝난 요청(홈을 떠나 차례가 오기 전에 그만둔 것)은 entries에 없어 위에서 걸리지 않는다.
+  // 그 src(data URI면 수 MB 문자열)도 같은 기준으로 놓는다. 아직 돌고 있는 요청은 남긴다.
+  for (const [src, lastRequested] of requested) {
+    if (lastRequested >= visit - 2 || entries.has(src) || pending.has(src)) continue;
+    requested.delete(src);
+  }
   return visit;
 }
 
@@ -185,12 +192,14 @@ async function withSlot<T>(task: () => Promise<T>): Promise<T> {
 }
 
 function enqueue(resolve: () => void): void {
-  if (!batchOpen) {
-    waiting.push([]);
-    batchOpen = true;
-    setTimeout(() => { batchOpen = false; }, 0);
+  // 이 태스크의 묶음이 이미 다 꺼내져 대기열에서 빠졌으면 새 묶음을 연다 — 빠진 배열에 넣으면 아무도 꺼내지 않는다.
+  if (openBatch === null || waiting.at(-1) !== openBatch) {
+    const batch: Array<() => void> = [];
+    waiting.push(batch);
+    openBatch = batch;
+    setTimeout(() => { if (openBatch === batch) openBatch = null; }, 0);
   }
-  waiting[waiting.length - 1].push(resolve);
+  openBatch.push(resolve);
 }
 
 function dequeue(): (() => void) | undefined {
@@ -300,14 +309,24 @@ async function drawShrunk(bitmap: ImageBitmap, width: number, height: number): P
   return new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.92));
 }
 
+/**
+ * 받지 않고 바로 정해지는 결과. 없으면(undefined) 원본을 받아 확인해야 한다. 대기열에 넣기 전에 본다 —
+ * 줄이지 않는 이미지(다른 출처 등)가 멈춘 로컬 요청 뒤에서 기다리며 빈 채로 남지 않게.
+ */
+function settledWithoutWork(src: string, previous: Entry | undefined, visit: number): Checked | undefined {
+  // data URI는 src가 곧 내용이라 바뀌지 않는다. blob URL도 만든 뒤 내용이 바뀌지 않는다.
+  if (previous !== undefined && /^(data|blob):/i.test(src)) return { ...previous, visit };
+  if (!canShrink() || !isLocal(resolveImageSrc(src))) return { result: src, fingerprint: null, visit };
+  return undefined;
+}
+
 /** 원본을 받아 확인하고, 내용이 처음이거나 바뀌었으면 줄인다. 이전 결과가 있으면 그것을 고쳐 쓴다. */
 async function refresh(
   src: string, shortSide: number, previous: Entry | undefined, visit: number,
 ): Promise<Checked> {
-  // data URI는 src가 곧 내용이라 바뀌지 않는다. blob URL도 만든 뒤 내용이 바뀌지 않는다.
-  if (previous !== undefined && /^(data|blob):/i.test(src)) return { ...previous, visit };
+  const settled = settledWithoutWork(src, previous, visit);
+  if (settled !== undefined) return settled;
   const url = resolveImageSrc(src);
-  if (!canShrink() || !isLocal(url)) return { result: src, fingerprint: null, visit };
 
   const blob = await download(url);
   // 다시 확인하다 실패하면(에이전트가 파일을 쓰는 중, 서버 재시작 등) 줄여 둔 것을 그대로 쓴다.
@@ -331,6 +350,10 @@ export function previewThumbnail(src: string, shortSide: number): Promise<string
   if (known !== undefined && known.visit === visit) return Promise.resolve(known.result);
   const inFlight = pending.get(src);
   if (inFlight !== undefined && inFlight.visit === visit) return inFlight.job;
+  if (inFlight === undefined) {
+    const settled = settledWithoutWork(src, known, visit);
+    if (settled !== undefined) return Promise.resolve(store(src, settled));
+  }
 
   // 같은 src의 확인은 한 번에 하나만, 시작한 순서대로 돈다. 앞 방문의 확인이 아직 돌고 있으면
   // (그 방문 전에 받은 원본일 수 있어 이 방문의 확인으로 치지 않는다) 끝난 뒤에 다시 확인한다.
@@ -352,17 +375,27 @@ export function previewThumbnail(src: string, shortSide: number): Promise<string
     })
     .then((entry) => {
       if (pending.get(src)?.job === job) pending.delete(src);
-      const current = entries.get(src);
-      if (entry === null) return current?.result ?? src;
-      if (current !== undefined && current.result !== entry.result) revokeIfBlob(current.result);
-      // 결과가 그대로면(확인만 하고 내용이 같았다) 카드를 다시 그리지 않는다.
-      const changed = current?.result !== entry.result;
-      entries.set(src, { ...entry, revision: changed ? ++revision : current.revision });
-      if (changed) notify();
-      return entry.result;
+      if (entry === null) return entries.get(src)?.result ?? src;
+      return store(src, entry);
     });
   pending.set(src, { visit: startedVisit, job });
   return job;
+}
+
+/** 확인 결과를 저장한다. 결과가 바뀌었으면 앞 축소본을 해제하고 카드에 알린다. */
+function store(src: string, entry: Checked): string {
+  const current = entries.get(src);
+  if (current !== undefined && current.result !== entry.result) revokeIfBlob(current.result);
+  // 결과가 그대로면(확인만 하고 내용이 같았다) 카드를 다시 그리지 않는다.
+  const changed = current?.result !== entry.result;
+  entries.set(src, { ...entry, revision: changed ? ++revision : current.revision });
+  if (changed) notify();
+  return entry.result;
+}
+
+/** 기억하고 있는 항목 수 — 캐시가 세션 내내 쌓이지 않는지 테스트가 본다. */
+export function previewCacheSizes(): { entries: number; requested: number; pending: number } {
+  return { entries: entries.size, requested: requested.size, pending: pending.size };
 }
 
 function notify(): void {

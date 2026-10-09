@@ -124,9 +124,10 @@ describe("previewThumbnail", () => {
   let previewThumbnail: ThumbnailModule["previewThumbnail"];
   let beginPreviewVisit: ThumbnailModule["beginPreviewVisit"];
   let endPreviewVisit: ThumbnailModule["endPreviewVisit"];
+  let previewCacheSizes: ThumbnailModule["previewCacheSizes"];
   beforeEach(async () => {
     vi.resetModules();
-    ({ previewThumbnail, beginPreviewVisit, endPreviewVisit } = await import("@/features/editor/ui/previewThumbnail"));
+    ({ previewThumbnail, beginPreviewVisit, endPreviewVisit, previewCacheSizes } = await import("@/features/editor/ui/previewThumbnail"));
     beginPreviewVisit({});
   });
   afterEach(() => { vi.unstubAllGlobals(); });
@@ -448,6 +449,57 @@ describe("previewThumbnail", () => {
     beginPreviewVisit({});
 
     expect(revoked).toEqual([]);
+  });
+
+  describe("PR #334 리뷰", () => {
+    const png = () => new Response(new Blob(["x"], { type: "image/png" }));
+
+    it("홈을 떠나 결과 없이 끝난 요청의 src도 두 방문 뒤 놓는다", async () => {
+      const held: Array<(response: Response) => void> = [];
+      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { held.push(resolve); })));
+      vi.stubGlobal("createImageBitmap", vi.fn(async () => ({ width: 100, height: 100, close() {} })));
+      vi.stubGlobal("OffscreenCanvas", class {});
+      const screen = {};
+      beginPreviewVisit(screen);
+      const jobs = Array.from({ length: 10 }, (_, k) => previewThumbnail(`data:image/png;base64,${"A".repeat(1024)}${k}`, 416));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      endPreviewVisit(screen);
+      for (const resolve of held) resolve(png());
+      await Promise.all(jobs);
+
+      for (let pass = 0; pass < 3; pass += 1) beginPreviewVisit({});
+
+      // 끝까지 돈 두 개는 결과(entries)로 남았다가 같은 기준으로 놓이고, 취소된 여덟 개도 남지 않는다.
+      expect(previewCacheSizes()).toEqual({ entries: 0, requested: 0, pending: 0 });
+    });
+
+    it("줄이지 않는 외부 이미지는 멈춘 로컬 요청 뒤에서 기다리지 않는다", async () => {
+      vi.stubGlobal("location", { href: "http://127.0.0.1:5173/" });
+      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+      vi.stubGlobal("createImageBitmap", vi.fn());
+      vi.stubGlobal("OffscreenCanvas", class {});
+      void previewThumbnail("assets/stuck-a.png", 416);
+      void previewThumbnail("assets/stuck-b.png", 416);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      await expect(previewThumbnail("https://cdn.example.test/x.png", 416)).resolves.toBe("https://cdn.example.test/x.png");
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("한 태스크 안에서 묶음이 다 꺼내진 뒤 다시 줄 서도 요청을 잃지 않는다", async () => {
+      // 모든 단계가 마이크로태스크로 끝나게 한다(한 태스크 안) — 해시도 동기 경로로.
+      vi.stubGlobal("crypto", {});
+      // 실제 Response·Blob 읽기는 다른 태스크로 넘어갈 수 있어 마이크로태스크로만 끝나는 가짜를 쓴다.
+      const blob = { type: "image/png", arrayBuffer: async () => new ArrayBuffer(1) };
+      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, blob: async () => blob })));
+      vi.stubGlobal("createImageBitmap", vi.fn(async () => ({ width: 100, height: 100, close() {} })));
+      vi.stubGlobal("OffscreenCanvas", class {});
+
+      await Promise.all(["a", "b", "c"].map((name) => previewThumbnail(`assets/same-task-${name}.png`, 416)));
+      await Promise.all(["d", "e", "f"].map((name) => previewThumbnail(`assets/same-task-${name}.png`, 416)));
+
+      expect(fetch).toHaveBeenCalledTimes(6);
+    });
   });
 
   it("스펙의 src가 blob URL이어도 해제하지 않는다", async () => {
