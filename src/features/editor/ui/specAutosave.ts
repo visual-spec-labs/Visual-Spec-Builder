@@ -363,10 +363,11 @@ export function startSpecAutosave() {
       const own = key === draft.key && document.fileName === null;
       // Reload/history can recover the UUID while another tab owns its lock.
       // Same identity is not ownership. Only unsupported Web Locks may use the
-      // memory-only path; a failed claim must be retried explicitly on Resume.
-      if (!deleting && own) {
+      // memory-only Resume path; Resume and confirmed Delete both retry failed
+      // claims, then recheck the current document and original cache baseline.
+      if (own) {
         if (!transition.current() || serializeStoredDocument(document) !== draft.raw) return "changed";
-        if (!navigator.locks) return "ok";
+        if (!navigator.locks) return deleting ? "unavailable" : "ok";
         if (!await ownership?.ready) {
           if (!transition.current()) return "changed";
           await ownership?.release();
@@ -376,10 +377,13 @@ export function startSpecAutosave() {
           if (!transition.current()) return "changed";
           // A previous debounce may have stopped at the failed claim. Requeue
           // it only after ownership and the original cache baseline both pass.
-          clearTimeout(timer);
-          timer = setTimeout(() => { void flush(); }, 500);
+          if (!deleting) {
+            clearTimeout(timer);
+            timer = setTimeout(() => { void flush(); }, 500);
+          }
         }
-        return transition.current() && serializeStoredDocument(document) === draft.raw ? "ok" : "changed";
+        if (!transition.current() || serializeStoredDocument(document) !== draft.raw) return "changed";
+        if (!deleting) return "ok";
       }
       if (!navigator.locks) return "unavailable";
       claim = own ? ownership : claimDraft(draft.key);

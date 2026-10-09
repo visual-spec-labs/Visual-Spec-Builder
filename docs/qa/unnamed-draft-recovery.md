@@ -35,8 +35,10 @@
   한 탭만 UUID를 채택하며, 다른 탭의 메모리와 캐시는 유지한다. 시간제 lease 만료로
   숨긴 탭의 소유권을 빼앗지 않는다. StrictMode/HMR의 자체 해제 완료를 기다린 뒤 재획득한다.
 - reload/Back/Forward 복구가 같은 UUID여도 다른 탭이 소유 중이면 Resume를 거부한다.
-  소유 탭 종료 후 명시적 Resume에서 실패한 잠금을 재획득하고 원문 기준을 다시 확인한다.
-  이전에 중단된 debounce도 다시 예약한다. 다른 탭이 내용을 바꿨으면 충돌 상태와 양쪽 내용을
+  소유 탭 종료 후 명시적 Resume 또는 확인된 Delete에서 실패한 잠금을 재획득하고 원문 기준을
+  다시 확인한다. Delete는 Resume를 먼저 실행할 필요가 없으며, 삭제 잠금 대기 중 변경도
+  CAS로 다시 검사한다.
+  Resume는 이전에 중단된 debounce도 다시 예약한다. 다른 탭이 내용을 바꿨으면 충돌 상태와 양쪽 내용을
   보존하며 명시적으로 최신 내용을 채택하기 전에는 쓰지 않는다. Web Locks 미지원만 메모리
   재개 경로를 사용한다.
 - reload/Back/Forward는 현재 UUID를 유지한다. opener가 sessionStorage를 복사해 준 새 탭은
@@ -54,7 +56,8 @@
   현재 탭 선택/history 유지, 다른 탭 소유권, 오래된 원문, 취소/중복/지연 전환,
   명시적 삭제와 오래된 세션, Save 성공/실패, Web Locks 부재, StrictMode 해제 경합,
   보관 대기 중 현재 탭 재개, edit→Undo 이후 오래된 Resume 승인 거부와 Redo 보존,
-  Back 복귀 탭의 실패한 소유권 거부/재획득과 storage 이벤트 전 최신 원문 보호.
+  Back 복귀 탭의 실패한 소유권 거부/재획득과 storage 이벤트 전 최신 원문 보호,
+  Resume 없는 Delete 재획득 및 삭제 잠금 대기 중 CAS 변경 보호.
 - Chromium: `scripts/browser/unnamed-drafts.mjs` — 임시 workspace와 일반 fixture만 사용한다.
   빈/기존 파일 workspace, Home/Resume/reload/Back/Forward, 실제 opener의 독립 UUID,
   다른 활성 탭 Resume/삭제 거부, 동시 Resume의 단일 소유자, 소유 탭 종료 후 인계,
@@ -68,8 +71,8 @@
   브라우저 테스트 3개도 명시 실행해 전부 통과했다.
 
 현재 로컬 결과(2026-10-09): pnpm 10.33.0, Node 24.19.0. typecheck/lint/build 통과,
-일반 전체 테스트 110파일 1,800개 통과(기본 opt-in 3개 skip), 이어서 opt-in 3파일 3테스트도
-명시 실행해 통과했다. 총 1,803개를 검증했다. 생성 타입 드리프트와
+일반 전체 테스트 110파일 1,802개 통과(기본 opt-in 3개 skip), 이어서 opt-in 3파일 3테스트도
+명시 실행해 통과했다. 총 1,805개를 검증했다. 생성 타입 드리프트와
 `git diff --check` 통과. 위 Chromium 스크립트 3개 통과. 브라우저 회귀는 비동기
 Resume 클릭 뒤 File 메뉴가 나타나는 완료 시점까지 기다려 UUID/내용을 비교한다.
 

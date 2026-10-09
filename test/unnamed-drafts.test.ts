@@ -17,8 +17,10 @@ function storage() {
     get length() { return values.size; } };
 }
 function locks() {
+  const requests: string[] = [];
   const held = new Map<string, Promise<unknown>>();
-  return { request: async (key: string, options: unknown, callback?: (lock: object | null) => unknown) => {
+  return { requests, request: async (key: string, options: unknown, callback?: (lock: object | null) => unknown) => {
+    requests.push(key);
     if (callback && held.has(key)) return callback(null);
     while (held.has(key)) await held.get(key);
     const fn = callback ?? options as (lock: object) => unknown;
@@ -222,4 +224,37 @@ it("ownership retry never overwrites the newer owner revision, even before a sto
   expect(await useUnnamedDraftStore.getState().resume(useUnnamedDraftStore.getState().active!)).toBe("ok");
   await edit();
   expect(JSON.parse(localStorage.getItem(draft.key)!).spec.name).toBe("Other owner revision");
+});
+
+it("Delete reacquires a failed startup claim after the owner closes, without requiring Resume", async () => {
+  const draft = seed(); const other = claimDraft(draft.key); expect(await other.ready).toBe(true);
+  useEditorStore.getState().loadSpec(draft.document.spec);
+  writeRecovery({ document: draft.document, key: draft.key, baseline: draft.raw, conflicted: false });
+  stop = startSpecAutosave();
+  try {
+    expect(await useUnnamedDraftStore.getState().remove(draft)).toBe("busy");
+    expect(localStorage.getItem(draft.key)).toBe(draft.raw);
+  } finally { await other.release(); }
+  expect(await useUnnamedDraftStore.getState().remove(draft)).toBe("ok");
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(localStorage.getItem(draft.key)).toBeNull();
+  expect(readRecovery()?.key).not.toBe(draft.key);
+});
+
+it("Delete rechecks CAS after reacquiring ownership and waiting for the mutation lock", async () => {
+  const manager = locks(); vi.stubGlobal("navigator", { locks: manager });
+  const draft = seed(); const other = claimDraft(draft.key); expect(await other.ready).toBe(true);
+  useEditorStore.getState().loadSpec(draft.document.spec);
+  writeRecovery({ document: draft.document, key: draft.key, baseline: draft.raw, conflicted: false });
+  stop = startSpecAutosave(); await other.release();
+  let unlock!: () => void;
+  const held = navigator.locks.request(draft.key, () => new Promise<void>(resolve => { unlock = resolve; }));
+  const deleting = useUnnamedDraftStore.getState().remove(draft);
+  await vi.waitFor(() => expect(manager.requests.filter(key => key === draft.key)).toHaveLength(2));
+  const newer = seed("saved-uuid", { ...initial, spec: { ...initial.spec, name: "Changed while deletion waited" } });
+  unlock(); await held;
+  expect(await deleting).toBe("changed");
+  expect(localStorage.getItem(draft.key)).toBe(newer.raw);
+  expect(localStorage.getItem(`${draft.key}:deleted`)).toBeNull();
+  expect(useEditorStore.getState().spec).toEqual(draft.document.spec);
 });

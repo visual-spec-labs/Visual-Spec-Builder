@@ -213,6 +213,7 @@ try {
   // A leaves; B resumes its UUID without editing; A returns with copied identity
   // but a failed ownership claim. Same-key Resume must refuse B's active lock,
   // then explicitly reacquire after B closes (not keep a forever-false ready).
+  for (const returningAction of ["resume", "delete"]) {
   const returning = await browser.newContext();
   const tabA = await returning.newPage();
   tabA.on("dialog", d => d.accept());
@@ -230,15 +231,37 @@ try {
   await tabBPrompt.click();
   await tabB.getByRole("button", {name: "File", exact: true}).waitFor();
   assert.deepEqual(await state(tabB), returningDraft);
+  const tryOwnedAction = async () => {
+    if (returningAction === "delete") {
+      await row(tabA).getByRole("button", {name: "삭제…"}).click();
+      await tabA.getByRole("alertdialog").getByRole("button", {name: "초안 삭제", exact: true}).click();
+    } else await row(tabA).getByRole("button", {name: "이어서 열기"}).click();
+  };
   await tabA.goBack();
-  await row(tabA).getByRole("button", {name: "이어서 열기"}).click();
+  await tryOwnedAction();
   await tabA.getByText(/다른 탭에서 사용 중인 초안/).waitFor();
   assert.deepEqual(await state(tabA), returningDraft);
   await tabA.reload();
-  await row(tabA).getByRole("button", {name: "이어서 열기"}).click();
+  await tryOwnedAction();
   await tabA.getByText(/다른 탭에서 사용 중인 초안/).waitFor();
   assert.deepEqual(await state(tabB), returningDraft);
   await tabB.close();
+  if (returningAction === "delete") {
+    await row(tabA).getByRole("button", {name: "삭제…"}).click();
+    await tabA.getByRole("alertdialog").getByRole("button", {name: "취소", exact: true}).click();
+    assert.deepEqual(await state(tabA), returningDraft);
+    assert.equal(await tabA.evaluate(key => localStorage.getItem(key) !== null, returningDraft.key), true);
+    await tryOwnedAction();
+    await tabA.waitForFunction(key => localStorage.getItem(key) === null, returningDraft.key);
+    assert.notEqual((await state(tabA)).key, returningDraft.key);
+    await tabA.reload();
+    await tabA.getByRole("button", {name: "+ 새 프로젝트", exact: true}).waitFor();
+    assert.equal(await row(tabA).count(), 0);
+    assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), original.spec);
+    await returning.close();
+    console.log("PASS returning tab Delete refuses active B, preserves Cancel, and reacquires after B closes without Resume; reload stays deleted and disk is intact");
+    continue;
+  }
   await row(tabA).getByRole("button", {name: "이어서 열기"}).click();
   await tabA.getByRole("button", {name: "File", exact: true}).waitFor();
   await edit("Reacquired after owner closed", tabA);
@@ -257,6 +280,8 @@ try {
   assert.deepEqual(JSON.parse(await readFile(join(specs, "Reacquired fixture.json"), "utf8")), reacquired.spec);
   await returning.close();
   console.log("PASS Back/reload while B owns same UUID refuses Resume; B close permits explicit reacquisition, autosave and disk Save");
+
+  }
 
   const isolated = await browser.newContext();
   const noWorkspace = await isolated.newPage();
