@@ -77,3 +77,29 @@ origin의 파일 저장도 서버 리비전 비교로 보호한다. 파일명이
 Save/Save as가 기다리는 동안 New/Open으로 문서가 바뀌면, 대기 중인 쓰기는 시작하지
 않고 이미 시작된 스냅숏 저장의 완료가 현재 문서의 저장 경로를 바꾸지 않는다.
 같은 문서의 계속된 편집은 초안에 남으며 Save as의 새 경로를 정상적으로 이어받는다.
+
+## 비차단 문서 전환 (#302)
+
+New/Open/홈 카드 열기는 `beginDocumentTransition()`을 비동기 읽기 **전에** 호출한다.
+이 함수는 앞 전환 요청을 취소하고 문서 세대·spec 참조·파일명·디스크 리비전을 캡처한다.
+각 await 뒤 `current()`로 유효성을 확인하고, 적용 직전
+`await transition.settle(nextFileName)`과 `current()`가 모두 참일 때만 동기적으로
+`loadSpec`/`setFileName`을 실행한다. 대기 중 편집도 승인 대상이 달라진 것으로 취급한다.
+같은 파일 재열기의 초안 비교 표식은 유효한 승인 뒤에만 설정한다.
+
+`settle(nextFileName, signal?)`은 자동저장을 먼저 완료하고 필요한 경우 공통
+PromptDialog의 확인 모달을 기다린다. 취소가 기본 포커스이며 Escape도 취소다.
+요청 교체·문서 변경·autosave 중단·저장 충돌은 대기 승인을 취소한다. 승인 뒤에도
+저장소를 다시 비교해 아직 이벤트가 도착하지 않은 다른 탭의 변경을 보호한다.
+최신 요청 ID와 다른 오래된 UI 응답은 현재 모달을 닫거나 승인할 수 없다.
+
+취소는 문서·선택·Undo·복구 초안을 변경하지 않는다. 계속하기는 기존 전환 의미를
+유지하며, `discardDraft()`(이름 있는 파일의 열린 내용 채택)나 복구 초안 삭제를
+호출하지 않는다. Home의 이름 없는 초안 목록·UUID 유지 재개·명시적 삭제는 #319의
+별도 계약이다. 이 변경은 Home에서 이름 없는 초안을 다시 열 수 있다고 약속하지 않는다.
+
+실제 Chromium 검증은 `scripts/browser/document-transitions.mjs`로 재현한다.
+선택적 Playwright 설치 경로를 `PLAYWRIGHT_MODULE`, Chromium 경로를 `CHROME_BIN`에
+지정한다. New/Open/카드 취소, 반복 요청, 오래된 승인, Tab/Shift+Tab·Escape·편집
+단축키 격리, 대기 중 타이머·스크린샷 응답, 명시적 승인과 실제 두 번째 탭의 충돌을
+확인한다. 기존 #332 회귀는 `scripts/browser/project-dialogs.mjs`를 함께 실행한다.
