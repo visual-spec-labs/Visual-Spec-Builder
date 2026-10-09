@@ -14,11 +14,11 @@ import { useNodeField } from "./properties/useNodeField";
 import { ToggleField } from "./properties/fields";
 
 const TYPE_LABEL: Record<string, string> = {
-  frame: "Frame",
-  text: "Text",
-  image: "Image",
-  button: "Button",
-  input: "Input",
+  frame: "프레임",
+  text: "텍스트",
+  image: "이미지",
+  button: "버튼",
+  input: "입력",
 };
 
 /** 패널 접기 버튼 — 노드 미선택/선택 두 헤더가 같이 쓴다(#287). */
@@ -28,7 +28,8 @@ function CollapseButton({ onClick }: { onClick: () => void }) {
       type="button"
       onClick={onClick}
       aria-label="속성 패널 접기"
-      className="shrink-0 rounded-control p-1 text-content-muted hover:bg-hover hover:text-content"
+      title="속성 패널 접기"
+      className="shrink-0 rounded-control p-1 text-content-muted hover:bg-hover hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content"
     >
       <PanelRightClose className="size-4" aria-hidden="true" />
     </button>
@@ -54,9 +55,10 @@ function NodeHeader({
           type="text"
           aria-label="노드 이름"
           disabled={breakpoint !== null}
+          title={breakpoint ? "노드 이름은 기본값(base)에서 편집합니다." : "선택한 노드의 이름"}
           value={name ?? ""}
           onChange={(event) => setName(event.target.value)}
-          className="min-w-0 flex-1 rounded-control border border-transparent px-1.5 py-1 text-sm font-semibold text-content hover:border-line focus:border-primary focus:outline-none"
+          className="min-w-0 flex-1 rounded-control border border-transparent px-1.5 py-1 text-sm font-semibold text-content hover:border-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content"
         />
         <span className="shrink-0 rounded-control bg-surface-raised px-1.5 py-0.5 text-xs text-content-muted">
           {typeLabel}
@@ -70,7 +72,7 @@ function NodeHeader({
 
 /** 우측 세부설정 패널 — 선택 노드의 속성을 편집한다. */
 export function PropertiesPanel() {
-  const { breakpoint, pageId } = useResponsiveScreen();
+  const { breakpoint, pageId, width } = useResponsiveScreen();
   const selectedId = useEditorStore((state) => state.selectedId);
   const page = useEditorStore((state) => state.spec.pages[state.activePageId]);
   const node = selectedId === null ? undefined : page.nodes[selectedId];
@@ -106,7 +108,7 @@ export function PropertiesPanel() {
   }
 
   return (
-    <aside className="relative flex flex-col overflow-hidden border-l border-line bg-surface [grid-area:props]">
+    <aside aria-label="속성" className="relative flex flex-col overflow-hidden border-l border-line bg-surface [grid-area:props]">
       <PanelResizeHandle
         side="left"
         width={panelWidth}
@@ -118,7 +120,7 @@ export function PropertiesPanel() {
       {node === undefined ? (
         <div className="flex items-center justify-between border-b border-line px-3 py-3">
           <h2 className="text-xs font-semibold tracking-wide text-content-muted uppercase">
-            Properties
+            속성
           </h2>
           <CollapseButton onClick={togglePanelCollapsed} />
         </div>
@@ -130,7 +132,19 @@ export function PropertiesPanel() {
         />
       )}
 
-      <div className="flex-1 overflow-auto">
+      <div className="shrink-0 border-b border-line px-3 py-2 text-xs text-content" role="status" aria-label="현재 편집 범위">
+        <p className="break-words">페이지: {page.name}</p>
+        <p className="break-words">
+          {node === undefined ? "선택: 없음" : `선택: ${node.name || selectedId} · ${selectedId === page.root ? "루트 프레임 1개" : "노드 1개"}`}
+        </p>
+        <p className="break-words">편집: {breakpoint ? `${breakpoint} 재정의(override)` : "기본값(base)"} · 미리보기 {width}px</p>
+        <p className="mt-1 text-content-muted">
+          {node === undefined
+            ? breakpoint ? "노드를 선택하면 이 구간의 속성을 편집합니다." : "아래에서 페이지 이름·크기를 편집합니다."
+            : showPage && !breakpoint ? "페이지 이름·크기와 루트 프레임 속성을 편집합니다." : "아래 속성은 선택한 노드 하나에 적용됩니다."}
+        </p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
         <ResponsivePanel key={pageId} />
         {showPage && !breakpoint ? <PageProperties /> : null}
 
