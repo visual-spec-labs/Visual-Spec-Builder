@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # engines의 두 하한과 Node 24를 검사한다. Windows는 #262 반영 후 별도 통합한다.
+        # engines의 두 하한과 Node 24를 검사한다.
         node: ['20.19.0', '22.12.0', '24']
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +47,47 @@ jobs:
             echo "::error::생성된 types.ts가 커밋된 내용과 다릅니다. 정본 스키마에서 pnpm run generate:types로 재생성하고 함께 커밋하세요."
             exit 1
           fi
+
+  windows:
+    name: Windows / Node 24
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # 기존 작업 트리를 재사용하지 않는 hosted runner에서 checkout 전에 설정한다.
+      # core.autocrlf=false로 문제를 숨기지 않고 #262의 .gitattributes를 검증한다.
+      - name: Windows 기본 autocrlf 조건 설정
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fresh checkout의 autocrlf와 LF 확인
+        run: |
+          test "$(git config --get core.autocrlf)" = true
+          git ls-files --eol > "$RUNNER_TEMP/checkout-eol.txt"
+          if grep -E 'w/(crlf|mixed)' "$RUNNER_TEMP/checkout-eol.txt"; then
+            echo "::error::autocrlf=true checkout에 CRLF/mixed 파일이 있습니다. .gitattributes 적용을 확인하세요."
+            exit 1
+          fi
+          git ls-files --eol skills
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - name: 전체 테스트 (fresh tarball 설치 smoke 포함)
+        run: pnpm test
+      - name: Production build
+        run: pnpm run build
+      - name: 스키마 드리프트 검사
+        run: |
+          pnpm run generate:types
+          git diff --exit-code
 
   browser:
     name: Chromium / existing opt-in tests
@@ -98,11 +139,11 @@ jobs:
           JS
 
   # 브랜치 보호의 기존 required check 이름을 유지한다.
-  # 의존 잡 실패/취소/skip도 build 실패로 전파한다. Windows 통합 시 needs에 추가한다.
+  # Linux·Windows·브라우저 잡의 실패/취소/skip도 build 실패로 전파한다.
   build:
     name: build
     if: ${{ always() }}
-    needs: [linux, browser]
+    needs: [linux, windows, browser]
     runs-on: ubuntu-24.04
     timeout-minutes: 1
     steps:
@@ -110,4 +151,5 @@ jobs:
         env:
           LINUX_RESULT: ${{ needs.linux.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
-        run: test "$LINUX_RESULT" = success && test "$BROWSER_RESULT" = success
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+        run: test "$LINUX_RESULT" = success && test "$WINDOWS_RESULT" = success && test "$BROWSER_RESULT" = success
