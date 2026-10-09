@@ -98,10 +98,11 @@ it.each(["EIO", "EACCES"])("두 복원 파일의 %s 동시 실패 뒤 회복해�
   expect(fs.readFileSync(join(root, paths[0]), "utf8")).toBe(applied);
   failing = false;
   await vi.waitFor(() => expect(useAgentEditStore.getState().connected).toBe(true), { timeout: AGENT_CLAIM_MS + CLAIM_IO_WAIT_MS });
-  // 고정 sleep 대신 복원 뒤 실제 폴링의 성공 응답까지 기다린다.
+  // 복원 읽기 + 두 번의 폴링을 관찰한다. 다음 poll은 이전 handle이 끝난 뒤에만
+  // 시작되므로 응답 직후 아직 적용/결과 쓰기가 진행 중인 시점을 검사하지 않는다.
   await vi.waitFor(() => {
-    expect(responseCount("GET", workspaceFileUrl(paths[1]), 200)).toBeGreaterThan(1);
-  }, { timeout: AGENT_EDIT_POLL_MS + 2 * BRIDGE_IO_TIMEOUT_MS });
+    expect(responseCount("GET", workspaceFileUrl(paths[1]), 200)).toBeGreaterThan(2);
+  }, { timeout: 2 * AGENT_EDIT_POLL_MS + 2 * BRIDGE_IO_TIMEOUT_MS });
   expect(vi.mocked(fs.statSync).mock.calls.filter(([path]) => path === join(root, paths[1])).length).toBeGreaterThan(2);
   expect(fs.readFileSync(join(root, paths[0]), "utf8")).toBe(applied);
   expect(useEditorStore.getState().history).toBe(history);
