@@ -1,6 +1,11 @@
 import { useState } from "react";
 
 import { compileTickets } from "@/features/editor/ticket/compileTickets";
+import type {
+  FreshnessReport,
+  OverallFreshness,
+  TicketFreshness,
+} from "@/features/editor/export/generationManifest";
 import type { VerifyIssue, VerifyReport } from "@/features/editor/export/verifyGenerated";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useExportStore } from "@/features/editor/store/exportStore";
@@ -43,6 +48,40 @@ function Summary({ report }: { report: VerifyReport }) {
 }
 
 /**
+ * 생성 세대 확인 문구(#284, docs/26 "Export 생성 세대 판정"). 파일·참조 검사 요약과 따로 보인다 —
+ * 4/4·오류 0이어도 취소된 요청이 늦게 쓴 파일이나 입력이 바뀐 뒤의 파일일 수 있다.
+ */
+const FRESHNESS_SUMMARY: Record<OverallFreshness, string> = {
+  empty: "구현 티켓이 없어 확인할 생성 파일이 없습니다.",
+  current: "현재 — 모든 티켓 파일이 GUI가 수용한 요청의 출력 그대로이고, 그 요청의 입력이 지금 화면과 같습니다.",
+  missing: "아직 없음 — 구현 티켓을 에이전트에 전달해 확정된 생성 파일이 없습니다.",
+  partial: "부분 — 일부 티켓만 지금 화면으로 생성·확정됐습니다. 나머지 티켓을 전달하세요.",
+  stale: "오래됨 — 확정한 뒤 화면이 바뀌었습니다. 티켓을 다시 생성해 전달해야 최신 결과가 됩니다.",
+  unverifiable:
+    "확인 불가 — GUI가 수용하지 않은 파일이 있습니다(취소·만료된 요청의 늦은 출력, 직접 수정, 직접 실행한 생성 등). 파일·참조 검사와 별개로 최신 생성 완료로 보지 않습니다.",
+};
+
+const TICKET_FRESHNESS_LABEL: Record<TicketFreshness, string> = {
+  current: "현재",
+  stale: "오래됨",
+  changed: "확정 뒤 바뀜",
+  unrecorded: "기록 없음",
+  missing: "없음",
+};
+
+function FreshnessSummary({ freshness }: { freshness: FreshnessReport }) {
+  const settled = freshness.overall === "current" || freshness.overall === "empty";
+  return (
+    <section aria-label="생성 세대 확인" className="rounded-panel border border-line bg-surface-raised p-2">
+      <h3 className="text-xs font-semibold text-content-strong">생성 세대 확인</h3>
+      <p className={`mt-1 text-xs ${settled ? "text-content-muted" : "text-error"}`}>
+        {FRESHNESS_SUMMARY[freshness.overall]}
+      </p>
+    </section>
+  );
+}
+
+/**
  * 생성된 React 코드를 훑어 검증 결과를 보여주고 ZIP으로 내보낸다(#157).
  *
  * **비어 있는 것이 기본 상태다.** `.visual-spec/generated/`를 채우는 것은 외부
@@ -57,6 +96,7 @@ export function ExportPanel() {
   const status = useExportStore((state) => state.status);
   const files = useExportStore((state) => state.files);
   const report = useExportStore((state) => state.report);
+  const freshness = useExportStore((state) => state.freshness);
   const target = useExportStore((state) => state.target);
   const rescan = useExportStore((state) => state.rescan);
   const close = useExportStore((state) => state.close);
@@ -75,6 +115,10 @@ export function ExportPanel() {
   // 아래 목록에 또 늘어놓으면 그 4줄에 밀려 정작 고칠 문제가 화면 밖으로 나간다.
   // README에는 둘 다 실린다(거기선 표가 하나뿐이라 겹치지 않는다).
   const otherIssues = report?.issues.filter((issue) => issue.code !== "missing-file") ?? [];
+  const freshnessByTicket = new Map(freshness?.tickets.map((entry) => [entry.ticketId, entry.freshness]));
+  // 주 동작 강조는 파일·참조 오류가 없고 생성 세대도 현재일 때만이다(#284). 내려받기 자체는 막지 않는다.
+  const exportReady = report !== null && report.errorCount === 0 &&
+    (freshness === null || freshness.overall === "current");
 
   async function handleDownload(allowPartial = false) {
     if (report === null || target === null) return;
@@ -152,6 +196,8 @@ export function ExportPanel() {
           <div className="flex flex-col gap-3">
             <Summary report={report} />
 
+            {freshness !== null && <FreshnessSummary freshness={freshness} />}
+
             {report.fileCount === 0 && (
               <p className="rounded-panel border border-line bg-surface-raised p-3 text-xs text-content-muted">
                 아직 생성된 코드가 없습니다. 이전 단계(에이전트 전달)에서 구현 티켓을
@@ -185,6 +231,9 @@ export function ExportPanel() {
                         }`}
                       >
                         {entry.found ? "있음" : "없음"}
+                        {/* 파일이 있을 때만 세대 판정을 덧붙인다 — 없음은 이미 "없음"이다. */}
+                        {entry.found && freshnessByTicket.has(entry.ticketId) &&
+                          ` · ${TICKET_FRESHNESS_LABEL[freshnessByTicket.get(entry.ticketId) ?? "missing"]}`}
                       </span>
                     </li>
                   ))}
@@ -232,9 +281,9 @@ export function ExportPanel() {
               onClick={() => void handleDownload(false)}
               disabled={report.fileCount === 0 || isDownloading}
               // 오류 없이 준비된 상태의 주 동작이다(#283) — 강조색을 쓴다. 오류가
-              // 남아 있으면(아직 "받아도 되는" 상태가 아니므로) 중립 스타일로 물러난다.
+              // 남아 있거나 생성 세대가 현재가 아니면(#284) 중립 스타일로 물러난다.
               className={`rounded-control px-2 py-2 text-xs disabled:opacity-50 ${
-                report.errorCount === 0
+                exportReady
                   ? "bg-primary text-text-on-accent hover:opacity-90"
                   : "border border-line bg-surface-raised text-content-strong hover:bg-hover"
               }`}

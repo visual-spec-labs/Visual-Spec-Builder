@@ -5,6 +5,7 @@ import { compileTickets } from "@/features/editor/ticket/compileTickets";
 import { useEditorStore } from "./editorStore";
 import { markTicketStatus } from "@/features/editor/ticket/ticketStatus";
 import type { Ticket, TicketStatus } from "@/features/editor/ticket/types";
+import type { AgentWaitProgress } from "@/features/editor/ui/agentRequestWait";
 
 interface TicketState {
   tickets: Ticket[];
@@ -24,6 +25,16 @@ interface TicketState {
    * 끊김·다른 탭 잠금 등)은 같은 안내를 붙이면 엉뚱한 해결책을 가리키게 된다.
    */
   runErrorRetryable: boolean;
+  /**
+   * 진행 중인 웨이브 요청의 단계·기한·임시 출력 근거(#284). 기다리는 요청이 없으면 null이다.
+   * `ui/ticketRunner.ts`가 `ui/agentRequestWait.ts`의 보고를 받아 쓴다.
+   */
+  wait: AgentWaitProgress | null;
+  /**
+   * 출력은 확정했지만 수용 기록(`runtime/generation-manifest.json`)을 남기지 못했을 때의 안내(#284).
+   * 티켓 실패가 아니므로 `runError`와 나눈다 — 다음 웨이브가 `runError`를 지워도 이 사실은 남아야 한다.
+   */
+  acceptanceWarning: string | null;
   /**
    * `compile`이 불릴 때마다 하나씩 늘어난다(이슈 #184). `ui/ticketRunner.ts`가 웨이브를
    * 시작할 때 이 값을 함께 들고 있다가, 응답을 받은 뒤 값이 달라졌으면(그 사이
@@ -61,6 +72,8 @@ export const useTicketStore = create<TicketState>((set) => ({
   running: false,
   runError: null,
   runErrorRetryable: false,
+  wait: null,
+  acceptanceWarning: null,
   generation: 0,
   compile: (pageId, page) =>
     set((state) => ({
@@ -72,6 +85,8 @@ export const useTicketStore = create<TicketState>((set) => ({
       running: false,
       runError: null,
       runErrorRetryable: false,
+      wait: null,
+      acceptanceWarning: null,
       generation: state.generation + 1,
     })),
   markStatus: (id, status) =>
