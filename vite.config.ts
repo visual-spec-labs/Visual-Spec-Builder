@@ -70,6 +70,10 @@ export function workspaceFilesPlugin(): Plugin {
 }
 
 export default defineConfig({
+  // 의존성 사전 번들 캐시를 React 모드별로 나눈다(#314). CLI GUI는 NODE_ENV=production,
+  // 저장소의 `pnpm dev`는 development라 같은 폴더를 쓰면 모드를 바꿀 때마다 캐시를 다시 만들고,
+  // 그 직후 첫 화면에서 새 의존성을 찾으면 페이지가 한 번 새로 고쳐진다.
+  cacheDir: process.env.NODE_ENV === "production" ? "node_modules/.vite-production" : "node_modules/.vite",
   plugins: [themeFoucPlugin(), workspaceFilesPlugin(), react(), tailwindcss()],
   resolve: {
     alias: {

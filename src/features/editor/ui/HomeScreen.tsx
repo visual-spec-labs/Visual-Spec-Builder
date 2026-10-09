@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type {
+  Background,
   Node as SpecNode,
   NodeId,
   ProjectSpec,
@@ -9,7 +10,9 @@ import type {
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { setHomeDraft } from "@/features/editor/store/homeDraft";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
+import { promptText } from "@/features/editor/store/promptDialogStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
+import { downloadTextFile } from "@/features/editor/ui/exportSpecAsJson";
 import { HOME_DRAFT_EXAMPLES } from "@/features/editor/ui/homeDraftExamples";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
@@ -20,12 +23,28 @@ import {
   previewInputStyle,
   previewScale,
   previewTextStyle,
+  type PreviewImageSrc,
 } from "@/features/editor/ui/homePreview";
+import { beginPreviewVisit, collectImageSrcs, endPreviewVisit, usePreviewThumbnails } from "@/features/editor/ui/previewThumbnail";
 import { renameProject } from "./renameProject";
-import { loadWorkspaceProjects, openHomeProject, type HomeProject } from "./homeProjects";
+import {
+  loadWorkspaceProjects,
+  loadWorkspaceProjectsProgressively,
+  openHomeProject,
+  type HomeProject,
+  type HomeProjectFailure,
+} from "./homeProjects";
 
 const PREVIEW_WIDTH = 208;
 const PREVIEW_HEIGHT = 140;
+/**
+ * 미리보기 축소 이미지의 짧은 변(px, #322). 카드의 긴 변 × 기기 픽셀 비율이면 카드 안 어떤 상자에서도
+ * 화면 픽셀보다 거칠지 않다(`thumbnailSize`). 비율은 첫 렌더 때 한 번 읽는다 — 창을 다른 배율의
+ * 모니터로 옮겨도 이미 줄인 이미지를 다시 만들지는 않는다.
+ */
+const THUMBNAIL_SHORT_SIDE = Math.ceil(
+  Math.max(PREVIEW_WIDTH, PREVIEW_HEIGHT) * Math.max(1, globalThis.devicePixelRatio ?? 1),
+);
 
 /**
  * 홈(진입) 화면. docs/04-gui-spec.md §2의 상태 1(목록)·상태 2(첫 실행, 빈 목록,
@@ -41,9 +60,11 @@ const PREVIEW_HEIGHT = 140;
  * 마운트 시 `listWorkspaceFileEntries(SPEC_DIR)`로 목록을, 파일마다
  * `readWorkspaceTextFile`+`parseSpecJson`(+화면 문서면 `migrateV01`)로 내용을 읽는다.
  * **작업공간이 없으면**(`listWorkspaceFileEntries`가 `null`, 정적 빌드 등) 조용히
- * 예전처럼 메모리 spec 한 장짜리 상태 1로 되돌아간다. **파싱에 실패한 파일은
- * 목록에서 조용히 뺀다** — 깨진 파일 하나 때문에 카드 전체가 안 뜨는 것보다 낫다.
- * 결과가 0개면 상태 2, 1개 이상이면 상태 1 — 같은 조건 하나로 갈린다.
+ * 예전처럼 메모리 spec 한 장짜리 상태 1로 되돌아간다. **읽기·검증에 실패한
+ * 파일은 카드가 되지 못하지만 조용히 사라지지 않는다**(#288) — 사유(읽기 실패/
+ * 검증 실패)와 함께 "손상된 파일" 섹션에 남고, 다시 확인·원본 다운로드 진입점을
+ * 준다(`homeProjects.ts`의 `HomeProjectFailure`). 카드 수가 0개면 상태 2,
+ * 1개 이상이면 상태 1 — 손상 파일 유무와 무관하게 **유효한** 카드 수로만 갈린다.
  *
  * **"자연어로 초안 만들기"는 홈 화면 안에서 먼저 작성한다**(#286). 상태 2(빈
  * 목록)에서 그 타일을 고르면 입력창·초안 예시·수동 에이전트 안내를 보여주는
@@ -67,9 +88,22 @@ const PREVIEW_HEIGHT = 140;
 type HomeState =
   | { kind: "loading" }
   | { kind: "no-workspace" }
-  | { kind: "ready"; projects: HomeProject[] };
+  /** `loading`이면 앞쪽 카드만 읽었고 뒤를 마저 읽는 중이다(#316). `failures`는
+   * 읽기/검증에 실패한 파일(#288) — 지금까지 읽은 묶음 기준이라 `loading`일 때도
+   * 계속 늘어날 수 있다. */
+  | { kind: "ready"; projects: HomeProject[]; failures: HomeProjectFailure[]; loading: boolean };
 
 export function HomeScreen() {
+  // 홈에 들어올 때마다 미리보기 이미지의 원본이 바뀌었는지 한 번씩 확인한다(#322). 카드의 effect
+  // (자식이라 이 화면의 effect보다 먼저 돈다)보다 먼저 돌아야 하므로 layout effect에서 부른다 —
+  // layout effect는 모두 일반 effect보다 먼저 돈다. 렌더 중에 부르지 않는 것은 StrictMode·재시도
+  // 렌더가 방문을 두 번 세지 않게 하려는 것이고, 같은 마운트의 effect 재실행은 `visitOwner`로 걸러진다.
+  const visitOwner = useRef({});
+  useLayoutEffect(() => {
+    const owner = visitOwner.current;
+    beginPreviewVisit(owner);
+    return () => endPreviewVisit(owner);
+  }, []);
   const spec = useEditorStore((s) => s.spec);
   const openEditor = useNavigationStore((s) => s.openEditor);
   const [renaming, setRenaming] = useState(false);
@@ -81,17 +115,53 @@ export function HomeScreen() {
   const [draftText, setDraftText] = useState("");
   const [submittingDraft, setSubmittingDraft] = useState(false);
   const draftInputRef = useRef<HTMLInputElement>(null);
+  // 카드 목록을 스크롤하는 요소 — 미리보기를 미리 그릴 범위(rootMargin)의 기준이다(#315).
+  const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
+  // 미리보기를 이미 그린 카드(key). 이름 변경으로 key(파일 이름)가 바뀌어 카드가 다시 마운트돼도
+  // 빈 자리로 깜빡이지 않게 새 key로 넘긴다.
+  const drawnPreviews = useRef(new Set<string>());
+  // 목록 읽기 세대. 이름 변경으로 목록을 새로 읽으면 올려서, 아직 뒤를 읽던 처음 읽기가 새 목록을
+  // 덮지 못하게 한다(#316).
+  const loadGeneration = useRef(0);
+  // 처음 읽기의 남은 요청을 멈춘다(이름 변경으로 목록을 다시 읽을 때).
+  const abortLoad = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     let cancelled = false;
-    void loadWorkspaceProjects().then((projects) => {
-      if (cancelled) return;
-      setState(projects === null ? { kind: "no-workspace" } : { kind: "ready", projects });
+    const generation = loadGeneration.current;
+    const stale = () => cancelled || generation !== loadGeneration.current;
+    const reads = new AbortController();
+    abortLoad.current = () => reads.abort();
+    // 앞에서부터 묶음으로 읽어 첫 화면 카드를 먼저 그린다(#316). 뒤 묶음은 이어 붙기만 한다.
+    // 못 읽거나 검증에 실패한 파일도 묶음마다 failures에 쌓인다(#288).
+    void loadWorkspaceProjectsProgressively(
+      (projects, failures, done) => setState({ kind: "ready", projects, failures, loading: !done }),
+      { isCancelled: stale, signal: reads.signal },
+    ).then((exists) => {
+      if (!stale() && !exists) setState({ kind: "no-workspace" });
     });
     return () => {
       cancelled = true;
+      loadGeneration.current += 1;
+      abortLoad.current();
     };
   }, []);
+
+  // 손상 파일 섹션의 "다시 확인"과 Rename 이후 둘 다 같은 새로고침이 필요하다(#288).
+  // 아직 뒤를 읽는 처음 읽기가 남아 있으면 먼저 멈춘다 — 안 그러면 그 진행 중인
+  // onProgress가 나중에 끝나며 이 새로고침 결과를 덮어쓸 수 있다.
+  async function refreshProjects() {
+    const generation = ++loadGeneration.current;
+    abortLoad.current();
+    const reads = new AbortController();
+    abortLoad.current = () => reads.abort();
+    const result = await loadWorkspaceProjects({ signal: reads.signal });
+    if (generation !== loadGeneration.current) return;
+    if (result !== null) setState({ kind: "ready", ...result, loading: false });
+    // 다시 읽기에 실패해도(작업공간 연결 끊김 등) 처음 읽기는 이미 멈췄다 — 보이던 목록을 두고
+    // "불러오는 중"만 끈다. 그대로 두면 표시가 영영 남는다.
+    else setState((current) => (current.kind === "ready" ? { ...current, loading: false } : current));
+  }
 
   // "+ 새 화면"도 File ▸ New와 같은 동작이다 — 빈 스펙을 열고 **현재 문서 이름을
   // 비운다**(PR #145 리뷰). 비우지 않으면 새로 만든 화면의 Save가 직전에 열어 둔
@@ -135,14 +205,21 @@ export function HomeScreen() {
 
   async function handleRename(project: HomeProject) {
     if (renaming) return;
-    const name = window.prompt("프로젝트 이름 (저장 파일명도 함께 변경됩니다)", project.spec.name);
+    const name = await promptText({
+      title: "프로젝트 이름 변경",
+      message: "저장 파일명도 함께 변경됩니다.",
+      initialValue: project.spec.name,
+      confirmLabel: "이름 변경",
+    });
     if (name === null) return;
     setRenaming(true);
     setMessage(null);
+    loadGeneration.current += 1; // 아직 뒤를 읽는 처음 읽기를 멈춘다
+    abortLoad.current();
     const result = await renameProject(project.fileName, name);
     if (!result.ok) setMessage(result.error);
-    const projects = await loadWorkspaceProjects();
-    if (projects !== null) setState({ kind: "ready", projects });
+    else if (drawnPreviews.current.has(project.fileName)) drawnPreviews.current.add(result.path.split("/").pop() ?? "");
+    await refreshProjects();
     setRenaming(false);
   }
 
@@ -156,7 +233,9 @@ export function HomeScreen() {
     if (useEditorStore.getState().spec !== before) openEditor();
   }
 
-  if (state.kind === "loading") {
+  // 뒤를 마저 읽는 중인데 아직 보여 줄 카드가 없으면(앞 묶음이 모두 깨진 파일) 빈 목록(상태 2)이
+  // 아니라 불러오는 중이다.
+  if (state.kind === "loading" || (state.kind === "ready" && state.loading && state.projects.length === 0)) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-surface-sunken text-sm text-content-muted">
         불러오는 중…
@@ -175,6 +254,7 @@ export function HomeScreen() {
           onOpen: () => void handleOpenProject(project),
           onRename: () => void handleRename(project),
         }));
+  const failures = state.kind === "ready" ? state.failures : [];
 
   if (cards.length === 0 && draftMode) {
     return (
@@ -252,7 +332,7 @@ export function HomeScreen() {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
         <div className="text-center">
-          <p className="text-lg font-semibold text-content-strong">첫 화면을 만들어 봅시다</p>
+          <p className="text-lg font-semibold text-content-strong">첫 프로젝트를 만들어 봅시다</p>
           <p className="mt-1 text-sm text-content-muted">어떻게 시작하시겠습니까?</p>
         </div>
         <div className="flex w-full max-w-sm flex-col divide-y divide-line overflow-hidden rounded-panel border border-line bg-surface">
@@ -277,9 +357,12 @@ export function HomeScreen() {
             onClick={() => void handleOpenExisting()}
             className="flex flex-col gap-0.5 px-4 py-3 text-left hover:bg-hover"
           >
-            <span className="text-sm font-medium text-content-strong">기존 화면 불러오기</span>
+            <span className="text-sm font-medium text-content-strong">기존 프로젝트 불러오기</span>
             <span className="text-xs text-content-muted">JSON 파일을 엽니다</span>
           </button>
+        </div>
+        <div className="w-full max-w-sm">
+          <CorruptedFilesSection failures={failures} onRetry={() => void refreshProjects()} />
         </div>
       </div>
     );
@@ -299,21 +382,68 @@ export function HomeScreen() {
           onClick={() => void handleNewScreen()}
           className="rounded-control bg-primary px-3 py-1.5 text-sm font-medium text-text-on-accent hover:opacity-90"
         >
-          + 새 화면
+          + 새 프로젝트
         </button>
       </header>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div ref={setScrollRoot} data-loading={state.kind === "ready" && state.loading ? "true" : undefined}
+        className="flex-1 overflow-auto p-6">
         {message && <p role="alert" className="mb-4 text-sm">{message}</p>}
         <p className="mb-4 text-sm text-content-muted">
-          프로젝트 {cards.length}개
+          프로젝트 {cards.length}개{state.kind === "ready" && state.loading ? " · 불러오는 중…" : ""}
         </p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(208px,1fr))] gap-4">
           {cards.map((card) => (
-            <ProjectCard key={card.key} spec={card.spec} onOpen={card.onOpen} onRename={card.onRename} disabled={renaming} />
+            <ProjectCard key={card.key} spec={card.spec} onOpen={card.onOpen} onRename={card.onRename} disabled={renaming}
+              scrollRoot={scrollRoot} drawn={drawnPreviews.current.has(card.key)}
+              onDrawn={() => drawnPreviews.current.add(card.key)} />
           ))}
         </div>
+        <CorruptedFilesSection failures={failures} onRetry={() => void refreshProjects()} />
       </div>
+    </div>
+  );
+}
+
+/** 읽기/검증에 실패해 카드가 되지 못한 파일을 사유와 함께 보여준다(#288). */
+function CorruptedFilesSection({ failures, onRetry }: { failures: HomeProjectFailure[]; onRetry: () => void }) {
+  if (failures.length === 0) return null;
+
+  return (
+    <div className="mt-6 rounded-panel border border-line bg-surface p-4">
+      <p className="mb-2 text-sm font-medium text-content-strong">손상된 파일 {failures.length}개</p>
+      <ul className="flex flex-col gap-2">
+        {failures.map((failure) => (
+          <li key={failure.fileName} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <div className="min-w-0">
+              <p className="truncate text-content">.visual-spec/specs/{failure.fileName}</p>
+              <p className="text-xs text-content-muted">
+                {failure.reason === "read-failed"
+                  ? "파일을 읽을 수 없습니다."
+                  : `올바른 프로젝트 파일이 아닙니다 (검증 실패 ${failure.issueCount}건).`}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={onRetry}
+                className="rounded-control border border-line px-2 py-1 text-xs hover:bg-hover"
+              >
+                다시 확인
+              </button>
+              {failure.reason === "invalid" && (
+                <button
+                  type="button"
+                  onClick={() => downloadTextFile(failure.fileName, failure.rawText)}
+                  className="rounded-control border border-line px-2 py-1 text-xs hover:bg-hover"
+                >
+                  원본 다운로드
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -323,11 +453,18 @@ function ProjectCard({
   onOpen,
   onRename,
   disabled,
+  scrollRoot,
+  drawn,
+  onDrawn,
 }: {
   spec: ProjectSpec;
   onOpen: () => void;
   onRename?: () => void;
   disabled: boolean;
+  scrollRoot: Element | null;
+  /** 이 카드의 미리보기를 이미 그린 적이 있다(이름 변경으로 다시 마운트된 경우 등). */
+  drawn: boolean;
+  onDrawn: () => void;
 }) {
   // 열면 editorStore.loadSpec이 항상 pageOrder[0]을 활성 페이지로 잡는다
   // (editorStore.ts) — 그래서 카드 미리보기·크기도 같은 페이지를 기준으로
@@ -342,7 +479,7 @@ function ProjectCard({
       onClick={onOpen}
       className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-2 text-left hover:border-primary"
     >
-      <ProjectPreview page={coverPage} />
+      <ProjectPreview page={coverPage} scrollRoot={scrollRoot} drawn={drawn} onDrawn={onDrawn} />
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-content-strong">
           {spec.name}
@@ -359,22 +496,65 @@ function ProjectCard({
   );
 }
 
-/** 캡처 이미지를 저장하지 않는다 — 스펙 JSON에서 매번 즉석 렌더한다(해결된 항목, docs/open-questions.md). */
-function ProjectPreview({ page }: { page: ScreenSpec }) {
+/**
+ * 요소가 스크롤 영역(`root`)의 보이는 부분 근처(위아래 `rootMargin`)에 한 번이라도 들어왔는가.
+ * 한 번 들어오면 계속 true다 — 스크롤해 벗어날 때마다 미리보기를 지웠다 다시 그리지 않는다.
+ * 기준을 브라우저 창이 아니라 카드 목록의 스크롤 요소로 잡는다 — 창을 기준으로 하면 그 요소가
+ * 잘라 낸 바로 아래 카드가 "보이지 않음"으로 남아 `rootMargin`이 효과가 없다. 스크롤 요소가
+ * 아직 없으면 기다린다. `IntersectionObserver`가 없는 환경(테스트 등)에서는 처음부터 true다.
+ */
+function useSeenOnce<T extends Element>(
+  root: Element | null, initiallySeen = false, rootMargin = "200px",
+): [RefObject<T | null>, boolean] {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(() => initiallySeen || typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    if (seen || root === null || ref.current === null) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
+    }, { root, rootMargin });
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [seen, root, rootMargin]);
+  return [ref, seen];
+}
+
+/**
+ * 캡처 이미지를 저장하지 않는다 — 스펙 JSON에서 매번 즉석 렌더한다(해결된 항목, docs/open-questions.md).
+ *
+ * 다만 화면 근처에 들어온 카드만 그린다(#315). 그리기 전에는 같은 크기의 빈 자리만 둔다.
+ * 그리는 카드는 노드를 **전부** 그린다 — 노드를 일부만 그리면 row·grid 배치에서 보이는 영역이
+ * 빠지거나, 남은 형제의 정렬(center·space-between 등)이 달라져 카드와 실제 화면이 어긋난다.
+ */
+function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
+  page: ScreenSpec; scrollRoot: Element | null; drawn: boolean; onDrawn: () => void;
+}) {
   const { width, height } = page.size;
   const scale = previewScale(width, height, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+  const [ref, seen] = useSeenOnce<HTMLDivElement>(scrollRoot, drawn);
+  useEffect(() => { if (seen) onDrawn(); }, [seen, onDrawn]);
+  // 이미지는 원본이 아니라 카드 크기로 줄인 것을 쓴다(#322). 줄이는 동안은 그 이미지만 비워 둔다.
+  const imageSrcs = useMemo(() => collectImageSrcs(page.nodes, page.root), [page.nodes, page.root]);
+  const imageSrc = usePreviewThumbnails(imageSrcs, seen, THUMBNAIL_SHORT_SIDE);
 
+  // 미리보기는 그림이다 — 카드 버튼의 접근 가능한 이름은 프로젝트 이름·페이지 정보로 충분하다.
+  // 미리보기 안의 텍스트까지 이름에 들어가면 그렸는지(스크롤 위치)에 따라 이름이 바뀌고 매우 길어진다.
   return (
     <div
+      ref={ref}
+      aria-hidden="true"
+      data-preview={seen ? "ready" : "pending"}
       className="relative overflow-hidden rounded-control bg-surface-canvas"
       style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT }}
     >
-      <div
-        className="absolute top-0 left-0"
-        style={{ width, height, transform: `scale(${scale})`, transformOrigin: "top left" }}
-      >
-        <PreviewNode id={page.root} nodes={page.nodes} />
-      </div>
+      {seen && (
+        <div
+          className="absolute top-0 left-0"
+          style={{ width, height, transform: `scale(${scale})`, transformOrigin: "top left" }}
+        >
+          <PreviewNode id={page.root} nodes={page.nodes} imageSrc={imageSrc} />
+        </div>
+      )}
     </div>
   );
 }
@@ -382,10 +562,12 @@ function ProjectPreview({ page }: { page: ScreenSpec }) {
 function PreviewNode({
   id,
   nodes,
+  imageSrc,
   parentDirection,
 }: {
   id: NodeId;
   nodes: Record<NodeId, SpecNode>;
+  imageSrc: PreviewImageSrc;
   parentDirection?: Direction;
 }) {
   const node = nodes[id];
@@ -395,12 +577,13 @@ function PreviewNode({
 
   if (node.type === "frame") {
     return (
-      <div style={previewFrameStyle(node, parentDirection)}>
+      <div style={previewFrameStyle(node, parentDirection, imageSrc)} data-preview-image={imageMark(node.background)}>
         {node.children.map((child) => (
           <PreviewNode
             key={child.node}
             id={child.node}
             nodes={nodes}
+            imageSrc={imageSrc}
             parentDirection={node.layout.direction}
           />
         ))}
@@ -413,12 +596,23 @@ function PreviewNode({
   }
 
   if (node.type === "button") {
-    return <div style={previewButtonStyle(node, parentDirection)}>{node.content}</div>;
+    return <div style={previewButtonStyle(node, parentDirection, imageSrc)} data-preview-image={imageMark(node.background)}>{node.content}</div>;
   }
 
   if (node.type === "input") {
-    return <div style={previewInputStyle(node, parentDirection)}>{node.placeholder}</div>;
+    return <div style={previewInputStyle(node, parentDirection, imageSrc)} data-preview-image={imageMark(node.background)}>{node.placeholder}</div>;
   }
 
-  return <div style={previewImageStyle(node, parentDirection)} />;
+  return <div style={previewImageStyle(node, parentDirection, imageSrc)} data-preview-image={node.src === "" ? undefined : "1"} />;
+}
+
+/**
+ * 이미지를 그려야 하는 미리보기 요소 표시(`data-preview-image`, 값은 서로 다른 이미지 수). 축소본이 준비되기 전에는 배경 이미지가
+ * 없어 스타일만으로는 이미지 자리인지 알 수 없다 — 성능 측정(`scripts/perf/measure.mjs`)이 화면의 이미지가
+ * 모두 그려졌는지 셀 때 쓴다(#322).
+ */
+function imageMark(background: Background | undefined): string | undefined {
+  // 겹 수가 아니라 서로 다른 src 수다 — 같은 이미지를 두 겹에 쓰면 브라우저는 한 번만 그렸다고 알린다.
+  const srcs = new Set(background?.flatMap((fill) => (fill.type === "image" && fill.src !== "" ? [fill.src] : [])));
+  return srcs.size === 0 ? undefined : String(srcs.size);
 }

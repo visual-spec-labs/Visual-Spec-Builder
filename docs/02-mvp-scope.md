@@ -41,7 +41,7 @@ node /path/to/Visual-Spec-Builder/bin/visual-spec.mjs
 폴더의 `.visual-spec/`을 읽고 쓴다** — 개발 서버 자신은 클론한 저장소에서 도는데도 그렇다
 (이슈 #133: CLI가 작업공간 경로를 환경 변수로 개발 서버에 넘긴다).
 
-저장소 안에서 `pnpm dev`로 바로 띄울 수도 있다. 그때 작업공간은 저장소 루트의
+CLI로 띄운 GUI는 React production 빌드로 돈다(#314, `VISUAL_SPEC_REACT_DEV=1`이면 개발 모드). 저장소 안에서 `pnpm dev`로 바로 띄울 수도 있다 — 이쪽은 React 개발 모드다. 그때 작업공간은 저장소 루트의
 `.visual-spec/`이 된다.
 
 `init`은 현재 프로젝트를 분석하거나 변경하지 않고 전용 작업공간만 만든다.

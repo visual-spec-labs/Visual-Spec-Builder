@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { loadStoredSpec, saveSpecToStorage, parseStoredDocument, projectStorageKey, readRecovery, prepareProjectRename, publishProjectRename } from "@/features/editor/store/specStorage";
 import { newSpec } from "@/features/editor/ui/newSpec";
@@ -33,7 +34,7 @@ beforeEach(() => {
   vi.stubGlobal("navigator", { locks: { request: async (_key: string, fn: () => void) => fn() } });
   listeners = new Map();
   vi.stubGlobal("window", { addEventListener: (name: string, fn: (event: unknown) => void) => listeners.set(name, fn),
-    removeEventListener: (name: string) => listeners.delete(name), alert: vi.fn(), prompt: vi.fn(), confirm: vi.fn(() => true) });
+    removeEventListener: (name: string) => listeners.delete(name), alert: vi.fn(), confirm: vi.fn(() => true) });
   useEditorStore.getState().loadSpec(initial);
   useDocumentStore.getState().setFileName("same.json", "loaded-revision");
   useSaveConflictStore.setState({ paused: false, unavailable: false });
@@ -174,18 +175,18 @@ describe("same-project autosave conflict preservation", () => {
   });
   it("successful Save as adopts its own canonical cache without a false conflict", async () => {
     stop = startSpecAutosave(); edit("mine");
-    vi.mocked(window.prompt).mockReturnValue("new-copy.json");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true, path: "specs/new-copy.json" }), {
       headers: { "x-visual-spec-workspace": "1" },
     })));
-    await saveSpecAs(useEditorStore.getState().spec);
+    const pending = saveSpecAs(useEditorStore.getState().spec);
+    usePromptDialogStore.getState().resolve("new-copy.json"); // saveSpecAs가 await 전에 여는 모달이라 즉시 답할 수 있다(#288)
+    await pending;
     expect(useDocumentStore.getState().fileName).toBe("new-copy.json");
     expect(useSaveConflictStore.getState().paused).toBe(false);
     expect(useSaveConflictStore.getState().check()).toBe(false);
   });
   it.each(["Save", "Save as"])("delayed %s completion never redirects a newly opened document", async (kind) => {
     stop = startSpecAutosave(); edit("snapshot A");
-    vi.mocked(window.prompt).mockReturnValue("copy-C.json");
     let complete: ((response: Response) => void) | undefined;
     const fetch = vi.fn(async (_url: string, options: RequestInit) => {
       if (options.method === "PUT") return await new Promise<Response>((resolve) => { complete = resolve; });
@@ -193,6 +194,8 @@ describe("same-project autosave conflict preservation", () => {
     });
     vi.stubGlobal("fetch", fetch);
     const operation = kind === "Save" ? saveSpec(useEditorStore.getState().spec) : saveSpecAs(useEditorStore.getState().spec);
+    // Save as는 await 전에 모달을 여니 바로 답할 수 있다(#288); Save는 모달이 없다.
+    if (kind === "Save as") usePromptDialogStore.getState().resolve("copy-C.json");
     await vi.waitFor(() => expect(complete).toBeDefined());
     edit("opened B"); useDocumentStore.getState().setFileName("B.json");
     complete?.(new Response(JSON.stringify({ ok: true, path: "specs/copy-C.json" }), { headers: { "x-visual-spec-workspace": "1" } }));
@@ -211,13 +214,13 @@ describe("same-project autosave conflict preservation", () => {
   });
   it("edits in the same document while Save as is pending keep the new path and newer draft", async () => {
     stop = startSpecAutosave();
-    vi.mocked(window.prompt).mockReturnValue("copy.json");
     let complete: ((response: Response) => void) | undefined;
     vi.stubGlobal("fetch", vi.fn(async (_url: string, options: RequestInit) => {
       if (options.method === "PUT") return await new Promise<Response>((resolve) => { complete = resolve; });
       return new Response("{}", { headers: { "x-visual-spec-workspace": "1" } });
     }));
     const operation = saveSpecAs(useEditorStore.getState().spec);
+    usePromptDialogStore.getState().resolve("copy.json"); // saveSpecAs가 await 전에 여는 모달이라 즉시 답할 수 있다(#288)
     await vi.waitFor(() => expect(complete).toBeDefined());
     const editor = useEditorStore.getState();
     editor.setPageField(editor.activePageId, "name", "edit while saving");
