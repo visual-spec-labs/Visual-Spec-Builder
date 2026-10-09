@@ -35,6 +35,13 @@ export interface ManifestEntry {
   contentHash: string;
   /** ISO 시각. 판정에는 쓰지 않고 사람이 읽는 용도다. */
   acceptedAt: string;
+  /**
+   * 확정 때 열려 있던 프로젝트의 작업공간 파일 이름(`documentStore.fileName`, #282). 저장하지 않은
+   * 문서면 null, #284 시절 기록이면 없다. 쓰기 전 보호는 이 값과 `pageId`가 지금과 **같을 때만** 이
+   * 파일을 "마지막 정상 생성"으로 본다 — 이름 변경·복사·같은 이름의 다른 프로젝트는 서로 다른 값이라
+   * 소유권을 넘겨받지 못하고 사용자 확인으로 간다. 안정 project ID는 #281이 정하며 그때 이 필드를 바꾼다.
+   */
+  projectKey?: string | null;
 }
 
 export interface GenerationManifest {
@@ -54,7 +61,8 @@ function isManifestEntry(value: unknown): value is ManifestEntry {
   return isRecord(value) &&
     typeof value.requestId === "string" && typeof value.ticketId === "string" &&
     typeof value.pageId === "string" && typeof value.inputFingerprint === "string" &&
-    typeof value.contentHash === "string" && typeof value.acceptedAt === "string";
+    typeof value.contentHash === "string" && typeof value.acceptedAt === "string" &&
+    (value.projectKey === undefined || value.projectKey === null || typeof value.projectKey === "string");
 }
 
 /**
@@ -86,6 +94,22 @@ export function withManifestEntries(
   entries: Record<string, ManifestEntry>,
 ): GenerationManifest {
   return { protocol: GENERATION_MANIFEST_PROTOCOL, entries: { ...manifest.entries, ...entries } };
+}
+
+/**
+ * 경로별로 기록을 바꾸거나(항목) 지운(null) 새 기록을 돌려준다(#282 되돌리기). 되돌린 파일은 이전
+ * 기록으로 돌아가고, 이전 기록이 없던 파일(새로 만든 파일을 지운 경우)은 기록에서 빠진다.
+ */
+export function withManifestUpdates(
+  manifest: GenerationManifest,
+  updates: Record<string, ManifestEntry | null>,
+): GenerationManifest {
+  const entries = { ...manifest.entries };
+  for (const [path, entry] of Object.entries(updates)) {
+    if (entry === null) delete entries[path];
+    else entries[path] = entry;
+  }
+  return { protocol: GENERATION_MANIFEST_PROTOCOL, entries };
 }
 
 /**

@@ -14,43 +14,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const workspace = vi.hoisted(() => ({
-  files: new Map<string, string>(),
+  files: new Map<string, string | Uint8Array>(),
   offline: false,
-  beforeRead: null as null | ((path: string) => Promise<void>),
-  afterWrite: null as null | ((path: string) => void),
+  beforeWrite: null as ((path: string) => void) | null,
+  failWrite: null as ((path: string) => string | null) | null,
+  log: [] as string[],
   owner: null as string | null,
+  beforeRead: undefined as ((path: string) => Promise<void>) | undefined,
+  afterWrite: undefined as ((path: string) => void) | undefined,
 }));
 
-vi.mock("@/features/editor/ui/workspaceClient", () => {
-  function list(dir: string, options: { recursive?: boolean } = {}) {
-    if (workspace.offline) return null;
-    const prefix = `${dir}/`;
-    return [...workspace.files.keys()]
-      .filter((path) => path.startsWith(prefix))
-      .map((path) => path.slice(prefix.length))
-      .filter((path) => options.recursive === true || !path.includes("/"));
-  }
-  return {
-    isWorkspaceAvailable: async () => !workspace.offline,
-    listWorkspaceFiles: async (dir: string, options?: { recursive?: boolean }) => list(dir, options),
-    readWorkspaceTextFile: async (path: string) => (workspace.offline ? null : workspace.files.get(path) ?? null),
-    readWorkspaceTextFileStrict: async (path: string) => {
-      await workspace.beforeRead?.(path);
-      return workspace.offline ? { ok: false } : { ok: true, text: workspace.files.get(path) ?? null };
-    },
-    readWorkspaceBinaryFile: async () => null,
-    writeWorkspaceFile: async (path: string, body: string) => {
-      if (workspace.offline) return { ok: false, error: "fetch failed" };
-      workspace.files.set(path, body);
-      workspace.afterWrite?.(path);
-      return { ok: true, path };
-    },
-  };
-});
+vi.mock("@/features/editor/ui/workspaceClient", async () =>
+  (await import("./fixtures/memoryWorkspace")).memoryWorkspaceClient(workspace));
 
 // 서버 잠금(`workspace/requestLock.ts`)처럼 풀 때 요청 id가 주인과 같은 요청 파일만 지운다.
 vi.mock("@/features/editor/ui/agentRequestLock", () => ({
   holdRequestLock: async (kind: string, owner: string) => {
+    if (workspace.owner !== null && workspace.owner !== owner) return "busy";
     workspace.owner = owner;
     return ({
     renew: async () => workspace.owner === owner,
@@ -59,13 +39,14 @@ vi.mock("@/features/editor/ui/agentRequestLock", () => ({
       workspace.owner = null;
       const path = `runtime/${kind}-request.json`;
       const request = workspace.files.get(path);
-      if (request !== undefined && (JSON.parse(request) as { id: string }).id === owner) {
+      if (typeof request === "string" && (JSON.parse(request) as { id: string }).id === owner) {
         workspace.files.delete(path);
       }
     },
   }); },
 }));
 
+import { resetMemoryWorkspace, textOf } from "./fixtures/memoryWorkspace";
 import { GENERATION_MANIFEST_PATH, parseGenerationManifest } from "@/features/editor/export/generationManifest";
 import { seedSpec } from "@/features/editor/store/seedSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -75,6 +56,7 @@ import { AGENT_WAIT_WINDOW_MS } from "@/features/editor/ui/agentRequestWait";
 import { scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
 import {
   cancelTicketRun,
+  answerOverwriteReview,
   extendTicketWait,
   runAllTickets,
   runOneTicket,
@@ -91,7 +73,7 @@ function compileCurrent(): void {
 }
 
 function currentRequest(): TicketRequest {
-  const text = workspace.files.get(TICKET_REQUEST_PATH);
+  const text = textOf(workspace, TICKET_REQUEST_PATH);
   if (text === undefined) throw new Error("요청 파일이 없습니다");
   return JSON.parse(text) as TicketRequest;
 }
@@ -123,10 +105,7 @@ const tick = () => vi.advanceTimersByTimeAsync(1000);
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-10T00:00:00Z"));
-  workspace.files.clear();
-  workspace.offline = false;
-  workspace.beforeRead = null;
-  workspace.afterWrite = null;
+  resetMemoryWorkspace(workspace);
   workspace.owner = null;
   useEditorStore.getState().loadSpec(seedSpec);
   useTicketStore.setState({
@@ -180,7 +159,7 @@ describe("취소 A → 재시도 B 성공 → 늦은 A 응답/파일", () => {
     expect(useTicketStore.getState().running).toBe(false);
     // Export 수용
     expect(workspace.files.get(`generated/${HEADER}`)).toBe(B_BYTES);
-    const manifest = parseGenerationManifest(workspace.files.get(GENERATION_MANIFEST_PATH) ?? null);
+    const manifest = parseGenerationManifest(textOf(workspace, GENERATION_MANIFEST_PATH) ?? null);
     expect(manifest.entries[HEADER]?.requestId).toBe(requestB.id);
 
     // B 확정 뒤 A가 또 늦게 쓴다(응답·파일) — 아무도 확정하지 않는다
@@ -238,7 +217,7 @@ describe("취소 A → 재시도 B 성공 → 늦은 A 응답/파일", () => {
 });
 
 describe("일부 파일만 도착", () => {
-  it("완료 응답이어도 임시 출력이 없는 티켓은 실패로 바꾸고, 도착한 것만 확정한다", async () => {
+  it("완료 응답이어도 임시 출력이 빠지면 웨이브 전체를 보존한다", async () => {
     const run = runAllTickets();
     await tick();
     const request = currentRequest();
@@ -252,7 +231,7 @@ describe("일부 파일만 도착", () => {
     await run;
 
     // 티켓 상태
-    expect(status("Header")).toBe("done");
+    expect(status("Header")).toBe("failed");
     expect(status("Card")).toBe("failed");
     expect(useTicketStore.getState().tickets.find((ticket) => ticket.id === "Card")?.error).toContain("임시 출력");
     expect(status("Content")).toBe("pending"); // 실패한 Card에 의존 — 다음 웨이브로 가지 않는다
@@ -264,9 +243,9 @@ describe("일부 파일만 도착", () => {
 
     // Export 수용
     const { byTicket, freshness } = await exportScan();
-    expect(byTicket.Header).toBe("current");
+    expect(byTicket.Header).toBe("missing");
     expect(byTicket.Card).toBe("missing");
-    expect(freshness.overall).toBe("partial");
+    expect(freshness.overall).toBe("missing");
   });
 
   it("취소된 요청의 일부 파일이 늦게 와도 아무것도 확정하지 않는다", async () => {
@@ -448,13 +427,15 @@ describe("승격 중 재진입 회귀", () => {
     expect(workspace.files.has(GENERATION_MANIFEST_PATH)).toBe(false);
     if (action === "cancel") {
       expect(status("Header")).toBe("pending");
-      workspace.beforeRead = null;
+      workspace.beforeRead = undefined;
       const retry = runOneTicket("Header");
       await tick();
       const next = currentRequest();
       expect(next.id).not.toBe(request.id);
       agentWrites(next.id, HEADER, B_BYTES);
       agentResponds(next.id, [{ ticketId: "Header", status: "done" }]);
+      await tick();
+      answerOverwriteReview({ [HEADER]: "overwrite" });
       await tick();
       await retry;
       expect(status("Header")).toBe("done");

@@ -10,10 +10,13 @@ import { AgentWaitStatus } from "@/features/editor/ui/AgentWaitStatus";
 import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
 import { openExportPanel } from "@/features/editor/ui/openExportPanel";
+import { OverwriteReviewPanel } from "@/features/editor/ui/OverwriteReviewPanel";
 import {
+  answerOverwriteReview,
   cancelTicketRun,
   extendTicketWait,
   runAllTickets,
+  restoreLastRun,
   runOneTicket,
   STALE_TICKET_MESSAGE,
 } from "@/features/editor/ui/ticketRunner";
@@ -57,6 +60,9 @@ export function TicketPanel() {
   const runErrorRetryable = useTicketStore((state) => state.runErrorRetryable);
   const wait = useTicketStore((state) => state.wait);
   const acceptanceWarning = useTicketStore((state) => state.acceptanceWarning);
+  const overwriteReview = useTicketStore((state) => state.overwriteReview);
+  const lastRun = useTicketStore((state) => state.lastRun);
+  const restoreMessage = useTicketStore((state) => state.restoreMessage);
   const compile = useTicketStore((state) => state.compile);
   const markStatus = useTicketStore((state) => state.markStatus);
   const close = useTicketStore((state) => state.close);
@@ -221,8 +227,35 @@ export function TicketPanel() {
         </p>
       )}
 
+      {/* 마지막 적용 되돌리기(#282). 적용이 쓴 바이트가 그대로인 파일만 백업으로 돌려놓는다 —
+          그 뒤 다시 고친 파일은 더 새로운 수정이라 건드리지 않는다. */}
+      {(lastRun !== null && !running) || restoreMessage !== null ? (
+        <div className="flex flex-col gap-1 border-t border-line px-3 py-2 text-xs text-content-muted">
+          {lastRun !== null && !running && (
+            <span>
+              마지막 적용이 파일 {lastRun.paths.length}개를 바꿨습니다(백업: <code>{lastRun.backupRoot}/</code>).{" "}
+              <button type="button" onClick={() => void restoreLastRun()} className="underline hover:text-content">
+                마지막 적용 되돌리기
+              </button>
+            </span>
+          )}
+          {restoreMessage !== null && <span role="alert">{restoreMessage}</span>}
+        </div>
+      ) : null}
+
+      {/* 쓰기 전 확인(#282)은 조작 영역이라 알림 영역(role=status) 밖에 둔다. */}
+      {overwriteReview !== null && (
+        <div className="border-t border-line px-3 py-2">
+          <OverwriteReviewPanel key={overwriteReview.requestId} review={overwriteReview} onAnswer={answerOverwriteReview} />
+        </div>
+      )}
+
       <div role="status" aria-live="polite" className="border-t border-line px-3 py-2 text-xs">
-        {workspaceAvailable !== true ? (
+        {overwriteReview !== null ? (
+          <span className="text-content-muted">
+            응답을 받았습니다. 위에서 기존 파일을 보존할지 덮어쓸지 고르면 적용합니다.
+          </span>
+        ) : workspaceAvailable !== true ? (
           <span className="text-content-muted">
             A안: 계획과 상태만 표시합니다. 실제 코드는 외부 에이전트가 생성합니다.
           </span>

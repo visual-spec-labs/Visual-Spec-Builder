@@ -29,6 +29,7 @@ import {
   WORKSPACE_REQUEST_LOCK_RENEW_PARAM,
   type RequestLockKind,
 } from "@/features/workspace/protocol";
+import { sha256Hex } from "@/features/editor/export/contentHash";
 
 /**
  * 정말 우리 미들웨어가 답했는지 본다.
@@ -186,6 +187,54 @@ export async function readWorkspaceSpecSnapshot(relativePath: string, signal: Ab
     if (!response.ok || !isWorkspaceResponse(response) || !revision) return null;
     return { text: await response.text(), revision };
   } catch { return null; }
+}
+
+/**
+ * 파일 하나의 **바이트 그대로**와 그 버전(바이트의 SHA-256)을 읽는다(#282). 없음과 읽기 실패를 가른다.
+ *
+ * 쓰기 전 보호가 쓰는 읽기다. 텍스트로 읽으면(`Response.text()`) UTF-8 BOM이 떨어지고 잘못된
+ * 바이트가 대체 문자로 바뀌어, 백업이 원본 바이트와 달라지고 버전도 서버와 어긋난다. 버전은
+ * 받은 바이트로 여기서 계산한다 — 서버가 같은 바이트로 계산하므로 기대 버전 비교에 그대로 쓸 수 있다.
+ */
+export async function readWorkspaceFileSnapshot(
+  relativePath: string,
+  signal: AbortSignal = AbortSignal.timeout(10_000),
+): Promise<{ ok: true; snapshot: { bytes: Uint8Array; revision: string } | null } | { ok: false }> {
+  if (!(await isWorkspaceAvailable(signal))) return { ok: false };
+  try {
+    const response = await fetch(workspaceFileUrl(relativePath), { signal });
+    if (!isWorkspaceResponse(response)) return { ok: false };
+    if (response.status === 404) return { ok: true, snapshot: null };
+    if (!response.ok) return { ok: false };
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return { ok: true, snapshot: { bytes, revision: sha256Hex(bytes) } };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * 생성 파일을 지운다 — 서버가 지금 바이트의 버전이 `expectedRevision`과 같을 때만 지운다(#282).
+ * 앱이 새로 만든 파일을 되돌릴 때만 쓴다. 409면 그 뒤 누군가 고쳤다는 뜻이라 남겨 둔다.
+ */
+export async function deleteWorkspaceFile(relativePath: string, expectedRevision: string, requestOwner?: string, signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<WriteResult> {
+  if (!(await isWorkspaceAvailable(signal))) return { ok: false, error: "작업공간에 연결돼 있지 않습니다." };
+  try {
+    const response = await fetch(workspaceFileUrl(relativePath), {
+      method: "DELETE",
+      headers: { [WORKSPACE_EXPECTED_REVISION_HEADER]: expectedRevision, ...(requestOwner ? { [WORKSPACE_REQUEST_OWNER_HEADER]: requestOwner } : {}) },
+      signal,
+    });
+    if (!isWorkspaceResponse(response)) return { ok: false, error: "작업공간 응답이 아닙니다." };
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message = (payload as { error?: unknown } | null)?.error;
+      return { ok: false, error: typeof message === "string" ? message : `HTTP ${response.status}`, status: response.status };
+    }
+    return { ok: true, path: relativePath };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 export type WriteResult = { ok: true; path: string; revision?: string } | { ok: false; error: string; status?: number };

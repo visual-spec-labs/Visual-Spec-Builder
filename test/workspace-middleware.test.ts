@@ -1,4 +1,6 @@
 import * as fs from "node:fs";
+import * as mutations from "@/features/workspace/workspaceMutation";
+import { createHash } from "node:crypto";
 import { createServer, request, type Server } from "node:http";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
@@ -124,7 +126,7 @@ describe("resolveWorkspaceRoot — 워크스페이스 루트 전달", () => {
 
 describe("ensureWorkspaceDirs", () => {
   it("화이트리스트 폴더를 모두 만든다 — init 없이 GUI만 띄워도 Save가 되어야 한다", () => {
-    for (const dir of ["specs", "assets", "generated", "runtime", "staging"]) {
+    for (const dir of ["specs", "assets", "generated", "runtime", "staging", "backups"]) {
       expect(existsSync(join(workspaceRoot, dir))).toBe(true);
     }
   });
@@ -142,7 +144,7 @@ describe("GET /__vs/status", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       ok: true,
-      dirs: ["specs", "assets", "generated", "runtime", "staging"],
+      dirs: ["specs", "assets", "generated", "runtime", "staging", "backups"],
     });
   });
 
@@ -227,7 +229,7 @@ describe("PUT·GET /__vs/file — 실제로 읽고 쓴다", () => {
     expect(response.status).toBe(404);
   });
 
-  it("GET·PUT 이 아닌 메서드는 405다", async () => {
+  it("generated 밖의 DELETE는 405다", async () => {
     const response = await fetch(`${baseUrl}/__vs/file/specs/home.json`, { method: "DELETE" });
 
     expect(response.status).toBe(405);
@@ -1070,3 +1072,131 @@ describe("runtime/ 요청 파일 잠금(#273)", () => {
   });
 });
 
+
+describe("generated/·backups/ 기대 버전과 조건부 지우기(#282)", () => {
+  const sha = (body: string | Uint8Array) => createHash("sha256").update(body).digest("hex");
+  const put = (path: string, body: string | Uint8Array, expected?: string) => fetch(`${baseUrl}/__vs/file/${path}`, {
+    method: "PUT",
+    headers: expected === undefined ? {} : { "x-visual-spec-expected-revision": expected },
+    body,
+  });
+  const generatedFile = () => join(workspaceRoot, "generated", "components", "Header.tsx");
+
+  it("GET은 바이트 그대로와 그 버전을 함께 준다 — BOM도 남는다", async () => {
+    const bytes = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("export const A = 1;\n")]);
+    mkdirSync(join(workspaceRoot, "generated", "components"), { recursive: true });
+    writeFileSync(generatedFile(), bytes);
+    const response = await fetch(`${baseUrl}/__vs/file/generated/components/Header.tsx`);
+    expect(response.headers.get("x-visual-spec-revision")).toBe(sha(bytes));
+    expect(Buffer.from(await response.arrayBuffer()).equals(bytes)).toBe(true);
+  });
+
+  it("기대 버전이 지금 바이트와 다르면 409이고 파일은 그대로다 — 확인 뒤 바뀐 파일을 덮지 않는다", async () => {
+    expect((await put("generated/components/Header.tsx", "L\n", "missing")).status).toBe(200);
+    writeFileSync(generatedFile(), "사람이 고침\n");
+    const stale = await put("generated/components/Header.tsx", "N\n", sha("L\n"));
+    expect(stale.status).toBe(409);
+    expect(readFileSync(generatedFile(), "utf8")).toBe("사람이 고침\n");
+    const fresh = await put("generated/components/Header.tsx", "N\n", sha("사람이 고침\n"));
+    expect(fresh.status).toBe(200);
+    expect(fresh.headers.get("x-visual-spec-revision")).toBe(sha("N\n"));
+  });
+
+  it("기대 버전을 보내지 않은 generated 쓰기는 지금처럼 덮어쓴다(opt-in) — 외부 writer 보호가 아니다", async () => {
+    expect((await put("generated/components/Header.tsx", "L\n")).status).toBe(200);
+    expect((await put("generated/components/Header.tsx", "N\n")).status).toBe(200);
+    expect(readFileSync(generatedFile(), "utf8")).toBe("N\n");
+  });
+
+  it("백업은 새 파일로만 쓴다 — 기대 버전 없음·기존 백업 덮어쓰기는 거부한다", async () => {
+    expect((await put("backups/run-1/files/components/Header.tsx", "M\n")).status).toBe(428);
+    expect((await put("backups/run-1/files/components/Header.tsx", "M\n", "missing")).status).toBe(200);
+    expect((await put("backups/run-1/files/components/Header.tsx", "X\n", "missing")).status).toBe(409);
+    expect((await put("backups/run-1/files/components/Header.tsx", "X\n", sha("M\n"))).status).toBe(409);
+    expect(readFileSync(join(workspaceRoot, "backups", "run-1", "files", "components", "Header.tsx"), "utf8")).toBe("M\n");
+  });
+
+  it("DELETE는 generated 안에서, 기대 버전이 지금 바이트와 같을 때만 지운다", async () => {
+    expect((await put("generated/components/Header.tsx", "N\n", "missing")).status).toBe(200);
+    const del = (path: string, expected?: string) => fetch(`${baseUrl}/__vs/file/${path}`, {
+      method: "DELETE",
+      headers: expected === undefined ? {} : { "x-visual-spec-expected-revision": expected },
+    });
+    expect((await del("generated/components/Header.tsx")).status).toBe(428);
+    expect((await del("generated/components/Header.tsx", "missing")).status).toBe(428);
+    expect((await del("generated/components/Header.tsx", sha("다른 내용\n"))).status).toBe(409);
+    expect(existsSync(generatedFile())).toBe(true);
+    expect((await del("backups/run-1/run.json", sha("x"))).status).toBe(405);
+    expect((await del("generated/components/Header.tsx", sha("N\n"))).status).toBe(200);
+    expect(existsSync(generatedFile())).toBe(false);
+    expect((await del("generated/components/Header.tsx", sha("N\n"))).status).toBe(409);
+  });
+});
+
+describe("#282 canonical policy roots", () => {
+  it.each(["specs", "backups"])("generated alias -> %s cannot DELETE or PUT protected bytes", async (dir) => {
+    const target = join(workspaceRoot, dir, "original.json");
+    writeFileSync(target, "original");
+    symlinkSync(join(workspaceRoot, dir), join(workspaceRoot, "generated", "alias"), "junction");
+    const revision = createHash("sha256").update("original").digest("hex");
+    const path = "/__vs/file/generated/alias/original.json";
+    expect((await rawRequest("DELETE", path, undefined, { "x-visual-spec-expected-revision": revision })).status).toBe(403);
+    expect((await rawRequest("PUT", path, "corrupt", { "x-visual-spec-expected-revision": revision })).status).toBe(403);
+    expect(readFileSync(target, "utf8")).toBe("original");
+  });
+
+  it.each(["DELETE", "PUT"])("%s revalidates canonical scope after waiting in the mutation queue", async (method) => {
+    const folder = join(workspaceRoot, "generated", "queued");
+    mkdirSync(folder);
+    const target = join(folder, "original.json");
+    writeFileSync(target, "original");
+    writeFileSync(join(workspaceRoot, "specs", "original.json"), "original");
+    let release!: () => void;
+    const gate = new Promise<void>((done) => { release = done; });
+    let entered!: () => void;
+    const queued = new Promise<void>((done) => { entered = done; });
+    const original = mutations.withWorkspaceMutation;
+    const spy = vi.spyOn(mutations, "withWorkspaceMutation").mockImplementationOnce(async (paths, action) => {
+      entered();
+      await gate;
+      return original(paths, action);
+    });
+    // The initial route check has succeeded before the queue callback is entered.
+    const pending = rawRequest(method, "/__vs/file/generated/queued/original.json", method === "PUT" ? "corrupt" : undefined,
+      { "x-visual-spec-expected-revision": createHash("sha256").update("original").digest("hex") });
+    await queued;
+    rmSync(folder, { recursive: true });
+    symlinkSync(join(workspaceRoot, "specs"), folder, "junction");
+    release();
+    spy.mockRestore();
+    expect((await pending).status).toBe(403);
+    expect(readFileSync(join(workspaceRoot, "specs", "original.json"), "utf8")).toBe("original");
+  });
+});
+
+it("복구 DELETE는 queue 대기 뒤 바뀐 lease를 검사하고 새 탭의 같은 바이트를 보존한다", async () => {
+  const lease = (method: string, owner: string) => rawRequest(method, "/__vs/request-lock/ticket", undefined,
+    { "x-visual-spec-request-owner": owner });
+  const target = join(workspaceRoot, "generated", "lease.tsx");
+  writeFileSync(target, "same bytes");
+  expect((await lease("POST", "restore-a")).status).toBe(200);
+  let release!: () => void;
+  const gate = new Promise<void>((done) => { release = done; });
+  let entered!: () => void;
+  const queued = new Promise<void>((done) => { entered = done; });
+  const original = mutations.withWorkspaceMutation;
+  const spy = vi.spyOn(mutations, "withWorkspaceMutation").mockImplementationOnce(async (paths, action) => {
+    entered(); await gate; return original(paths, action);
+  });
+  const pending = rawRequest("DELETE", "/__vs/file/generated/lease.tsx", undefined, {
+    "x-visual-spec-expected-revision": createHash("sha256").update("same bytes").digest("hex"),
+    "x-visual-spec-request-owner": "restore-a",
+  });
+  await queued;
+  expect((await lease("DELETE", "restore-a")).status).toBe(200);
+  expect((await lease("POST", "request-b")).status).toBe(200);
+  release();
+  spy.mockRestore();
+  expect((await pending).status).toBe(409);
+  expect(readFileSync(target, "utf8")).toBe("same bytes");
+});
