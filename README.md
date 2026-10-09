@@ -30,6 +30,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [15-workflow-qa.md](docs/15-workflow-qa.md) | 전체 흐름의 실제 검증 기록과 한계 |
 | [16-responsive-codegen-qa.md](docs/16-responsive-codegen-qa.md) | 이슈 #224 반응형 React 코드 매핑 fixture 검증 기록과 한계 |
 | [17-codegen-layout-qa.md](docs/17-codegen-layout-qa.md) | 이슈 #269 크기·줄바꿈 DOM 실측과 수동 fixture 검증 기록 |
+| [17-screen-relations-design.md](docs/17-screen-relations-design.md) | 이슈 #265 S0-1 화면 종류·연결·재사용 위젯 설계 초안 — 사용자/팀 승인 대기 |
 | [18-export-asset-bundler-qa.md](docs/18-export-asset-bundler-qa.md) | 이슈 #270 이미지 정적 import의 개발·production 브라우저 로딩 검증 |
 | [19-grid-codegen-qa.md](docs/19-grid-codegen-qa.md) | 이슈 #268 Grid 열·auto/fill·교차축 정렬의 Tailwind/브라우저 비교 |
 | [20-screen-layout-contract-qa.md](docs/20-screen-layout-contract-qa.md) | 이슈 #280 viewport·폰트·reset·모든 노드 좌표 비교 계약 |
