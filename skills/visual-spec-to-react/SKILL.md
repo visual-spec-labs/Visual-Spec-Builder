@@ -235,6 +235,61 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 
 ## 매핑 참고표
 
+### 페이지 viewport와 브라우저 기본 스타일
+
+`screen.size.width/height`는 아트보드 너비와 첫 화면 높이다. root의 높이를 숫자나 `h-full`로
+고정하지 않는다. Canvas처럼 짧은 문서는 `screen.size.height`까지 늘리고, 자식이 더 길면
+페이지와 문서 스크롤 영역이 함께 늘어나야 한다. 예를 들어 390×844 화면은 root 높이가
+최소 844px이고, 콘텐츠가 900px이면 root와 페이지도 900px 이상이어야 한다.
+
+각 페이지 컴포넌트는 아래 셸을 한 번 둔다. 최소 높이는 브라우저 viewport 높이가 아니라
+`screen.size.height`다. `height: 100%`, `h-full`, 고정 `height`,
+`overflow: hidden`으로 viewport 안에 가두지 않는다. 화면 여러 개를 한 페이지에서 전환하면
+활성 페이지에만 셸을 두고, 공통 reset은 앱에 한 번만 둔다.
+
+```tsx
+<style>{`
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css");
+html, body, #root { width: 100%; min-height: 100%; margin: 0; }
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
+  button, input { font: inherit; letter-spacing: inherit; color: inherit; }
+  ::placeholder { color: currentColor; opacity: .6; }
+}
+.vsb-page { display: flex; flex-direction: column; width: var(--vsb-page-width);
+  min-height: var(--vsb-page-height); margin-inline: auto; }
+`}</style>
+<main className="vsb-page" style={{
+  "--vsb-page-width": "390px", "--vsb-page-height": "844px",
+} as React.CSSProperties}>
+  <div className="flex w-full flex-[1_0_auto]">{/* root frame */}</div>
+</main>
+```
+
+고정 폭 페이지는 `--vsb-page-width`에 `screen.size.width`를 넣는다. `screen.responsive`가
+있으면 비교하는 브라우저 viewport를 에디터의 responsive preview width와 같게 하고
+`--vsb-page-width: 100%`로 둔다. 반응형 GUI는 초기 `screen.size.width`보다 넓거나 좁은
+독립 preview width를 사용하므로, 초기 아트보드 폭으로 생성 셸을 제한하지 않는다. 화면마다
+`screen.size.height`를 최소 높이에 넣는다. 자식이 길어진 때는 root의 `flex-basis:auto`와
+`flex-shrink:0`이 콘텐츠 높이를 보존한다. `size.height`는 첫 화면 최소 높이지 페이지 전체 높이가 아니다.
+브라우저가 1600×1000이고 화면 높이가 900이면 짧은 root는 GUI와 같이 900px이다.
+`100vh`/`100dvh`로 1000px까지 늘리지 않는다. 고정 폭은 viewport가 더 좁아도 축소하지 않는다.
+
+이 reset은 Canvas의 Tailwind Preflight와 맞춘다. reset은 Tailwind utilities보다 낮은
+`@layer base`에 둬야 유틸리티 padding/border/font/color가 reset에 덮이지 않는다. 대상 앱에서
+Tailwind를 사용하지 않거나 Preflight를 끄면 같은 base 규칙을 일반 CSS로 포함한다. 텍스트는 Canvas처럼 기본 margin 0과 `pre-wrap`을 쓴다. 버튼은
+`flex items-center justify-center`, input은 `flex items-center`를 추가해 Canvas의 중앙 정렬과
+44px 높이를 재현한다. input의 `placeholder`는 기본 UA 색·opacity를 그대로 두지 않고
+`placeholder:text-current placeholder:opacity-[0.6]`를 지정한다. GUI가 안내 문구를 노드 색의
+60% opacity로 그리기 때문이다. 플랫폼 기본 input padding이나 border를 추가하지 않는다.
+
+GUI는 `src/styles/fonts.css`가 불러오는 Pretendard를 사용한다. 대상 앱도 같은 폰트 파일과
+fallback 순서를 로드해야 줄바꿈과 글자 폭을 비교할 수 있다. 폰트 파일·버전이 다르면 치수
+차이를 레이아웃 회귀라고 판정하지 않는다. 생성 요소마다 `data-node-id`에 Visual Spec 노드 ID를
+남긴다. 이 속성은 각 노드의 브라우저 실측을 Canvas와 연결하는 QA 표식이다.
+
+## 매핑 참고표
+
 강제 규격이 아니라 **일관성을 위한 기본값**이다. JSON에 없는 상황은 판단해서 채운다.
 
 | 스키마 필드 | 기본 대응 |
@@ -277,6 +332,7 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 | `ButtonNode.content` | 버튼의 텍스트 children |
 | `input` 노드 | `<input>` (자기닫힘 태그, children 없음) |
 | `InputNode.placeholder` | `placeholder` 속성 |
+| 모든 생성 노드 | `data-node-id="<Visual Spec node id>"`를 추가해 캔버스 실측과 연결한다 |
 | `visible: false` | 모든 폭에서 false일 때만 제외한다. 폭에 따라 보이면 DOM 유지 + 아래 반응형 display 규칙 |
 
 `fill`의 주축/교차축 판단: 부모 `layout.direction`이 `row`면 width가 주축, `column`이면 height가
@@ -522,7 +578,9 @@ flex shrink/grow와 grid track sizing은 서로 대체 관계가 아니므로 �
 아래는 #218 확장 **이전의 4노드 최소 로그인 화면** 변환 예시다. 당시에는
 반복되는 형제가 없어 파일 하나로 끝났다. 현재 `examples/login-screen.json`은
 이메일·비밀번호 placeholder input 2개와 로그인 button을 포함한 7노드다.
-현재 파일을 변환할 때는 아래 코드를 그대로 복사하지 말고 실제 nodes를 모두 반영한다.
+이어지는 JSX는 노드 트리만 보이도록 공통 viewport 셸을 생략했다. 실제 페이지에는 위
+계약의 셸/reset을 포함하고, 현재 파일을 변환할 때는 아래 코드를 그대로 복사하지 말고
+실제 nodes를 모두 반영한다.
 입력창 두 개는 같은 구조이므로 공유 컴포넌트로 분리하고 placeholder를 prop으로 받는다.
 `compileTickets` 기준 티켓은 `Title`, `EmailInput`, `Card`, `Login` 4개이고
 `Card`는 `EmailInput`, `Login`은 `Title`과 `Card`에 의존한다.
@@ -531,10 +589,10 @@ flex shrink/grow와 grid track sizing은 서로 대체 관계가 아니므로 �
 ```tsx
 export default function Login() {
   return (
-    <div className="flex flex-col gap-[16px] pt-[24px] pr-[20px] pb-[24px] pl-[20px] justify-start items-stretch bg-[#FFFFFF] w-full flex-[1_0_auto]">
-      <p className="self-stretch h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#111111] [font-family:'Pretendard'] text-[24px] font-bold leading-[32px] tracking-[-0.5px] text-left">로그인</p>
-      <div className="flex flex-col gap-[12px] pt-[16px] pr-[16px] pb-[16px] pl-[16px] justify-center items-stretch bg-[#F5F5F5FF] border-[1px] border-[#00000020] rounded-[8px] self-stretch h-auto flex-[0_0_auto] min-h-0">
-        <p className="w-auto h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#666666] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-center">계정 정보를 입력하세요</p>
+    <div data-node-id="root" className="flex flex-col gap-[16px] pt-[24px] pr-[20px] pb-[24px] pl-[20px] justify-start items-stretch bg-[#FFFFFF] w-full flex-[1_0_auto]">
+      <p data-node-id="title" className="self-stretch h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#111111] [font-family:'Pretendard'] text-[24px] font-bold leading-[32px] tracking-[-0.5px] text-left">로그인</p>
+      <div data-node-id="card" className="flex flex-col gap-[12px] pt-[16px] pr-[16px] pb-[16px] pl-[16px] justify-center items-stretch bg-[#F5F5F5FF] border-[1px] border-[#00000020] rounded-[8px] self-stretch h-auto flex-[0_0_auto] min-h-0">
+        <p data-node-id="hint" className="w-auto h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#666666] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-center">계정 정보를 입력하세요</p>
       </div>
     </div>
   );
@@ -625,13 +683,14 @@ import heroImageUrl from "../assets/hero.png";
 
 export default function ImageHeroPage() {
   return (
-    <div className="flex flex-col gap-[16px] pt-[0px] pr-[0px] pb-[24px] pl-[0px] justify-start items-stretch bg-[#FFFFFF] w-full flex-[1_0_auto]">
+    <div data-node-id="root" className="flex flex-col gap-[16px] pt-[0px] pr-[0px] pb-[24px] pl-[0px] justify-start items-stretch bg-[#FFFFFF] w-full flex-[1_0_auto]">
       <img
+        data-node-id="hero"
         src={heroImageUrl}
         alt=""
         className="self-stretch h-[240px] flex-[0_0_240px] shrink-0 object-cover"
       />
-      <p className="self-stretch h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">가져온 이미지 위에 설명 텍스트를 배치한다.</p>
+      <p data-node-id="caption" className="self-stretch h-auto flex-[0_0_auto] min-h-0 whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">가져온 이미지 위에 설명 텍스트를 배치한다.</p>
     </div>
   );
 }
@@ -649,17 +708,19 @@ export default function ImageHeroPage() {
 export default function FormGridPage() {
   return (
     <div className="grid grid-cols-[repeat(2,1fr)] items-stretch gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
-      <p className="w-full h-auto whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이름</p>
+      <p data-node-id="nameLabel" className="w-full h-auto whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이름</p>
       <input
+        data-node-id="nameInput"
         placeholder="이름을 입력하세요"
-        className="w-full h-[44px] text-[#111827] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left bg-[#F9FAFB] border-[1px] border-[#D1D5DB] rounded-[8px]"
+        className="flex items-center w-full h-[44px] placeholder:text-current placeholder:opacity-[0.6] text-[#111827] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left bg-[#F9FAFB] border-[1px] border-[#D1D5DB] rounded-[8px]"
       />
-      <p className="w-full h-auto whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이메일</p>
+      <p data-node-id="emailLabel" className="w-full h-auto whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이메일</p>
       <input
+        data-node-id="emailInput"
         placeholder="이메일을 입력하세요"
-        className="w-full h-[44px] text-[#111827] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left bg-[#F9FAFB] border-[1px] border-[#D1D5DB] rounded-[8px]"
+        className="flex items-center w-full h-[44px] placeholder:text-current placeholder:opacity-[0.6] text-[#111827] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left bg-[#F9FAFB] border-[1px] border-[#D1D5DB] rounded-[8px]"
       />
-      <button type="button" className="w-full h-[44px] text-[#FFFFFF] [font-family:'Pretendard'] text-[14px] font-semibold leading-[20px] tracking-[0px] text-center bg-[#4F46E5] rounded-[8px]">제출</button>
+      <button data-node-id="submit" type="button" className="flex items-center justify-center w-full h-[44px] text-[#FFFFFF] [font-family:'Pretendard'] text-[14px] font-semibold leading-[20px] tracking-[0px] text-center bg-[#4F46E5] rounded-[8px]">제출</button>
     </div>
   );
 }
