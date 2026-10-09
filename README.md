@@ -35,7 +35,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [20-screen-layout-contract-qa.md](docs/20-screen-layout-contract-qa.md) | 이슈 #280 viewport·폰트·reset·모든 노드 좌표 비교 계약 |
 | [21-app-scope-a11y-design.md](docs/21-app-scope-a11y-design.md) | 이슈 #285 Export 제공 범위(컴포넌트 묶음)와 입력·접근성 최소 지원 범위 후속 제안 |
 | [22-performance-baseline.md](docs/22-performance-baseline.md) | 이슈 #293 프로젝트·노드·이미지 규모별 성능 실측과 후속 우선순위 |
-| [24-screen-relations-design.md](docs/24-screen-relations-design.md) | 이슈 #265 S0-1 화면 종류·연결·재사용 위젯 설계 초안 — 사용자/팀 승인 대기 |
+| [24-screen-relations-design.md](docs/24-screen-relations-design.md) | 이슈 #265 S0-1 화면 종류·연결·재사용 위젯 설계 초안 — 제품 방향 승인·팀 계약 검토 대기 |
 | [EDITOR_STORE_CONTRACT.md](docs/EDITOR_STORE_CONTRACT.md) | 캔버스·레이어 트리·세부설정 패널이 공유하는 스토어 계약 |
 | [DESIGN-TOKEN-RULES.md](docs/DESIGN-TOKEN-RULES.md) | 디자인 토큰 네이밍·구조·참조 규칙 |
 | [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
