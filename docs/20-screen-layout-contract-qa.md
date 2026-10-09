@@ -6,6 +6,11 @@
 #280의 390×844 조건에서 전체 DOM 좌표를 비교하거나 318px 관찰을 재측정할 수 없다.
 아래 실측 사례는 완료로 계산하지 않으며 수동 fixture도 실제 AI 산출물로 취급하지 않는다.
 
+> 2026-10-10 갱신: 폰트 URL·측정 조건·허용 오차·판정 규칙의 정본은
+> [25 GUI와 생성 앱의 화면 크기·폰트·배치 통합 계약과 실측](25-layout-parity-contract.md)이다.
+> 아래 셸 계약은 그대로 유효하다. 폰트 import는 family `Pretendard`를 정의하는 static CSS로 바뀌었고,
+> 수동 캡처 스니펫 대신 `scripts/browser/layout-parity.mjs`가 GUI·생성 앱을 같은 조건에서 잰다.
+
 ## 렌더링 계약
 
 - `screen.size.width`는 아트보드의 폭, `screen.size.height`는 첫 화면의 최소 높이다.
@@ -118,11 +123,11 @@ GUI와 실제 생성 앱의 실측 결과가 아니다.
 
 | 사례 | 확인 항목 | 상태 |
 |---|---|---|
-| `examples/login-screen.json` | 390×844 root 높이 및 7개 모든 노드 bounds, 타이틀 줄바꿈, 44px input/button, placeholder | 실측 대기 — 기존 480×900 스크린샷은 조건 불일치, ZIP/TSX 없음 |
-| `examples/image-hero.json` | root와 이미지·caption bounds, 이미지 fit·intrinsic 크기 | 실측 대기 |
-| `examples/responsive-cards.json` | 모든 노드 bounds와 breakpoint 직전/경계/직후 반응형 재배치 | 실측 대기 |
-| `examples/two-page-project.json` | 두 페이지를 각각 열어 전체 노드 ID와 bounds 비교 | 실측 대기 |
-| 긴 콘텐츠 변형 | 844px보다 긴 root의 확장, 문서 scrollHeight, 잘림 없음 | 실측 대기 |
+| `examples/login-screen.json` | 390×844 root 높이 및 7개 모든 노드 bounds, 타이틀 줄바꿈, 44px input/button, placeholder | fixture 실측 통과([25](25-layout-parity-contract.md) 4.1). 실제 AI 출력 대기 — ZIP/TSX 없음 |
+| `examples/image-hero.json` | root와 이미지·caption bounds, 이미지 fit·intrinsic 크기 | fixture 실측 통과(25 4.1), 실제 AI 출력 대기 |
+| `examples/responsive-cards.json` | 모든 노드 bounds와 breakpoint 직전/경계/직후 반응형 재배치 | fixture 실측 통과(25 4.1), 실제 AI 출력 대기 |
+| `examples/two-page-project.json` | 두 페이지를 각각 열어 전체 노드 ID와 bounds 비교 | fixture 실측 통과(25 4.1), 실제 AI 출력 대기 |
+| 긴 콘텐츠 변형 | 844px보다 긴 root의 확장, 문서 scrollHeight, 잘림 없음 | fixture 실측 통과(25 4.1), 실제 AI 출력 대기 |
 
 ## 저장소 검증 결과
 
