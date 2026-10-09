@@ -364,3 +364,17 @@ project ID가 아직 없어서 쓰는 **임시 키**이고 #281이 정하면 바
   외부 동일 바이트, 부분 staging, 새 수정 이후 undo와 CAS 경쟁을 검증한다.
 - #349 수정 통합 및 통합 HEAD의 필수 CI는 별도 확인이 필요하다. base가 develop이 아니어서
   PR HEAD CI가 없는 상태를 성공으로 간주하지 않는다. 실제 모델 실행은 하지 않았다.
+
+### 복구 범위와 metadata 재시도 보강
+
+사전 `plan.json`은 모든 출력 후보를 기록하지만 자동 복구 권한이 아니다. 완료 시 저장하는
+protocol 2 `run.json`만 자동 복구 범위를 허용한다. 성공 적용은 실제 쓴 파일을, 보상 미완료는
+미해결 시도 파일만 기록한다. CAS 409로 거부된 파일은 이후 복구에서도 제외한다. 기록 저장 응답이
+유실되면 동일 본문을 재확인하며, 기록이 없거나 구버전이면 전체 계획으로 fallback하지 않는다.
+백업 바이트와 UI의 실행/경로 안내는 유지하고 자동 복구를 중단한다.
+
+undo는 경로별 immutable intent/done 기록과 previousRevision을 확인한다. 바이트 복구 뒤 manifest
+읽기/저장이 실패하면, 다음 재시도는 원본 바이트와 진행 기록을 검증하고 metadata만 복구한다.
+done 뒤 다시 바뀐 파일은 이전 출력과 같은 바이트여도 다시 쓰지 않는다. undo와 commit/보상은
+같은 탭의 직렬화 queue를 공유하며, 재컴파일 후 이전 undo는 새 run의 running/tickets/lastRun을
+덮지 않는다. #349 통합 시 별도 mutation lease/fencing을 이 경로에도 적용해야 한다.

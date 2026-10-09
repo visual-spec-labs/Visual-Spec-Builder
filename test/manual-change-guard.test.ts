@@ -609,3 +609,114 @@ it("CAS 409에서 다른 writer의 동일 새 바이트를 보상 대상으로 �
   expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
   expect(generatedWrites()).toEqual([]);
 });
+
+it("Header 보상 실패 뒤 복구 재시도는 Card CAS 409의 다른 writer 바이트를 보존한다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  let headerApplied = false;
+  workspace.afterWrite = (path) => {
+    if (path === G_HEADER) headerApplied = true;
+    return null;
+  };
+  workspace.beforeWrite = (path) => {
+    if (path === G_CARD) workspace.files.set(path, N_CARD);
+  };
+  workspace.failWrite = (path) => path === G_HEADER && headerApplied ? "rollback failed" : null;
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  const recovery = useTicketStore.getState().lastRun!;
+  expect(recovery.paths).toEqual([HEADER]);
+  const durable = JSON.parse(textOf(workspace, `${recovery.backupRoot}/run.json`)!);
+  expect(durable.protocol).toBe(2);
+  expect(durable.files.map((file: { path: string }) => file.path)).toEqual([HEADER]);
+  expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
+  expect(textOf(workspace, G_CARD)).toBe(N_CARD);
+  workspace.beforeWrite = null;
+  workspace.afterWrite = undefined;
+  workspace.failWrite = null;
+  workspace.log.length = 0;
+  await restoreLastRun();
+  expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+  expect(textOf(workspace, G_CARD)).toBe(N_CARD);
+  expect(generatedWrites()).toEqual([`PUT ${G_HEADER}`]);
+});
+
+it.each(["read", "write"])("undo 바이트 복구 뒤 manifest %s 실패는 metadata만 멱등 재시도한다", async (failure) => {
+  await seedLastGoodAndManualEdit();
+  const priorEntries = manifest().entries;
+  const { run } = await secondRoundToReview();
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  const recovery = useTicketStore.getState().lastRun;
+  if (failure === "read") workspace.beforeRead = (path) => { if (path === GENERATION_MANIFEST_PATH) workspace.offline = true; };
+  else workspace.failWrite = (path) => path === GENERATION_MANIFEST_PATH ? "manifest failed" : null;
+  await restoreLastRun();
+  expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+  expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+  expect(useTicketStore.getState().lastRun).toEqual(recovery);
+  expect(manifest().entries).not.toEqual(priorEntries);
+  workspace.beforeRead = undefined;
+  workspace.failWrite = null;
+  workspace.offline = false;
+  workspace.log.length = 0;
+  await restoreLastRun();
+  expect(manifest().entries).toEqual(priorEntries);
+  expect(generatedWrites()).toEqual([]);
+  expect(useTicketStore.getState().lastRun).toBeNull();
+});
+
+it("복구 범위 저장 실패는 plan 전체로 fallback하지 않고 자동 복구를 거부한다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  let headerApplied = false;
+  workspace.afterWrite = (path) => { if (path === G_HEADER) headerApplied = true; return null; };
+  workspace.beforeWrite = (path) => { if (path === G_CARD) workspace.files.set(path, N_CARD); };
+  workspace.failWrite = (path) => (path === G_HEADER && headerApplied) || path.endsWith("/run.json") ? "failed" : null;
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  const recovery = useTicketStore.getState().lastRun!;
+  expect(textOf(workspace, `${recovery.backupRoot}/plan.json`)).toBeDefined();
+  expect(textOf(workspace, `${recovery.backupRoot}/run.json`)).toBeUndefined();
+  expect(useTicketStore.getState().acceptanceWarning).toContain("복구 범위를 저장하지 못해");
+  workspace.beforeWrite = null;
+  workspace.afterWrite = undefined;
+  workspace.failWrite = null;
+  workspace.log.length = 0;
+  await restoreLastRun();
+  expect(generatedWrites()).toEqual([]);
+  expect(textOf(workspace, G_CARD)).toBe(N_CARD);
+  expect(useTicketStore.getState().lastRun).toEqual(recovery);
+});
+
+it("undo 대기 중 재컴파일과 새 run은 이전 undo 완료가 running/lastRun을 덮지 않는다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  const originalRun = useTicketStore.getState().lastRun!;
+  let release!: () => void;
+  const gate = new Promise<void>((done) => { release = done; });
+  let entered = false;
+  workspace.beforeRead = async (path) => {
+    if (!entered && path === `${originalRun.backupRoot}/files/${CARD}`) { entered = true; await gate; }
+  };
+  const undo = restoreLastRun();
+  await tick();
+  expect(entered).toBe(true);
+  compileCurrent();
+  const next = runOneTicket("Header");
+  await tick();
+  const request = currentRequest();
+  expect(useTicketStore.getState().running).toBe(true);
+  release();
+  await undo;
+  expect(useTicketStore.getState().running).toBe(true);
+  expect(status("Header")?.status).toBe("in-progress");
+  expect(useTicketStore.getState().lastRun).toEqual(originalRun);
+  workspace.beforeRead = undefined;
+  respond(request.id, { [HEADER]: `${N_HEADER}// B\n` });
+  await tick();
+  await next;
+  expect(textOf(workspace, G_HEADER)).toBe(`${N_HEADER}// B\n`);
+  expect(useTicketStore.getState().lastRun?.runId).not.toBe(originalRun.runId);
+});

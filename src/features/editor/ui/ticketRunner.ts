@@ -322,10 +322,11 @@ export function answerOverwriteReview(answer: OverwriteAnswer): void {
  * 대기로 돌아간다 — 그 파일은 이제 이번 계획의 결과가 아니다.
  */
 export async function restoreLastRun(): Promise<void> {
-  const { lastRun, running } = useTicketStore.getState();
+  const { lastRun, running, generation } = useTicketStore.getState();
   if (lastRun === null || running) return;
   useTicketStore.setState({ running: true, restoreMessage: null });
-  const report = await restoreRegenerationRun(lastRun.runId);
+  const report = await restoreRegenerationRun(lastRun.runId, () =>
+    useTicketStore.getState().generation === generation && useTicketStore.getState().lastRun === lastRun);
   const restored = new Set(report.restored);
   const parts = [`${report.restored.length}개 파일을 되돌렸습니다.`];
   if (report.conflicts.length > 0) {
@@ -335,11 +336,15 @@ export async function restoreLastRun(): Promise<void> {
   if (report.error !== null) parts.push(report.error);
   if (report.error !== null || report.conflicts.length > 0 || report.failed.length > 0) parts.push(`백업: ${lastRun.backupRoot}/`);
   useTicketStore.setState((state) => ({
-    running: false,
-    lastRun: report.error !== null || report.failed.length > 0 ? lastRun : null,
-    restoreMessage: parts.join(" "),
-    tickets: state.tickets.map((ticket) =>
-      restored.has(ticketFilePath(ticket)) && ticket.status === "done" ? { ...ticket, status: "pending" } : ticket),
+    ...(state.generation === generation ? {
+      running: false,
+      tickets: state.tickets.map((ticket) =>
+        restored.has(ticketFilePath(ticket)) && ticket.status === "done" ? { ...ticket, status: "pending" } : ticket),
+    } : {}),
+    ...(state.lastRun === lastRun ? {
+      lastRun: report.error !== null || report.failed.length > 0 ? lastRun : null,
+      restoreMessage: parts.join(" "),
+    } : {}),
   }));
 }
 

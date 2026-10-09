@@ -204,7 +204,7 @@ interface RunRecordFile {
 }
 
 interface RunRecord {
-  protocol: 1;
+  protocol: 2;
   runId: string;
   requestId: string;
   createdAt: string;
@@ -212,7 +212,17 @@ interface RunRecord {
 }
 
 const runRoot = (runId: string) => `${BACKUP_DIR}/${runId}`;
+const runPlanPath = (runId: string) => `${runRoot(runId)}/plan.json`;
 const runRecordPath = (runId: string) => `${runRoot(runId)}/run.json`;
+
+/** Immutable record; a lost response is reconciled by reading the exact saved text. */
+async function saveRecoveryRecord(path: string, value: unknown): Promise<boolean> {
+  const body = JSON.stringify(value, null, 2);
+  const saved = await writeWorkspaceFile(path, body, "application/json", WORKSPACE_MISSING_REVISION);
+  if (saved.ok) return true;
+  const actual = await readWorkspaceTextFileStrict(path);
+  return actual.ok && actual.text === body;
+}
 
 function textRevision(text: string): string {
   return sha256Hex(new TextEncoder().encode(text));
@@ -295,8 +305,8 @@ async function commitTicketOutputsNow(
   }
   if (!isCurrent()) return cancelled();
   if (files.length > 0) {
-    const record: RunRecord = { protocol: 1, runId, requestId: plan.requestId, createdAt: now().toISOString(), files };
-    const saved = await writeWorkspaceFile(runRecordPath(runId), JSON.stringify(record, null, 2), "application/json", WORKSPACE_MISSING_REVISION);
+    const record: RunRecord = { protocol: 2, runId, requestId: plan.requestId, createdAt: now().toISOString(), files };
+    const saved = await writeWorkspaceFile(runPlanPath(runId), JSON.stringify(record, null, 2), "application/json", WORKSPACE_MISSING_REVISION);
     if (!saved.ok) return abort(`되돌리기 기록을 남기지 못해 아무 파일도 바꾸지 않았습니다 — ${saved.error}.`);
   }
 
@@ -315,12 +325,18 @@ async function commitTicketOutputsNow(
 
   // 3. 쓰기. 파일마다 확인 당시 버전을 기대 버전으로 싣는다.
   const written: RunRecordFile[] = [];
+  // plan.json is intent only. run.json authorizes only final confirmed/pending mutations.
+  const persistScope = (paths: string[]) => saveRecoveryRecord(runRecordPath(runId), {
+    protocol: 2, runId, requestId: plan.requestId, createdAt: now().toISOString(),
+    files: files.filter((file) => paths.includes(file.path)),
+  } satisfies RunRecord);
   const compensate = async (reason: string) => {
     const leftovers = await rollback(written, writes);
+    const scopeSaved = await persistScope(leftovers);
     const result = abort(`${reason}${leftovers.length === 0 ? " 이번 적용을 되돌렸습니다." : " 복구를 완료하지 못했습니다."}`);
     if (leftovers.length > 0) {
       result.run = { runId, paths: leftovers, backupRoot: runRoot(runId) };
-      result.recoveryWarning = `복구 확인 필요: ${leftovers.join(", ")}. 실행 ${runId}, 기록: ${runRecordPath(runId)}, 원본: ${runRoot(runId)}/files/`;
+      result.recoveryWarning = `복구 확인 필요: ${leftovers.join(", ")}. 실행 ${runId}, 기록: ${runRecordPath(runId)}, 원본: ${runRoot(runId)}/files/${scopeSaved ? "" : " — 복구 범위를 저장하지 못해 자동 복구를 중단합니다. plan.json은 복구 허용 기록이 아닙니다."}`;
     }
     return result;
   };
@@ -372,9 +388,11 @@ async function commitTicketOutputsNow(
     if (warning !== null) restored.manifestError = warning;
     return restored;
   }
+  const scopeSaved = files.length === 0 || await persistScope(files.map((file) => file.path));
   return {
     results,
     manifestError,
+    ...(scopeSaved ? {} : { recoveryWarning: `복구 범위를 저장하지 못해 자동 복구를 중단합니다. 실행 ${runId}, 백업: ${runRoot(runId)}/files/` }),
     run: files.length === 0 ? null : { runId, paths: files.map((file) => file.path), backupRoot: runRoot(runId) },
   };
 }
@@ -434,7 +452,7 @@ export interface RestoreReport {
 function isRunRecord(value: unknown): value is RunRecord {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Partial<RunRecord>;
-  return record.protocol === 1 && typeof record.runId === "string" && Array.isArray(record.files) &&
+  return record.protocol === 2 && typeof record.runId === "string" && Array.isArray(record.files) &&
     record.files.every((file) => typeof file === "object" && file !== null && typeof file.path === "string" &&
       typeof file.writtenRevision === "string" &&
       (file.backupPath === null || typeof file.backupPath === "string") &&
@@ -446,18 +464,45 @@ function isRunRecord(value: unknown): value is RunRecord {
  * (새로 만든 파일은 지운다), 서버도 같은 기대 버전으로 마지막 비교를 한다. 적용 뒤 누가 고친 파일은
  * 더 새로운 수정이므로 건드리지 않고 `conflicts`로 알린다. 되돌린 파일의 수용 기록은 이전 값으로 간다.
  */
-export async function restoreRegenerationRun(runId: string): Promise<RestoreReport> {
+export function restoreRegenerationRun(runId: string, isCurrent = () => true): Promise<RestoreReport> {
+  const result = acceptanceTail.then(() => restoreRegenerationRunNow(runId, isCurrent));
+  acceptanceTail = result.catch(() => undefined);
+  return result;
+}
+
+async function restoreRegenerationRunNow(runId: string, isCurrent: () => boolean): Promise<RestoreReport> {
   const report: RestoreReport = { restored: [], conflicts: [], failed: [], error: null };
+  if (!isCurrent()) return { ...report, error: "문서 세대가 바뀌어 되돌리기를 중단했습니다." };
   const text = await readWorkspaceTextFileStrict(runRecordPath(runId));
   let record: unknown = null;
   try { record = text.ok && text.text !== null ? JSON.parse(text.text) : null; } catch { record = null; }
-  if (!isRunRecord(record)) return { ...report, error: "되돌리기 기록을 찾지 못했습니다. 백업 폴더를 직접 확인하세요." };
+  if (!isRunRecord(record) || record.runId !== runId) return { ...report, error: "확정된 복구 범위 기록을 찾지 못했습니다. plan.json 또는 구버전 run.json으로 자동 복구하지 않습니다. 백업 폴더를 직접 확인하세요." };
 
   const updates: Record<string, ManifestEntry | null> = {};
   for (const file of [...record.files].reverse()) {
+    if (!isCurrent()) { report.error = "문서 세대가 바뀌어 되돌리기를 중단했습니다."; break; }
+    const progressRoot = `${runRoot(runId)}/restore/${file.path}`;
+    const intentPath = `${progressRoot}.intent.json`;
+    const donePath = `${progressRoot}.done.json`;
+    const progress = { runId, path: file.path, previousRevision: file.previousRevision, writtenRevision: file.writtenRevision };
+    const progressText = JSON.stringify(progress, null, 2);
+    const intent = await readWorkspaceTextFileStrict(intentPath);
+    const done = await readWorkspaceTextFileStrict(donePath);
+    if (!intent.ok || !done.ok || (intent.text !== null && intent.text !== progressText) ||
+        (done.text !== null && done.text !== progressText)) { report.failed.push(file.path); continue; }
     const present = await readWorkspaceFileSnapshot(`${GENERATED_DIR}/${file.path}`);
     if (!present.ok) { report.failed.push(file.path); continue; }
-    if ((present.snapshot?.revision ?? WORKSPACE_MISSING_REVISION) !== file.writtenRevision) {
+    const actual = present.snapshot?.revision ?? WORKSPACE_MISSING_REVISION;
+    const previousRevision = file.previousRevision ?? WORKSPACE_MISSING_REVISION;
+    // Only a durable restore attempt plus the original bytes permits metadata-only replay.
+    if (intent.text === progressText && actual === previousRevision) {
+      if (!await saveRecoveryRecord(donePath, progress)) { report.failed.push(file.path); continue; }
+      report.restored.push(file.path);
+      updates[file.path] = file.previousEntry;
+      continue;
+    }
+    // A completed restoration must never write this file a second time after a later edit.
+    if (done.text !== null || actual !== file.writtenRevision) {
       report.conflicts.push(file.path);
       continue;
     }
@@ -471,8 +516,12 @@ export async function restoreRegenerationRun(runId: string): Promise<RestoreRepo
       }
       previous = backup.snapshot.bytes;
     }
+    if (!isCurrent()) { report.error = "문서 세대가 바뀌어 되돌리기를 중단했습니다."; break; }
+    if (!await saveRecoveryRecord(intentPath, progress)) { report.failed.push(file.path); continue; }
+    if (!isCurrent()) { report.error = "문서 세대가 바뀌어 되돌리기를 중단했습니다."; break; }
     const outcome = await revertFile(file, previous);
     if (outcome === "restored") {
+      if (!await saveRecoveryRecord(donePath, progress)) { report.failed.push(file.path); continue; }
       report.restored.push(file.path);
       updates[file.path] = file.previousEntry;
     } else if (outcome === "conflict") {
@@ -481,6 +530,9 @@ export async function restoreRegenerationRun(runId: string): Promise<RestoreRepo
       report.failed.push(file.path);
     }
   }
-  if (Object.keys(updates).length > 0) report.error = await recordAcceptance(updates);
+  if (Object.keys(updates).length > 0) {
+    const error = await recordAcceptance(updates, isCurrent);
+    report.error = error ?? report.error;
+  }
   return report;
 }
