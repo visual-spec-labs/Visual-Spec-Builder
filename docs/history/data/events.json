@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T11:02:17.618Z",
+  "generatedAt": "2026-10-09T18:02:12.708Z",
   "repo": "visual-spec-labs/Visual-Spec-Builder",
   "branch": "develop",
   "events": [
@@ -12,7 +12,6 @@
       "date": "2026-07-30",
       "phase": "p0",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 3491,
         "deletions": 0,
@@ -29,7 +28,6 @@
       "date": "2026-08-06",
       "phase": "p1",
       "label": "refactor",
-      "review": "none",
       "size": {
         "additions": 1330,
         "deletions": 1831,
@@ -49,7 +47,6 @@
       "date": "2026-08-11",
       "phase": "p1",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 993,
         "deletions": 28,
@@ -68,7 +65,6 @@
       "date": "2026-08-14",
       "phase": "p1",
       "label": "chore",
-      "review": "none",
       "size": {
         "additions": 225,
         "deletions": 5,
@@ -87,7 +83,6 @@
       "date": "2026-08-20",
       "phase": "p1",
       "label": "chore",
-      "review": "none",
       "size": {
         "additions": 3,
         "deletions": 2,
@@ -104,7 +99,6 @@
       "date": "2026-08-20",
       "phase": "p1",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 147,
         "deletions": 1,
@@ -123,7 +117,6 @@
       "date": "2026-08-20",
       "phase": "p1",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 1015,
         "deletions": 272,
@@ -140,7 +133,6 @@
       "date": "2026-08-20",
       "phase": "p1",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 2,
         "deletions": 2,
@@ -157,7 +149,6 @@
       "date": "2026-08-20",
       "phase": "p1",
       "label": "chore",
-      "review": "none",
       "size": {
         "additions": 51,
         "deletions": 0,
@@ -174,7 +165,6 @@
       "date": "2026-08-20",
       "phase": "p1",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 503,
         "deletions": 13,
@@ -191,7 +181,6 @@
       "date": "2026-08-20",
       "phase": "p1",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 216,
         "deletions": 11,
@@ -208,7 +197,6 @@
       "date": "2026-08-20",
       "phase": "p1",
       "label": "chore",
-      "review": "none",
       "size": {
         "additions": 167,
         "deletions": 0,
@@ -225,7 +213,6 @@
       "date": "2026-08-24",
       "phase": "p2",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 490,
         "deletions": 2,
@@ -244,7 +231,6 @@
       "date": "2026-08-25",
       "phase": "p2",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 1680,
         "deletions": 17,
@@ -261,7 +247,6 @@
       "date": "2026-08-25",
       "phase": "p2",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 85,
         "deletions": 35,
@@ -280,7 +265,6 @@
       "date": "2026-08-25",
       "phase": "p2",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 39,
         "deletions": 4,
@@ -299,7 +283,6 @@
       "date": "2026-08-25",
       "phase": "p2",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 55,
         "deletions": 6,
@@ -318,7 +301,6 @@
       "date": "2026-08-25",
       "phase": "p2",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 265,
         "deletions": 42,
@@ -335,7 +317,6 @@
       "date": "2026-08-25",
       "phase": "p2",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 997,
         "deletions": 115,
@@ -354,7 +335,6 @@
       "date": "2026-08-25",
       "phase": "p2",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 327,
         "deletions": 10,
@@ -373,7 +353,6 @@
       "date": "2026-08-28",
       "phase": "p2",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 81,
         "deletions": 148,
@@ -392,7 +371,6 @@
       "date": "2026-08-28",
       "phase": "p2",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 150,
         "deletions": 16,
@@ -411,7 +389,6 @@
       "date": "2026-08-28",
       "phase": "p2",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 98,
         "deletions": 27,
@@ -430,7 +407,6 @@
       "date": "2026-08-28",
       "phase": "p2",
       "label": "refactor",
-      "review": "approved",
       "size": {
         "additions": 189,
         "deletions": 134,
@@ -447,7 +423,6 @@
       "date": "2026-08-28",
       "phase": "p2",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 164,
         "deletions": 7,
@@ -466,7 +441,6 @@
       "date": "2026-08-28",
       "phase": "p2",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 81,
         "deletions": 12,
@@ -485,7 +459,6 @@
       "date": "2026-08-28",
       "phase": "p2",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 27,
         "deletions": 1,
@@ -504,7 +477,6 @@
       "date": "2026-08-29",
       "phase": "p2",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 288,
         "deletions": 25,
@@ -523,7 +495,6 @@
       "date": "2026-08-29",
       "phase": "p2",
       "label": "chore",
-      "review": "approved",
       "size": {
         "additions": 55,
         "deletions": 11,
@@ -540,7 +511,6 @@
       "date": "2026-08-31",
       "phase": "p2",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 339,
         "deletions": 31,
@@ -559,7 +529,6 @@
       "date": "2026-09-01",
       "phase": "p3",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 25,
         "deletions": 4,
@@ -578,7 +547,6 @@
       "date": "2026-09-01",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 149,
         "deletions": 10,
@@ -597,7 +565,6 @@
       "date": "2026-09-01",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 254,
         "deletions": 9,
@@ -616,7 +583,6 @@
       "date": "2026-09-01",
       "phase": "p3",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 66,
         "deletions": 14,
@@ -635,7 +601,6 @@
       "date": "2026-09-01",
       "phase": "p3",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 191,
         "deletions": 52,
@@ -652,7 +617,6 @@
       "date": "2026-09-02",
       "phase": "p3",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 837,
         "deletions": 23,
@@ -671,7 +635,6 @@
       "date": "2026-09-02",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 437,
         "deletions": 111,
@@ -690,7 +653,6 @@
       "date": "2026-09-02",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 168,
         "deletions": 42,
@@ -709,7 +671,6 @@
       "date": "2026-09-04",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 359,
         "deletions": 3,
@@ -728,7 +689,6 @@
       "date": "2026-09-04",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 441,
         "deletions": 79,
@@ -747,7 +707,6 @@
       "date": "2026-09-04",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 586,
         "deletions": 79,
@@ -766,7 +725,6 @@
       "date": "2026-09-04",
       "phase": "p3",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 614,
         "deletions": 24,
@@ -783,7 +741,6 @@
       "date": "2026-09-07",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 1180,
         "deletions": 40,
@@ -800,7 +757,6 @@
       "date": "2026-09-08",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 659,
         "deletions": 11,
@@ -819,7 +775,6 @@
       "date": "2026-09-08",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 731,
         "deletions": 5,
@@ -838,7 +793,6 @@
       "date": "2026-09-09",
       "phase": "p3",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 74,
         "deletions": 24,
@@ -855,7 +809,6 @@
       "date": "2026-09-09",
       "phase": "p3",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 48,
         "deletions": 7,
@@ -872,7 +825,6 @@
       "date": "2026-09-09",
       "phase": "p3",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 295,
         "deletions": 10,
@@ -891,7 +843,6 @@
       "date": "2026-09-09",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 111,
         "deletions": 14,
@@ -910,7 +861,6 @@
       "date": "2026-09-09",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 190,
         "deletions": 6,
@@ -929,7 +879,6 @@
       "date": "2026-09-09",
       "phase": "p3",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 148,
         "deletions": 18,
@@ -948,7 +897,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 231,
         "deletions": 3,
@@ -967,7 +915,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 510,
         "deletions": 96,
@@ -986,7 +933,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 137,
         "deletions": 5,
@@ -1005,7 +951,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 262,
         "deletions": 13,
@@ -1024,7 +969,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 959,
         "deletions": 434,
@@ -1043,7 +987,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 221,
         "deletions": 17,
@@ -1062,7 +1005,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 232,
         "deletions": 5,
@@ -1081,7 +1023,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 42,
         "deletions": 10,
@@ -1100,7 +1041,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 35,
         "deletions": 18,
@@ -1119,7 +1059,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 43,
         "deletions": 5,
@@ -1138,7 +1077,6 @@
       "date": "2026-09-11",
       "phase": "p3",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 81,
         "deletions": 14,
@@ -1157,7 +1095,6 @@
       "date": "2026-09-15",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 247,
         "deletions": 32,
@@ -1176,7 +1113,6 @@
       "date": "2026-09-15",
       "phase": "p4",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 296,
         "deletions": 74,
@@ -1195,7 +1131,6 @@
       "date": "2026-09-15",
       "phase": "p4",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 35,
         "deletions": 120,
@@ -1214,7 +1149,6 @@
       "date": "2026-09-15",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 723,
         "deletions": 62,
@@ -1234,7 +1168,6 @@
       "date": "2026-09-15",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 54,
         "deletions": 10,
@@ -1253,7 +1186,6 @@
       "date": "2026-09-15",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 239,
         "deletions": 8,
@@ -1272,7 +1204,6 @@
       "date": "2026-09-15",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 365,
         "deletions": 27,
@@ -1291,7 +1222,6 @@
       "date": "2026-09-16",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 74,
         "deletions": 1,
@@ -1310,7 +1240,6 @@
       "date": "2026-09-18",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 382,
         "deletions": 19,
@@ -1329,7 +1258,6 @@
       "date": "2026-09-18",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 13,
         "deletions": 9,
@@ -1349,7 +1277,6 @@
       "date": "2026-09-18",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 450,
         "deletions": 243,
@@ -1368,7 +1295,6 @@
       "date": "2026-09-18",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 68,
         "deletions": 35,
@@ -1388,7 +1314,6 @@
       "date": "2026-09-19",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 623,
         "deletions": 0,
@@ -1405,7 +1330,6 @@
       "date": "2026-09-19",
       "phase": "p4",
       "label": null,
-      "review": "changes_requested",
       "size": {
         "additions": 3191,
         "deletions": 106,
@@ -1425,7 +1349,6 @@
       "date": "2026-09-19",
       "phase": "p4",
       "label": null,
-      "review": "changes_requested",
       "size": {
         "additions": 572,
         "deletions": 4,
@@ -1444,7 +1367,6 @@
       "date": "2026-09-19",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 278,
         "deletions": 24,
@@ -1463,7 +1385,6 @@
       "date": "2026-09-19",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 443,
         "deletions": 14,
@@ -1482,7 +1403,6 @@
       "date": "2026-09-19",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 1326,
         "deletions": 5,
@@ -1501,7 +1421,6 @@
       "date": "2026-09-20",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 943,
         "deletions": 831,
@@ -1520,7 +1439,6 @@
       "date": "2026-09-20",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 148,
         "deletions": 12,
@@ -1539,7 +1457,6 @@
       "date": "2026-09-20",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 359,
         "deletions": 9,
@@ -1558,7 +1475,6 @@
       "date": "2026-09-20",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 259,
         "deletions": 2,
@@ -1577,7 +1493,6 @@
       "date": "2026-09-20",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 45,
         "deletions": 2,
@@ -1596,7 +1511,6 @@
       "date": "2026-09-20",
       "phase": "p4",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 4,
         "deletions": 0,
@@ -1615,7 +1529,6 @@
       "date": "2026-09-20",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 176,
         "deletions": 1,
@@ -1634,7 +1547,6 @@
       "date": "2026-09-21",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 1164,
         "deletions": 40,
@@ -1653,7 +1565,6 @@
       "date": "2026-09-21",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 316,
         "deletions": 9,
@@ -1672,7 +1583,6 @@
       "date": "2026-09-21",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 745,
         "deletions": 39,
@@ -1691,7 +1601,6 @@
       "date": "2026-09-21",
       "phase": "p4",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 632,
         "deletions": 184,
@@ -1710,7 +1619,6 @@
       "date": "2026-09-27",
       "phase": "p5",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 1340,
         "deletions": 21,
@@ -1729,7 +1637,6 @@
       "date": "2026-09-27",
       "phase": "p5",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 1886,
         "deletions": 9,
@@ -1748,7 +1655,6 @@
       "date": "2026-09-28",
       "phase": "p5",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 324,
         "deletions": 11,
@@ -1767,7 +1673,6 @@
       "date": "2026-09-28",
       "phase": "p5",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 166,
         "deletions": 2,
@@ -1786,7 +1691,6 @@
       "date": "2026-09-29",
       "phase": "p5",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 1176,
         "deletions": 21,
@@ -1805,7 +1709,6 @@
       "date": "2026-09-29",
       "phase": "p5",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 255,
         "deletions": 32,
@@ -1824,7 +1727,6 @@
       "date": "2026-09-29",
       "phase": "p5",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 128,
         "deletions": 10,
@@ -1843,7 +1745,6 @@
       "date": "2026-09-29",
       "phase": "p5",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 160,
         "deletions": 16,
@@ -1862,7 +1763,6 @@
       "date": "2026-09-29",
       "phase": "p5",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 392,
         "deletions": 23,
@@ -1881,7 +1781,6 @@
       "date": "2026-09-29",
       "phase": "p5",
       "label": "chore",
-      "review": "approved",
       "size": {
         "additions": 244,
         "deletions": 3,
@@ -1900,7 +1799,6 @@
       "date": "2026-09-30",
       "phase": "p5",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 12,
         "deletions": 12,
@@ -1919,7 +1817,6 @@
       "date": "2026-10-01",
       "phase": "p5",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 84,
         "deletions": 4,
@@ -1938,7 +1835,6 @@
       "date": "2026-10-01",
       "phase": "p5",
       "label": "chore",
-      "review": "approved",
       "size": {
         "additions": 8,
         "deletions": 5,
@@ -1957,7 +1853,6 @@
       "date": "2026-10-01",
       "phase": "p5",
       "label": "chore",
-      "review": "approved",
       "size": {
         "additions": 13,
         "deletions": 5,
@@ -1976,7 +1871,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 25,
         "deletions": 5,
@@ -1995,7 +1889,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 1504,
         "deletions": 14,
@@ -2014,7 +1907,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 324,
         "deletions": 12,
@@ -2033,7 +1925,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 404,
         "deletions": 48,
@@ -2052,7 +1943,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 246,
         "deletions": 0,
@@ -2071,7 +1961,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 2008,
         "deletions": 247,
@@ -2090,7 +1979,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 161,
         "deletions": 41,
@@ -2109,7 +1997,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 909,
         "deletions": 119,
@@ -2128,7 +2015,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 311,
         "deletions": 32,
@@ -2147,7 +2033,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 331,
         "deletions": 32,
@@ -2166,7 +2051,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 206,
         "deletions": 3,
@@ -2185,7 +2069,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 36,
         "deletions": 30,
@@ -2204,7 +2087,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "fix",
-      "review": "none",
       "size": {
         "additions": 168,
         "deletions": 25,
@@ -2223,7 +2105,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "fix",
-      "review": "none",
       "size": {
         "additions": 80,
         "deletions": 13,
@@ -2244,7 +2125,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 287,
         "deletions": 24,
@@ -2264,7 +2144,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 7,
         "deletions": 3,
@@ -2281,7 +2160,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "fix",
-      "review": "none",
       "size": {
         "additions": 112,
         "deletions": 4,
@@ -2298,7 +2176,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 249,
         "deletions": 47,
@@ -2317,7 +2194,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 154,
         "deletions": 6,
@@ -2336,7 +2212,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "fix",
-      "review": "none",
       "size": {
         "additions": 286,
         "deletions": 4,
@@ -2355,7 +2230,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 287,
         "deletions": 1,
@@ -2374,7 +2248,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "fix",
-      "review": "none",
       "size": {
         "additions": 93,
         "deletions": 24,
@@ -2391,7 +2264,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 1048,
         "deletions": 6,
@@ -2410,7 +2282,6 @@
       "date": "2026-10-04",
       "phase": "p6",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 296,
         "deletions": 4,
@@ -2429,7 +2300,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "fix",
-      "review": "none",
       "size": {
         "additions": 255,
         "deletions": 21,
@@ -2446,7 +2316,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 53,
         "deletions": 5,
@@ -2465,7 +2334,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 535,
         "deletions": 10,
@@ -2484,7 +2352,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "refactor",
-      "review": "none",
       "size": {
         "additions": 481,
         "deletions": 465,
@@ -2503,7 +2370,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 1142,
         "deletions": 501,
@@ -2522,7 +2388,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 110,
         "deletions": 4,
@@ -2541,7 +2406,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 929,
         "deletions": 40,
@@ -2560,7 +2424,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "fix",
-      "review": "none",
       "size": {
         "additions": 1064,
         "deletions": 141,
@@ -2579,7 +2442,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "feat",
-      "review": "none",
       "size": {
         "additions": 670,
         "deletions": 18,
@@ -2598,7 +2460,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 123,
         "deletions": 18,
@@ -2615,7 +2476,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": "docs",
-      "review": "none",
       "size": {
         "additions": 254,
         "deletions": 5,
@@ -2635,7 +2495,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 111,
         "deletions": 63,
@@ -2656,7 +2515,6 @@
       "date": "2026-10-05",
       "phase": "p7",
       "label": null,
-      "review": "none",
       "size": {
         "additions": 117,
         "deletions": 34,
@@ -2676,7 +2534,6 @@
       "date": "2026-10-06",
       "phase": "p8",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 55,
         "deletions": 13,
@@ -2693,7 +2550,6 @@
       "date": "2026-10-06",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 235,
         "deletions": 17,
@@ -2712,7 +2568,6 @@
       "date": "2026-10-06",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 535,
         "deletions": 50,
@@ -2731,7 +2586,6 @@
       "date": "2026-10-06",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 811,
         "deletions": 7,
@@ -2750,7 +2604,6 @@
       "date": "2026-10-06",
       "phase": "p8",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 1362,
         "deletions": 150,
@@ -2769,7 +2622,6 @@
       "date": "2026-10-06",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 138,
         "deletions": 32,
@@ -2788,7 +2640,6 @@
       "date": "2026-10-06",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 126,
         "deletions": 3,
@@ -2807,7 +2658,6 @@
       "date": "2026-10-07",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 72,
         "deletions": 17,
@@ -2826,7 +2676,6 @@
       "date": "2026-10-07",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 708,
         "deletions": 2,
@@ -2845,7 +2694,6 @@
       "date": "2026-10-07",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 363,
         "deletions": 44,
@@ -2864,7 +2712,6 @@
       "date": "2026-10-07",
       "phase": "p8",
       "label": "style",
-      "review": "approved",
       "size": {
         "additions": 387,
         "deletions": 35,
@@ -2883,7 +2730,6 @@
       "date": "2026-10-07",
       "phase": "p8",
       "label": "style",
-      "review": "approved",
       "size": {
         "additions": 1115,
         "deletions": 90,
@@ -2902,7 +2748,6 @@
       "date": "2026-10-07",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 262,
         "deletions": 4,
@@ -2921,7 +2766,6 @@
       "date": "2026-10-08",
       "phase": "p8",
       "label": "fix",
-      "review": "approved",
       "size": {
         "additions": 285,
         "deletions": 22,
@@ -2940,7 +2784,6 @@
       "date": "2026-10-08",
       "phase": "p8",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 2085,
         "deletions": 21,
@@ -2959,7 +2802,6 @@
       "date": "2026-10-08",
       "phase": "p8",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 164,
         "deletions": 24,
@@ -2978,7 +2820,6 @@
       "date": "2026-10-08",
       "phase": "p8",
       "label": "feat",
-      "review": "approved",
       "size": {
         "additions": 799,
         "deletions": 39,
@@ -2997,7 +2838,6 @@
       "date": "2026-10-08",
       "phase": "p8",
       "label": "style",
-      "review": "approved",
       "size": {
         "additions": 522,
         "deletions": 6,
@@ -3016,7 +2856,6 @@
       "date": "2026-10-08",
       "phase": "p8",
       "label": null,
-      "review": "approved",
       "size": {
         "additions": 250,
         "deletions": 39,
@@ -3035,7 +2874,6 @@
       "date": "2026-10-08",
       "phase": "p8",
       "label": "docs",
-      "review": "approved",
       "size": {
         "additions": 137,
         "deletions": 0,
@@ -3054,7 +2892,6 @@
       "date": "2026-10-08",
       "phase": "p8",
       "label": "style",
-      "review": "approved",
       "size": {
         "additions": 1954,
         "deletions": 29,
@@ -3063,6 +2900,366 @@
       "issues": [
         287
       ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 313,
+      "title": "chore: 프로젝트·노드·이미지 규모별 성능을 실측하고 후속 우선순위를 정한다 (#293)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T12:12:53Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 3180,
+        "deletions": 0,
+        "files": 6
+      },
+      "issues": [
+        293
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 323,
+      "title": "chore: CLI로 띄우는 GUI를 React production 빌드로 실행한다 (#314)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T12:13:48Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 4202,
+        "deletions": 9,
+        "files": 15
+      },
+      "issues": [
+        314
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 324,
+      "title": "refactor: 홈 카드 미리보기를 스크롤 영역 근처 카드만 그린다 (#315)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T12:14:53Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "refactor",
+      "size": {
+        "additions": 4666,
+        "deletions": 21,
+        "files": 17
+      },
+      "issues": [
+        315
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 325,
+      "title": "refactor: 홈 목록을 앞에서부터 묶음으로 파싱·검증해 첫 화면 카드를 먼저 그린다 (#316)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T12:15:34Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "refactor",
+      "size": {
+        "additions": 5251,
+        "deletions": 37,
+        "files": 20
+      },
+      "issues": [
+        316
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 326,
+      "title": "chore: 실제 입력 경로 측정 결과를 기록하고 최적화 검토를 남긴다 (#317)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T14:37:13Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 833,
+        "deletions": 4,
+        "files": 3
+      },
+      "issues": [
+        317
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 327,
+      "title": "chore: 큰 이미지 표시 시간과 RSS를 측정하고 수집 실패를 구분한다 (#318)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-08T14:37:51Z",
+      "date": "2026-10-08",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 2796,
+        "deletions": 14,
+        "files": 9
+      },
+      "issues": [
+        318
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 333,
+      "title": "docs: 생성 화면 레이아웃 계약과 비교 도구 추가 (#280)",
+      "author": "GAMMJ",
+      "mergedAt": "2026-10-08T17:39:59Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "docs",
+      "size": {
+        "additions": 1100,
+        "deletions": 12,
+        "files": 7
+      },
+      "issues": [
+        280
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 332,
+      "title": "feat: 홈 화면의 프로젝트/화면 용어를 통일하고 Open·Save as·Rename 다이얼로그를 앱 내 모달로 바꾼다 (#288)",
+      "author": "dogui1018",
+      "mergedAt": "2026-10-09T02:16:04Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "feat",
+      "size": {
+        "additions": 1229,
+        "deletions": 213,
+        "files": 19
+      },
+      "issues": [
+        288
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 334,
+      "title": "refactor: 홈 미리보기가 원본 대신 카드 크기로 줄인 이미지를 쓴다 (#322)",
+      "author": "wook3964",
+      "mergedAt": "2026-10-09T05:30:08Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "refactor",
+      "size": {
+        "additions": 2380,
+        "deletions": 22,
+        "files": 11
+      },
+      "issues": [
+        322
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 336,
+      "title": "chore: CI에 Linux 빌드와 기존 브라우저 검사를 필수 연결한다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T13:54:55Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 137,
+        "deletions": 47,
+        "files": 3
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 335,
+      "title": "fix: Windows 스킬 경고 경로와 LF 체크아웃을 보정한다 (#262)",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:01:47Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "fix",
+      "size": {
+        "additions": 96,
+        "deletions": 22,
+        "files": 7
+      },
+      "issues": [
+        262
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 337,
+      "title": "fix: 문서 전환 확인을 비차단 모달로 처리한다 (#302)",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:14:38Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "fix",
+      "size": {
+        "additions": 588,
+        "deletions": 62,
+        "files": 13
+      },
+      "issues": [
+        302
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 338,
+      "title": "test: Export 사용자 여정 fixture와 독립 브라우저 검증 절차 추가",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:17:00Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "test",
+      "size": {
+        "additions": 372,
+        "deletions": 22,
+        "files": 8
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 331,
+      "title": "docs: 제작 연대기와 재현 가능한 단계별 기록을 추가한다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:19:01Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "docs",
+      "size": {
+        "additions": 6384,
+        "deletions": 0,
+        "files": 11
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 340,
+      "title": "style: 선택 범위와 반응형 편집 기준을 명확히 표시한다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:21:00Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "style",
+      "size": {
+        "additions": 438,
+        "deletions": 36,
+        "files": 8
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 342,
+      "title": "chore: Windows fresh checkout 검사를 CI 필수 집계에 연결한다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:22:59Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "chore",
+      "size": {
+        "additions": 60,
+        "deletions": 12,
+        "files": 3
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 343,
+      "title": "test: 복구 회귀를 실제 HTTP 완료와 I/O 예산에 맞춰 기다린다",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:37:32Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "test",
+      "size": {
+        "additions": 38,
+        "deletions": 7,
+        "files": 1
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 341,
+      "title": "fix: 이름 없는 초안을 Home에서 같은 UUID로 재개한다 (#319)",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T14:40:15Z",
+      "date": "2026-10-09",
+      "phase": "p8",
+      "label": "fix",
+      "size": {
+        "additions": 956,
+        "deletions": 17,
+        "files": 15
+      },
+      "issues": [
+        319
+      ]
+    },
+    {
+      "type": "pr_merged",
+      "number": 344,
+      "title": "style: 파일 저장과 브라우저 초안 상태 구분",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T15:14:46Z",
+      "date": "2026-10-10",
+      "phase": "p8",
+      "label": "style",
+      "size": {
+        "additions": 806,
+        "deletions": 33,
+        "files": 13
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 345,
+      "title": "style: 속성 패널 용어와 입력 안내 접근성 정리",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T15:42:48Z",
+      "date": "2026-10-10",
+      "phase": "p8",
+      "label": "style",
+      "size": {
+        "additions": 441,
+        "deletions": 73,
+        "files": 26
+      },
+      "issues": []
+    },
+    {
+      "type": "pr_merged",
+      "number": 346,
+      "title": "test: 기존 사용자 여정 5개를 필수 Chromium CI에 연결",
+      "author": "Yumesa2025",
+      "mergedAt": "2026-10-09T17:05:02Z",
+      "date": "2026-10-10",
+      "phase": "p8",
+      "label": "test",
+      "size": {
+        "additions": 198,
+        "deletions": 84,
+        "files": 9
+      },
+      "issues": []
     }
   ]
 }
