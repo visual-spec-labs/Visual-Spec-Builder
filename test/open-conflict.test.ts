@@ -94,3 +94,34 @@ it.each(["edit-undo", "same-spec-load"])("a delayed Open rejects %s ABA even wit
   expect(useEditorStore.getState()).toBe(expected);
   expect(useDocumentStore.getState().fileName).toBe("original.json");
 });
+
+it.each(["disk-revision", "agent-edit"])("Open intentionally cancels a picker invalidated by %s and allows an explicit retry", async (change) => {
+  useDocumentStore.getState().setFileName("original.json", "before-change");
+  useSaveConflictStore.setState({ paused: false, check: () => false, settle: async () => true });
+  const read = vi.mocked(readWorkspaceSpecSnapshot);
+  read.mockClear();
+  const opening = openSpec();
+  await vi.waitFor(() => expect(usePromptDialogStore.getState().state.kind).toBe("pick"));
+  if (change === "disk-revision") {
+    useDocumentStore.getState().setFileName("original.json", "after-change");
+  } else {
+    const editor = useEditorStore.getState();
+    editor.setPageField(editor.activePageId, "name", "external edit while picking");
+  }
+  const latest = useEditorStore.getState();
+  const latestFile = useDocumentStore.getState();
+  usePromptDialogStore.getState().resolve("next.json");
+  await opening;
+  expect(read).not.toHaveBeenCalled();
+  expect(usePromptDialogStore.getState().state.kind).toBe("closed");
+  expect(useEditorStore.getState()).toBe(latest);
+  expect(useDocumentStore.getState()).toBe(latestFile);
+
+  read.mockResolvedValue({ text: JSON.stringify({ ...latest.spec, name: "explicit retry" }), revision: "next-revision" });
+  const retry = openSpec();
+  await answerOpenPrompt("next.json");
+  await retry;
+  expect(read).toHaveBeenCalledOnce();
+  expect(useEditorStore.getState().spec.name).toBe("explicit retry");
+  expect(useDocumentStore.getState().fileName).toBe("next.json");
+});
