@@ -4,7 +4,7 @@
 이 문서는 사용자가 만든 화면의 디자인 시스템을 **어디까지 지원할지**와 **후속 구현 순서**를 제안한다.
 정본 스키마·Command·Ticket·코드 생성 스킬·GUI 코드는 바꾸지 않는다. 문서의 병합만으로 아래 제안의
 채택이나 영구 제외를 확정하지 않는다.
-최신 소스 대조 기준: develop `42e622a67cc25ce89e9fe9428c86bb15321103f5`,
+최신 소스 대조 기준: develop `0733ae1e65f837f47cdba5b18310750ed70c7662`(#356·#350·#349 통합),
 [#290](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/290) 본문(2026-10-10 확인).
 
 이번 PR이 바꾸는 것은 이 문서, [README](../README.md) 목차, [02](02-mvp-scope.md)의 제외 범위 한 행(정정
@@ -67,7 +67,7 @@
 | 토큰·스타일 개념 | 없음. `TokenSet`·`variants`·`states`가 제외 범위, `token`도 미지원 | [05](05-schema.md) MVP 제외 범위, [06](06-schema-freeze.md) "지원하지 않는다" |
 | 색 입력 | 스와치 + hex + 불투명도. 문서 안에서 쓴 색 목록·프리셋은 없다 | `ui/properties/fields/ColorField.tsx` |
 | 폰트 선택지 | `Pretendard`, `system-ui` 두 개. 굵기는 400~700 네 개(스키마는 100~900) | `ui/properties/TypographySection.tsx`의 `FONT_FAMILY_OPTIONS`·`FONT_WEIGHT_OPTIONS` |
-| 폰트 공급 | develop의 `src/styles/fonts.css`는 아직 **variable** 배포 URL이다. [PR #350](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/350)(#280, 미병합)이 GUI와 생성 셸을 **static** dynamic-subset URL로 맞춘다 — variable CSS의 family는 `Pretendard Variable`이라 `"Pretendard"` 텍스트가 OS 폴백으로 그려졌다(PR #350의 docs/25 §1 폰트, §4.2 실측) | `src/styles/fonts.css`, 스킬 "페이지 viewport와 브라우저 기본 스타일" 셸 |
+| 폰트 공급 | [PR #350](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/350)(#280)가 병합되어 GUI와 생성 셸이 같은 **static** dynamic-subset URL을 쓴다. 이전 variable CSS의 family는 `Pretendard Variable`이라 `"Pretendard"` 텍스트가 OS 폴백으로 그려졌고 이 불일치를 수정했다([25](25-layout-parity-contract.md) §1·§4.2) | `src/styles/fonts.css`, 스킬 "페이지 viewport와 브라우저 기본 스타일" 셸 |
 | 새 노드의 글꼴 | 삽입·시드가 `fontFamily: "Pretendard"`로 만든다. 저작·자연어 스킬도 `"Pretendard"`로 통일한다 | `store/createNode.ts`, `store/seedSpec.ts`, `skills/visual-spec-authoring/SKILL.md` |
 | 이미지 | File ▸ Import·배경 이미지 선택은 이미지 디코딩·크기 측정에 성공하면 `.visual-spec/assets/`에 UUID를 붙인 이름으로 저장을 시도한다. 작업공간 목록 조회 불가·허용 확장자 밖·UUID 생성 불가·쓰기 실패 시 파일 읽기가 성공하면 data URI를 스펙에 넣는다. 디코딩 또는 fallback 읽기까지 실패하면 가져오지 않는다. 허용 확장자에 `.svg`가 있다. 이미 있는 자산을 고르는 목록 UI는 없고 경로를 직접 적어야 재사용된다. 미사용 자산 정리는 없다 | `ui/importImageFromFile.ts`, `features/workspace/protocol.ts`(`WORKSPACE_DIR_RULES.assets`), `ui/properties/ContentSection.tsx`·`ImageFillFields.tsx`의 "경로 (src)" 칸 |
 | 이미지 생성 | 자산은 `../assets/<파일>` 정적 import, `alt=""`(장식용 근사) | 스킬 "image 노드", [21](21-app-scope-a11y-design.md) |
@@ -163,10 +163,10 @@ CSS 문자열/URL/선언은 문맥별 직렬화한다. 이름을 raw CSS·클래
 
 | 항목 | 지원 수준(제안) | 저장 위치 | 코드 생성 경계 | 후속 순서와 선행 |
 |---|---|---|---|---|
-| 기본 폰트 | **Pretendard 하나를 공식 지원**한다. 사용자 화면·GUI·생성 셸이 같은 static dynamic-subset URL을 쓴다(#280 계약) | `typography.fontFamily: "Pretendard"`(현재 그대로) | 생성 셸의 `@import` URL을 바꾸지 않는다(PR #350이 스킬에 명시) | **선행: PR #350 병합.** develop은 아직 variable URL이라 폰트 일치가 깨져 있다 |
+| 기본 폰트 | **Pretendard 하나를 공식 지원**한다. 사용자 화면·GUI·생성 셸이 같은 static dynamic-subset URL을 쓴다(#280 계약) | `typography.fontFamily: "Pretendard"`(현재 그대로) | 생성 셸의 `@import` URL을 바꾸지 않는다(PR #350이 스킬에 명시) | **선행 완료: PR #350 병합.** 같은 static URL 계약을 유지한다 |
 | `system-ui` 선택지 | 유지하되 "시스템 글꼴 — 기기마다 모양이 다르고 GUI와 생성 앱의 줄바꿈이 다를 수 있다"는 범위로 안내한다. #280 실측 대상에 넣지 않는다 | 현재 그대로 | generic 키워드는 따옴표 없이 생성하도록 스킬에 명시할지 검토(2절 위험) | 1단계 문서·스킬 정리. 스키마 영향 없음 |
 | 굵기 | 스키마 100~900 중 GUI는 400~700만 노출. Pretendard static은 아홉 굵기를 제공하므로 GUI 선택지 확장은 별도 GUI 이슈로 둔다 | 현재 그대로 | `font-thin`~`font-black` 매핑 그대로 | 선행 없음 |
-| 프로젝트 폰트 추가 | **후속(승인 대기 Q5).** 프로젝트가 쓸 폰트를 목록으로 선언하고, 각 폰트의 공급원(고정 CSS URL 또는 작업공간 폰트 파일)을 함께 저장한다. GUI는 목록의 폰트만 선택지로 보이고 불러온다 | `ProjectSpec`의 선택 필드(예: `fonts[]`). 파일 공급이면 작업공간에 폰트 디렉터리 또는 `assets/`의 허용 확장자 추가가 필요(`WORKSPACE_DIR_RULES` 변경) | 생성 셸이 Pretendard `@import`를 **대체하지 않고 추가로** 선언된 폰트의 `@import`/`@font-face`를 넣는다. 파일 공급이면 Export에 폰트 파일을 포함한다 | #350 병합 → #280 실측 도구가 Pretendard 외 family를 허용하도록 확장 → 별도 스키마 PR → GUI·스킬·Export |
+| 프로젝트 폰트 추가 | **후속(승인 대기 Q5).** 프로젝트가 쓸 폰트를 목록으로 선언하고, 각 폰트의 공급원(고정 CSS URL 또는 작업공간 폰트 파일)을 함께 저장한다. GUI는 목록의 폰트만 선택지로 보이고 불러온다 | `ProjectSpec`의 선택 필드(예: `fonts[]`). 파일 공급이면 작업공간에 폰트 디렉터리 또는 `assets/`의 허용 확장자 추가가 필요(`WORKSPACE_DIR_RULES` 변경) | 생성 셸이 Pretendard `@import`를 **대체하지 않고 추가로** 선언된 폰트의 `@import`/`@font-face`를 넣는다. 파일 공급이면 Export에 폰트 파일을 포함한다 | #350 병합 완료 → #280 실측 도구가 Pretendard 외 family를 허용하도록 확장 → 별도 스키마 PR → GUI·스킬·Export |
 
 **#280 계약과 충돌하지 않게 하는 조건.** 폰트 추가는 Pretendard URL을 바꾸거나 fallback 목록을 노드
 스타일에 붙이지 않는다(PR #350 docs/25: "노드 스타일은 스펙의 family 하나만 쓰고 별도 fallback 목록을
@@ -178,7 +178,10 @@ CSS 문자열/URL/선언은 문맥별 직렬화한다. 이름을 raw CSS·클래
 
 **G4 — Ticket/스킬까지 공급원 전달.** 현재
 [`TicketRequest`](../src/features/editor/ticket/ticketProtocol.ts)의 `page: ScreenSpec`에는
-`ProjectSpec.fonts[]`가 없다. 디스크의 프로젝트를 다시 읽는 방식은 미저장 문서·요청 이후 편집을 재현하지 못한다.
+`ProjectSpec.fonts[]`가 없다. #349 병합으로 현재 Ticket protocol은 **2**, 출력은 요청별 `staging/<id>`이며
+GUI가 수용 후 generated로 확정한다([26](26-agent-request-generation-contract.md)). 폰트 snapshot 제안은 이
+요청 fencing·staging·출력 manifest 계약을 보존하고 필요한 입력 지문/무효화 범위를 확장하는 후속이다.
+디스크의 프로젝트를 다시 읽는 방식은 미저장 문서·요청 이후 편집을 재현하지 못한다.
 
 | 대안 | 추천·적용 조건 | 구현 전 결정·검증 |
 |---|---|---|
@@ -191,7 +194,8 @@ A에서는 family·weight·공급원(URL 또는 상대 파일)·파일 Export �
 동일 family의 다른 공급원, 미저장 프로젝트, 요청 뒤 폰트 변경, standalone의 공급원 누락,
 웨이브 간 snapshot 변경으로 기존 결과가 낡는 경우의 무효화 정책까지 결정한다. 파일 byte 변경도
 고정할지 hash로 탐지·거부할지 정하고, Export가 검증한 byte와 실제 포함한 byte의 일치를 확인한다.
-이는 [11](11-ticket-schema-freeze.md)과 ticket 파일 프로토콜의 별도 변경 검토이며 현재 지원 주장이 아니다.
+이는 [11](11-ticket-schema-freeze.md)의 Ticket 객체 계약 및 [26](26-agent-request-generation-contract.md)의
+TicketRequest protocol 2를 구별한 별도 변경 검토이며, 프로젝트 폰트 전달의 현재 지원 주장이 아니다.
 
 **G5 — URL/경로 검증·CSS 직렬화·원격 로딩 정책.** 파일만 허용(A), 승인된 HTTPS CSS URL만 허용(B),
 둘 다 허용(C)이 대안이다. **초기에는 검증된 작업공간 `woff2` 파일(A)을 추천**한다. B/C는 사용자가
@@ -281,7 +285,7 @@ solid/gradient/image/mixed base, inside/center/outside, 8가지 활성 조합(�
 
 | 순서 | 작업 | 선행 | 스키마·계약 영향 |
 |---|---|---|---|
-| 0 | PR #350(#280) 병합 — GUI·생성 셸 폰트 URL 일치 | — | 없음(이미 진행 중) |
+| 0 (완료) | PR #350(#280) 병합 — GUI·생성 셸 폰트 URL 일치 | develop `0733ae1`에 포함 | 없음(기존 스키마 유지) |
 | 1-1 | 기본 focus 표시 보존 규칙과 키보드 검증 | 없음(#285 후속 3과 한 작업) | 없음. 스킬 문서 |
 | 1-2 | `system-ui` 범위 안내와 generic 키워드 생성 규칙 검토(다른 브라우저 실측 포함) | 0 | 없음. 스킬·GUI 안내 |
 | 1-3 | 문서 색 모음(ColorField) | 없음 | 없음 |
@@ -323,9 +327,10 @@ Q1~Q7의 넓은 방향 합의만으로 구현을 시작하지 않는다. 해당 
 
 ## 7. 이 문서의 검증
 
-- "현재 상태" 주장은 develop `42e622a`의 파일을 직접 읽어 대조했다(2절 근거 열의 경로). PR #350·#339의
-  내용은 각 브랜치(`origin/Yumesa2025/280-layout-contract`, `origin/Yumesa2025/265-s0-screen-relations-design`)에서
-  읽었으며 develop에 병합되지 않은 상태로 인용했다.
+- 최초 초안(2026-10-10 작성 기록)은 develop `42e622a`와 당시 미병합 #350·#339 브랜치를 대조했다. 후속 리뷰에서
+  develop `0733ae1`을 일반 merge로 통합하고 #350의 폰트 공급·#349의 Ticket protocol 2 계약을
+  다시 대조해 현재 상태 설명을 갱신했다. #356의 project-dialogs 수정도 통합된 develop 그대로 보존했다.
+  develop 대비 이 PR의 차이는 README·02·27·open-questions 네 Markdown 파일뿐이다.
 - 브라우저 실측은 2절의 `system-ui` 따옴표 비교 한 건뿐이다(Playwright MCP, Chromium 154, Windows, about:blank에
   세 문단을 넣고 CDP로 렌더 폰트 확인). 제안한 기능의 fixture·브라우저·실제 AI 검증은 하지 않았다.
 
