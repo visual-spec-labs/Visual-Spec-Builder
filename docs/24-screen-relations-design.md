@@ -286,16 +286,17 @@ sourcePageId와 기존 로컬 instances를 함께 보관하며 Ticket.kind는 pa
 
 onNavigate 필요성은 페이지 자체만 보지 않는다. 페이지와 **포함 widget의 전이적 집합**,
 그 안의 openModal로 **도달 가능한 modal 및 그 modal의 widget**을 방문 집합으로 순회한다.
-그중 navigate가 하나라도 있으면 페이지 호스트의 onNavigate를 필수로 하고 필요한 자손에
-전달한다. 모달 A↔B 이동 cycle도 방문 집합으로 종료한다. navigate의 대상 page 자체는
+그중 navigate가 하나라도 있으면 생성 페이지가 사용자 앱에서 받는 onNavigate를 필수로
+하고 필요한 자손에 전달한다. 모달 A↔B 이동 cycle도 방문 집합으로 종료한다. navigate의 대상 page 자체는
 이 호스트 렌더 집합에 포함하지 않으며 서로 import하지 않는다. 모달/위젯 안에만 navigate가
 있는 경우 콜백을 누락하지 않는 테스트가 필요하다.
 
-호스트는 URL/history를 소유하고 onOpenModal/onClose도 자손에 전달한다. 일반 임의
-props/bindings를 IR에 허용하는 결정은 아니다. 라우트 목록은 PageId→생성 component
+통합하는 사용자 앱이 URL/history와 onNavigate의 실제 처리를 소유한다. 생성 페이지의
+모달 호스트는 열린 modal 상태를 소유하고 onOpenModal/onClose를 자손에 전달한다.
+일반 임의 props/bindings를 IR에 허용하는 결정은 아니다. 라우트 목록은 PageId→생성 component
 매핑 설명이며 URL path·인증·가드·history를 추론하지 않는다. 초기 native button의 navigate는
-호스트 콜백을 호출하는 UI 동작이다. URL을 가진 링크와 새 탭 열기 등 링크 의미의 지원은
-별도 호스트 계약으로 다룬다. [21](21-app-scope-a11y-design.md)의 앱 셸 제외는 유지한다.
+사용자 앱에서 전달받은 onNavigate를 호출하는 UI 동작이다. URL을 가진 링크와 새 탭 열기
+등 링크 의미의 지원은 별도 사용자 앱 통합 계약으로 다룬다. [21](21-app-scope-a11y-design.md)의 앱 셸 제외는 유지한다.
 
 Export는 모든 관련 컴포넌트·상대 import·사용 자산을 포함하고 기존 검사 강도를 낮추지
 않는다. 경로/소유권은 아래 #281 합의 뒤 적용한다. 파일 존재 검사를 typecheck·동작
@@ -357,7 +358,7 @@ Ticket 버전 숫자와 protocol 형식은 위 시점 변경을 승인해도 자
 | D4 | 단일 navigate/openModal/close, 전체 교체, 반응형 제외 | source/target 검사와 Command 경로 |
 | D5 | 유입 정리 포함 프로젝트 후보 검증·atomic commit·Undo 한 번 | 모든 쓰기 경로의 공통 불변조건, 복제/붙여넣기·widget 삭제 세부안 |
 | D6 | 단일 모달 교체, Escape/명시 닫기, backdrop 유지, 원래 트리거 복귀 | #280 크기 합의, close 문맥·focus fallback·native dialog/portal 구현 검증 |
-| D7 | router 비의존 콜백·호스트 URL/history | 포함 widget·도달 modal의 navigate까지 콜백 필요성 계산 |
+| D7 | router 비의존 콜백·사용자 앱 소유 URL/history | 포함 widget·도달 modal의 navigate까지 콜백 필요성 계산 |
 | D8 | 직접 Text/Button 내용·글자색, base→responsive→instance | override 오류·원본 변경·detach 계약 |
 | D9 | 프로젝트 widget ID 공유·포함 cycle 금지·저장/DOM ID 분리 | 런타임 ID 충돌 방어와 #281 신원 경계 |
 | D10 | 명시 제거 명령·Command v0.2 우선 추천 | **팀 승인 대기:** 명령 이름/범위·없는 값 처리·버전·구 소비자 대응 |
