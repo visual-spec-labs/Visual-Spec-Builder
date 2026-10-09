@@ -207,7 +207,7 @@ describe("취소 A → 재시도 B 성공 → 늦은 A 응답/파일", () => {
 });
 
 describe("일부 파일만 도착", () => {
-  it("완료 응답이어도 임시 출력이 없는 티켓은 실패로 바꾸고, 도착한 것만 확정한다", async () => {
+  it("완료 응답이어도 임시 출력이 빠지면 웨이브 전체를 보존한다", async () => {
     const run = runAllTickets();
     await tick();
     const request = currentRequest();
@@ -221,7 +221,7 @@ describe("일부 파일만 도착", () => {
     await run;
 
     // 티켓 상태
-    expect(status("Header")).toBe("done");
+    expect(status("Header")).toBe("failed");
     expect(status("Card")).toBe("failed");
     expect(useTicketStore.getState().tickets.find((ticket) => ticket.id === "Card")?.error).toContain("임시 출력");
     expect(status("Content")).toBe("pending"); // 실패한 Card에 의존 — 다음 웨이브로 가지 않는다
@@ -233,9 +233,9 @@ describe("일부 파일만 도착", () => {
 
     // Export 수용
     const { byTicket, freshness } = await exportScan();
-    expect(byTicket.Header).toBe("current");
+    expect(byTicket.Header).toBe("missing");
     expect(byTicket.Card).toBe("missing");
-    expect(freshness.overall).toBe("partial");
+    expect(freshness.overall).toBe("missing");
   });
 
   it("취소된 요청의 일부 파일이 늦게 와도 아무것도 확정하지 않는다", async () => {

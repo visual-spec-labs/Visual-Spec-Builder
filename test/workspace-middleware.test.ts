@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as mutations from "@/features/workspace/workspaceMutation";
 import { createHash } from "node:crypto";
 import { createServer, request, type Server } from "node:http";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
@@ -1095,5 +1096,46 @@ describe("generated/·backups/ 기대 버전과 조건부 지우기(#282)", () =
     expect((await del("generated/components/Header.tsx", sha("N\n"))).status).toBe(200);
     expect(existsSync(generatedFile())).toBe(false);
     expect((await del("generated/components/Header.tsx", sha("N\n"))).status).toBe(409);
+  });
+});
+
+describe("#282 canonical policy roots", () => {
+  it.each(["specs", "backups"])("generated alias -> %s cannot DELETE or PUT protected bytes", async (dir) => {
+    const target = join(workspaceRoot, dir, "original.json");
+    writeFileSync(target, "original");
+    symlinkSync(join(workspaceRoot, dir), join(workspaceRoot, "generated", "alias"), "junction");
+    const revision = createHash("sha256").update("original").digest("hex");
+    const path = "/__vs/file/generated/alias/original.json";
+    expect((await rawRequest("DELETE", path, undefined, { "x-visual-spec-expected-revision": revision })).status).toBe(403);
+    expect((await rawRequest("PUT", path, "corrupt", { "x-visual-spec-expected-revision": revision })).status).toBe(403);
+    expect(readFileSync(target, "utf8")).toBe("original");
+  });
+
+  it.each(["DELETE", "PUT"])("%s revalidates canonical scope after waiting in the mutation queue", async (method) => {
+    const folder = join(workspaceRoot, "generated", "queued");
+    mkdirSync(folder);
+    const target = join(folder, "original.json");
+    writeFileSync(target, "original");
+    writeFileSync(join(workspaceRoot, "specs", "original.json"), "original");
+    let release!: () => void;
+    const gate = new Promise<void>((done) => { release = done; });
+    let entered!: () => void;
+    const queued = new Promise<void>((done) => { entered = done; });
+    const original = mutations.withWorkspaceMutation;
+    const spy = vi.spyOn(mutations, "withWorkspaceMutation").mockImplementationOnce(async (paths, action) => {
+      entered();
+      await gate;
+      return original(paths, action);
+    });
+    // The initial route check has succeeded before the queue callback is entered.
+    const pending = rawRequest(method, "/__vs/file/generated/queued/original.json", method === "PUT" ? "corrupt" : undefined,
+      { "x-visual-spec-expected-revision": createHash("sha256").update("original").digest("hex") });
+    await queued;
+    rmSync(folder, { recursive: true });
+    symlinkSync(join(workspaceRoot, "specs"), folder, "junction");
+    release();
+    spy.mockRestore();
+    expect((await pending).status).toBe(403);
+    expect(readFileSync(join(workspaceRoot, "specs", "original.json"), "utf8")).toBe("original");
   });
 });

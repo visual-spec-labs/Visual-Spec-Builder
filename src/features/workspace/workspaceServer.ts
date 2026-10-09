@@ -188,6 +188,26 @@ export function realPathStaysInside(workspaceRoot: string, target: string): bool
   }
 }
 
+/** File routes may not alias another policy root (or another queue key).
+ * Compare canonical paths with the requested path under the canonical workspace.
+ * Reject symlink components, including generated/ or backups/ themselves.
+ */
+function filePathHasCanonicalScope(root: string, relativePath: string): boolean {
+  if (!realPathStaysInside(root, join(root, relativePath))) return false;
+  let current = realpathSync(root);
+  for (const part of relativePath.split("/")) {
+    current = join(current, part);
+    try {
+      if (realpathSync(current) !== current) return false;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") return false;
+      // A dangling symlink is not a missing ordinary path.
+      try { if (lstatSync(current).isSymbolicLink()) return false; } catch { /* missing */ }
+    }
+  }
+  return true;
+}
+
 /** 임시 파일 이름을 겹치지 않게 하는 카운터. 이 프로세스 안에서만 의미가 있다. */
 let tempFileCounter = 0;
 
@@ -364,7 +384,7 @@ function currentRevision(absolutePath: string): string {
  * 길은 열지 않는다: 지울 수 있는 것은 앱이 직접 쓴 그 바이트뿐이고, 그 뒤 사람이 한 글자라도
  * 고쳤으면 409로 남긴다. `generated/` 밖(스펙·에셋·백업·임시 출력)은 405다.
  */
-function handleDelete(req: IncomingMessage, res: ServerResponse, absolutePath: string, relativePath: string): void {
+function handleDelete(req: IncomingMessage, res: ServerResponse, workspaceRoot: string, absolutePath: string, relativePath: string): void {
   if (!relativePath.startsWith("generated/")) { sendError(res, 405, "생성 파일만 지울 수 있습니다."); return; }
   const expected = req.headers[WORKSPACE_EXPECTED_REVISION_HEADER];
   if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) {
@@ -372,6 +392,9 @@ function handleDelete(req: IncomingMessage, res: ServerResponse, absolutePath: s
   }
   void withWorkspaceMutation([absolutePath], () => {
     try {
+      if (!filePathHasCanonicalScope(workspaceRoot, relativePath)) {
+        sendError(res, 403, "거부: canonical scope"); return;
+      }
       if (currentRevision(absolutePath) !== expected) {
         sendError(res, 409, "확인한 뒤 파일이 바뀌었거나 없어졌습니다. 지우지 않았습니다."); return;
       }
@@ -431,10 +454,13 @@ function handleWrite(
     }
     void withWorkspaceMutation([absolutePath], () => {
     try {
+      if (!filePathHasCanonicalScope(workspaceRoot, relativePath)) {
+        sendError(res, 403, "거부: canonical scope"); return;
+      }
       mkdirSync(dirname(absolutePath), { recursive: true });
       // 폴더를 만든 뒤 한 번 더 본다 — 방금 만든 경로 중간에 링크가 끼어 있었다면
       // 여기서 걸린다(쓰기 직전이 마지막 관문이다).
-      if (!realPathStaysInside(workspaceRoot, absolutePath)) {
+      if (!filePathHasCanonicalScope(workspaceRoot, relativePath)) {
         sendError(res, 403, "작업공간 밖으로 나가는 경로입니다.");
         return;
       }
@@ -748,10 +774,13 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
         return;
       }
 
+      if (!filePathHasCanonicalScope(root, resolved.relativePath)) {
+        sendError(res, 403, "거부: canonical scope"); return;
+      }
       if (method === "GET") {
         handleRead(res, resolved.absolutePath, tracksRevision(resolved.relativePath));
       } else if (method === "DELETE") {
-        handleDelete(req, res, resolved.absolutePath, resolved.relativePath);
+        handleDelete(req, res, root, resolved.absolutePath, resolved.relativePath);
       } else {
         // 공유 요청 파일은 잠금 주인만 덮어쓴다(#273) — 기다리는 다른 탭의 요청을 지우지 않는다.
         // 에이전트 편집 결과도 연결된 탭만 쓴다(#279).

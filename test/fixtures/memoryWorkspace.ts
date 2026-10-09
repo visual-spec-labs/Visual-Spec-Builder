@@ -20,6 +20,8 @@ export interface MemoryWorkspace {
   failWrite: ((path: string) => string | null) | null;
   /** 쓰기·지우기 순서 기록. */
   log: string[];
+  beforeRead?: (path: string) => void | Promise<void>;
+  afterWrite?: (path: string) => string | null | Promise<string | null>;
 }
 
 export function createMemoryWorkspace(): MemoryWorkspace {
@@ -32,6 +34,8 @@ export function resetMemoryWorkspace(workspace: MemoryWorkspace): void {
   workspace.beforeWrite = null;
   workspace.failWrite = null;
   workspace.log.length = 0;
+  workspace.beforeRead = undefined;
+  workspace.afterWrite = undefined;
 }
 
 export function bytesOf(value: string | Uint8Array): Uint8Array {
@@ -74,10 +78,13 @@ export function memoryWorkspaceClient(workspace: MemoryWorkspace) {
     isWorkspaceAvailable: async () => !workspace.offline,
     listWorkspaceFiles: async (dir: string, options?: { recursive?: boolean }) => list(dir, options),
     readWorkspaceTextFile: async (path: string) => (workspace.offline ? null : textOf(workspace, path) ?? null),
-    readWorkspaceTextFileStrict: async (path: string) =>
-      workspace.offline ? { ok: false } : { ok: true, text: textOf(workspace, path) ?? null },
+    readWorkspaceTextFileStrict: async (path: string) => {
+      await workspace.beforeRead?.(path);
+      return workspace.offline ? { ok: false } : { ok: true, text: textOf(workspace, path) ?? null };
+    },
     readWorkspaceBinaryFile: async () => null,
     readWorkspaceFileSnapshot: async (path: string) => {
+      await workspace.beforeRead?.(path);
       if (workspace.offline) return { ok: false };
       const value = workspace.files.get(path);
       if (value === undefined) return { ok: true, snapshot: null };
@@ -98,6 +105,8 @@ export function memoryWorkspaceClient(workspace: MemoryWorkspace) {
       const content = await bodyOf(body);
       workspace.files.set(path, content);
       workspace.log.push(`PUT ${path}`);
+      const lost = await workspace.afterWrite?.(path);
+      if (lost) return { ok: false, error: lost };
       return { ok: true, path, revision: tracked(path) ? sha256Hex(bytesOf(content)) : undefined };
     },
     deleteWorkspaceFile: async (path: string, expectedRevision: string) => {

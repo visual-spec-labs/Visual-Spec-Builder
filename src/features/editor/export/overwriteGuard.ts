@@ -8,9 +8,10 @@
  * (`generationManifest.ts`)이고, 이 파일은 그 기록과 실제 바이트를 잇기만 한다.
  *
  * **기준 없는 기존 파일을 생성기 소유로 추정하지 않는다.** 기록이 없거나(직접 실행한 to-react,
- * 구버전 출력, 사람이 만든 파일) 기록의 프로젝트·페이지가 지금과 다르면(이름 변경·복사·같은 이름의
- * 다른 프로젝트) 모두 확인 대상이다. 틀리는 쪽을 "한 번 더 묻는다"로 고정한다 — 반대쪽 실수는
- * 사람이 고친 코드를 조용히 잃는 것이라 되돌릴 수 없다. 경계와 근거는 docs/26 "#282".
+ * 구버전 출력, 사람이 만든 파일) 기록의 프로젝트·페이지가 지금과 다르면(이름 변경·복사) 모두
+ * 확인 대상이다. 틀리는 쪽을 "한 번 더 묻는다"로 고정한다 — 반대쪽 실수는
+ * 사람이 고친 코드를 조용히 잃는 것이라 되돌릴 수 없다. 같은 파일 이름을 재사용한 새 프로젝트는
+ * 임시 projectKey로 구분하지 못한다(#281). 경계와 근거는 docs/26 "#282".
  */
 
 import type { PageId } from "@/features/editor/schema";
@@ -74,9 +75,9 @@ export function classifyOverwrite({ path, ticketId, current, next, record, owner
   const base = { path, ticketId, current, next, record };
   if (current === null) return { ...base, ownership: "new" };
   const currentHash = `sha256:${current.revision}`;
-  if (currentHash === contentHash(next)) return { ...base, ownership: "unchanged" };
   if (record === null) return { ...base, ownership: "unowned" };
   if (!recordBelongsTo(record, owner)) return { ...base, ownership: "foreign" };
+  if (currentHash === contentHash(next) && currentHash === record.contentHash) return { ...base, ownership: "unchanged" };
   return { ...base, ownership: currentHash === record.contentHash ? "owned" : "modified" };
 }
 

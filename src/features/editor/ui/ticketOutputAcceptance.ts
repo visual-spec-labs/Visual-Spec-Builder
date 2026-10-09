@@ -87,8 +87,9 @@ export interface TicketOutputAcceptance {
   results: TicketResultItem[];
   /** 파일은 확정했지만 수용 기록을 남기지 못했을 때의 안내. Export는 이 파일들을 "확인 불가"로 본다. */
   manifestError: string | null;
-  /** 바꾼 파일이 있으면 그 실행. 없거나 중단했으면 null. */
+  /** 바꾼 파일 또는 보상 미확인 파일이 있으면 그 실행. 안전하게 중단했으면 null. */
   run: RegenerationRunSummary | null;
+  recoveryWarning?: string;
 }
 
 function failed(ticketId: string, message: string): TicketResultItem {
@@ -174,6 +175,12 @@ export async function planTicketOutputs({
     });
   }
 
+  for (const ticket of waveTickets) {
+    if (!planned.some((result) => result.ticketId === ticket.id)) {
+      planned.push(failed(ticket.id, "이 웨이브 응답에 티켓 결과가 빠져 확정하지 않았습니다."));
+    }
+  }
+
   return { requestId, pageId, fingerprint: inputFingerprint(pageId, page), owner, results: planned, targets, review };
 }
 
@@ -218,6 +225,10 @@ async function revertFile(file: RunRecordFile, previous: Uint8Array | null): Pro
     ? await deleteWorkspaceFile(target, file.writtenRevision)
     : await writeWorkspaceFile(target, bytesBody(previous), TEXT_TYPE, file.writtenRevision);
   if (outcome.ok) return "restored";
+  // A lost response does not prove the mutation failed. Reconcile actual bytes.
+  const actual = await readWorkspaceFileSnapshot(target);
+  if (actual.ok && (actual.snapshot?.revision ?? WORKSPACE_MISSING_REVISION) ===
+      (file.previousRevision ?? WORKSPACE_MISSING_REVISION)) return "restored";
   return outcome.status === 409 ? "conflict" : "failed";
 }
 
@@ -230,10 +241,21 @@ function bytesBody(bytes: Uint8Array): ArrayBuffer {
  * 계획을 사용자 선택대로 확정한다. 확인 대상 파일은 `decisions[path] === "overwrite"`일 때만 쓰고,
  * 나머지는 보존한다(그 티켓은 `failed` — 새 출력은 임시 폴더에 남는다).
  */
-export async function commitTicketOutputs(
+// A recompilation can start B before A finishes an in-flight PUT/compensation.
+// Keep those mutations in one tab ordered so A cannot roll back B's equal bytes.
+let acceptanceTail: Promise<unknown> = Promise.resolve();
+export function commitTicketOutputs(
+  ...args: Parameters<typeof commitTicketOutputsNow>
+): Promise<TicketOutputAcceptance> {
+  const result = acceptanceTail.then(() => commitTicketOutputsNow(...args));
+  acceptanceTail = result.catch(() => undefined);
+  return result;
+}
+
+async function commitTicketOutputsNow(
   plan: TicketOutputPlan,
   decisions: Readonly<Record<string, OverwriteDecision>> = {},
-  { now = () => new Date(), runId = createRunId() }: { now?: () => Date; runId?: string } = {},
+  { now = () => new Date(), runId = createRunId(), isCurrent = () => true }: { now?: () => Date; runId?: string; isCurrent?: () => boolean } = {},
 ): Promise<TicketOutputAcceptance> {
   const byTicket = new Map(plan.targets.map((target) => [target.ticketId, target]));
   const writes = plan.targets.filter((target) => shouldWrite(target, decisions));
@@ -243,10 +265,18 @@ export async function commitTicketOutputs(
     run: null,
   });
 
+  const cancelled = () => abort("취소되거나 재컴파일되어 출력을 확정하지 않았습니다.");
+  if (!isCurrent()) return cancelled();
+  // A wave is the acceptance unit: missing/failed outputs must not mix generations.
+  if (plan.results.some((result) => result.status !== "done")) {
+    return abort("웨이브 출력이 완전하지 않아 이번 출력을 확정하지 않았습니다.");
+  }
+
   // 1. 백업과 되돌리기 기록. 백업은 새 파일로만 쓰고(기대 버전 missing), 서버가 돌려준 버전이 원본
   //    바이트의 버전과 같아야 성공이다 — 반쪽 백업을 믿고 덮어쓰지 않는다.
   const files: RunRecordFile[] = [];
   for (const target of writes) {
+    if (!isCurrent()) return cancelled();
     const backupPath = target.current === null ? null : `${runRoot(runId)}/files/${target.path}`;
     if (target.current !== null && backupPath !== null) {
       const backup = await writeWorkspaceFile(backupPath, bytesBody(target.current.bytes), TEXT_TYPE, WORKSPACE_MISSING_REVISION);
@@ -263,6 +293,7 @@ export async function commitTicketOutputs(
       previousEntry: target.record,
     });
   }
+  if (!isCurrent()) return cancelled();
   if (files.length > 0) {
     const record: RunRecord = { protocol: 1, runId, requestId: plan.requestId, createdAt: now().toISOString(), files };
     const saved = await writeWorkspaceFile(runRecordPath(runId), JSON.stringify(record, null, 2), "application/json", WORKSPACE_MISSING_REVISION);
@@ -271,6 +302,7 @@ export async function commitTicketOutputs(
 
   // 2. 확정 직전 재비교. 사용자가 확인한 뒤 누가 파일을 고쳤으면 하나도 쓰지 않는다.
   for (const target of writes) {
+    if (!isCurrent()) return cancelled();
     const again = await readWorkspaceFileSnapshot(`${GENERATED_DIR}/${target.path}`);
     const expected = target.current?.revision ?? WORKSPACE_MISSING_REVISION;
     const actual = again.ok ? (again.snapshot?.revision ?? WORKSPACE_MISSING_REVISION) : null;
@@ -283,7 +315,18 @@ export async function commitTicketOutputs(
 
   // 3. 쓰기. 파일마다 확인 당시 버전을 기대 버전으로 싣는다.
   const written: RunRecordFile[] = [];
+  const compensate = async (reason: string) => {
+    const leftovers = await rollback(written, writes);
+    const result = abort(`${reason}${leftovers.length === 0 ? " 이번 적용을 되돌렸습니다." : " 복구를 완료하지 못했습니다."}`);
+    if (leftovers.length > 0) {
+      result.run = { runId, paths: leftovers, backupRoot: runRoot(runId) };
+      result.recoveryWarning = `복구 확인 필요: ${leftovers.join(", ")}. 실행 ${runId}, 기록: ${runRecordPath(runId)}, 원본: ${runRoot(runId)}/files/`;
+    }
+    return result;
+  };
   for (const [index, target] of writes.entries()) {
+    if (!isCurrent()) return compensate("취소되거나 재컴파일되었습니다.");
+    written.push(files[index]); // Include ambiguous writes whose response may be lost.
     const outcome = await writeWorkspaceFile(
       `${GENERATED_DIR}/${target.path}`,
       target.next,
@@ -291,12 +334,14 @@ export async function commitTicketOutputs(
       target.current?.revision ?? WORKSPACE_MISSING_REVISION,
     );
     if (!outcome.ok) {
-      const leftovers = await rollback(written, writes);
+      // A server CAS rejection is definite: another writer owns the current bytes.
+      if (outcome.status === 409) written.pop();
       const reason = outcome.status === 409 ? "확인한 뒤 파일이 바뀌었습니다" : outcome.error;
-      return abort(`${target.path} 쓰기에 실패해(${reason}) 이번 적용을 되돌렸습니다.${leftovers}`);
+      return compensate(`${target.path} 쓰기 결과를 확인하지 못했습니다(${reason}).`);
     }
-    written.push(files[index]);
   }
+
+  if (!isCurrent()) return compensate("취소되거나 재컴파일되었습니다.");
 
   // 4. 수용 기록. 쓴 파일과, 이미 새 출력과 같던 파일만 이 요청의 결과로 기록한다.
   const acceptedAt = now().toISOString();
@@ -318,7 +363,15 @@ export async function commitTicketOutputs(
     if (target === undefined || entries[target.path] !== undefined) return result;
     return failed(result.ticketId, `기존 ${target.path}을(를) 보존해 바꾸지 않았습니다. 새 출력은 ${ticketOutputPath(plan.requestId, target.path)}에 남아 있습니다.`);
   });
-  const manifestError = Object.keys(entries).length === 0 ? null : await recordAcceptance(entries);
+  const manifestError = Object.keys(entries).length === 0 ? null : await recordAcceptance(entries, isCurrent);
+  if (!isCurrent()) {
+    const restored = await compensate("취소되거나 재컴파일되었습니다.");
+    // The manifest request may already have reached the server. Restore only entries of this request.
+    const previous = Object.fromEntries(plan.targets.filter((t) => entries[t.path] !== undefined).map((t) => [t.path, t.record]));
+    const warning = await recordAcceptance(previous, () => true, plan.requestId);
+    if (warning !== null) restored.manifestError = warning;
+    return restored;
+  }
   return {
     results,
     manifestError,
@@ -326,15 +379,18 @@ export async function commitTicketOutputs(
   };
 }
 
-/** 중간 실패 보상. 되돌리지 못한 파일이 있으면 안내 문구를 돌려준다. */
-async function rollback(written: RunRecordFile[], writes: OverwriteTarget[]): Promise<string> {
+/** 중간 실패 보상. 원본 복구를 확인하지 못한 경로를 돌려준다. */
+async function rollback(written: RunRecordFile[], writes: OverwriteTarget[]): Promise<string[]> {
   const byPath = new Map(writes.map((target) => [target.path, target]));
   const left: string[] = [];
   for (const file of [...written].reverse()) {
     const previous = byPath.get(file.path)?.current?.bytes ?? null;
+    const actual = await readWorkspaceFileSnapshot(`${GENERATED_DIR}/${file.path}`);
+    if (actual.ok && (actual.snapshot?.revision ?? WORKSPACE_MISSING_REVISION) ===
+        (file.previousRevision ?? WORKSPACE_MISSING_REVISION)) continue;
     if ((await revertFile(file, previous)) !== "restored") left.push(file.path);
   }
-  return left.length === 0 ? "" : ` 되돌리지 못한 파일: ${left.join(", ")} — 그 사이 바뀌었거나 쓰지 못했습니다. 원본은 백업에 있습니다.`;
+  return left;
 }
 
 /**
@@ -342,12 +398,18 @@ async function rollback(written: RunRecordFile[], writes: OverwriteTarget[]): Pr
  * 덮으면 다른 파일들의 기록까지 지운다. 실패해도 판정은 "확인 불가"로 기울 뿐 거짓 "현재"가
  * 되지 않는다(docs/26 "수용 기록 형식").
  */
-async function recordAcceptance(updates: Record<string, ManifestEntry | null>): Promise<string | null> {
+async function recordAcceptance(updates: Record<string, ManifestEntry | null>, isCurrent = () => true, onlyRequestId?: string): Promise<string | null> {
   const current = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
   if (!current.ok) {
     return "생성 기록을 읽지 못해 이번 변경을 기록하지 않았습니다. Export에서 이 파일들은 확인 불가로 보입니다.";
   }
-  const next = withManifestUpdates(parseGenerationManifest(current.text), updates);
+  if (!isCurrent()) return "취소되어 생성 기록을 갱신하지 않았습니다.";
+  const manifest = parseGenerationManifest(current.text);
+  const selected = onlyRequestId === undefined ? updates : Object.fromEntries(
+    Object.entries(updates).filter(([path]) => manifest.entries[path]?.requestId === onlyRequestId),
+  );
+  if (Object.keys(selected).length === 0) return null;
+  const next = withManifestUpdates(manifest, selected);
   const written = await writeWorkspaceFile(
     GENERATION_MANIFEST_PATH,
     JSON.stringify(next, null, 2),

@@ -37,7 +37,9 @@ const classify = (current: FileSnapshot | null, entry: ManifestEntry | null, who
 describe("classifyOverwrite", () => {
   it("파일이 없으면 new, 지금 바이트가 새 출력과 같으면 unchanged", () => {
     expect(classify(null, record())).toBe("new");
-    expect(classify(snapshot(N), null)).toBe("unchanged");
+    expect(classify(snapshot(N), null)).toBe("unowned");
+    expect(classify(snapshot(N), record({ contentHash: contentHash(N) }))).toBe("unchanged");
+    expect(classify(snapshot(N), record({ projectKey: "other.json" }))).toBe("foreign");
   });
 
   it("이 프로젝트·페이지의 기록과 바이트가 같으면 owned, 다르면 modified", () => {

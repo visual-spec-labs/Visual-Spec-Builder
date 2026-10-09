@@ -19,6 +19,8 @@ const workspace = vi.hoisted(() => ({
   beforeWrite: null as ((path: string) => void) | null,
   failWrite: null as ((path: string) => string | null) | null,
   log: [] as string[],
+  beforeRead: undefined as ((path: string) => void | Promise<void>) | undefined,
+  afterWrite: undefined as ((path: string) => string | null | Promise<string | null>) | undefined,
 }));
 
 vi.mock("@/features/editor/ui/workspaceClient", async () =>
@@ -458,4 +460,152 @@ describe("확인 뒤 재수정 경쟁", () => {
     expect(textOf(workspace, G_CARD)).toBe(L_CARD); // 다른 파일은 정상적으로 되돌렸다
     expect(useTicketStore.getState().restoreMessage).toContain(HEADER);
   });
+});
+
+
+describe("await 경계와 불확실한 전송 결과", () => {
+  it.each(["planning", "backup", "revalidate"].flatMap((phase) => ["stop", "compile"].map((action) => ({ phase, action }))))("$phase 대기 중 $action은 출력 쓰기를 막는다", async ({ phase, action }) => {
+    const stop = () => action === "stop" ? cancelTicketRun() : compileCurrent();
+    await seedLastGoodAndManualEdit();
+    const original = phase === "planning" ? L_HEADER : M_HEADER;
+    workspace.files.set(G_HEADER, original);
+    const run = runOneTicket("Header");
+    await tick();
+    let reads = 0;
+    workspace.beforeRead = (path) => {
+      if (path === G_HEADER && ++reads === (phase === "planning" ? 1 : 2)) {
+        if (phase !== "backup") stop();
+      }
+    };
+    workspace.afterWrite = (path) => {
+      if (phase === "backup" && path.startsWith("backups/")) stop();
+      return null;
+    };
+    respond(currentRequest().id, { [HEADER]: N_HEADER });
+    await tick();
+    answerOverwriteReview({ [HEADER]: "overwrite" });
+    await tick();
+    await run;
+    expect(textOf(workspace, G_HEADER)).toBe(original);
+    expect(generatedWrites()).toEqual([]);
+  });
+
+  it("재컴파일은 review resolver를 끝내고 새 확인을 건드리지 않는다", async () => {
+    await seedLastGoodAndManualEdit();
+    const { run } = await secondRoundToReview();
+    compileCurrent();
+    await run;
+    expect(useTicketStore.getState().overwriteReview).toBeNull();
+    expect(generatedWrites()).toEqual([]);
+    const next = await secondRoundToReview();
+    expect(useTicketStore.getState().overwriteReview?.requestId).toBe(next.request.id);
+    answerOverwriteReview("cancel");
+    await next.run;
+  });
+
+  it("PUT 반영 뒤 응답 유실도 현재 파일까지 원본 BOM 바이트로 보상한다", async () => {
+    await seedLastGoodAndManualEdit();
+    const original = new Uint8Array([239, 187, 191, ...bytesOf(M_HEADER)]);
+    workspace.files.set(G_HEADER, original);
+    const { run } = await secondRoundToReview();
+    let lost = false;
+    workspace.afterWrite = (path) => {
+      if (path === G_HEADER && !lost) { lost = true; return "response lost"; }
+      return null;
+    };
+    answerOverwriteReview({ [HEADER]: "overwrite" });
+    await finish(run);
+    expect(bytesOf(workspace.files.get(G_HEADER)!)).toEqual(original);
+    expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+  });
+
+  it("보상 실패는 실제 실행 ID와 백업 위치 및 재시도 handle을 유지한다", async () => {
+    await seedLastGoodAndManualEdit();
+    const { run } = await secondRoundToReview();
+    workspace.afterWrite = (path) => {
+      if (path === G_HEADER) {
+        workspace.failWrite = (p) => p === G_HEADER ? "offline" : null;
+        return "response lost";
+      }
+      return null;
+    };
+    answerOverwriteReview({ [HEADER]: "overwrite" });
+    await finish(run);
+    const recovery = useTicketStore.getState().lastRun!;
+    expect(useTicketStore.getState().acceptanceWarning).toContain(`${recovery.backupRoot}/files/`);
+    expect(textOf(workspace, `${recovery.backupRoot}/files/${HEADER}`)).toBe(M_HEADER);
+    workspace.offline = true;
+    await restoreLastRun();
+    expect(useTicketStore.getState().lastRun).toEqual(recovery);
+    workspace.offline = false;
+    workspace.failWrite = null;
+    workspace.afterWrite = undefined;
+    await restoreLastRun();
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+  });
+
+  it("외부 프로젝트의 동일 바이트를 보존하면 소유 기록을 가져오지 않는다", async () => {
+    await seedLastGoodAndManualEdit();
+    useDocumentStore.setState({ fileName: "other.json" });
+    const before = textOf(workspace, GENERATION_MANIFEST_PATH);
+    const { run } = await secondRoundToReview({ [HEADER]: M_HEADER, [CARD]: L_CARD });
+    expect(useTicketStore.getState().overwriteReview?.items.every((i) => i.ownership === "foreign")).toBe(true);
+    answerOverwriteReview({});
+    await finish(run);
+    expect(textOf(workspace, GENERATION_MANIFEST_PATH)).toBe(before);
+    expect(generatedWrites()).toEqual([]);
+  });
+
+  it("부분 staging은 기존 정상 웨이브를 혼합하지 않는다", async () => {
+    await seedLastGoodAndManualEdit();
+    const run = runAllTickets();
+    await tick();
+    respond(currentRequest().id, { [HEADER]: N_HEADER, [CARD]: N_CARD });
+    workspace.files.delete(`staging/${currentRequest().id}/${CARD}`);
+    await tick();
+    answerOverwriteReview({ [HEADER]: "overwrite" });
+    await finish(run);
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+    expect(generatedWrites()).toEqual([]);
+  });
+});
+
+
+it("보상 응답도 유실되어도 원본 바이트를 재확인한 뒤에만 복구 완료로 본다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  workspace.afterWrite = (path) => path === G_HEADER ? "response lost" : null;
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+  expect(useTicketStore.getState().acceptanceWarning).toBeNull();
+  expect(status("Header")?.error).toContain("되돌렸습니다");
+});
+
+it("출력 PUT 진행 중 Stop은 완료 후 보상하고 이전 manifest를 보존한다", async () => {
+  await seedLastGoodAndManualEdit();
+  const before = textOf(workspace, GENERATION_MANIFEST_PATH);
+  const { run } = await secondRoundToReview();
+  workspace.afterWrite = (path) => {
+    if (path === G_HEADER) cancelTicketRun();
+    return null;
+  };
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+  expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+  expect(textOf(workspace, GENERATION_MANIFEST_PATH)).toBe(before);
+});
+
+it("CAS 409에서 다른 writer의 동일 새 바이트를 보상 대상으로 오판하지 않는다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  workspace.beforeWrite = (path) => {
+    if (path === G_HEADER) workspace.files.set(path, N_HEADER);
+  };
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
+  expect(generatedWrites()).toEqual([]);
 });

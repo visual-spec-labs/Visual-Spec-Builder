@@ -59,6 +59,14 @@ let activeWait: AgentRequestWait | null = null;
 /** 쓰기 전 확인을 기다리는 웨이브의 답 전달 함수(#282). 없으면 기다리는 확인이 없다. */
 let activeReview: ((answer: OverwriteAnswer) => void) | null = null;
 
+// Recompilation must settle the old review promise, even if no new run starts.
+useTicketStore.subscribe((state, previous) => {
+  if (state.generation !== previous.generation) {
+    if (activeCancel !== null) activeCancel.cancelled = true;
+    activeReview?.("cancel");
+  }
+});
+
 /** 쓰기 전 확인의 답. 파일별 선택이거나, 아무것도 쓰지 않는 전체 취소다. */
 export type OverwriteAnswer = Readonly<Record<string, OverwriteDecision>> | "cancel";
 
@@ -221,6 +229,11 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     results: outcome.result.results,
   });
   if (useTicketStore.getState().generation !== generation) return;
+  if (cancelToken.cancelled) {
+    revertToPending(waveTickets);
+    useTicketStore.setState({ running: false, runError: OVERWRITE_CANCELLED_MESSAGE });
+    return;
+  }
   let decisions: Readonly<Record<string, OverwriteDecision>> = {};
   if (planNeedsReview(plan)) {
     const answer = await awaitOverwriteReview(plan.review);
@@ -234,9 +247,19 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     }
     decisions = answer;
   }
-  const acceptance = await commitTicketOutputs(plan, decisions);
-  // 확정하는 사이 재컴파일됐으면 지금 tickets는 이 웨이브와 무관하다. 확정한 파일은 그 요청 입력의
-  // 사실로 기록돼 있고 Export가 판정한다.
+  if (cancelToken.cancelled) {
+    revertToPending(waveTickets);
+    useTicketStore.setState({ running: false, runError: OVERWRITE_CANCELLED_MESSAGE });
+    return;
+  }
+  const acceptance = await commitTicketOutputs(plan, decisions, {
+    isCurrent: () => !cancelToken.cancelled && activeCancel === cancelToken &&
+      useTicketStore.getState().generation === generation,
+  });
+  if (acceptance.recoveryWarning !== undefined) {
+    useTicketStore.setState({ acceptanceWarning: acceptance.recoveryWarning, lastRun: acceptance.run });
+  }
+  // 재컴파일된 웨이브는 출력 확정을 중단/보상한다. 복구 경고는 남기되 새 티켓 상태는 건드리지 않는다.
   if (useTicketStore.getState().generation !== generation) return;
 
   const results = acceptance.results;
@@ -246,7 +269,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     ...(acceptance.run === null ? {} : { lastRun: acceptance.run, restoreMessage: null }),
   }));
 
-  if (chain) {
+  if (chain && !cancelToken.cancelled) {
     const nextWave = readyTickets(useTicketStore.getState().tickets);
     if (nextWave.length > 0) {
       await runWave(nextWave, true);
@@ -310,10 +333,10 @@ export async function restoreLastRun(): Promise<void> {
   }
   if (report.failed.length > 0) parts.push(`되돌리지 못한 파일: ${report.failed.join(", ")}.`);
   if (report.error !== null) parts.push(report.error);
-  if (report.conflicts.length > 0 || report.failed.length > 0) parts.push(`백업: ${lastRun.backupRoot}/`);
+  if (report.error !== null || report.conflicts.length > 0 || report.failed.length > 0) parts.push(`백업: ${lastRun.backupRoot}/`);
   useTicketStore.setState((state) => ({
     running: false,
-    lastRun: null,
+    lastRun: report.error !== null || report.failed.length > 0 ? lastRun : null,
     restoreMessage: parts.join(" "),
     tickets: state.tickets.map((ticket) =>
       restored.has(ticketFilePath(ticket)) && ticket.status === "done" ? { ...ticket, status: "pending" } : ticket),
