@@ -132,12 +132,15 @@ export function PropertiesPanel() {
         />
       )}
 
-      <div className="shrink-0 border-b border-line px-3 py-2 text-xs text-content" role="status" aria-label="현재 편집 범위">
-        <p className="break-words">페이지: {page.name}</p>
-        <p className="break-words">
-          {node === undefined ? "선택: 없음" : `선택: ${node.name || selectedId} · ${selectedId === page.root ? "루트 프레임 1개" : "노드 1개"}`}
-        </p>
-        <p className="break-words">편집: {breakpoint ? `${breakpoint} 재정의(override)` : "기본값(base)"} · 미리보기 {width}px</p>
+      <div className="shrink-0 border-b border-line px-3 py-2 text-xs text-content">
+        <div role="status" aria-label="현재 편집 범위">
+          <p className="break-words">페이지: {page.name}</p>
+          <p className="break-words">
+            {node === undefined ? "선택: 없음" : `선택: ${node.name || selectedId} · ${selectedId === page.root ? "루트 프레임 1개" : "노드 1개"}`}
+          </p>
+          <p className="break-words">편집: {breakpoint ? `${breakpoint} 재정의(override)` : "기본값(base)"}</p>
+        </div>
+        <p className="break-words">미리보기 {width}px</p>
         <p className="mt-1 text-content-muted">
           {node === undefined
             ? breakpoint ? "노드를 선택하면 이 구간의 속성을 편집합니다." : "아래에서 페이지 이름·크기를 편집합니다."

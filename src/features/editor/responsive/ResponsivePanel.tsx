@@ -93,6 +93,6 @@ export function ResponsivePanel() {
       </div>
       <p className="text-xs text-content-muted">복제는 반응형 값을 보존하고, 복사·붙여넣기는 기본값만 옮깁니다.</p>
     </div>}
-    {error && <p role="alert" className="whitespace-pre-wrap border-l-2 border-error pl-2 text-xs text-content">{error}</p>}
+    {error && <p role="alert" className="whitespace-pre-wrap border-l-2 border-error pl-2 text-xs text-content">오류: {error}</p>}
   </section>;
 }

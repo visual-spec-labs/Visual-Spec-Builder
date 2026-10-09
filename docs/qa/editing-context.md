@@ -7,9 +7,7 @@ Related #289. 전체 이슈 완료가 아니다.
 
 초기 파일 계획은 `PropertiesPanel.tsx`, `ResponsivePanel.tsx`, 관련 브라우저 회귀와 이 기록이다.
 CONTRIBUTING, EDITOR_STORE_CONTRACT, 디자인 토큰 규칙과 실제 `useNodeField` /
-`useResponsiveScreen` / `resolveResponsiveScreen` 구현을 대조했다. 이 체크아웃과 workspace에는
-`.agents/skills` 또는 AGENTS.md가 없었다. 배포용 `skills/visual-spec-validate/SKILL.md`는
-스펙 유효성 검사 지침이며 UI 변경 절차를 별도로 요구하지 않는다.
+`useResponsiveScreen` / `resolveResponsiveScreen` 구현을 대조했다.
 
 스토어·IR·Command·저장 수명주기는 바꾸지 않는다. 다음은 기존 동작의 표시다.
 
@@ -37,8 +35,8 @@ CONTRIBUTING, EDITOR_STORE_CONTRACT, 디자인 토큰 규칙과 실제 `useNodeF
 ──────────────────────────────
 페이지: 현재 페이지
 선택: 없음 | 노드 1개 | 루트 프레임 1개
-편집: 기본값(base) | 분기점 재정의(override) · 미리보기 Npx
-현재 편집 대상 설명                 ← 스크롤 밖, role=status
+편집: 기본값(base) | 분기점 재정의(override) ← 여기까지 role=status
+미리보기 Npx / 현재 편집 대상 설명  ← 스크롤 밖, live region 밖
 ──────────────────────────────
 반응형 기준 / 미리보기 폭           ← aria-describedby로 폭-기준 연결 설명
 ▸ 편집 범위와 상속 안내             ← 기본 접힘, native details/summary
@@ -70,7 +68,10 @@ python scripts/browser/editing-context.py http://127.0.0.1:5173
 ```
 
 `CHROME_BIN`으로 Chromium 경로, `VSB_QA_ARTIFACTS`로 출력 폴더를 바꿀 수 있다.
-기본 출력은 `/tmp/vsb-289-qa/{result.json,light.png,dark.png}`다.
+기본 출력은 OS 임시 폴더 아래 `vsb-289-qa/{result.json,light.png,dark.png}`다.
+Chromium은 `CHROME_BIN` → PATH의 `chromium` → Playwright 설치본 순으로 찾는다.
+PATH에 없으면 `python -m playwright install chromium`으로 설치하거나 `CHROME_BIN`을 지정한다.
+fixture와 결과 파일의 인코딩은 UTF-8로 고정하고 콘솔 JSON은 ASCII escape로 출력한다.
 `examples/responsive-cards.json`을 직접 로드하는 수동 fixture 기반 실측이며 실제 AI 생성이나
 파일 Open/저장/초안 복구 검증이 아니다. 새 브라우저 컨텍스트와 임시 작업공간을 사용한다.
 
@@ -95,7 +96,7 @@ Chromium **151.0.7922.173**, viewport 1280×900, 속성 패널 최소 폭 280px�
 
 ## 로컬 검사와 후속 경계
 
-pnpm 10.33.0으로 typecheck, lint, 전체 테스트 **109개 파일 / 1773개 테스트 통과**,
+pnpm 10.33.0으로 typecheck, lint, 전체 테스트 **110개 파일 / 1781개 테스트 통과**,
 build, generate:types 후 스키마 diff 없음, git diff --check를 확인했다.
 기존 opt-in 코드 생성 브라우저 테스트 3개는 전체 suite 기본 설정대로 제외되며, 이 변경의
 실제 GUI 회귀는 위 별도 스크립트로 실행했다. 초기 tarball smoke는 writable pnpm data 경로가
@@ -107,3 +108,23 @@ build, generate:types 후 스키마 diff 없음, git diff --check를 확인했�
 specAutosave 및 저장소 수명주기 파일은 수정하지 않았다. 개별 속성 라벨·오류/빈 상태 전체의
 용어 감사와 B09/B10 전체 접근성 완료도 주장하지 않는다. #280/#282/#290/#281/#284 및
 전역 디자인 재설계는 이 PR 범위 밖이다. UI 메타데이터를 IR/Command schema에 추가하지 않았다.
+
+
+## PR #340 리뷰 반영 (2026-10-09)
+
+- Python의 fixture 읽기와 결과 파일 쓰기를 UTF-8로 고정했다. 임시 경로는
+  `tempfile.gettempdir()`를 사용하며 Linux 전용 Chromium 경로를 제거했다. docstring도 한글로 바꿨다.
+- 미리보기 폭과 일반 도움말은 live region 밖에 표시한다. 페이지·선택·편집 기준은 계속
+  `role=status`로 알린다. 같은 분기점 내 1024→1100px 입력에서 MutationObserver로
+  live region 변경 0건을 확인했다. 경계를 넘겨 편집 기준 자체가 바뀌면 알림 대상이다.
+- 오류에 `오류:` 접두어를 붙여 테두리 색 없이도 식별할 수 있게 했다.
+- `test/editing-context-render.test.ts`는 실제 PropertiesPanel과 그 안의 ResponsivePanel을
+  렌더링한다. 미선택/노드/루트 × base/분기점 6개 조합, live region, 오류 총 8개 회귀가
+  opt-in 없이 기존 `pnpm test`에 포함된다. SSR에서는 현재 fixture를 읽도록 Zustand 구독 훅만
+  대체하며 실제 컴포넌트·반응형 계산·store 액션은 사용한다. 이벤트/구독/키보드는 실제 브라우저
+  스크립트가 맡는다. RTL·DOM emulator 의존성을 추가하는 대신 기존 node 테스트 환경과
+  React 서버 렌더러를 사용했다. Vitest JSX 변환 및 UI 테스트 타입 분류만 맞췄으며 CI workflow는
+  수정하지 않아 #336의 workflow 작업과 겹치지 않는다.
+- Python 스크립트는 유지한다. 위 이식성 수정으로 Node 재작성 없이 기존 회귀를 재사용한다.
+  Linux Chromium에서 `PYTHONUTF8=0 PYTHONIOENCODING=cp949` 실행이 통과했으며 파일은 UTF-8,
+  콘솔은 ASCII escape임을 확인했다. 이는 실제 Windows 실행이나 스크린리더 음성 검증은 아니다.

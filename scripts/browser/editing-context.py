@@ -1,21 +1,23 @@
-"""Actual GUI regression with a manual fixture; run against an isolated Vite server.
-Requires Python Playwright + Chromium. See docs/qa/editing-context.md.
+"""격리된 Vite 서버에서 지정 fixture로 실제 GUI 회귀를 확인한다.
+Python Playwright와 Chromium 필요. 실행법: docs/qa/editing-context.md.
 """
 import json
 import os
 import re
+import shutil
+import tempfile
 from pathlib import Path
 import sys
 
 from playwright.sync_api import sync_playwright, expect
 
 repo = Path(__file__).resolve().parents[2]
-fixture = json.loads((repo / "examples/responsive-cards.json").read_text())
-artifacts = Path(os.environ.get("VSB_QA_ARTIFACTS", "/tmp/vsb-289-qa"))
+fixture = json.loads((repo / "examples/responsive-cards.json").read_text(encoding="utf-8"))
+artifacts = Path(os.environ.get("VSB_QA_ARTIFACTS", str(Path(tempfile.gettempdir()) / "vsb-289-qa")))
 artifacts.mkdir(parents=True, exist_ok=True)
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(executable_path=os.environ.get("CHROME_BIN", "/usr/bin/chromium"), args=["--no-sandbox"])
+    browser = p.chromium.launch(executable_path=os.environ.get("CHROME_BIN") or shutil.which("chromium"), args=["--no-sandbox"])
     page = browser.new_page(viewport={"width": 1280, "height": 900})
     page.set_default_timeout(10000)
     errors = []
@@ -46,9 +48,19 @@ with sync_playwright() as p:
     for px, mode in [(767, ""), (768, "tablet"), (1023, "tablet"), (1024, "desktop")]:
         width.fill(str(px))
         expect(criteria).to_have_value(mode)
-        expect(status).to_contain_text(f"미리보기 {px}px")
+        expect(panel.get_by_text(f"미리보기 {px}px", exact=True)).to_be_visible()
+        expect(status).not_to_contain_text("미리보기")
         assert page.get_by_test_id("responsive-artboard").evaluate("e => e.getBoundingClientRect().width > 0")
     assert snapshot() == before, "Preview mutated document/history"
+    # 같은 분기점 안에서 폭을 바꿔도 live region의 DOM을 갱신하지 않는다.
+    page.evaluate("""() => {
+      window.qaLiveChanges = [];
+      new MutationObserver(records => window.qaLiveChanges.push(...records.map(r => r.type)))
+        .observe(document.querySelector('[role=status][aria-label="현재 편집 범위"]'), {subtree:true, childList:true, characterData:true});
+    }""")
+    width.fill("1100")
+    expect(panel.get_by_text("미리보기 1100px", exact=True)).to_be_visible()
+    assert page.evaluate("() => window.qaLiveChanges.length") == 0
     # A native select is operable with keyboard and changes the preview, too.
     criteria.focus()
     criteria.press("Home")
@@ -61,7 +73,7 @@ with sync_playwright() as p:
     criteria.press("Enter")
     expect(criteria).to_have_value("")
     expect(panel.get_by_role("button", name="Page", exact=True)).to_be_visible()
-    expect(status).to_contain_text("페이지 이름·크기를 편집")
+    expect(panel).to_contain_text("페이지 이름·크기를 편집")
     # Real tree selection; the property panel edits one selected node.
     page.get_by_role("button", name="ElevatedCard", exact=True).click()
     expect(status).to_contain_text("ElevatedCard · 노드 1개")
@@ -89,7 +101,7 @@ with sync_playwright() as p:
     responsive.get_by_role("textbox", name="새 분기점 ID").fill("bad id")
     responsive.get_by_role("button", name="추가", exact=True).focus()
     page.keyboard.press("Enter")
-    expect(responsive.get_by_role("alert")).to_contain_text("새 ID")
+    expect(responsive.get_by_role("alert")).to_contain_text("오류: 새 ID")
     assert snapshot() == before
     # Keyboard traversal and visible focus; both controlling inputs share visible help.
     criteria.focus()
@@ -135,13 +147,13 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Screen", exact=True).click()
     expect(status).to_contain_text("루트 프레임 1개")
     criteria.select_option("")
-    expect(status).to_contain_text("페이지 이름·크기와 루트 프레임")
+    expect(panel).to_contain_text("페이지 이름·크기와 루트 프레임")
     expect(panel.get_by_role("button", name="Page", exact=True)).to_be_visible()
     page.evaluate("() => window.qaStore.getState().addPage()")
     expect(status).to_contain_text("선택: 없음")
     expect(status).not_to_contain_text("CardEffectsPage")
     assert not errors, errors
     report = {"browser": browser.version, "checks": ["767/768/1023/1024 boundaries", "preview preserves spec/history", "none/node/root/page scope", "override edit/inherit/undo", "invalid input alert", "Tab/Enter/select keyboard", "persistent header/minimum width", "light/dark contrast"], "contrast": results, "pageErrors": errors}
-    (artifacts / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
-    print(json.dumps(report, ensure_ascii=False))
+    (artifacts / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=True))
     browser.close()
