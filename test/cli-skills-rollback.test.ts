@@ -40,8 +40,7 @@ it("덮어쓴 파일은 이전 내용으로, 새로 만든 파일·폴더는 지
   expect(failed).toEqual([]);
 });
 
-it("되돌리지 못한 경로를 돌려준다 — 모두 되돌렸다고 말하지 않게 한다", () => {
-  if (process.getuid?.() === 0) return;
+it.skipIf(process.platform === "win32" || process.getuid?.() === 0)("되돌리지 못한 경로를 돌려준다 — 모두 되돌렸다고 말하지 않게 한다", () => {
   const locked = join(root, "locked");
   mkdirSync(locked);
   const stray = join(locked, "new.md");

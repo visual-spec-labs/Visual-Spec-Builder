@@ -74,8 +74,7 @@ describe("visual-spec skills — 에이전트별 위치 (#278)", () => {
 });
 
 describe("설치 원자성·기기별 파일 (#278 PR 리뷰)", () => {
-  it("뒤 위치가 쓰기 금지(0555)여도 앞 위치에 쓰지 않는다 (PR #298 리뷰)", () => {
-    if (process.getuid?.() === 0) return; // root는 권한 검사를 건너뛴다
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)("뒤 위치가 쓰기 금지(0555)여도 앞 위치에 쓰지 않는다 (PR #298 리뷰)", () => {
     mkdirSync(join(projectDir, ".agents/skills"), { recursive: true });
     chmodSync(join(projectDir, ".agents/skills"), 0o555);
     try {
