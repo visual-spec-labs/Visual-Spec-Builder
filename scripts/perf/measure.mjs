@@ -170,7 +170,8 @@ new PerformanceObserver((list) => {
   for (const e of list.getEntries()) {
     const renderTime = e.renderTime || e.loadTime;
     window.__vsbImages.push({ url: e.url, renderTime, width: e.naturalWidth });
-    if (e.element) window.__vsbPainted.set(e.element, renderTime);
+    // 배경 이미지가 여럿이면 서로 다른 이미지마다 항목이 온다 — 늦은 시각과 받은 수를 둔다(#322).
+    if (e.element) { const prev = window.__vsbPainted.get(e.element); window.__vsbPainted.set(e.element, { time: Math.max(prev?.time ?? 0, renderTime), count: (prev?.count ?? 0) + 1 }); }
   }
 }).observe({ type: "element", buffered: true });
 const mark = (el) => { if (el.nodeType === 1 && !el.hasAttribute("elementtiming") && /url\(/.test(el.style?.backgroundImage ?? "")) el.setAttribute("elementtiming", "vsb-image"); };
@@ -442,11 +443,16 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
         while (homeImages === null) {
           homeImages = await step(`(() => {
             // 화면 안이고, 카드 미리보기 영역(overflow hidden)에 잘려 나가지 않은 이미지만 — 잘린 것은 그려지지 않는다.
-            const visible = [...document.querySelectorAll('[data-preview] [elementtiming="vsb-image"]')].filter((el) => {
+            // 이미지 자리는 data-preview-image로 센다(#322) — 축소본이 준비되기 전에는 배경 이미지가 없어 아직
+            // elementtiming이 붙지 않은 요소도 기다려야 한다. 그 표시가 없는 이전 빌드는 처음부터 원본 URL이 붙으므로
+            // 배경 이미지가 있는 요소(elementtiming)로 센다.
+            const marked = document.querySelector('[data-preview] [data-preview-image]') !== null;
+            const visible = [...document.querySelectorAll(marked ? '[data-preview] [data-preview-image]' : '[data-preview] [elementtiming="vsb-image"]')].filter((el) => {
               const r = el.getBoundingClientRect(); const c = el.closest("[data-preview]").getBoundingClientRect();
               const top = Math.max(r.top, c.top), bottom = Math.min(r.bottom, c.bottom);
               return r.width > 0 && bottom > top && bottom > 0 && top < innerHeight; });
-            const times = visible.map((el) => window.__vsbPainted.get(el));
+            // 표시의 값은 그 요소의 서로 다른 이미지 수다 — 다 그려져야 그려진 것으로 친다.
+            const times = visible.map((el) => { const p = window.__vsbPainted.get(el); return p !== undefined && p.count >= (Number(el.dataset.previewImage) || 1) ? p.time : undefined; });
             return visible.length > 0 && times.every((t) => t !== undefined) ? { ms: Math.max(...times), count: visible.length } : null; })()`);
           if (homeImages === null) { if (Date.now() > imageWait) throw new Error("홈 이미지 표시 시간 초과"); await sleep(20); }
         }
@@ -465,7 +471,7 @@ async function runScenario(key, scenario, { reps, chrome, profile, nodeEnv, inpu
           // 캔버스(노드 요소)의 이미지가 모두 그려질 때까지 — 홈 미리보기의 늦은 이미지는 세지 않는다.
           openImages = await step(`(() => { const start = window.__perf.openStartedAt;
             const canvas = [...document.querySelectorAll('[data-node-id][elementtiming="vsb-image"]')];
-            const times = canvas.map((el) => window.__vsbPainted.get(el));
+            const times = canvas.map((el) => window.__vsbPainted.get(el)?.time);
             return canvas.length > 0 && times.every((t) => t !== undefined && t > start)
               ? { ms: Math.max(...times) - start, count: canvas.length } : null; })()`);
           if (openImages === null) { if (Date.now() > imageWait) throw new Error("열기 이미지 표시 시간 초과"); await sleep(20); }
