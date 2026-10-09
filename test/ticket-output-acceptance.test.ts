@@ -446,6 +446,19 @@ describe("승격 중 재진입 회귀", () => {
     await run;
     expect(workspace.files.get(`generated/${HEADER}`)).toBe(B_BYTES);
     expect(workspace.files.has(GENERATION_MANIFEST_PATH)).toBe(false);
+    if (action === "cancel") {
+      expect(status("Header")).toBe("pending");
+      workspace.beforeRead = null;
+      const retry = runOneTicket("Header");
+      await tick();
+      const next = currentRequest();
+      expect(next.id).not.toBe(request.id);
+      agentWrites(next.id, HEADER, B_BYTES);
+      agentResponds(next.id, [{ ticketId: "Header", status: "done" }]);
+      await tick();
+      await retry;
+      expect(status("Header")).toBe("done");
+    }
   });
 
   it.each([

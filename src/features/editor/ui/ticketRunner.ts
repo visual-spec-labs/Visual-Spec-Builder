@@ -210,10 +210,17 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   if (useTicketStore.getState().generation !== generation) return;
 
   const results = acceptance.results;
-  useTicketStore.setState((state) => ({
-    tickets: applyTicketResults(state.tickets, results),
-    ...(acceptance.manifestError === null ? {} : { acceptanceWarning: acceptance.manifestError }),
-  }));
+  useTicketStore.setState((state) => {
+    let tickets = applyTicketResults(state.tickets, results);
+    // Stop leaves uncommitted work retryable; already committed files keep their result.
+    if (cancelToken.cancelled) {
+      const completed = new Set(results.filter((result) => result.status === "done").map((result) => result.ticketId));
+      for (const ticket of waveTickets) {
+        if (!completed.has(ticket.id)) tickets = markTicketStatus(tickets, ticket.id, "pending");
+      }
+    }
+    return { tickets, ...(acceptance.manifestError === null ? {} : { acceptanceWarning: acceptance.manifestError }) };
+  });
 
   if (chain && !cancelToken.cancelled) {
     const nextWave = readyTickets(useTicketStore.getState().tickets);
