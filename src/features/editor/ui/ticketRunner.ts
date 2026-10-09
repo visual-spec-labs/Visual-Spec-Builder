@@ -57,12 +57,16 @@ let activeCancel: TicketCancelToken | null = null;
 /** 진행 중인 웨이브 요청의 대기(기한·연장). 끝난 대기는 스스로 연장을 거절한다. */
 let activeWait: AgentRequestWait | null = null;
 /** 쓰기 전 확인을 기다리는 웨이브의 답 전달 함수(#282). 없으면 기다리는 확인이 없다. */
+let activePromotion: { token: TicketCancelToken; release: () => void } | null = null;
+let activeRestoreAbort: AbortController | null = null;
 let activeReview: ((answer: OverwriteAnswer) => void) | null = null;
 
 // Recompilation must settle the old review promise, even if no new run starts.
 useTicketStore.subscribe((state, previous) => {
   if (state.generation !== previous.generation) {
     if (activeCancel !== null) activeCancel.cancelled = true;
+    activePromotion?.release();
+    activeRestoreAbort?.abort();
     activeReview?.("cancel");
   }
 });
@@ -172,15 +176,20 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     { id: requestId, pageId: sourcePageId, page: sourcePage, tickets: waveTickets },
     cancelToken,
     wait,
+    true,
   );
 
-  if (useTicketStore.getState().generation !== generation) return;
+  if (useTicketStore.getState().generation !== generation) {
+    if (outcome.kind === "response") outcome.lock?.release();
+    return;
+  }
   if (activeWait === wait) activeWait = null;
   useTicketStore.setState({ wait: null });
 
   // 응답을 읽은 회차와 취소 클릭이 엇갈릴 수 있다. 사용자가 취소했으면 그 요청의 응답도 출력도
   // 받지 않는다 — 취소는 "이 요청의 결과를 수용하지 않는다"는 뜻이다(docs/26).
   if (outcome.kind === "cancelled" || cancelToken.cancelled) {
+    if (outcome.kind === "response") outcome.lock?.release();
     revertToPending(waveTickets);
     useTicketStore.setState({ running: false });
     activeCancel = null;
@@ -206,6 +215,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   }
 
   if (outcome.result.kind !== "results") {
+    outcome.lock?.release();
     revertToPending(waveTickets);
     useTicketStore.setState({
       running: false,
@@ -220,6 +230,9 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   // 이 요청의 임시 출력만 확정한다. 확정은 요청에 실었던 입력(sourcePage)으로 기록한다 — 그
   // 사이 편집했다면 Export가 지문 차이로 "오래됨"을 보인다(결과 반영 정책은 #271 그대로).
   // 먼저 바꿀 파일을 판정하고(#282), 확인이 필요한 파일이 있으면 사용자의 선택을 기다린다.
+  const promotion = { token: cancelToken, release: () => outcome.lock?.release() };
+  activePromotion = promotion;
+  try {
   const plan = await planTicketOutputs({
     requestId,
     pageId: sourcePageId,
@@ -232,6 +245,11 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   if (cancelToken.cancelled) {
     revertToPending(waveTickets);
     useTicketStore.setState({ running: false, runError: OVERWRITE_CANCELLED_MESSAGE });
+    return;
+  }
+  if (outcome.lock !== undefined && (!await outcome.lock.renew(true) || cancelToken.cancelled)) {
+    revertToPending(waveTickets);
+    useTicketStore.setState({ running: false, runError: "요청 잠금을 잃어 출력을 확정하지 않았습니다.", runErrorRetryable: true });
     return;
   }
   let decisions: Readonly<Record<string, OverwriteDecision>> = {};
@@ -255,6 +273,8 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   const acceptance = await commitTicketOutputs(plan, decisions, {
     isCurrent: () => !cancelToken.cancelled && activeCancel === cancelToken &&
       useTicketStore.getState().generation === generation,
+    renew: () => outcome.lock?.renew(true) ?? Promise.resolve(false),
+    release: promotion.release,
   });
   if (acceptance.recoveryWarning !== undefined) {
     useTicketStore.setState({ acceptanceWarning: acceptance.recoveryWarning, lastRun: acceptance.run });
@@ -264,11 +284,14 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
 
   const results = acceptance.results;
   useTicketStore.setState((state) => ({
-    tickets: applyTicketResults(state.tickets, results),
+    tickets: cancelToken.cancelled
+      ? waveTickets.reduce((tickets, ticket) => markTicketStatus(tickets, ticket.id, "pending"), applyTicketResults(state.tickets, results))
+      : applyTicketResults(state.tickets, results),
     ...(acceptance.manifestError === null ? {} : { acceptanceWarning: acceptance.manifestError }),
     ...(acceptance.run === null ? {} : { lastRun: acceptance.run, restoreMessage: null }),
   }));
 
+  promotion.release();
   if (chain && !cancelToken.cancelled) {
     const nextWave = readyTickets(useTicketStore.getState().tickets);
     if (nextWave.length > 0) {
@@ -279,6 +302,10 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
 
   activeCancel = null;
   useTicketStore.setState({ running: false });
+  } finally {
+    promotion.release();
+    if (activePromotion === promotion) activePromotion = null;
+  }
 }
 
 /** 준비된 티켓 전부를 한 웨이브로 보내고, 응답이 오면 다음 웨이브로 자동으로 이어간다. */
@@ -303,6 +330,8 @@ export async function runOneTicket(id: string): Promise<void> {
  * 요청의 결과를 받지 않는 것이지, 외부 에이전트를 멈추는 것은 아니다(docs/26).
  */
 export function cancelTicketRun(): void {
+  activePromotion?.release();
+  activeRestoreAbort?.abort();
   if (activeCancel !== null) activeCancel.cancelled = true;
   // 쓰기 전 확인을 기다리는 중이면 그 확인을 "전체 취소"로 끝낸다 — 아무 파일도 쓰지 않는다.
   activeReview?.("cancel");
@@ -325,8 +354,11 @@ export async function restoreLastRun(): Promise<void> {
   const { lastRun, running, generation } = useTicketStore.getState();
   if (lastRun === null || running) return;
   useTicketStore.setState({ running: true, restoreMessage: null });
+  const controller = new AbortController();
+  activeRestoreAbort = controller;
   const report = await restoreRegenerationRun(lastRun.runId, () =>
-    useTicketStore.getState().generation === generation && useTicketStore.getState().lastRun === lastRun);
+    useTicketStore.getState().generation === generation && useTicketStore.getState().lastRun === lastRun, controller.signal)
+    .finally(() => { if (activeRestoreAbort === controller) activeRestoreAbort = null; });
   const restored = new Set(report.restored);
   const parts = [`${report.restored.length}개 파일을 되돌렸습니다.`];
   if (report.conflicts.length > 0) {

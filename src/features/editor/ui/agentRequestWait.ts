@@ -73,7 +73,7 @@ export function createAgentRequestWait(
 
   return {
     extend() {
-      if (settled || deadline === null) return false;
+      if (settled || deadline === null || now() >= deadline) return false;
       deadline = Math.max(deadline, now() + AGENT_WAIT_WINDOW_MS);
       emit();
       return true;

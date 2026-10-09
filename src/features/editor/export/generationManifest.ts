@@ -167,7 +167,14 @@ export function classifyOutputFreshness({ tickets, files, manifest, pageId, page
     return { ...withRequest, freshness: "current" };
   });
 
-  return { overall: overallFreshness(entries.map((entry) => entry.freshness)), tickets: entries };
+  const expected = new Set(entries.map((entry) => entry.path));
+  const extras: TicketFreshness[] = files.filter((file) => !expected.has(file.path)).map((file) => {
+    const record = manifest.entries[file.path];
+    if (!record) return "unrecorded";
+    if (contentHash(file.content) !== record.contentHash) return "changed";
+    return record.pageId === pageId && record.inputFingerprint === currentInput ? "current" : "stale";
+  });
+  return { overall: overallFreshness([...entries.map((entry) => entry.freshness), ...extras]), tickets: entries };
 }
 
 function overallFreshness(values: TicketFreshness[]): OverallFreshness {

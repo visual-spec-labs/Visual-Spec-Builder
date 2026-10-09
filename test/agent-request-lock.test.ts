@@ -115,3 +115,24 @@ it("계속 사용 중인 잠금을 기다리다 취소하면 재시도를 멈추
   expect(writeWorkspaceFile).not.toHaveBeenCalled();
 });
 
+
+it("응답 없는 작업공간 HTTP도 기본 10초 신호로 끝난다", async () => {
+  const client = await vi.importActual<typeof import("@/features/editor/ui/workspaceClient")>("@/features/editor/ui/workspaceClient");
+  const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms);
+    return controller.signal;
+  });
+  vi.stubGlobal("fetch", vi.fn((_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+    options.signal!.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+  })));
+  try {
+    const lock = client.acquireRequestLock("ticket", "hanging");
+    const read = client.readWorkspaceTextFile("runtime/ticket-response.json");
+    const write = client.writeWorkspaceFile("runtime/ticket-request.json", "{}", "application/json");
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await lock).toBe("unavailable");
+    expect(await read).toBeNull();
+    expect(await write).toMatchObject({ ok: false });
+  } finally { timeout.mockRestore(); }
+});

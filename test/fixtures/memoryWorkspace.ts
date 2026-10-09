@@ -14,6 +14,8 @@ import { sha256Hex } from "@/features/editor/export/contentHash";
 export interface MemoryWorkspace {
   files: Map<string, string | Uint8Array>;
   offline: boolean;
+  owner?: string | null;
+  mutationOwners?: string[];
   /** 쓰기 직전(서버가 기대 버전을 비교하기 직전) 호출 — 동시 수정 흉내. */
   beforeWrite: ((path: string) => void) | null;
   /** 오류 문구를 돌려주면 그 쓰기를 실패시킨다(디스크 오류 흉내). */
@@ -21,7 +23,7 @@ export interface MemoryWorkspace {
   /** 쓰기·지우기 순서 기록. */
   log: string[];
   beforeRead?: (path: string) => void | Promise<void>;
-  afterWrite?: (path: string) => string | null | Promise<string | null>;
+  afterWrite?: (path: string) => string | null | void | Promise<string | null | void>;
 }
 
 export function createMemoryWorkspace(): MemoryWorkspace {
@@ -31,6 +33,8 @@ export function createMemoryWorkspace(): MemoryWorkspace {
 export function resetMemoryWorkspace(workspace: MemoryWorkspace): void {
   workspace.files.clear();
   workspace.offline = false;
+  if ("owner" in workspace) workspace.owner = null;
+  if (workspace.mutationOwners) workspace.mutationOwners.length = 0;
   workspace.beforeWrite = null;
   workspace.failWrite = null;
   workspace.log.length = 0;
@@ -91,7 +95,7 @@ export function memoryWorkspaceClient(workspace: MemoryWorkspace) {
       const bytes = bytesOf(value).slice();
       return { ok: true, snapshot: { bytes, revision: sha256Hex(bytes) } };
     },
-    writeWorkspaceFile: async (path: string, body: unknown, _contentType?: string, expectedRevision?: string) => {
+    writeWorkspaceFile: async (path: string, body: unknown, _contentType?: string, expectedRevision?: string, requestOwner?: string) => {
       if (workspace.offline) return { ok: false, error: "fetch failed" };
       workspace.beforeWrite?.(path);
       const failure = workspace.failWrite?.(path) ?? null;
@@ -103,19 +107,27 @@ export function memoryWorkspaceClient(workspace: MemoryWorkspace) {
         return { ok: false, error: "확인한 뒤 파일이 바뀌었습니다. 쓰지 않았습니다.", status: 409 };
       }
       const content = await bodyOf(body);
+      if (requestOwner !== undefined && "owner" in workspace && workspace.owner !== requestOwner) {
+        return { ok: false, error: "lease lost", status: 409 };
+      }
+      if (path.startsWith("generated/") || path === "runtime/generation-manifest.json") workspace.mutationOwners?.push(requestOwner ?? "unfenced");
       workspace.files.set(path, content);
       workspace.log.push(`PUT ${path}`);
       const lost = await workspace.afterWrite?.(path);
       if (lost) return { ok: false, error: lost };
       return { ok: true, path, revision: tracked(path) ? sha256Hex(bytesOf(content)) : undefined };
     },
-    deleteWorkspaceFile: async (path: string, expectedRevision: string) => {
+    deleteWorkspaceFile: async (path: string, expectedRevision: string, requestOwner?: string) => {
       if (workspace.offline) return { ok: false, error: "fetch failed" };
       workspace.beforeWrite?.(path);
       if (!path.startsWith("generated/")) return { ok: false, error: "생성 파일만 지울 수 있습니다.", status: 405 };
       if (expectedRevision !== revisionOf(workspace, path)) {
         return { ok: false, error: "확인한 뒤 파일이 바뀌었거나 없어졌습니다.", status: 409 };
       }
+      if (requestOwner !== undefined && "owner" in workspace && workspace.owner !== requestOwner) {
+        return { ok: false, error: "lease lost", status: 409 };
+      }
+      workspace.mutationOwners?.push(requestOwner ?? "unfenced");
       workspace.files.delete(path);
       workspace.log.push(`DELETE ${path}`);
       return { ok: true, path };

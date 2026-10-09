@@ -16,6 +16,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const workspace = vi.hoisted(() => ({
   files: new Map<string, string | Uint8Array>(),
   offline: false,
+  owner: null as string | null,
+  mutationOwners: [] as string[],
   beforeWrite: null as ((path: string) => void) | null,
   failWrite: null as ((path: string) => string | null) | null,
   log: [] as string[],
@@ -27,16 +29,21 @@ vi.mock("@/features/editor/ui/workspaceClient", async () =>
   (await import("./fixtures/memoryWorkspace")).memoryWorkspaceClient(workspace));
 
 vi.mock("@/features/editor/ui/agentRequestLock", () => ({
-  holdRequestLock: async (kind: string, owner: string) => ({
-    renew: async () => true,
+  holdRequestLock: async (kind: string, owner: string) => {
+    if (workspace.owner !== null && workspace.owner !== owner) return "busy";
+    workspace.owner = owner;
+    return ({
+    renew: async () => workspace.owner === owner,
     release: () => {
+      if (workspace.owner !== owner) return;
+      workspace.owner = null;
       const path = `runtime/${kind}-request.json`;
       const request = workspace.files.get(path);
       if (typeof request === "string" && (JSON.parse(request) as { id: string }).id === owner) {
         workspace.files.delete(path);
       }
     },
-  }),
+  }); },
 }));
 
 import { bytesOf, resetMemoryWorkspace, textOf } from "./fixtures/memoryWorkspace";
@@ -719,4 +726,41 @@ it("undo 대기 중 재컴파일과 새 run은 이전 undo 완료가 running/las
   await next;
   expect(textOf(workspace, G_HEADER)).toBe(`${N_HEADER}// B\n`);
   expect(useTicketStore.getState().lastRun?.runId).not.toBe(originalRun.runId);
+});
+
+it("완료 요청 ID를 재사용하지 않고 보상과 undo가 새 lease로 모든 mutation을 fence한다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run, request } = await secondRoundToReview();
+  let first = true;
+  workspace.afterWrite = (path) => {
+    if (path === G_HEADER && first) { first = false; return "lost response"; }
+    return null;
+  };
+  workspace.mutationOwners.length = 0;
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  expect(workspace.mutationOwners[0]).toBe(request.id);
+  expect(workspace.mutationOwners.some((owner) => owner.startsWith("recovery-"))).toBe(true);
+  expect(workspace.mutationOwners).not.toContain("unfenced");
+  workspace.afterWrite = undefined;
+  compileCurrent();
+  const next = await secondRoundToReview();
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(next.run);
+  workspace.mutationOwners.length = 0;
+  await restoreLastRun();
+  expect(workspace.mutationOwners.length).toBeGreaterThan(1);
+  expect(workspace.mutationOwners.every((owner) => owner.startsWith("restore-"))).toBe(true);
+  expect(workspace.owner).toBeNull();
+});
+
+it("긴 확인 대기 뒤 잠금을 잃으면 이전 요청을 재활성화하거나 출력 쓰기를 하지 않는다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  workspace.owner = "other-tab";
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  expect(generatedWrites()).toEqual([]);
+  expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+  expect(workspace.owner).toBe("other-tab");
 });

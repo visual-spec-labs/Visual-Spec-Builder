@@ -24,6 +24,8 @@
  * 디스크 rename 사이의 아주 짧은 틈도 남는다. 보호 범위는 docs/26 "#282 보호 범위"에 적었다.
  */
 
+import { holdRequestLock } from "./agentRequestLock";
+
 import { contentHash, inputFingerprint, sha256Hex } from "@/features/editor/export/contentHash";
 import {
   GENERATION_MANIFEST_PATH,
@@ -53,6 +55,11 @@ import {
   readWorkspaceTextFileStrict,
   writeWorkspaceFile,
 } from "./workspaceClient";
+
+interface MutationLease {
+  owner: string;
+  renew: () => Promise<boolean>;
+}
 
 const TEXT_TYPE = "text/plain; charset=utf-8";
 
@@ -126,6 +133,14 @@ export async function planTicketOutputs({
   results,
 }: TicketOutputAcceptanceInput): Promise<TicketOutputPlan> {
   const byId = new Map(waveTickets.map((ticket) => [ticket.id, ticket]));
+  const ids = new Set(results.map((result) => result.ticketId));
+  if (ids.size !== results.length || ids.size !== byId.size || [...ids].some((id) => !byId.has(id))) {
+    return {
+      requestId, pageId, fingerprint: inputFingerprint(pageId, page), owner: { projectKey, pageId },
+      results: waveTickets.map((ticket) => failed(ticket.id, "응답 티켓이 중복되거나 요청 목록과 다릅니다. 다시 전달하세요.")),
+      targets: [], review: { requestId, items: [] },
+    };
+  }
   const owner: OverwriteOwner = { projectKey, pageId };
   const manifestText = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
   // 기록을 읽지 못하면 기록이 없는 것으로 판정한다 — 기존 파일은 모두 확인 대상이 된다(덮어쓰는 쪽으로 기울지 않는다).
@@ -229,11 +244,12 @@ function textRevision(text: string): string {
 }
 
 /** 이미 쓴 파일을 쓰기 전으로 되돌린다. 지금 바이트가 이번에 쓴 그대로일 때만(서버 비교) 손댄다. */
-async function revertFile(file: RunRecordFile, previous: Uint8Array | null): Promise<"restored" | "conflict" | "failed"> {
+async function revertFile(file: RunRecordFile, previous: Uint8Array | null, lease: MutationLease): Promise<"restored" | "conflict" | "failed"> {
   const target = `${GENERATED_DIR}/${file.path}`;
+  if (!await lease.renew()) return "failed";
   const outcome = previous === null
-    ? await deleteWorkspaceFile(target, file.writtenRevision)
-    : await writeWorkspaceFile(target, bytesBody(previous), TEXT_TYPE, file.writtenRevision);
+    ? await deleteWorkspaceFile(target, file.writtenRevision, lease.owner)
+    : await writeWorkspaceFile(target, bytesBody(previous), TEXT_TYPE, file.writtenRevision, lease.owner);
   if (outcome.ok) return "restored";
   // A lost response does not prove the mutation failed. Reconcile actual bytes.
   const actual = await readWorkspaceFileSnapshot(target);
@@ -265,7 +281,11 @@ export function commitTicketOutputs(
 async function commitTicketOutputsNow(
   plan: TicketOutputPlan,
   decisions: Readonly<Record<string, OverwriteDecision>> = {},
-  { now = () => new Date(), runId = createRunId(), isCurrent = () => true }: { now?: () => Date; runId?: string; isCurrent?: () => boolean } = {},
+  { now = () => new Date(), runId = createRunId(), isCurrent = () => true,
+    renew = async () => false, release = () => {} }: {
+    now?: () => Date; runId?: string; isCurrent?: () => boolean;
+    renew?: () => Promise<boolean>; release?: () => void;
+  } = {},
 ): Promise<TicketOutputAcceptance> {
   const byTicket = new Map(plan.targets.map((target) => [target.ticketId, target]));
   const writes = plan.targets.filter((target) => shouldWrite(target, decisions));
@@ -331,7 +351,16 @@ async function commitTicketOutputsNow(
     files: files.filter((file) => paths.includes(file.path)),
   } satisfies RunRecord);
   const compensate = async (reason: string) => {
-    const leftovers = await rollback(written, writes);
+    // Never revive a completed/cancelled request ID for compensation.
+    release();
+    const owner = `recovery-${createRunId()}`;
+    const held = await holdRequestLock("ticket", owner);
+    let leftovers: string[];
+    if (typeof held === "string") leftovers = written.map((file) => file.path);
+    else {
+      try { leftovers = await rollback(written, writes, { owner, renew: () => held.renew(true) }); }
+      finally { held.release(); }
+    }
     const scopeSaved = await persistScope(leftovers);
     const result = abort(`${reason}${leftovers.length === 0 ? " 이번 적용을 되돌렸습니다." : " 복구를 완료하지 못했습니다."}`);
     if (leftovers.length > 0) {
@@ -341,13 +370,14 @@ async function commitTicketOutputsNow(
     return result;
   };
   for (const [index, target] of writes.entries()) {
-    if (!isCurrent()) return compensate("취소되거나 재컴파일되었습니다.");
+    if (!isCurrent() || !await renew() || !isCurrent()) return compensate("취소되거나 재컴파일되었거나 잠금을 잃었습니다.");
     written.push(files[index]); // Include ambiguous writes whose response may be lost.
     const outcome = await writeWorkspaceFile(
       `${GENERATED_DIR}/${target.path}`,
       target.next,
       TEXT_TYPE,
       target.current?.revision ?? WORKSPACE_MISSING_REVISION,
+      plan.requestId,
     );
     if (!outcome.ok) {
       // A server CAS rejection is definite: another writer owns the current bytes.
@@ -379,12 +409,18 @@ async function commitTicketOutputsNow(
     if (target === undefined || entries[target.path] !== undefined) return result;
     return failed(result.ticketId, `기존 ${target.path}을(를) 보존해 바꾸지 않았습니다. 새 출력은 ${ticketOutputPath(plan.requestId, target.path)}에 남아 있습니다.`);
   });
-  const manifestError = Object.keys(entries).length === 0 ? null : await recordAcceptance(entries, isCurrent);
+  const manifestError = Object.keys(entries).length === 0 ? null : await recordAcceptance(entries, { owner: plan.requestId, renew }, isCurrent);
   if (!isCurrent()) {
     const restored = await compensate("취소되거나 재컴파일되었습니다.");
     // The manifest request may already have reached the server. Restore only entries of this request.
     const previous = Object.fromEntries(plan.targets.filter((t) => entries[t.path] !== undefined).map((t) => [t.path, t.record]));
-    const warning = await recordAcceptance(previous, () => true, plan.requestId);
+    const metadataOwner = `recovery-${createRunId()}`;
+    const metadataLease = await holdRequestLock("ticket", metadataOwner);
+    let warning: string | null = "복구 기록 잠금을 얻지 못했습니다.";
+    if (typeof metadataLease !== "string") {
+      try { warning = await recordAcceptance(previous, { owner: metadataOwner, renew: () => metadataLease.renew(true) }, () => true, plan.requestId); }
+      finally { metadataLease.release(); }
+    }
     if (warning !== null) restored.manifestError = warning;
     return restored;
   }
@@ -398,7 +434,7 @@ async function commitTicketOutputsNow(
 }
 
 /** 중간 실패 보상. 원본 복구를 확인하지 못한 경로를 돌려준다. */
-async function rollback(written: RunRecordFile[], writes: OverwriteTarget[]): Promise<string[]> {
+async function rollback(written: RunRecordFile[], writes: OverwriteTarget[], lease: MutationLease): Promise<string[]> {
   const byPath = new Map(writes.map((target) => [target.path, target]));
   const left: string[] = [];
   for (const file of [...written].reverse()) {
@@ -406,7 +442,7 @@ async function rollback(written: RunRecordFile[], writes: OverwriteTarget[]): Pr
     const actual = await readWorkspaceFileSnapshot(`${GENERATED_DIR}/${file.path}`);
     if (actual.ok && (actual.snapshot?.revision ?? WORKSPACE_MISSING_REVISION) ===
         (file.previousRevision ?? WORKSPACE_MISSING_REVISION)) continue;
-    if ((await revertFile(file, previous)) !== "restored") left.push(file.path);
+    if ((await revertFile(file, previous, lease)) !== "restored") left.push(file.path);
   }
   return left;
 }
@@ -416,12 +452,12 @@ async function rollback(written: RunRecordFile[], writes: OverwriteTarget[]): Pr
  * 덮으면 다른 파일들의 기록까지 지운다. 실패해도 판정은 "확인 불가"로 기울 뿐 거짓 "현재"가
  * 되지 않는다(docs/26 "수용 기록 형식").
  */
-async function recordAcceptance(updates: Record<string, ManifestEntry | null>, isCurrent = () => true, onlyRequestId?: string): Promise<string | null> {
+async function recordAcceptance(updates: Record<string, ManifestEntry | null>, lease: MutationLease, isCurrent = () => true, onlyRequestId?: string): Promise<string | null> {
   const current = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
   if (!current.ok) {
     return "생성 기록을 읽지 못해 이번 변경을 기록하지 않았습니다. Export에서 이 파일들은 확인 불가로 보입니다.";
   }
-  if (!isCurrent()) return "취소되어 생성 기록을 갱신하지 않았습니다.";
+  if (!isCurrent() || !await lease.renew() || !isCurrent()) return "취소되거나 잠금을 잃어 생성 기록을 갱신하지 않았습니다.";
   const manifest = parseGenerationManifest(current.text);
   const selected = onlyRequestId === undefined ? updates : Object.fromEntries(
     Object.entries(updates).filter(([path]) => manifest.entries[path]?.requestId === onlyRequestId),
@@ -432,6 +468,8 @@ async function recordAcceptance(updates: Record<string, ManifestEntry | null>, i
     GENERATION_MANIFEST_PATH,
     JSON.stringify(next, null, 2),
     "application/json",
+    undefined,
+    lease.owner,
   );
   return written.ok
     ? null
@@ -464,13 +502,27 @@ function isRunRecord(value: unknown): value is RunRecord {
  * (새로 만든 파일은 지운다), 서버도 같은 기대 버전으로 마지막 비교를 한다. 적용 뒤 누가 고친 파일은
  * 더 새로운 수정이므로 건드리지 않고 `conflicts`로 알린다. 되돌린 파일의 수용 기록은 이전 값으로 간다.
  */
-export function restoreRegenerationRun(runId: string, isCurrent = () => true): Promise<RestoreReport> {
-  const result = acceptanceTail.then(() => restoreRegenerationRunNow(runId, isCurrent));
+export function restoreRegenerationRun(runId: string, isCurrent = () => true, signal?: AbortSignal): Promise<RestoreReport> {
+  const result = acceptanceTail.then(async () => {
+    const valid = () => isCurrent() && !signal?.aborted;
+    if (!valid()) return { restored: [], conflicts: [], failed: [], error: "문서 세대가 바뀌어 되돌리기를 중단했습니다." };
+    const owner = `restore-${createRunId()}`;
+    const held = await holdRequestLock("ticket", owner, () => !valid());
+    if (typeof held === "string") return { restored: [], conflicts: [], failed: [], error: "복구 잠금을 얻지 못했습니다. 다시 시도하세요." };
+    const release = () => held.release();
+    signal?.addEventListener("abort", release, { once: true });
+    try {
+      return await restoreRegenerationRunNow(runId, valid, { owner, renew: async () => valid() && await held.renew(true) && valid() });
+    } finally {
+      signal?.removeEventListener("abort", release);
+      release();
+    }
+  });
   acceptanceTail = result.catch(() => undefined);
   return result;
 }
 
-async function restoreRegenerationRunNow(runId: string, isCurrent: () => boolean): Promise<RestoreReport> {
+async function restoreRegenerationRunNow(runId: string, isCurrent: () => boolean, lease: MutationLease): Promise<RestoreReport> {
   const report: RestoreReport = { restored: [], conflicts: [], failed: [], error: null };
   if (!isCurrent()) return { ...report, error: "문서 세대가 바뀌어 되돌리기를 중단했습니다." };
   const text = await readWorkspaceTextFileStrict(runRecordPath(runId));
@@ -519,7 +571,7 @@ async function restoreRegenerationRunNow(runId: string, isCurrent: () => boolean
     if (!isCurrent()) { report.error = "문서 세대가 바뀌어 되돌리기를 중단했습니다."; break; }
     if (!await saveRecoveryRecord(intentPath, progress)) { report.failed.push(file.path); continue; }
     if (!isCurrent()) { report.error = "문서 세대가 바뀌어 되돌리기를 중단했습니다."; break; }
-    const outcome = await revertFile(file, previous);
+    const outcome = await revertFile(file, previous, lease);
     if (outcome === "restored") {
       if (!await saveRecoveryRecord(donePath, progress)) { report.failed.push(file.path); continue; }
       report.restored.push(file.path);
@@ -531,7 +583,7 @@ async function restoreRegenerationRunNow(runId: string, isCurrent: () => boolean
     }
   }
   if (Object.keys(updates).length > 0) {
-    const error = await recordAcceptance(updates, isCurrent);
+    const error = await recordAcceptance(updates, lease, isCurrent);
     report.error = error ?? report.error;
   }
   return report;

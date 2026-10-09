@@ -7,6 +7,7 @@ const workspace = vi.hoisted(() => ({
   /** 잠금 연장 결과. 연결이 끊긴 동안은 실제 클라이언트처럼 true로 지나간다. */
   lockOwned: true,
   released: [] as string[],
+  beforeRead: null as null | (() => Promise<void>),
 }));
 
 vi.mock("@/features/editor/ui/workspaceClient", () => ({
@@ -18,7 +19,10 @@ vi.mock("@/features/editor/ui/workspaceClient", () => ({
       .map((path) => path.slice(prefix.length))
       .filter((path) => options.recursive === true || !path.includes("/"));
   },
-  readWorkspaceTextFile: async (path: string) => (workspace.offline ? null : workspace.files.get(path) ?? null),
+  readWorkspaceTextFile: async (path: string) => {
+    await workspace.beforeRead?.();
+    return workspace.offline ? null : workspace.files.get(path) ?? null;
+  },
   writeWorkspaceFile: async (path: string, body: string) => {
     if (workspace.offline) return { ok: false, error: "fetch failed" };
     workspace.files.set(path, body);
@@ -83,6 +87,7 @@ beforeEach(() => {
   workspace.offline = false;
   workspace.lockOwned = true;
   workspace.released = [];
+  workspace.beforeRead = null;
 });
 
 afterEach(() => {
@@ -222,4 +227,44 @@ describe("자연어 요청도 같은 대기 규칙을 쓴다 (가상 시간)", (
     await expect(outcome).resolves.toMatchObject({ kind: "timeout" });
     expect(wait.extend()).toBe(false);
   });
+});
+
+
+it("응답 GET이 기한 뒤 끝나면 성공 응답도 수용하지 않는다", async () => {
+  const { outcome, wait } = startTicket();
+  await vi.advanceTimersByTimeAsync(1000);
+  respondTicket("req-1");
+  let resume!: () => void;
+  workspace.beforeRead = () => new Promise<void>((resolve) => { resume = resolve; });
+  await vi.advanceTimersByTimeAsync(1000);
+  vi.setSystemTime(new Date(wait.deadline! + 1));
+  expect(wait.extend()).toBe(false);
+  resume();
+  await expect(outcome).resolves.toMatchObject({ kind: "timeout" });
+  expect(workspace.released).toEqual(["req-1"]);
+});
+
+it("승격 호출자는 응답 후 잠금을 소유하고 명시적으로 해제한다", async () => {
+  const outcome = requestTicketBatch({ id: "held", pageId, page, tickets: wave }, { cancelled: false }, createAgentRequestWait(), true);
+  await vi.advanceTimersByTimeAsync(1000);
+  respondTicket("held");
+  await vi.advanceTimersByTimeAsync(1000);
+  const result = await outcome;
+  expect(result.kind).toBe("response");
+  expect(workspace.released).toEqual([]);
+  if (result.kind === "response") result.lock!.release();
+  expect(workspace.released).toEqual(["held"]);
+});
+
+
+it("응답 GET 중 소유권이 바뀌면 응답 ID가 맞아도 거절한다", async () => {
+  const { outcome } = startTicket();
+  await vi.advanceTimersByTimeAsync(1000);
+  respondTicket("req-1");
+  let resume!: () => void;
+  workspace.beforeRead = () => new Promise<void>((resolve) => { resume = resolve; });
+  await vi.advanceTimersByTimeAsync(1000);
+  workspace.lockOwned = false;
+  resume();
+  await expect(outcome).resolves.toMatchObject({ kind: "lockLost" });
 });

@@ -192,3 +192,13 @@ describe("classifyOutputFreshness — 파일 존재와 현재 세대 완료를 �
     expect(report.overall).toBe("partial");
   });
 });
+
+
+it.each([false, true])("ZIP에 포함되는 추가 파일도 최신성 판정에 포함한다 (recorded=%s)", (recorded) => {
+  const files = [{ path: "components/Header.tsx", content: "header" }, { path: "helpers.ts", content: "late" }];
+  const manifest = withManifestEntries(emptyManifest(), {
+    "components/Header.tsx": entry("header"),
+    ...(recorded ? { "helpers.ts": entry("previous") } : {}),
+  });
+  expect(classifyOutputFreshness({ tickets: [ticket("Header")], files, manifest, pageId: "home", page }).overall).toBe("unverifiable");
+});
