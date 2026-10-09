@@ -140,7 +140,7 @@ try {
     const {newSpec} = await import("/src/features/editor/ui/newSpec.ts");
     window.result = newSpec();
   });
-  await accepted.getByRole("button", {name: "계속하기", exact: true}).click();
+  await accepted.getByRole("button", {name: "초안 보관 후 이동", exact: true}).click();
   assert.equal(await accepted.evaluate(() => window.result), true);
   assert.equal(await accepted.getByRole("alertdialog").count(), 0);
   await accepted.getByRole("button", {name: "File", exact: true}).click();

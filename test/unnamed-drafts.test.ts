@@ -1,0 +1,185 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useDocumentStore } from "@/features/editor/store/documentStore";
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
+import { claimDraft } from "@/features/editor/ui/draftOwnership";
+import { listUnnamedDrafts, useUnnamedDraftStore } from "@/features/editor/store/unnamedDraftStore";
+import { loadStoredSpec, readRecovery, serializeStoredDocument, writeRecovery, type StoredDocument } from "@/features/editor/store/specStorage";
+import { startSpecAutosave } from "@/features/editor/ui/specAutosave";
+import { blankSpec } from "@/features/editor/store/blankSpec";
+
+function storage() {
+  const values = new Map<string, string>();
+  return { getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+    key: (index: number) => [...values.keys()][index] ?? null,
+    get length() { return values.size; } };
+}
+function locks() {
+  const held = new Map<string, Promise<unknown>>();
+  return { request: async (key: string, options: unknown, callback?: (lock: object | null) => unknown) => {
+    if (callback && held.has(key)) return callback(null);
+    while (held.has(key)) await held.get(key);
+    const fn = callback ?? options as (lock: object) => unknown;
+    let release!: () => void;
+    held.set(key, new Promise<void>(resolve => { release = resolve; }));
+    try { return await fn({ name: key }); }
+    finally { held.delete(key); release(); }
+  } };
+}
+let stop: (() => void) | undefined;
+let initial: StoredDocument;
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.stubGlobal("localStorage", storage()); vi.stubGlobal("sessionStorage", storage());
+  vi.stubGlobal("navigator", { locks: locks() });
+  vi.stubGlobal("performance", { getEntriesByType: () => [{ type: "reload" }] });
+  vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn(), confirm: vi.fn(() => true), alert: vi.fn() });
+  useEditorStore.getState().loadSpec(blankSpec);
+  useDocumentStore.getState().clearFileName();
+  useSaveConflictStore.setState({ paused: false, unavailable: false });
+  useUnnamedDraftStore.setState({ active: null });
+  initial = { fileName: null, spec: { ...useEditorStore.getState().spec, name: "Recover exact content" } };
+});
+afterEach(async () => { stop?.(); stop = undefined; await Promise.resolve(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+function seed(id = "saved-uuid", document = initial) {
+  const key = `visual-spec:autosave:draft:${id}`;
+  const raw = serializeStoredDocument(document);
+  localStorage.setItem(key, raw);
+  return { key, raw, document };
+}
+async function edit() {
+  useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "Edited content");
+  await vi.advanceTimersByTimeAsync(600);
+}
+
+it("lists only validated edited unnamed documents, excluding named, pristine and auxiliary keys", () => {
+  seed(); seed("blank", { fileName: null, spec: useEditorStore.getState().spec });
+  seed("named", { ...initial, fileName: "named.json" }); seed("saved-uuid:owner");
+  localStorage.setItem("visual-spec:autosave:draft:corrupt", "{");
+  expect(listUnnamedDrafts().map(item => item.key)).toEqual(["visual-spec:autosave:draft:saved-uuid"]);
+});
+it("resume adopts the exact UUID/content from a named document and keeps identity through edit/reload", async () => {
+  const draft = seed();
+  useDocumentStore.getState().setFileName("existing.json");
+  stop = startSpecAutosave();
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("ok");
+  expect(readRecovery()?.key).toBe(draft.key);
+  expect(useEditorStore.getState().spec).toEqual(initial.spec);
+  await edit();
+  const snapshot = readRecovery()!;
+  stop(); await Promise.resolve(); stop = startSpecAutosave();
+  expect(readRecovery()?.key).toBe(draft.key);
+  expect(readRecovery()?.document).toEqual(snapshot.document);
+  expect(localStorage.getItem(draft.key)).toBe(serializeStoredDocument(snapshot.document));
+});
+it("same-tab Home resume preserves selection/history and does not replace the current document", async () => {
+  stop = startSpecAutosave(); await edit();
+  const before = useEditorStore.getState(); const draft = listUnnamedDrafts()[0];
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("ok");
+  expect(useEditorStore.getState()).toBe(before);
+});
+it("other-tab ownership blocks both Resume and deletion without overwriting either document", async () => {
+  const draft = seed(); const owner = claimDraft(draft.key); expect(await owner.ready).toBe(true);
+  stop = startSpecAutosave(); const before = useEditorStore.getState().spec;
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("busy");
+  expect(await useUnnamedDraftStore.getState().remove(draft)).toBe("busy");
+  expect(useEditorStore.getState().spec).toBe(before); expect(localStorage.getItem(draft.key)).toBe(draft.raw);
+  await owner.release();
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("ok");
+});
+it("stale delete and resume cannot remove or adopt a newer cache revision", async () => {
+  const draft = seed(); stop = startSpecAutosave(); seed("saved-uuid", { ...initial, spec: { ...initial.spec, name: "Newer" } });
+  expect(await useUnnamedDraftStore.getState().remove(draft)).toBe("changed");
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("changed");
+  expect(listUnnamedDrafts()[0].document.spec.name).toBe("Newer");
+});
+it("cancelled or stale transitions preserve source and target, including duplicate resume requests", async () => {
+  const draft = seed(); stop = startSpecAutosave(); await edit();
+  let finish!: (ok: boolean) => void;
+  useSaveConflictStore.setState({ settle: () => new Promise<boolean>(resolve => { finish = resolve; }) });
+  const pending = useUnnamedDraftStore.getState().resume(draft);
+  await Promise.resolve(); await Promise.resolve();
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("cancelled");
+  finish(false); expect(await pending).toBe("cancelled");
+  const source = readRecovery()!.key;
+  const stale = useUnnamedDraftStore.getState().resume(draft);
+  await Promise.resolve(); await Promise.resolve();
+  useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "After dialog");
+  finish(true); expect(await stale).toBe("cancelled");
+  expect(readRecovery()?.key).toBe(source); expect(localStorage.getItem(draft.key)).toBe(draft.raw);
+});
+it("explicit deletion clears active recovery, blocks delayed saves and rejects old session resurrection", async () => {
+  stop = startSpecAutosave(); await edit(); const prior = readRecovery()!; const draft = listUnnamedDrafts()[0];
+  expect(await useUnnamedDraftStore.getState().remove(draft)).toBe("ok");
+  expect(readRecovery()?.key).not.toBe(draft.key);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(localStorage.getItem(draft.key)).toBeNull(); expect(listUnnamedDrafts()).toEqual([]);
+  writeRecovery(prior); expect(readRecovery()).toBeUndefined(); expect(loadStoredSpec()).not.toEqual(prior.document.spec);
+});
+it("failed Save keeps recovery; successful Save retires only the adopted source after filename adoption", async () => {
+  stop = startSpecAutosave(); await edit(); const draft = listUnnamedDrafts()[0];
+  const json = JSON.stringify(useEditorStore.getState().spec);
+  expect(await useSaveConflictStore.getState().save("saved.json", json, async () => false)).toBe(false);
+  expect(localStorage.getItem(draft.key)).toBe(draft.raw);
+  expect(await useSaveConflictStore.getState().save("saved.json", json, async () => true)).toBe(true);
+  expect(localStorage.getItem(draft.key)).toBe(draft.raw);
+  useDocumentStore.getState().setFileName("saved.json", "revision");
+  await vi.advanceTimersByTimeAsync(600);
+  expect(localStorage.getItem(draft.key)).toBeNull(); expect(listUnnamedDrafts()).toEqual([]);
+  expect(readRecovery()?.document.fileName).toBe("saved.json");
+});
+it("without Web Locks, recovery actions do not write or silently replace documents", async () => {
+  const draft = seed(); vi.stubGlobal("navigator", {}); stop = startSpecAutosave();
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("unavailable");
+  expect(await useUnnamedDraftStore.getState().remove(draft)).toBe("unavailable");
+  expect(localStorage.getItem(draft.key)).toBe(draft.raw);
+});
+
+it("StrictMode restart waits for its own asynchronous lock cleanup and retains one owner", async () => {
+  const manager = locks();
+  vi.stubGlobal("navigator", { locks: { request: (key: string, options: unknown, callback: (lock: object | null) => unknown) =>
+    manager.request(key, options, async lock => { await Promise.resolve(); return callback(lock); }) } });
+  const first = claimDraft("restart-fixture");
+  const releasing = first.release();
+  const replacement = claimDraft("restart-fixture");
+  expect(await first.ready).toBe(false);
+  expect(await replacement.ready).toBe(true);
+  await releasing;
+  const competitor = claimDraft("restart-fixture");
+  expect(await competitor.ready).toBe(false);
+  await competitor.release();
+  await replacement.release();
+});
+
+it("Home can resume this tab before debounce or with blocked browser storage", async () => {
+  vi.stubGlobal("navigator", {});
+  stop = startSpecAutosave();
+  useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "Session-only fixture");
+  const draft = useUnnamedDraftStore.getState().active!;
+  expect(draft).not.toBeNull();
+  expect(listUnnamedDrafts()).toEqual([]);
+  const before = useEditorStore.getState();
+  expect(await useUnnamedDraftStore.getState().resume(draft)).toBe("ok");
+  expect(useEditorStore.getState()).toBe(before);
+  expect(readRecovery()?.key).toBe(draft.key);
+});
+
+it("edit then Undo cannot revive an old Resume approval even with the exact source spec object", async () => {
+  const draft = seed(); stop = startSpecAutosave(); await edit();
+  const before = useEditorStore.getState().spec;
+  const source = readRecovery()!.key;
+  let finish!: (ok: boolean) => void;
+  useSaveConflictStore.setState({ settle: () => new Promise<boolean>(resolve => { finish = resolve; }) });
+  const pending = useUnnamedDraftStore.getState().resume(draft);
+  await Promise.resolve(); await Promise.resolve();
+  useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "Transient edit");
+  useEditorStore.getState().undo();
+  expect(useEditorStore.getState().spec).toBe(before);
+  finish(true);
+  expect(await pending).toBe("cancelled");
+  expect(readRecovery()?.key).toBe(source);
+  expect(useEditorStore.getState().history.future).toHaveLength(1);
+  expect(localStorage.getItem(draft.key)).toBe(draft.raw);
+});

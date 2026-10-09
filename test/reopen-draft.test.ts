@@ -61,7 +61,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("localStorage", storage());
   vi.stubGlobal("sessionStorage", storage());
-  vi.stubGlobal("navigator", { locks: { request: async (_key: string, fn: () => void) => fn() } });
+  vi.stubGlobal("navigator", { locks: { request: async (_key: string, options: unknown, callback?: (lock: object) => unknown) => callback ? callback({}) : (options as () => unknown)() } });
   vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn(),
     alert: vi.fn(), confirm: vi.fn(() => true) });
   useEditorStore.getState().loadSpec(initial);

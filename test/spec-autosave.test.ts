@@ -37,7 +37,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("localStorage", storage());
   vi.stubGlobal("sessionStorage", storage());
-  vi.stubGlobal("navigator", { locks: { request: async (_key: string, fn: () => void) => fn() } });
+  vi.stubGlobal("navigator", { locks: { request: async (_key: string, options: unknown, callback?: (lock: object) => unknown) => callback ? callback({}) : (options as () => unknown)() } });
   listeners = new Map();
   vi.stubGlobal("window", { addEventListener: (name: string, fn: (event: unknown) => void) => listeners.set(name, fn),
     removeEventListener: (name: string) => listeners.delete(name), alert: vi.fn(), confirm: vi.fn(() => true) });
@@ -288,7 +288,8 @@ describe("same-project autosave conflict preservation", () => {
     edit("recovered draft");
     await vi.advanceTimersByTimeAsync(500);
     const original = readRecovery()!;
-    stop(); stop = startSpecAutosave();
+    stop(); await Promise.resolve(); // A new browsing context has no StrictMode handoff.
+    stop = startSpecAutosave();
     expect(readRecovery()!.key).not.toBe(original.key);
     expect(useEditorStore.getState().spec.name).toBe("recovered draft");
     localStorage.setItem(original.key, JSON.stringify({ ...original.document, spec: { ...original.document.spec, name: "opener edit" } }));
