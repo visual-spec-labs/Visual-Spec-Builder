@@ -49,7 +49,7 @@ export function ImageFillFields({ fill, index, background, onCommit }: {
         if (file) void importFile(file);
       }} />
     <button type="button" disabled={busy} onClick={() => input.current?.click()}
-      className="rounded-control border border-line px-2 py-1.5 text-sm">
+      className="rounded-control focus-visible:outline-2 focus-visible:outline-content border border-line px-2 py-1.5 text-sm">
       {busy ? "이미지 가져오는 중…" : "배경 이미지 가져오기"}
     </button>
     {fill.src === EMPTY_IMAGE_SRC || display.kind === "path" ?
@@ -59,8 +59,9 @@ export function ImageFillFields({ fill, index, background, onCommit }: {
       : <div className="text-sm text-content-muted">
         {display.label}
         <button type="button" onClick={() => onCommit(setImageFill(background, index, { src: EMPTY_IMAGE_SRC }))}
-          className="ml-2 rounded-control border border-line px-2 py-1">지우기</button>
+          className="ml-2 rounded-control focus-visible:outline-2 focus-visible:outline-content border border-line px-2 py-1">지우기</button>
       </div>}
+    {fill.src === EMPTY_IMAGE_SRC && <p className="text-xs text-content-muted">이미지가 비어 있습니다. 경로를 입력하거나 배경 이미지 가져오기를 선택하세요.</p>}
     <SegmentedControl label="배경 채우기 방식 (fit)" value={fill.fit} options={FIT_OPTIONS}
       onChange={(fit: ImageFill["fit"]) => onCommit(setImageFill(background, index, { fit }))} />
     {error && <p role="alert" className="text-sm text-content-muted">{error}</p>}

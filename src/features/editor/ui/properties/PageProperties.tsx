@@ -62,7 +62,7 @@ export function PageProperties() {
   }
 
   return (
-    <PropertySection title="Page">
+    <PropertySection title="페이지 (Page)">
       <TextField
         label="이름"
         value={page.name}

@@ -50,7 +50,7 @@ export function TypographySection() {
   const [textAlign, setTextAlign] = useNodeField<TextAlign>("typography.textAlign");
 
   return (
-    <PropertySection title="Font">
+    <PropertySection title="글꼴 (Font)">
       <SelectField
         label="종류"
         value={fontFamily}

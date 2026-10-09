@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { useEditBurst } from "./editBurst";
 import { Field, inputClass } from "./Field";
 
@@ -28,6 +29,7 @@ export function TextField({
   placeholder,
   multiline,
 }: TextFieldProps) {
+  const id = useId();
   const burst = useEditBurst();
   const shown = value ?? "";
 
@@ -45,9 +47,10 @@ export function TextField({
   }
 
   return (
-    <Field label={label}>
+    <Field label={label} htmlFor={id}>
       {multiline ? (
         <textarea
+          id={id}
           className={`${inputClass} min-h-16 resize-y`}
           value={shown}
           placeholder={placeholder}
@@ -56,6 +59,7 @@ export function TextField({
         />
       ) : (
         <input
+          id={id}
           type="text"
           className={inputClass}
           value={shown}

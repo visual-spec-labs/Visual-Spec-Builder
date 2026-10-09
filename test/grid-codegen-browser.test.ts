@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import type { CSSProperties } from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -25,7 +24,7 @@ const browserCandidates = [
 ].filter((candidate): candidate is string => candidate !== undefined);
 const browser = browserCandidates.find(existsSync);
 
-// Opt-in actual browser QA: VSB_GRID_BROWSER=1 CHROME_BIN=<Chromium executable>.
+// Opt-in actual browser QA: Python Playwright, VSB_GRID_BROWSER=1, CHROME_BIN=<Chromium executable>.
 
 function gridNode(columns: number, crossAxis: Axis, gap = 12): FrameNode {
   return {
@@ -125,7 +124,7 @@ it.runIf(process.env.VSB_GRID_BROWSER === "1")(
         };
         const results=[];
         const width=innerWidth;
-        if(width===699 && location.search!=='?repeat=1'){
+        if(width===699 && !window.vsbRepeat){
           for(const [columns,axis] of [[1,'start'],[1,'center'],[1,'end'],[1,'stretch'],
             [2,'start'],[2,'center'],[2,'end'],[2,'stretch'],
             [3,'start'],[3,'center'],[3,'end'],[3,'stretch']]){
@@ -139,18 +138,28 @@ it.runIf(process.env.VSB_GRID_BROWSER === "1")(
       </script>`;
       const fixture = join(directory, "grid.html");
       writeFileSync(fixture, html);
-      const results: { id: string; generated: unknown; canvas: unknown }[] = [];
-      for (const [index, width] of [699, 700, 899, 900, 901, 699].entries()) {
-        const args = [
-          "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-extensions",
-          `--window-size=${width + 16},800`, `--user-data-dir=${join(directory, `profile-${width}-${results.length}`)}`,
-          "--dump-dom", `${pathToFileURL(fixture).href}${index === 5 ? "?repeat=1" : ""}`,
-        ];
-        const output = execFileSync(browser, args, { encoding: "utf8", timeout: 30000 });
-        const serialized = /<pre id="results">([\s\S]*?)<\/pre>/.exec(output)?.[1];
-        if (serialized === undefined) throw new Error(`Chromium did not return layout results:\n${output}`);
-        results.push(...JSON.parse(serialized) as typeof results);
-      }
+      // Playwright sets the CSS viewport directly. Browser window decorations and
+      // Chromium's --dump-dom process lifetime must not affect these measurements.
+      const output = execFileSync("python", ["-c", `
+import json, sys
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    browser = p.chromium.launch(executable_path=sys.argv[1], args=['--no-sandbox'])
+    errors = []
+    results = []
+    html = open(sys.argv[2], encoding='utf-8').read()
+    for index, width in enumerate([699, 700, 899, 900, 901, 699]):
+        page = browser.new_page(viewport={'width': width, 'height': 800})
+        page.on('pageerror', lambda error: errors.append(str(error)))
+        page.evaluate('(repeat) => { window.vsbRepeat = repeat; }', index == 5)
+        page.set_content(html)
+        results.extend(json.loads(page.locator('#results').inner_text()))
+        page.close()
+    assert not errors, errors
+    browser.close()
+    print(json.dumps(results))
+`, browser, fixture], { encoding: "utf8", timeout: 30000 });
+      const results = JSON.parse(output) as { id: string; generated: unknown; canvas: unknown }[];
       for (const result of results) expect(result.generated, result.id).toEqual(result.canvas);
       expect(results).toHaveLength(18);
       console.info(`Grid Chromium QA: ${JSON.stringify(results)}`);

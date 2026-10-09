@@ -1,4 +1,4 @@
-import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
+import { beginDocumentTransition } from "./documentTransition";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
@@ -17,10 +17,9 @@ import { SPEC_DIR } from "@/features/workspace/protocol";
  * 스펙도 이름도 바꾸지 않는다: 열리지 않은 파일이 Save 대상이 되면 다음 Save가
  * **화면에 떠 있지도 않은 문서의 파일을 덮어쓴다.**
  */
-async function loadSpecText(text: string, fileName: string, diskRevision: string | null = null): Promise<void> {
+async function loadSpecText(text: string, fileName: string, diskRevision: string | null, transition: ReturnType<typeof beginDocumentTransition>): Promise<void> {
   // 현재 문서의 대기 중 자동저장을 먼저 끝낸다(#267).
-  if (!await useSaveConflictStore.getState().settle(fileName)) return;
-  if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return;
+  if (!await transition.settle(fileName) || !transition.current()) return;
   const result = parseSpecJson(text);
   if (!result.ok) {
     window.alert(
@@ -43,19 +42,19 @@ async function loadSpecText(text: string, fileName: string, diskRevision: string
  * Save가 쓸 수 있는 자리는 `.visual-spec/specs/` 하나다. 이름이라도 이어가는 편이
  * `spec.name`으로 되돌아가 엉뚱한 파일을 만드는 것보다 낫다.
  */
-export function openSpecFromFileDialog(): void {
+export function openSpecFromFileDialog(transition = beginDocumentTransition()): void {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "application/json";
 
   input.onchange = () => {
     const file = input.files?.[0];
-    if (!file) return;
+    if (!file || !transition.current()) return;
 
     const reader = new FileReader();
     reader.onload = () => {
       const text = typeof reader.result === "string" ? reader.result : "";
-      void loadSpecText(text, file.name);
+      if (transition.current()) void loadSpecText(text, file.name, null, transition);
     };
     reader.readAsText(file);
   };
@@ -74,14 +73,16 @@ export function openSpecFromFileDialog(): void {
  * 클릭하므로 잘못 타이핑해 "목록에 없음"으로 끝나는 경로 자체가 없어진다.
  */
 export async function openSpec(): Promise<void> {
+  const transition = beginDocumentTransition();
   const names = await listWorkspaceFiles(SPEC_DIR);
+  if (!transition.current()) return;
   if (names === null) {
-    openSpecFromFileDialog();
+    openSpecFromFileDialog(transition);
     return;
   }
   if (names.length === 0) {
     window.alert(".visual-spec/specs/ 에 스펙이 없습니다 — 파일에서 엽니다.");
-    openSpecFromFileDialog();
+    openSpecFromFileDialog(transition);
     return;
   }
 
@@ -90,12 +91,13 @@ export async function openSpec(): Promise<void> {
     message: ".visual-spec/specs/ 에서 열 스펙을 선택하세요.",
     items: names,
   });
-  if (chosen === null) return;
+  if (chosen === null || !transition.current()) return;
 
   const snapshot = await readWorkspaceSpecSnapshot(`${SPEC_DIR}/${chosen}`);
+  if (!transition.current()) return;
   if (snapshot === null) {
     window.alert(`${chosen}을(를) 읽지 못했습니다.`);
     return;
   }
-  await loadSpecText(snapshot.text, chosen, snapshot.revision);
+  await loadSpecText(snapshot.text, chosen, snapshot.revision, transition);
 }

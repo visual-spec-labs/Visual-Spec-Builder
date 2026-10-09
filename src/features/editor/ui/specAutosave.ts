@@ -1,3 +1,8 @@
+import { usePersistenceStatusStore, type DraftObservation } from "@/features/editor/store/persistenceStatusStore";
+import { beginDocumentTransition } from "./documentTransition";
+import { promptConfirm } from "@/features/editor/store/promptDialogStore";
+import { claimDraft } from "./draftOwnership";
+import { isRecoverableUnnamed, listUnnamedDrafts, notifyUnnamedDrafts, removeUnnamedDraft, useUnnamedDraftStore, type DraftResult, type UnnamedDraft } from "@/features/editor/store/unnamedDraftStore";
 import { migrateV01 } from "@/features/editor/schema";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { seedSpec } from "@/features/editor/store/seedSpec";
@@ -32,10 +37,13 @@ export function startSpecAutosave() {
   // A new browsing context may inherit sessionStorage from its opener. Only
   // actual reload/history restoration reuses an untitled shared-storage key.
   const navigation = performance.getEntriesByType?.("navigation")?.[0] as PerformanceNavigationTiming | undefined;
-  const reuseRecovery = document.fileName !== null || navigation?.type === "reload" || navigation?.type === "back_forward";
+  const reuseRecovery = restartHandoff !== null || document.fileName !== null || navigation?.type === "reload" || navigation?.type === "back_forward";
   const namedRecovery = reuseRecovery ? recovery : undefined;
   let key = document.fileName !== null ? projectStorageKey(document.fileName, untitledId)
     : namedRecovery?.key ?? projectStorageKey(null, untitledId);
+  let ownerState: DraftObservation["owner"] = "pending";
+  let sessionPreserved = false;
+  let ownership = document.fileName === null ? claimOwnership(key) : undefined;
   let baseline = namedRecovery ? namedRecovery.baseline : read(key);
   let conflicted = recovery?.conflicted ?? false;
   let diskConflict = recovery?.diskConflict ?? false;
@@ -43,11 +51,13 @@ export function startSpecAutosave() {
   let renameBaseline = namedRecovery?.renameBaseline ?? null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  let pendingTransition: AbortController | undefined;
   let generation = 0;
   let restoring = false;
   let ownedTarget: { key: string; raw: string } | undefined;
   // Open/홈 카드로 지금 파일을 다시 여는 중이다(#267 리뷰). 파일명이 그대로라 아래
   // changed()의 파일 전환 비교를 타지 않으므로, 불러온 직후 따로 초안과 비교한다.
+  let recoveryBusy = false;
   let reopenKey: string | null = null;
   // 지금 문서에 디스크에 저장되지 않은 내용이 있을 수 있는가(#267). 없으면 잃을 것이
   // 없으므로 전환 시 묻지 않고, 같은 파일을 다시 열 때 초안과 비교하지도 않는다.
@@ -69,10 +79,31 @@ export function startSpecAutosave() {
   function read(storageKey: string): string | null {
     try { return localStorage.getItem(storageKey); } catch { return null; }
   }
+  function reportDraft() {
+    usePersistenceStatusStore.setState({ draft: { documentId: useEditorStore.getState().documentId,
+      spec: document.spec, fileName: document.fileName, session: sessionPreserved,
+      shared: read(key) === serializeStoredDocument(document), owner: ownerState } });
+  }
+  function claimOwnership(draftKey: string) {
+    ownerState = "pending";
+    const claim = claimDraft(draftKey);
+    void claim.ready.then(owned => {
+      if (stopped || ownership !== claim) return;
+      ownerState = owned ? "owned" : claim.status === "busy" ? "blocked" : "unavailable";
+      reportDraft();
+    });
+    return claim;
+  }
   function preserve() {
-    return writeRecovery({ document, key, baseline, conflicted, renameBaseline, diskConflict, reason: pauseReason });
+    const active = edited && isRecoverableUnnamed(document) ? { key, raw: serializeStoredDocument(document), document } : null;
+    const previous = useUnnamedDraftStore.getState().active;
+    if (previous?.key !== active?.key || previous?.raw !== active?.raw) useUnnamedDraftStore.setState({ active });
+    sessionPreserved = writeRecovery({ document, key, baseline, conflicted, renameBaseline, diskConflict, reason: pauseReason });
+    reportDraft();
+    return sessionPreserved;
   }
   function pause(fromDisk = false, reason: PauseReason = fromDisk ? "disk" : "remote") {
+    pendingTransition?.abort();
     diskConflict ||= fromDisk;
     conflicted = true;
     pauseReason = reason;
@@ -94,15 +125,17 @@ export function startSpecAutosave() {
   async function flush() {
     clearTimeout(timer);
     const expectedGeneration = generation;
+    if (document.fileName === null && !await ownership?.ready) return;
     const save = () => {
       if (stopped || expectedGeneration !== generation || check()) return;
       const raw = serializeStoredDocument(document);
       try {
         localStorage.setItem(key, raw);
         baseline = raw;
-        saveSpecToStorage(document.spec, document.fileName, document.diskRevision);
+        saveSpecToStorage(document.spec, document.fileName, document.diskRevision, key);
+        notifyUnnamedDrafts();
         preserve();
-      } catch { /* The per-tab recovery and explicit download remain available. */ }
+      } catch { reportDraft(); /* The per-tab recovery and explicit download remain available. */ }
     };
     // Serializes the compare/write pair across tabs. No unlocked write fallback:
     // unsupported browsers retain session recovery and manual file download.
@@ -115,11 +148,30 @@ export function startSpecAutosave() {
   }
   function changed() {
     if (restoring) return;
+    pendingTransition?.abort();
     const next = current();
     if (next.fileName !== document.fileName) {
       generation++;
+      const oldKey = key;
+      const oldRaw = baseline;
+      const oldOwnership = ownership;
+      // Only an adopted successful workspace Save retires the unnamed recovery.
+      const saved = document.fileName === null && ownedTarget?.key === projectStorageKey(next.fileName, untitledId);
+      ownership = undefined;
+      if (saved && oldRaw !== null && oldOwnership) {
+        void oldOwnership.ready.then(async owned => {
+          try {
+            if (owned) await navigator.locks.request(oldKey, () => {
+              removeUnnamedDraft({ key: oldKey, raw: oldRaw });
+              notifyUnnamedDrafts();
+            });
+          } catch { /* Keep the recovery record if retirement storage fails. */ }
+          finally { await oldOwnership.release(); }
+        });
+      } else oldOwnership?.release();
       if (next.fileName === null) untitledId = crypto.randomUUID();
       key = projectStorageKey(next.fileName, untitledId);
+      if (next.fileName === null) ownership = claimOwnership(key);
       baseline = read(key);
       renameBaseline = read(`${key}:rename`);
       if (baseline !== null && baseline !== serializeStoredDocument(next) &&
@@ -133,11 +185,13 @@ export function startSpecAutosave() {
   }
   function storage(event: StorageEvent) {
     if (event.storageArea !== localStorage) return;
+    notifyUnnamedDrafts();
     if (event.key === key || event.key === `${key}:rename` || event.key === null) check();
   }
   function beforeUnload(event: BeforeUnloadEvent) {
     // Async lock acquisition cannot be relied on during unload. Recovery is synchronous.
-    if (!preserve() || conflicted || serializeStoredDocument(document) !== read(SPEC_STORAGE_KEY)) {
+    const cached = parseStoredDocument(read(SPEC_STORAGE_KEY));
+    if (!preserve() || conflicted || !cached || serializeStoredDocument(document) !== serializeStoredDocument(cached)) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -167,13 +221,15 @@ export function startSpecAutosave() {
     const spec = "screen" in parsed.spec ? migrateV01(parsed.spec) : parsed.spec;
     return adoptLatest({ fileName, spec, diskRevision: snapshot.revision }, false);
   }
-  function adoptLatest(latest: StoredDocument, unsaved: boolean): boolean {
+  function adoptLatest(latest: StoredDocument, unsaved: boolean, restoreKey?: string): boolean {
+    pendingTransition?.abort();
     restoring = true;
     generation++;
     clearTimeout(timer);
     const sameUntitled = latest.fileName === null && document.fileName === null;
     document = latest;
-    if (!sameUntitled) key = projectStorageKey(latest.fileName, untitledId);
+    if (restoreKey) key = restoreKey;
+    else if (!sameUntitled) key = projectStorageKey(latest.fileName, untitledId);
     baseline = read(key);
     renameBaseline = read(`${key}:rename`);
     conflicted = false;
@@ -189,6 +245,7 @@ export function startSpecAutosave() {
   }
   async function save(fileName: string, json: string, write: () => Promise<boolean>): Promise<boolean> {
     const expectedGeneration = generation;
+    if (document.fileName === null && !await ownership?.ready) return false;
     const target = projectStorageKey(fileName, untitledId);
     const raw = serializeStoredDocument({ fileName, spec: JSON.parse(json),
       diskRevision: fileName === document.fileName ? document.diskRevision : null });
@@ -235,18 +292,45 @@ export function startSpecAutosave() {
   }
   // New/Open/home replace the document synchronously, so a debounced draft would
   // be dropped with the cancelled timer (#267). Persist it under the lock first.
-  async function settle(nextFileName?: string | null): Promise<boolean> {
-    if (!conflicted && read(key) !== serializeStoredDocument(document)) await flush();
-    if (stopped || conflicted || check()) return false;
-    reopenKey = edited && typeof nextFileName === "string" && document.fileName !== null &&
-      projectStorageKey(nextFileName, untitledId) === key ? key : null;
-    if (document.fileName === null && edited) {
-      return window.confirm("저장하지 않은 제목 없는 문서입니다. 계속하면 이 문서의 내용은 다시 열 수 없습니다. 먼저 File → Save로 저장하려면 취소하세요.");
+  async function settle(nextFileName?: string | null, signal?: AbortSignal): Promise<boolean> {
+    pendingTransition?.abort();
+    const controller = new AbortController();
+    pendingTransition = controller;
+    const abort = () => controller.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    const expectedGeneration = generation;
+    const expectedDocument = document;
+    const valid = () => !stopped && !signal?.aborted && !controller.signal.aborted &&
+      pendingTransition === controller && generation === expectedGeneration && document === expectedDocument;
+    try {
+      reopenKey = null;
+      if (!valid()) return false;
+      if (!conflicted && read(key) !== serializeStoredDocument(document)) await flush();
+      if (!valid() || conflicted || check()) return false;
+      let message: string | undefined;
+      if (document.fileName === null && edited) {
+        // Keeping an unnamed draft is the only allowed transition. A failed
+        // durable write is never permission to lose it, even after confirmation.
+        if (read(key) !== serializeStoredDocument(document)) {
+          await promptConfirm({ title: "초안을 보관할 수 없습니다", signal: controller.signal,
+            message: "현재 작업을 유지합니다. File → Export로 파일을 보관한 뒤 다시 시도하세요.", confirmLabel: "현재 작업 유지" });
+          return false;
+        }
+        message = "이름 없는 초안을 이 브라우저에 보관한 뒤 이동합니다. Home의 보관한 초안에서 이어서 열 수 있습니다. 디스크 파일로 저장하려면 취소 후 File → Save를 사용하세요.";
+      } else if (edited && read(key) !== serializeStoredDocument(document)) {
+        message = "현재 문서의 변경 내용을 자동저장하지 못했습니다. 계속하면 저장되지 않은 변경이 사라집니다. File → Export로 먼저 보관하려면 취소하세요.";
+      }
+      if (message && !await promptConfirm({ title: "현재 문서를 떠나시겠습니까?", message, signal: controller.signal,
+        confirmLabel: document.fileName === null ? "초안 보관 후 이동" : undefined })) return false;
+      // React prompts yield: never apply an approval to a changed document or a remote revision.
+      if (!valid() || conflicted || check()) return false;
+      reopenKey = edited && typeof nextFileName === "string" && document.fileName !== null &&
+        projectStorageKey(nextFileName, untitledId) === key ? key : null;
+      return true;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      if (pendingTransition === controller) pendingTransition = undefined;
     }
-    // 잠금이 없는 브라우저(보안 컨텍스트가 아닌 http 등)에서는 자동저장이 기록되지 않는다.
-    // 그래도 편집이 없으면 잃을 것이 없으므로 묻지 않는다(PR #294 리뷰).
-    if (!edited || read(key) === serializeStoredDocument(document)) return true;
-    return window.confirm("현재 문서의 변경 내용을 자동저장하지 못했습니다. 계속하면 저장되지 않은 변경이 사라집니다. File → Export로 먼저 보관하려면 취소하세요.");
   }
   // 편집한 파일을 다시 열면 자동저장에는 이 탭의 초안이 있다(settle이 방금 기록했다).
   // 다음 자동저장이 그 초안을 덮기 전에 초안과 방금 연 파일 내용 중 하나를 고르게 한다.
@@ -276,6 +360,7 @@ export function startSpecAutosave() {
     return () => !stopped && generation === expectedGeneration;
   };
   const adoptRename = (update: () => void) => {
+    pendingTransition?.abort();
     restoring = true;
     try { update(); } finally { restoring = false; }
     generation++;
@@ -287,6 +372,79 @@ export function startSpecAutosave() {
     clearTimeout(timer);
     if (!conflicted) timer = setTimeout(() => { void flush(); }, 500);
   };
+  async function recover(draft: UnnamedDraft, deleting: boolean): Promise<DraftResult> {
+    if (recoveryBusy || stopped) return "cancelled";
+    recoveryBusy = true;
+    const transition = beginDocumentTransition();
+    let claim: ReturnType<typeof claimDraft> | undefined;
+    const expectedGeneration = generation;
+    const expectedDocument = serializeStoredDocument(current());
+    try {
+      const own = key === draft.key && document.fileName === null;
+      // Reload/history can recover the UUID while another tab owns its lock.
+      // Same identity is not ownership. Only unsupported Web Locks may use the
+      // memory-only Resume path; Resume and confirmed Delete both retry failed
+      // claims, then recheck the current document and original cache baseline.
+      if (own) {
+        if (!transition.current() || serializeStoredDocument(document) !== draft.raw) return "changed";
+        if (!navigator.locks) return deleting ? "unavailable" : "ok";
+        if (!await ownership?.ready) {
+          if (!transition.current()) return "changed";
+          await ownership?.release();
+          if (!transition.current()) return "changed";
+          ownership = claimOwnership(key);
+          if (!await ownership.ready) return "busy";
+          if (!transition.current()) return "changed";
+          // A previous debounce may have stopped at the failed claim. Requeue
+          // it only after ownership and the original cache baseline both pass.
+          if (!deleting) {
+            clearTimeout(timer);
+            timer = setTimeout(() => { void flush(); }, 500);
+          }
+        }
+        if (!transition.current() || serializeStoredDocument(document) !== draft.raw) return "changed";
+        if (!deleting) return "ok";
+      }
+      if (!navigator.locks) return "unavailable";
+      claim = own ? ownership : claimDraft(draft.key);
+      if (!await claim?.ready) return "busy";
+      if (!transition.current()) return "changed";
+      if (!deleting && !own && !await transition.settle(null)) return "cancelled";
+      if (!transition.current()) return "changed";
+      return await navigator.locks.request(draft.key, () => {
+        if (!transition.current() || stopped || expectedGeneration !== generation || expectedDocument !== serializeStoredDocument(current())) return "changed";
+        if (read(draft.key) !== draft.raw || !listUnnamedDrafts().some(item => item.key === draft.key)) return "changed";
+        if (deleting) {
+          // An active editor owns this lock even while Home is visible. Reset it
+          // before releasing ownership so a delayed autosave cannot recreate it.
+          if (own && (check() || serializeStoredDocument(document) !== draft.raw)) return "changed";
+          if (!removeUnnamedDraft(draft)) return "changed";
+          if (own) {
+            adoptLatest({ fileName: null, spec: migrateV01(blankSpec) }, false);
+            ownership?.release();
+            key = projectStorageKey(null, crypto.randomUUID());
+            baseline = null;
+            ownership = claimOwnership(key);
+            preserve();
+            saveSpecToStorage(document.spec, null, null, key);
+          }
+          notifyUnnamedDrafts();
+        } else if (!own) {
+          ownership?.release();
+          ownership = claim;
+          ownerState = "owned";
+          claim = undefined;
+          adoptLatest(draft.document, true, draft.key);
+        }
+        return "ok";
+      });
+    } catch { return "unavailable"; }
+    finally {
+      if (claim && claim !== ownership) await claim.release();
+      recoveryBusy = false;
+    }
+  }
+  useUnnamedDraftStore.setState({ resume: draft => recover(draft, false), remove: draft => recover(draft, true) });
   useSaveConflictStore.setState({ paused: conflicted, reason: pauseReason, loadLatest, check, pause, save, settle, discardDraft, readDraft, captureDocument, adoptRename });
   if (!recovery && baseline !== null && baseline !== serializeStoredDocument(document)) pause(false, draftOf(baseline, document));
   check();
@@ -304,8 +462,10 @@ export function startSpecAutosave() {
         }
         reopenKey = null;
         if (useDocumentStore.getState().fileName === null) {
+          ownership?.release();
           untitledId = crypto.randomUUID();
           key = projectStorageKey(null, untitledId);
+          ownership = claimOwnership(key);
           baseline = null;
           renameBaseline = null;
         }
@@ -320,8 +480,10 @@ export function startSpecAutosave() {
   window.addEventListener("beforeunload", beforeUnload);
   return () => {
     stopped = true;
+    pendingTransition?.abort();
     clearTimeout(timer);
     preserve();
+    ownership?.release();
     const handed = { serialized: serializeStoredDocument(document), edited };
     restartHandoff = handed;
     queueMicrotask(() => { if (restartHandoff === handed) restartHandoff = null; });

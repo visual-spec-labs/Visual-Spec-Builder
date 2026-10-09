@@ -12,7 +12,7 @@ export function ColorSection() {
   const [color, setColor] = useNodeField<string>("color");
 
   return (
-    <PropertySection title="Color">
+    <PropertySection title="글자색 (Color)">
       <ColorField label="글자색" value={color} onChange={setColor} />
     </PropertySection>
   );

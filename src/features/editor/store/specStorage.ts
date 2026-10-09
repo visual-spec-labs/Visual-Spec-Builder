@@ -47,6 +47,10 @@ function readStoredDocument(): StoredDocument | undefined {
   }
   if (raw === null) return undefined;
 
+  try {
+    const key = JSON.parse(raw).draftKey;
+    if (typeof key === "string" && localStorage.getItem(`${key}:deleted`)) return undefined;
+  } catch { return undefined; }
   return parseStoredDocument(raw);
 }
 
@@ -110,9 +114,10 @@ export function loadStoredFileName(): string | null | undefined {
  * 디스크를 열 때 받은 리비전도 함께 보존한다. 이 함수 자체는 디스크를 읽지
  * 않으며, 명시적 Save가 서버 CAS로 오래된 리비전의 덮어쓰기를 차단한다.
  */
-export function saveSpecToStorage(spec: ProjectSpec, fileName: string | null, diskRevision?: string | null): void {
+export function saveSpecToStorage(spec: ProjectSpec, fileName: string | null, diskRevision?: string | null, draftKey?: string): void {
   try {
-    localStorage.setItem(SPEC_STORAGE_KEY, serializeStoredDocument({ fileName, spec, diskRevision }));
+    localStorage.setItem(SPEC_STORAGE_KEY, JSON.stringify({ ...JSON.parse(serializeStoredDocument({ fileName, spec, diskRevision })),
+      ...(fileName === null && draftKey ? { draftKey } : {}) }));
   } catch {
     /* 위 설명대로 조용히 무시한다. */
   }
@@ -135,6 +140,7 @@ export function readRecovery(): Recovery | undefined {
     if (!value || typeof value.key !== "string" ||
       (value.baseline !== null && typeof value.baseline !== "string") ||
       typeof value.conflicted !== "boolean") return undefined;
+    try { if (localStorage.getItem(`${value.key}:deleted`)) return undefined; } catch { /* Session recovery remains available. */ }
     const document = parseStoredDocument(JSON.stringify(value.document));
     return document ? { ...value, document } : undefined;
   } catch { return undefined; }

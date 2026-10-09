@@ -35,19 +35,29 @@ interface PickPromptState {
   resolve: (value: string | null) => void;
 }
 
-type PromptDialogState = { kind: "closed" } | TextPromptState | PickPromptState;
+interface ConfirmPromptState {
+  requestId: number;
+  kind: "confirm";
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  resolve: (value: string | null) => void;
+}
+
+type PromptDialogState = { kind: "closed" } | TextPromptState | PickPromptState | ConfirmPromptState;
 
 let nextRequestId = 0;
 
 export const usePromptDialogStore = create<{
   state: PromptDialogState;
   /** 확인/취소/항목 선택 — 전부 결국 "결과값 하나를 정하고 닫는다"로 모인다. */
-  resolve: (value: string | null) => void;
+  resolve: (value: string | null, requestId?: number) => void;
 }>((set, get) => ({
   state: { kind: "closed" },
-  resolve: (value) => {
+  resolve: (value, requestId) => {
     const current = get().state;
-    if (current.kind === "closed") return;
+    if (current.kind === "closed" || (requestId !== undefined && current.requestId !== requestId)) return;
     current.resolve(value);
     set({ state: { kind: "closed" } });
   },
@@ -117,5 +127,24 @@ export function promptPick(options: PickPromptOptions): Promise<string | null> {
         resolve,
       },
     });
+  });
+}
+
+/** Destructive transition: cancellation is the default, and abort only closes its own request. */
+export function promptConfirm(options: { title: string; message: string; signal: AbortSignal; confirmLabel?: string }): Promise<boolean> {
+  if (options.signal.aborted) return Promise.resolve(false);
+  cancelPending();
+  const requestId = ++nextRequestId;
+  return new Promise((resolve) => {
+    const abort = () => usePromptDialogStore.getState().resolve(null, requestId);
+    options.signal.addEventListener("abort", abort, { once: true });
+    usePromptDialogStore.setState({ state: {
+      kind: "confirm", requestId, title: options.title, message: options.message,
+      confirmLabel: options.confirmLabel ?? "계속하기", cancelLabel: "취소",
+      resolve: (value) => {
+        options.signal.removeEventListener("abort", abort);
+        resolve(value === "confirm");
+      },
+    } });
   });
 }

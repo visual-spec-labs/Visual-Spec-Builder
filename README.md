@@ -43,6 +43,8 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [qa/](docs/qa/) | 개별 기능 QA 기록 ([탭 저장 충돌](docs/qa/tab-save-conflicts.md), [프로젝트 이름·파일명 변경](docs/qa/project-file-rename-qa.md), [Export 이미지 자산 정합성](docs/qa/export-asset-integrity.md), [로컬 tarball GUI 런타임](docs/qa/package-tarball-runtime.md)) |
 | [skills/](docs/skills/) | 배포 스킬 7종(`skills/`)의 사람용 설명 |
 
+팀의 제작 과정과 단계별 근거는 [제작 연대기](docs/history/README.md)에 있다.
+
 설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 있다.
 
 ## 현재 구현 상태
