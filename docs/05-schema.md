@@ -56,7 +56,7 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
   - `src`는 비어 있지 않은 문자열이다. assets 기준 상대 경로, `assetId`, 기존 문서와 폴백의 base64 data URI를 허용한다.
     JSON Schema는 문자열 형태만 검사한다. Import가 쓰는 경로와 폴백은
     [06-schema-freeze.md](06-schema-freeze.md)의 assets 절을 따른다.
-- ButtonNode (`content` — 표시용 라벨)
+- ButtonNode (`content` — 표시용 라벨, `action` — 선택. 아래 "화면 종류·연결 선택 필드" 절)
 - InputNode (`placeholder` — 표시용 텍스트)
 - 부모-자식 참조
 - Layout (`direction`: `row` | `column` | `grid`; `columns`는 선택 정수이며 1 이상, 생략 시 grid는 1열)
@@ -75,7 +75,7 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
   - Shadow — `frame`만
   - Opacity — `frame` · `text` · `image`, 생략 시 `1`
   - Blur — `frame` · `text` · `image`, 생략 시 `0` (레이어 블러)
-- 멀티 페이지 (`ProjectSpec` / `PageId` — `pages` 맵 + `pageOrder` 배열)
+- 멀티 페이지 (`ProjectSpec` / `PageId` — `pages` 맵 + `pageOrder` 배열, 페이지마다 선택 `kind`)
 
 ## MVP 제외 범위
 
@@ -95,6 +95,8 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 `button`과 `input`이 지원 범위에 들어왔지만 상호작용은 여전히 제외다.
 두 노드의 `content` / `placeholder`는 표시용 텍스트일 뿐이고
 `onClick` / `value` / `onChange`는 정의하지 않는다.
+#265 S1-1 제안의 `ButtonNode.action`은 화면 이동·모달 열기/닫기 하나만 적는 선택 필드다.
+일반 이벤트 핸들러나 `events`를 들인 것이 아니다(아래 절).
 
 ## 확정 규칙
 
@@ -147,3 +149,31 @@ GUI는 파일 가져오기·경로·fit 및 기존 겹 추가/삭제/정렬·Und
 현재 상태: 스키마 #254·기능 #257과 반응형 codegen 리뷰 수정 #252가 모두 병합됐다. 같은 스킬
 문서의 이미지 배경·반응형 매핑은 통합 검사에서 함께 확인했다([07](07-implementation-status.md)).
 fixture/브라우저 검증은 실제 AI 성공 검증이 아니다.
+
+
+## 화면 종류·연결 선택 필드 (#265 S1-1 PR 제안)
+
+현재 상태: 스키마 PR 제안이다. 설계는 [24](24-screen-relations-design.md)의 권고안(D1~D4)을 따르고,
+그 설계 PR #339의 승인·병합 전에는 병합하지 않는다. 버전은 0.3 그대로다.
+
+| 필드 | 위치 | 값 | 생략하면 |
+|---|---|---|---|
+| `kind` | `ScreenSpec` | `"page"` \| `"modal"` \| `"widget"` | `page` |
+| `action` | `ButtonNode`만 | 아래 세 갈래 중 하나 | 동작 없음 |
+
+```jsonc
+// action 세 갈래 — 버튼 하나에 이 중 하나만 둔다
+{ "type": "navigate", "target": "dashboard" }
+{ "type": "openModal", "target": "resetPassword" }
+{ "type": "close" }
+```
+
+- `target`은 같은 프로젝트 `pages`의 key(PageId 형식)다. 페이지 이름으로 참조하지 않는다.
+- `navigate`는 page로 이동, `openModal`은 modal 열기, `close`는 열린 모달 닫기다. close는 target이 없다.
+- action은 통째로 하나다. 추가 필드·`null`·배열은 무효이고 반응형 override로 바꿀 수 없다.
+- **스키마는 모양만 본다.** target이 실제로 있는지, 대상의 kind가 맞는지, 첫 페이지가 page인지는
+  후속 S1-2 프로젝트 검증이 잡는다. 그 전에는 없는 target도 구조 검증을 통과한다.
+- 지금은 파일로만 쓸 수 있다. 자연어·Command 편집 경로는 S1-3 전까지 이 두 필드를 막는다.
+
+호환성·임시 가드·검증 경계의 전문은
+[동결 계약의 확장 절](06-schema-freeze.md#화면-종류연결-선택-확장--265-s1-1-pr-제안)을 참조한다.

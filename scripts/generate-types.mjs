@@ -68,9 +68,13 @@ function takeDeclaration(source, kind, name) {
   return match[0];
 }
 
+// PageId는 원래 ProjectSpec에서만 닿았다. ButtonNode.action.target(#265)이 PageId를 참조하면서
+// 1차 결과에도 나오므로, 이미 있으면 다시 붙이지 않는다 — 두 번 붙이면 중복 선언으로 컴파일이 깨진다.
+const rootHasPageId = /^export type PageId = /m.test(rootTypes);
+
 const types = [
   rootTypes.trimEnd(),
-  takeDeclaration(projectTypes, "type", "PageId"),
+  ...(rootHasPageId ? [] : [takeDeclaration(projectTypes, "type", "PageId")]),
   takeDeclaration(projectTypes, "interface", "ProjectSpec"),
 ].join("\n\n");
 
