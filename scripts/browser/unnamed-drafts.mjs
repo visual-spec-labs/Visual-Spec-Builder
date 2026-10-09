@@ -62,6 +62,7 @@ try {
   }
   const drafts = page.getByRole("region", { name: "보관한 초안" });
   await page.getByRole("button", { name: "빈 캔버스에서 시작" }).click();
+  await page.getByRole("button", {name: "File", exact: true}).waitFor();
   await edit("Fixture draft A");
   const original = await state();
   await page.getByRole("button", { name: "홈으로" }).click();
@@ -300,6 +301,7 @@ try {
   await memory.goto(url);
   await memory.getByText("프로젝트 2개", {exact: true}).waitFor();
   await memory.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
+  await memory.getByRole("button", {name: "File", exact: true}).waitFor();
   await edit("Memory-only fixture", memory);
   const memoryState = await state(memory);
   await memory.getByRole("button", {name: "홈으로"}).click();
