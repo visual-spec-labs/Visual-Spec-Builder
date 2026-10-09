@@ -14,11 +14,16 @@
 // Vite 런타임 의존성이 포함된다. GUI는 **설치된 패키지 자체**의 Vite 서버를 띄우므로
 // 사용자 프로젝트가 아닌 PACKAGE_ROOT를 cwd로 쓴다 — 아래 runGui 참고.
 
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { accessSync, constants as fsConstants, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+
+/** 표시 전용. 파일 접근 경로와 POSIX 파일명의 역슬래시는 그대로 둔다. */
+export function displayPath(path) {
+  return path.split(sep).join("/");
+}
 
 /** 이 파일 자신의 위치 기준 — 대상 프로젝트(cwd)가 아니라 이 패키지 자신의 skills/를 읽는다. */
 const DEFAULT_PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -269,7 +274,7 @@ export function planSkillInstall(cwd, target) {
     const path = join(cwd, ...segments.slice(0, index));
     if (existsAsNonDir(path)) {
       throw new Error(
-        `${path}가 이미 존재하지만 폴더가 아닙니다 — 지우거나 옮긴 뒤 다시 실행해주세요.`,
+        `${displayPath(path)}가 이미 존재하지만 폴더가 아닙니다 — 지우거나 옮긴 뒤 다시 실행해주세요.`,
       );
     }
   }
@@ -284,7 +289,7 @@ export function planSkillInstall(cwd, target) {
     const destDir = join(targetRoot, name);
     if (existsAsNonDir(destDir)) {
       throw new Error(
-        `${destDir}가 이미 존재하지만 폴더가 아닙니다 — 지우거나 옮긴 뒤 다시 실행해주세요.`,
+        `${displayPath(destDir)}가 이미 존재하지만 폴더가 아닙니다 — 지우거나 옮긴 뒤 다시 실행해주세요.`,
       );
     }
     const sources = skillSources(name);
@@ -296,7 +301,7 @@ export function planSkillInstall(cwd, target) {
     for (const source of [...sources, ...local]) {
       const path = join(target, source.path);
       const status = inspectSkillPath(cwd, path);
-      if (status !== "ok" && status !== "missing") throw new Error(`스킬 경로를 확인해주세요: ${path} (${status}). 링크·파일/폴더 종류·읽기 권한을 확인하고 충돌 경로를 옮긴 뒤 다시 실행해주세요.`);
+      if (status !== "ok" && status !== "missing") throw new Error(`스킬 경로를 확인해주세요: ${displayPath(path)} (${status}). 링크·파일/폴더 종류·읽기 권한을 확인하고 충돌 경로를 옮긴 뒤 다시 실행해주세요.`);
     }
     const expected = new Set([...sources, ...local].map((source) => source.path));
     const obsolete = installed.files.filter((path) => !expected.has(path));
@@ -313,7 +318,7 @@ export function planSkillInstall(cwd, target) {
       if (parent === probe) return;
       probe = parent;
     }
-    try { accessSync(probe, fsConstants.W_OK); } catch { unwritable.add(relative(cwd, probe) || "."); }
+    try { accessSync(probe, fsConstants.W_OK); } catch { unwritable.add(displayPath(relative(cwd, probe) || ".")); }
   };
   for (const { sources, local, obsolete } of plans) {
     for (const source of [...sources, ...local]) {
@@ -388,7 +393,7 @@ export function applySkillInstall({ cwd, target, targetRoot, plans }, journal = 
       const relativePath = join(target, path);
       const status = inspectSkillPath(cwd, relativePath);
       if (status === "missing") continue;
-      if (status !== "ok") throw new Error(`스킬 경로를 확인해주세요: ${relativePath} (${status})`);
+      if (status !== "ok") throw new Error(`스킬 경로를 확인해주세요: ${displayPath(relativePath)} (${status})`);
       journal.files.push({ path: join(targetRoot, path), previous: readFileSync(join(targetRoot, path)) });
       unlinkSync(join(targetRoot, path));
       changed = true;
@@ -429,16 +434,16 @@ function listInstalledSkillFiles(cwd, name, target) {
     const relativePath = join(target, path);
     const status = inspectSkillPath(cwd, relativePath, true);
     if (status === "missing") return;
-    if (status !== "ok") { unchecked.push(`${relativePath} (${status})`); return; }
+    if (status !== "ok") { unchecked.push(`${displayPath(relativePath)} (${status})`); return; }
     try {
       for (const entry of readdirSync(join(cwd, relativePath), { withFileTypes: true })) {
         const child = join(path, entry.name);
         if (entry.isDirectory()) visit(child);
         else if (entry.isFile()) files.push(child);
-        else unchecked.push(`${join(target, child)} (${entry.isSymbolicLink() ? "symlink" : "unreadable"})`);
+        else unchecked.push(`${displayPath(join(target, child))} (${entry.isSymbolicLink() ? "symlink" : "unreadable"})`);
       }
     } catch {
-      unchecked.push(`${relativePath} (unreadable)`);
+      unchecked.push(`${displayPath(relativePath)} (unreadable)`);
     }
   }
   visit(name);
@@ -482,19 +487,19 @@ function warnAboutInstalledSkillsAt(cwd, target) {
         const path = `${target}/${source.path}`;
         const status = inspectSkillPath(cwd, path);
         if (status === "missing") { missing.push(path); continue; }
-        if (status !== "ok") { unchecked.push(`${path} (${status})`); continue; }
+        if (status !== "ok") { unchecked.push(`${displayPath(path)} (${status})`); continue; }
         try {
           if (!readFileSync(join(cwd, path)).equals(source.read())) changed.push(path);
         } catch {
-          unchecked.push(`${path} (unreadable)`);
+          unchecked.push(`${displayPath(path)} (unreadable)`);
         }
       }
     }
     if (changed.length || missing.length || obsolete.length) {
       console.warn("스킬 사본이 현재 패키지와 다르거나 일부 파일이 없습니다. 버전은 추정하지 않습니다.");
-      for (const path of changed) console.warn(`  내용 다름: ${path}`);
-      for (const path of missing) console.warn(`  없음: ${path}`);
-      for (const path of obsolete) console.warn(`  패키지에 없는 파일: ${path}`);
+      for (const path of changed) console.warn(`  내용 다름: ${displayPath(path)}`);
+      for (const path of missing) console.warn(`  없음: ${displayPath(path)}`);
+      for (const path of obsolete) console.warn(`  패키지에 없는 파일: ${displayPath(path)}`);
       console.warn("갱신하려면 `visual-spec skills`를 명시적으로 실행하세요. 해당 명령은 로컬 수정도 덮어쓰고 관리 스킬 안의 패키지에 없는 파일을 제거합니다. GUI 시작은 사본을 변경하지 않습니다.");
     }
     if (unchecked.length) {
@@ -612,11 +617,11 @@ function runSkills(args) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(failed.length === 0
       ? `설치 중 실패해 이번 실행의 변경을 모두 되돌렸습니다: ${reason}`
-      : `설치 중 실패했고 일부를 되돌리지 못했습니다(${failed.map((path) => relative(process.cwd(), path)).join(", ")}). 이 경로를 확인한 뒤 다시 실행해주세요: ${reason}`);
+      : `설치 중 실패했고 일부를 되돌리지 못했습니다(${failed.map((path) => displayPath(relative(process.cwd(), path))).join(", ")}). 이 경로를 확인한 뒤 다시 실행해주세요: ${reason}`);
   }
   for (const { target, targetRoot, installed, updated, unchanged } of results) {
 
-    console.log(`${target}/ 설치 대상: ${targetRoot}`);
+    console.log(`${target}/ 설치 대상: ${displayPath(targetRoot)}`);
     for (const name of installed) {
       console.log(`  설치함    ${name}/`);
     }
