@@ -2,8 +2,8 @@
 
 상태: **검증 준비/부분 회귀**. Related #292이며 완료 또는 최종 통합 판정이 아니다.
 #279/#280/#282/#284/#272/#274의 계약·수정 반영을 확인한 뒤 최종 통합을 별도로 실행한다.
-#280/#282/#290/#281/#284 구현, #302/#319 저장 전환·Resume 소스, #291 CI workflow는
-이 변경 범위에 포함하지 않는다.
+#280/#282/#290/#281/#284 구현과 제품 소스는 변경하지 않는다. #338 준비 단계 뒤,
+현재 후속은 develop에 반영된 기존 fixture 여정을 CI에 연결한다. 과거 실행 기록은 아래에 보존한다.
 
 ## 비용 없는 독립 실행
 
@@ -14,7 +14,7 @@
 
 ```bash
 mkdir -p /tmp/vsb-browser-tools
-pnpm --dir /tmp/vsb-browser-tools add playwright@1.57.0
+pnpm --dir /tmp/vsb-browser-tools add playwright@1.62.0
 export PLAYWRIGHT_MODULE=/tmp/vsb-browser-tools/node_modules/playwright/index.mjs
 export CHROME_BIN=/usr/bin/chromium
 node scripts/browser/export-journey.mjs
@@ -38,7 +38,7 @@ Windows PowerShell에서는 다음처럼 실행한다. `PLAYWRIGHT_MODULE`은 �
 ```powershell
 $qaTools = Join-Path $env:TEMP "vsb-browser-tools"
 New-Item -ItemType Directory -Force $qaTools | Out-Null
-pnpm --dir $qaTools add playwright@1.57.0
+pnpm --dir $qaTools add playwright@1.62.0
 pnpm --dir $qaTools exec playwright install chromium
 $modulePath = Join-Path $qaTools "node_modules/playwright/index.mjs"
 $env:PLAYWRIGHT_MODULE = ([System.Uri]$modulePath).AbsoluteUri
@@ -78,9 +78,58 @@ VSB_RESPONSIVE_BROWSER=1 VSB_PAGE_SHELL_BROWSER=1 VSB_GRID_BROWSER=1 \
   test/page-shell-browser.test.ts test/grid-codegen-browser.test.ts
 ```
 
-위 명령들을 #291의 브라우저 job에서 재사용할 수 있다. 이 PR은 workflow를 변경하지 않는다.
 일반 `pnpm test`는 위 3개 실측을 기본 skip하며 `scripts/browser/*.mjs`도 실행하지 않는다.
+CI의 별도 Chromium 잡이 이 3개 실측과 아래 5개 사용자 여정을 각각 명시 실행한다.
 따라서 일반 테스트 성공과 실제 브라우저 실행 여부를 각각 보고한다.
+
+## 기존 사용자 여정 5개 CI 게이트
+
+기준 develop `157ab1752b9ca87df4e79002ebde99cb8965fad7`에서 기존 Node 스크립트를 연결한다.
+Linux에서 Node Playwright 1.62.0과 Chromium을 준비한 뒤 저장소 루트에서 실행한다.
+
+```bash
+export PLAYWRIGHT_MODULE=file:///tmp/vsb-browser-tools/node_modules/playwright/index.mjs
+export CHROME_BIN=/usr/bin/chromium
+FORCE_COLOR=1 bash scripts/browser/run-journeys.sh
+```
+
+이 묶음 실행기는 **Linux Bash + GNU timeout** 전용이다. Windows에서는 앞의 PowerShell
+예제처럼 개별 스크립트를 실행한다. Linux CI는 Python/Node Playwright 모두 1.62.0을 사용하고
+Python이 설치한 같은 Chromium을 CHROME_BIN으로 지정한다. Node 도구는 runner 임시 경로에
+설치하므로 제품 package.json/lockfile을 변경하지 않는다.
+
+| 순서 | 기존 스크립트 | 단언 범위 |
+|---|---|---|
+| 1 | export-journey.mjs | 페이지 전환 검사 무효화·자산 실패·재시도 ZIP 바이트·문서 신원 |
+| 2 | project-dialogs.mjs | Open/Save as 취소·손상 파일·대화상자 포커스·두 탭 저장 충돌 |
+| 3 | document-transitions.mjs | New/Open/카드 전환 취소·교체 요청·두 탭 충돌·명시적 승인·낡은 응답 ABA |
+| 4 | unnamed-drafts.mjs | Home/Resume/새로고침·탭별 UUID·동시 소유권·저장/삭제·Web Locks 없는 경우 |
+| 5 | save-status.mjs | 실제 저장/실패 표시·저장 중 편집·외부 변경/충돌·지연 응답·다운로드/보관 실패 |
+
+기존 시나리오의 단언을 유지하고 세 스크립트의 중복 시작/종료를 공용 harness로 옮겼다.
+저장 상태의 읽기 실패/복구는 주입한 503과 복구된 200 응답도 확인한 뒤 기존 UI 단언을 실행한다.
+일시적인 미확인 표시만 보고 fault 주입을 너무 일찍 해제하지 않도록 대기를 강화했다.
+각 실행은 새 TMPDIR/TMP/TEMP와 VSB_QA_ARTIFACTS를 받는다. workspace, 브라우저 프로필,
+스크린샷은 그 임시 경로 안에만 생기며, 완료/실패 때 제거한다. 실제 사용자 파일이나 에이전트
+프로세스는 사용하지 않는다. 모든 브라우저 context에 같은-origin 요청 제한과 service worker
+차단을 적용한다. 일부 경로는 스토어를 통해 fixture 상태를 만들므로 모든 조작이 GUI 입력인
+완전한 E2E라고 주장하지 않는다.
+
+각 여정은 120초 후 SIGTERM, 10초 후에도 종료되지 않으면 강제 종료한다. harness는 SIGTERM/
+SIGINT에서 브라우저와 Vite를 닫으며, Vite 종료에도 5초 상한을 둔다. 묶음은 첫 nonzero에서
+멈추고 임시 루트를 지운다. 마지막 `PASS all 5 fixture journeys (no skips)`는 다섯 프로세스가
+모두 exit 0일 때만 출력한다. `VSB_JOURNEY_TIMEOUT_SECONDS=1`처럼 제한을 줄여 실패 경로를
+진단할 수 있지만 120초보다 늘리거나 0으로 해제할 수는 없다. 게이트 단위 회귀는 exit 37과
+정지 fixture의 timeout 124가 다음 여정/성공 로그로 가려지지 않고 임시 파일을 정리함을 확인한다.
+
+CI browser 잡은 총 15분 상한이며 기존 build 집계에 그대로 연결된다. 실패·취소·skip을
+성공으로 바꾸지 않고 권한은 contents:read를 유지하며 secrets를 추가하지 않는다. 독립 여정은
+로그로 결과를 남기고 현재 스크린샷은 업로드하지 않는다.
+
+`editing-context.py`와 `property-guidance.py`는 외부에서 띄운 서버 URL/상태 준비 계약을 쓰는
+별도 수동 도구여서 이번 다섯 Node 여정 게이트에 넣지 않았다. 해당 검증을 실행했다고
+계산하지 않는다. 실제 모델 자연어→GUI 후속 수정→재생성→독립 앱 통합, 이미지/반응형/
+다중 페이지의 실제 모델 시각 비교, 미완료 선행 계약의 최종 통합은 여전히 #292의 남은 범위다.
 
 ## 실제 모델 검증 — 이번 작업에서는 미실행
 
@@ -155,3 +204,22 @@ Windows ESM file URL과 브라우저 설치 절차도 위에 추가했다. Windo
 PASS(선택적 3 skip). `FORCE_COLOR=1`, `PLAYWRIGHT_MODULE=file:///.../playwright/index.mjs`로
 실제 Chromium Export 2건·대화상자 6건 PASS. responsive/page-shell 실측도 PASS이며,
 미통합 Grid의 기존 `--dump-dom` timeout은 이 변경의 성공에 포함하지 않는다.
+
+
+## 사용자 여정 CI 연결 로컬 검증 (2026-10-09)
+
+기준 develop `157ab1752b9ca87df4e79002ebde99cb8965fad7`, Node 24.19.0/pnpm 10.33.0,
+Node·Python Playwright 1.62.0, 시스템 Chromium 151.0.7922.173에서 확인했다.
+
+- 타입·lint·production build·생성 타입 일치 통과. 기존 Vite 경고는 남아 있다.
+- 전체 115파일/1,841테스트 통과, 기존 opt-in 3 skip. Linux 게이트 회귀 2개 포함.
+- 기존 Python Chromium 검사 3개 별도 실행 통과.
+- 강제 색 출력과 file URL 모듈 경로로 Node 사용자 여정 5개 모두 통과.
+- 중간 실행의 저장 상태 여정은 읽기 복구 대기에서 한 번 timeout이었다. 단독 재실행은
+  통과했고, 실제 실패/복구 응답 대기를 추가한 뒤 5개 전체 재실행이 통과했다. 단언이나
+  timeout 상한을 완화하지 않았다.
+- 실제 브라우저 1초 제한은 exit 124, 없는 Playwright 모듈은 exit 1로 전파됐고,
+  각 경우 임시 루트에 남은 파일/디렉터리는 0개였다.
+
+CI의 최종 SHA 및 실제 실행 결과는 후속 Draft PR에 기록한다. 이 기록은 실제 모델/외부
+에이전트 또는 #292 전체 검증 완료의 증거가 아니다.

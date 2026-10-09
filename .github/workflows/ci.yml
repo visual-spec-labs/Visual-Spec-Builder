@@ -90,9 +90,9 @@ jobs:
           git diff --exit-code
 
   browser:
-    name: Chromium / existing opt-in tests
+    name: Chromium / fixture tests and journeys
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -137,6 +137,18 @@ jobs:
           assert.equal(report.numPendingTests, 0);
           assert.equal(report.numFailedTests, 0);
           JS
+
+      - name: Node Playwright 실행기 설치 (제품 의존성 제외)
+        run: |
+          qa_tools="$RUNNER_TEMP/vsb-browser-tools"
+          mkdir -p "$qa_tools"
+          pnpm --dir "$qa_tools" add playwright@1.62.0
+          echo "PLAYWRIGHT_MODULE=file://$qa_tools/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
+      - name: 실제 사용자 여정 5개 (fixture 전용, skip 금지)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+          FORCE_COLOR: '1'
+        run: bash scripts/browser/run-journeys.sh
 
   # 브랜치 보호의 기존 required check 이름을 유지한다.
   # Linux·Windows·브라우저 잡의 실패/취소/skip도 build 실패로 전파한다.
