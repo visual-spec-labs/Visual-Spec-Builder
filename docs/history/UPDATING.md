@@ -17,7 +17,9 @@ node scripts/history/sync.mjs --verify-git
 | 커밋 ([`commits.json`](./data/commits.json)) | 수집 시점의 `develop`에서 도달 가능한 커밋 전체. committer 시각, 병합 커밋 포함 |
 
 - 날짜는 KST로 나눈다. PR의 검토 여부나 병합 방식은 수집하지 않는다.
+- `issues.json`의 `retrievedAt`과 `sourceQueries`는 최초 원장 조회 근거로 보존한다. `lastSyncedAt`은 마지막 증분 수집 시각이며, 기존 이슈를 다시 조회했다는 뜻은 아니다.
 - 이미 기록된 PR·이슈는 다시 쓰지 않는다. 같은 입력으로 다시 실행해도 결과는 같다.
+- 커밋 시각은 `Z`·`+00:00` 등 표기가 달라도 같은 순간이면 일치한다. 기존 시각 표기는 보존한다.
 - 이미 기록된 커밋이 새 `develop` 이력에 없거나 달라졌으면 아무것도 쓰지 않고 멈춘다.
 - 새 PR은 진행 중인 마지막 단계(`end`가 `null`)에 들어간다.
 - 옵션: `--ref <ref>`로 다른 기준을 쓸 수 있고, `--no-fetch`로 받아 오기를 건너뛴다.

@@ -13,7 +13,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { collectSnapshot, readGitCommits } from "./collect.mjs";
+import { collectSnapshot, verifyGitCommits } from "./collect.mjs";
 import { applySnapshot, loadHistory, staleOutputs, summary, validateHistory, writeHistory } from "./lib.mjs";
 
 const { values: options } = parseArgs({
@@ -31,16 +31,6 @@ const { values: options } = parseArgs({
 
 const root = resolve(options.root ?? fileURLToPath(new URL("../..", import.meta.url)));
 
-function verifyGit(data) {
-  const actual = readGitCommits(root, data.commits.snapshotCommit);
-  const expected = new Map(data.commits.commits.map((c) => [c.sha, c]));
-  const same = actual.length === expected.size && actual.every((c) => {
-    const row = expected.get(c.sha);
-    return row && row.committedAt === c.committedAt && row.parents.join() === c.parents.join();
-  });
-  if (!same) throw new Error("commits.json이 snapshotCommit의 Git 이력과 다릅니다.");
-}
-
 function main() {
   let data = loadHistory(root);
   if (options.check) {
@@ -49,7 +39,7 @@ function main() {
     if (stale.length > 0) {
       throw new Error(`생성물이 데이터와 다릅니다: ${stale.join(", ")} — node scripts/history/sync.mjs --write로 다시 만드세요.`);
     }
-    if (options["verify-git"]) verifyGit(data);
+    if (options["verify-git"]) verifyGitCommits(root, data.commits);
     console.log(`OK: ${summary(data)}`);
     return;
   }
@@ -65,7 +55,7 @@ function main() {
   }
   validateHistory(data);
   const written = writeHistory(root, data);
-  if (options["verify-git"]) verifyGit(written);
+  if (options["verify-git"]) verifyGitCommits(root, written.commits);
   console.log(`OK: ${summary(written)}`);
 }
 

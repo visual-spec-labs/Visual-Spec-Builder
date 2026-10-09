@@ -3,7 +3,7 @@
 
 import { execFileSync } from "node:child_process";
 
-import { REPO } from "./lib.mjs";
+import { REPO, sameCommit } from "./lib.mjs";
 
 const [OWNER, NAME] = REPO.split("/");
 const MAX_BUFFER = 64 * 1024 * 1024;
@@ -12,13 +12,22 @@ function run(command, args, cwd) {
   return execFileSync(command, args, { cwd, encoding: "utf8", maxBuffer: MAX_BUFFER });
 }
 
-// git log --format=%cI는 committer 시각을 원래 시간대 그대로 준다(기존 데이터와 같은 표기).
+// git log --format=%cI는 committer 시각을 원래 시간대 그대로 준다(UTC 표기는 Git 버전에 따라 Z 또는 +00:00).
 export function readGitCommits(root, snapshotCommit) {
   const log = run("git", ["log", snapshotCommit, "--format=%H%x09%cI%x09%P"], root);
   return log.split("\n").filter(Boolean).map((line) => {
     const [sha, committedAt, parents] = line.split("\t");
     return { sha, committedAt, parents: parents ? parents.split(" ") : [] };
   });
+}
+
+// --verify-git과 테스트가 같은 실제 Git 대조 경로를 쓴다.
+export function verifyGitCommits(root, commitsDoc) {
+  const actual = readGitCommits(root, commitsDoc.snapshotCommit);
+  const expected = new Map(commitsDoc.commits.map((c) => [c.sha, c]));
+  if (actual.length !== expected.size || !actual.every((c) => sameCommit(expected.get(c.sha), c))) {
+    throw new Error("commits.json이 snapshotCommit의 Git 이력과 다릅니다.");
+  }
 }
 
 const SEARCH = `query($q: String!, $after: String) {

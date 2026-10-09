@@ -295,6 +295,14 @@ export function summary(data) {
   return `${data.commits.commits.length} commits, ${data.events.events.length} PRs, ${data.issues.issues.length} issues; phase commits: ${counts}`;
 }
 
+// Git 버전에 따라 같은 UTC 시각도 Z 또는 +00:00으로 나온다.
+// 표기 대신 유효한 시각과 순서를 보존한 부모 목록을 비교한다.
+export function sameCommit(a, b) {
+  return Boolean(a && b && a.sha === b.sha &&
+    Date.parse(a.committedAt) === Date.parse(b.committedAt) &&
+    a.parents.length === b.parents.length && a.parents.every((sha, i) => sha === b.parents[i]));
+}
+
 // 새로 수집한 기록을 기존 데이터에 덧붙인다. 이미 있는 번호·커밋은 건드리지 않는다.
 // snapshot: { snapshotCommit, cutoff, commits[], pullRequests[], issues[] } — collect.mjs 참고.
 export function applySnapshot(data, snapshot) {
@@ -305,10 +313,13 @@ export function applySnapshot(data, snapshot) {
   const nextCommits = new Map(snapshot.commits.map((c) => [c.sha, c]));
   for (const commit of data.commits.commits) {
     const fresh = nextCommits.get(commit.sha);
-    assert(fresh && fresh.committedAt === commit.committedAt && fresh.parents.join() === commit.parents.join(),
+    assert(sameCommit(fresh, commit),
       `기존 커밋 ${commit.sha}가 새 develop 이력에 없거나 달라졌습니다.`);
   }
+  const oldCommits = new Map(data.commits.commits.map((c) => [c.sha, c]));
   const commits = [...nextCommits.values()]
+    // 동등한 시각 표기 때문에 기존 원장 전체가 다시 쓰이지 않게 한다.
+    .map((c) => oldCommits.get(c.sha) ?? c)
     .map(({ sha, committedAt, parents }) => ({ sha, committedAt, parents }))
     .sort((a, b) => (a.sha < b.sha ? -1 : 1));
 
@@ -361,7 +372,7 @@ export function applySnapshot(data, snapshot) {
       events: { ...data.events, generatedAt: cutoff, events },
       phases: { ...data.phases, generatedAt: cutoff },
       commits: { ...data.commits, snapshotCommit: snapshot.snapshotCommit, cutoff, commits },
-      issues: { ...data.issues, cutoff, retrievedAt: cutoff, issues },
+      issues: { ...data.issues, cutoff, lastSyncedAt: cutoff, issues },
     },
     added: {
       events: addedEvents.map((e) => e.number),

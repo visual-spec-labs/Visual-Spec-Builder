@@ -2,12 +2,12 @@ import { spawnSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 // 제작 연대기(docs/history) 생성기 scripts/history/sync.mjs 회귀 검사.
-// 네트워크·Git 없이 커밋된 데이터와 snapshot 파일(--input)만 쓴다.
+// 네트워크 없이 커밋된 데이터·snapshot 파일과 임시 로컬 Git 저장소를 쓴다.
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const SCRIPT = join(REPO_ROOT, "scripts", "history", "sync.mjs");
@@ -185,6 +185,85 @@ describe("증분 sync", () => {
     expect(second.stdout).toContain("추가: PR 0건, 이슈 0건, 커밋 0개");
     expect(historyBytes(root)).toEqual(synced);
     expect(sync(["--check"], root).status).toBe(0);
+  });
+
+  it("동등한 UTC 표기를 받아들이고 기존 원장·수집 근거를 보존한다", () => {
+    const root = copyHistory();
+    const { snapshot } = snapshotFor(root);
+    const original = readJson<{ commits: Commit[] }>(root, "commits").commits;
+    const source = readJson<{ retrievedAt: string; sourceQueries: string[]; issues: unknown[] }>(root, "issues");
+    snapshot.commits = snapshot.commits.map((c) => ({
+      ...c, committedAt: new Date(c.committedAt).toISOString().replace(".000Z", "+00:00"),
+    }));
+    const result = sync(["--input", writeSnapshot(root, snapshot)], root);
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    expect(readJson<{ commits: Commit[] }>(root, "commits").commits.slice(0, original.length)).toEqual(original);
+    const issues = readJson<typeof source & { lastSyncedAt: string }>(root, "issues");
+    expect(issues.retrievedAt).toBe(source.retrievedAt);
+    expect(issues.sourceQueries).toEqual(source.sourceQueries);
+    expect(issues.lastSyncedAt).toBe(snapshot.cutoff);
+    expect(issues.issues.slice(0, source.issues.length)).toEqual(source.issues);
+  });
+
+  it.each(["time", "invalid", "parents"])("실제 변경(%s)은 쓰기 전에 거부한다", (change) => {
+    const root = copyHistory();
+    const { snapshot } = snapshotFor(root);
+    const commit = snapshot.commits.find((c) => c.parents.length > 1)!;
+    if (change === "time") commit.committedAt = new Date(Date.parse(commit.committedAt) + 1000).toISOString();
+    if (change === "invalid") commit.committedAt = "invalid";
+    if (change === "parents") commit.parents = [...commit.parents].reverse();
+    const before = historyBytes(root);
+    const result = sync(["--input", writeSnapshot(root, snapshot)], root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("새 develop 이력에 없거나 달라졌습니다");
+    expect(historyBytes(root)).toEqual(before);
+  });
+
+  it("실제 Git 출력과 Z·UTC·KST 표기를 sync와 verification 양쪽에서 대조한다", () => {
+    const root = copyHistory();
+    const git = (args: string[]) => {
+      const result = spawnSync("git", args, { cwd: root, encoding: "utf8", env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "History test", GIT_AUTHOR_EMAIL: "history@example.invalid",
+        GIT_COMMITTER_NAME: "History test", GIT_COMMITTER_EMAIL: "history@example.invalid",
+        GIT_AUTHOR_DATE: "2026-10-09T16:59:12+00:00", GIT_COMMITTER_DATE: "2026-10-09T16:59:12+00:00",
+      } });
+      expect(result.status, result.stderr).toBe(0);
+    };
+    git(["init", "--quiet"]);
+    git(["-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "root"]);
+    git(["-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "child"]);
+    // JS 모듈을 CLI와 같은 Node에서 실행한다. 얕은 CI checkout의 과거 객체에 의존하지 않는다.
+    const code = `
+      import assert from "node:assert/strict";
+      import { readGitCommits, verifyGitCommits } from ${JSON.stringify(pathToFileURL(join(REPO_ROOT, "scripts/history/collect.mjs")).href)};
+      import { applySnapshot, loadHistory } from ${JSON.stringify(pathToFileURL(join(REPO_ROOT, "scripts/history/lib.mjs")).href)};
+      const root = process.argv[1];
+      const actual = readGitCommits(root, "HEAD");
+      assert.equal(actual.length, 2);
+      assert.equal(Date.parse(actual[0].committedAt), Date.parse("2026-10-09T16:59:12Z"));
+      const data = loadHistory(root);
+      const snapshot = { snapshotCommit: actual[0].sha, cutoff: data.events.generatedAt,
+        commits: actual, pullRequests: [], issues: [] };
+      for (const committedAt of ["2026-10-09T16:59:12Z", "2026-10-09T16:59:12+00:00", "2026-10-10T01:59:12+09:00"]) {
+        data.commits = { ...data.commits, snapshotCommit: actual[0].sha,
+          commits: actual.map(c => ({ ...c, committedAt })) };
+        verifyGitCommits(root, data.commits);
+        const result = applySnapshot(data, snapshot);
+        assert.equal(result.added.commits, 0);
+        assert.ok(result.data.commits.commits.every(c => c.committedAt === committedAt));
+      }
+      for (const patch of [{ committedAt: "2026-10-09T16:59:13Z" }, { committedAt: "invalid" }, { parents: [] }]) {
+        const changed = structuredClone(data);
+        Object.assign(changed.commits.commits[0], patch);
+        assert.throws(() => verifyGitCommits(root, changed.commits), /Git 이력과 다릅니다/);
+        assert.throws(() => applySnapshot(changed, snapshot), /새 develop 이력에 없거나 달라졌습니다/);
+      }
+    `;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", code, root], { encoding: "utf8" });
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
   });
 
   it("기존 커밋이 develop 이력에서 사라지면 아무것도 쓰지 않고 멈춘다", () => {

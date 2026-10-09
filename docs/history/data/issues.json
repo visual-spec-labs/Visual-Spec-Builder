@@ -2,7 +2,7 @@
   "repo": "visual-spec-labs/Visual-Spec-Builder",
   "cutoff": "2026-10-09T18:02:12.708Z",
   "timezone": "Asia/Seoul",
-  "source": "GitHub issue search (is:issue, created before cutoff). The baseline below was collected at 2026-10-08T11:02:17.618Z; later issues are appended by scripts/history/sync.mjs. Titles are as of each collection, not historical title snapshots",
+  "source": "GitHub issue search (is:issue, created before cutoff). The baseline cutoff is 2026-10-08T11:02:17.618Z and its retrieval time is retrievedAt; later issues are appended by scripts/history/sync.mjs. Titles are as of each collection, not historical title snapshots",
   "issues": [
     {
       "number": 2,
@@ -1277,7 +1277,8 @@
       "url": "https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/328"
     }
   ],
-  "retrievedAt": "2026-10-09T18:02:12.708Z",
+  "retrievedAt": "2026-10-08T12:29:29.709996+00:00",
+  "lastSyncedAt": "2026-10-09T18:02:12.708Z",
   "sourceQueries": [
     "repo:visual-spec-labs/Visual-Spec-Builder is:issue created:<2026-09-27",
     "repo:visual-spec-labs/Visual-Spec-Builder is:issue created:2026-09-27..2026-10-08T11:02:17Z"
