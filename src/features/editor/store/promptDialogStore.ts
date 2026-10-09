@@ -131,7 +131,7 @@ export function promptPick(options: PickPromptOptions): Promise<string | null> {
 }
 
 /** Destructive transition: cancellation is the default, and abort only closes its own request. */
-export function promptConfirm(options: { title: string; message: string; signal: AbortSignal }): Promise<boolean> {
+export function promptConfirm(options: { title: string; message: string; signal: AbortSignal; confirmLabel?: string }): Promise<boolean> {
   if (options.signal.aborted) return Promise.resolve(false);
   cancelPending();
   const requestId = ++nextRequestId;
@@ -140,7 +140,7 @@ export function promptConfirm(options: { title: string; message: string; signal:
     options.signal.addEventListener("abort", abort, { once: true });
     usePromptDialogStore.setState({ state: {
       kind: "confirm", requestId, title: options.title, message: options.message,
-      confirmLabel: "계속하기", cancelLabel: "취소",
+      confirmLabel: options.confirmLabel ?? "계속하기", cancelLabel: "취소",
       resolve: (value) => {
         options.signal.removeEventListener("abort", abort);
         resolve(value === "confirm");

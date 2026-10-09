@@ -134,13 +134,14 @@ try {
   accepted.on("dialog", async d => { notices.push(d.message()); await d.dismiss(); });
   await accepted.goto(url);
   await accepted.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
+  await accepted.getByRole("button", {name: "File", exact: true}).waitFor();
   await accepted.evaluate(async () => {
     const {useEditorStore: e} = await import("/src/features/editor/store/editorStore.ts");
     e.getState().setPageField(e.getState().activePageId, "name", "Accept draft");
     const {newSpec} = await import("/src/features/editor/ui/newSpec.ts");
     window.result = newSpec();
   });
-  await accepted.getByRole("button", {name: "계속하기", exact: true}).click();
+  await accepted.getByRole("button", {name: "초안 보관 후 이동", exact: true}).click();
   assert.equal(await accepted.evaluate(() => window.result), true);
   assert.equal(await accepted.getByRole("alertdialog").count(), 0);
   await accepted.getByRole("button", {name: "File", exact: true}).click();

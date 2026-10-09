@@ -1,3 +1,4 @@
+import { UnnamedDrafts } from "./UnnamedDrafts";
 import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type {
@@ -259,6 +260,7 @@ export function HomeScreen() {
   if (cards.length === 0 && draftMode) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
+        <UnnamedDrafts />
         <div className="text-center">
           <p className="text-lg font-semibold text-content-strong">자연어로 초안 만들기</p>
           <p className="mt-1 text-sm text-content-muted">만들고 싶은 화면을 설명해 주세요</p>
@@ -331,6 +333,7 @@ export function HomeScreen() {
   if (cards.length === 0) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
+        <UnnamedDrafts />
         <div className="text-center">
           <p className="text-lg font-semibold text-content-strong">첫 프로젝트를 만들어 봅시다</p>
           <p className="mt-1 text-sm text-content-muted">어떻게 시작하시겠습니까?</p>
@@ -388,6 +391,7 @@ export function HomeScreen() {
 
       <div ref={setScrollRoot} data-loading={state.kind === "ready" && state.loading ? "true" : undefined}
         className="flex-1 overflow-auto p-6">
+        <UnnamedDrafts />
         {message && <p role="alert" className="mb-4 text-sm">{message}</p>}
         <p className="mb-4 text-sm text-content-muted">
           프로젝트 {cards.length}개{state.kind === "ready" && state.loading ? " · 불러오는 중…" : ""}
