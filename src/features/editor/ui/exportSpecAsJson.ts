@@ -1,3 +1,5 @@
+import { useEditorStore } from "@/features/editor/store/editorStore";
+import { usePersistenceStatusStore, type SaveAttempt } from "@/features/editor/store/persistenceStatusStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import type { ProjectSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
@@ -66,11 +68,11 @@ export function exportSpecAsJson(spec: ProjectSpec): ExportResult {
  * 갱신한다. 실패한 저장으로 이름을 바꾸면 그 뒤의 Save가 한 번도 써 본 적 없는
  * 파일을 향한다. 다운로드로 되돌아간 경우도 성공으로 친다(파일은 남았다).
  */
-async function saveToWorkspace(filename: string, json: string, isCurrent: () => boolean): Promise<{ revision: string | null } | null> {
+async function saveToWorkspace(filename: string, json: string, isCurrent: () => boolean): Promise<{ revision: string | null; downloaded?: boolean } | null> {
   if (!(await isWorkspaceAvailable())) {
     if (!isCurrent()) return null;
     downloadTextFile(filename, json);
-    return { revision: null };
+    return { revision: null, downloaded: true };
   }
 
   if (!isCurrent() || useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return null;
@@ -97,6 +99,28 @@ async function saveToWorkspace(filename: string, json: string, isCurrent: () => 
   return saved ? { revision } : null;
 }
 
+/** 기존 저장 판단은 유지하고 현재 문서의 최신 요청 결과만 표시한다. */
+async function saveAndObserve(spec: ProjectSpec, filename: string, json: string, isCurrent: () => boolean) {
+  if (!isCurrent()) return;
+  const attempt: SaveAttempt = { documentId: useEditorStore.getState().documentId, spec, phase: "saving" };
+  usePersistenceStatusStore.setState({ attempt });
+  let phase: SaveAttempt["phase"] | null = "failed";
+  try {
+    const saved = await saveToWorkspace(filename, json, isCurrent);
+    if (!isCurrent()) { phase = null; return; }
+    if (saved) {
+      // 디스크 성공은 여기서 "저장됨"으로 확정하지 않는다. diskWatch의 실제 내용 확인을 기다린다.
+      useDocumentStore.getState().setFileName(filename, saved.revision);
+      phase = saved.downloaded ? "downloaded" : null;
+    }
+  } finally {
+    if (usePersistenceStatusStore.getState().attempt === attempt) {
+      usePersistenceStatusStore.setState({ attempt: useEditorStore.getState().documentId === attempt.documentId && phase
+        ? { ...attempt, phase } : null });
+    }
+  }
+}
+
 /**
  * File ▸ Save — **지금 열려 있는 그 파일**에 쓴다 (PR #145 리뷰, wook3964).
  *
@@ -117,15 +141,13 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
   const isCurrent = useSaveConflictStore.getState().captureDocument();
   const result = buildExportPayload(spec);
   if (!result.ok) {
+    usePersistenceStatusStore.setState({ attempt: { documentId: useEditorStore.getState().documentId, spec, phase: "failed" } });
     window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
     return result;
   }
 
   const filename = useDocumentStore.getState().fileName ?? result.filename;
-  const saved = await saveToWorkspace(filename, result.json, isCurrent);
-  if (saved && isCurrent()) {
-    useDocumentStore.getState().setFileName(filename, saved.revision);
-  }
+  await saveAndObserve(spec, filename, result.json, isCurrent);
   return { ...result, filename };
 }
 
@@ -141,6 +163,7 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
   const isCurrent = useSaveConflictStore.getState().captureDocument();
   const result = buildExportPayload(spec);
   if (!result.ok) {
+    usePersistenceStatusStore.setState({ attempt: { documentId: useEditorStore.getState().documentId, spec, phase: "failed" } });
     window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
     return result;
   }
@@ -152,10 +175,7 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
   }
 
   const filename = resolveFilename(chosenName, current);
-  const saved = await saveToWorkspace(filename, result.json, isCurrent);
-  if (saved && isCurrent()) {
-    useDocumentStore.getState().setFileName(filename, saved.revision);
-  }
+  await saveAndObserve(spec, filename, result.json, isCurrent);
   return { ...result, filename };
 }
 
