@@ -217,10 +217,10 @@ export function LayoutSection() {
           disabled={!canEqualize}
           title={
             parentMainAxisSize === "auto"
-              ? "부모 크기가 Hug라 채울 공간이 없다. 너비/높이를 Fixed나 Fill로 바꾼 뒤 눌러라."
-              : "모든 자식의 크기를 같게 맞춘다 (주축 → Fill, 교차축 → 채움)"
+              ? "부모가 내용 맞춤 (Hug)이므로 채울 공간이 없습니다. 너비/높이를 고정 (Fixed) 또는 공간 채움 (Fill)으로 바꾸세요."
+              : "모든 자식의 크기를 같게 맞춥니다 (주축 → 공간 채움 (Fill), 교차축 → 채움)."
           }
-          className="w-full rounded-control border border-line bg-surface py-1.5 text-xs font-medium text-content hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="w-full rounded-control border border-line bg-surface py-1.5 text-xs font-medium text-content hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-content disabled:cursor-not-allowed disabled:opacity-40"
         >
           자식 크기 균등
         </button>

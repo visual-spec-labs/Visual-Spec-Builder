@@ -44,6 +44,14 @@ with sync_playwright() as p:
     def section(name): return panel.locator('section').filter(has=page.get_by_role('button',name=name,exact=True))
     # 루트 + 스키마 노드 5종, base/override에서 이름 없는 실제 폼 컨트롤이 없어야 한다.
     orders={}
+    expected_sections={
+        'root':['페이지 (Page)','배치 (Layout)','크기 (Size)','배경 (Background)','테두리 (Border)','효과 (Effects)'],
+        'frame':['배치 (Layout)','크기 (Size)','배경 (Background)','테두리 (Border)','효과 (Effects)'],
+        'text':['내용 (Content)','크기 (Size)','글꼴 (Font)','글자색 (Color)','효과 (Effects)'],
+        'image':['내용 (Content)','크기 (Size)','효과 (Effects)'],
+        'button':['내용 (Content)','크기 (Size)','글꼴 (Font)','글자색 (Color)','배경 (Background)','테두리 (Border)'],
+        'input':['내용 (Content)','크기 (Size)','글꼴 (Font)','글자색 (Color)','배경 (Background)','테두리 (Border)'],
+    }
     for theme in ['light', 'dark']:
         page.evaluate('t=>document.documentElement.dataset.theme=t',theme)
         for mode in ['', 'tablet']:
@@ -51,6 +59,9 @@ with sync_playwright() as p:
             for node in ['root','frame','text','image','button','input']:
                 select(node)
                 orders[f'{theme}/{mode or "base"}/{node}']=panel.locator('section > button').all_text_contents()
+                expected=expected_sections[node]
+                if mode: expected=[title for title in expected if title not in ['페이지 (Page)','내용 (Content)']]
+                assert orders[f'{theme}/{mode or "base"}/{node}']==expected
                 unnamed=panel.locator('input:not([type=hidden]):not([type=file]),textarea,select').evaluate_all('''els=>els.filter(e=>!e.getAttribute('aria-label')&&!e.getAttribute('aria-labelledby')&&![...e.labels??[]].some(l=>l.textContent.trim())).map(e=>e.outerHTML)''')
                 assert not unnamed, unnamed
                 expect(panel.locator('[aria-invalid=true]')).to_have_count(0)
@@ -157,9 +168,56 @@ with sync_playwright() as p:
         assert panel.evaluate('e=>e.scrollWidth<=e.clientWidth')
         assert panel.locator('div.overflow-auto').evaluate('e=>e.scrollWidth<=e.clientWidth')
         page.screenshot(path=str(artifacts/f'{theme}.png'));reports.append({'theme':theme,**metrics})
+    # JSON 내보내기의 실패/성공 계약과 오류 전달, 균등 버튼의 동작·Undo·포커스.
+    select('root')
+    equalize=panel.get_by_role('button',name='자식 크기 균등',exact=True)
+    expect(equalize).to_be_enabled()
+    expect(equalize).to_have_attribute('title',re.compile(r'공간 채움 \(Fill\)'))
+    before=spec();past=history();equalize.focus();equalize.press('Enter');assert history()==past+1
+    page.get_by_role('button',name='되돌리기',exact=True).click();assert spec()==before
+    select('root')
+    root_size=section('크기 (Size)')
+    root_size.get_by_role('combobox',name='높이 (H) 크기 모드').select_option('auto')
+    expect(equalize).to_be_disabled()
+    expect(equalize).to_have_attribute('title',re.compile(r'내용 맞춤 \(Hug\).*고정 \(Fixed\).*공간 채움 \(Fill\)'))
+    root_size.get_by_role('combobox',name='높이 (H) 크기 모드').select_option('fixed')
+    valid=page.evaluate('structuredClone(window.qa.getState().spec)')
+    page.evaluate("() => {const spec=structuredClone(window.qa.getState().spec);spec.name='';window.qa.getState().loadSpec(spec)}")
+    export_button=panel.get_by_role('button',name='JSON 내보내기',exact=True)
+    downloads=[];page.on('download',lambda d: downloads.append(d))
+    page.on('dialog',lambda d: d.accept()) # 기존 exportSpecAsJson 경고 계약 유지
+    before=spec();past=history();export_button.click()
+    error=panel.get_by_role('alert')
+    expect(error).to_contain_text('오류: JSON을 내보낼 수 없습니다.')
+    expect(export_button).to_have_attribute('aria-describedby',error.get_attribute('id'))
+    assert not downloads and spec()==before and history()==past
+    page.evaluate('spec=>window.qa.getState().loadSpec(spec)',valid)
+    before=spec();past=history()
+    with page.expect_download() as download:
+        export_button.click()
+    assert json.loads(Path(download.value.path()).read_text())==json.loads(before)
+    assert spec()==before and history()==past
+    expect(panel.get_by_role('alert')).to_have_count(0)
+    expect(export_button).not_to_have_attribute('aria-describedby',re.compile('.+'))
+    select('root')
+    criteria.select_option('')
+    button_focus=[]
+    for theme in ['light','dark']:
+        page.evaluate('t=>document.documentElement.dataset.theme=t',theme)
+        for name,control in [('equalize',equalize),('export',export_button)]:
+            control.focus();control.press('Tab');page.keyboard.press('Shift+Tab')
+            expect(control).to_be_focused()
+            metric=control.evaluate("""e=>{
+              const c=getComputedStyle(e),ctx=document.createElement('canvas').getContext('2d');
+              const lum=color=>{ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data].slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0)};
+              const a=lum(c.outlineColor),b=lum(getComputedStyle(e.closest('aside')).backgroundColor);
+              return {focus:e.matches(':focus-visible'),outline:c.outlineWidth,contrast:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};
+            }""")
+            assert metric['focus'] and metric['outline']=='2px' and metric['contrast']>=3,metric
+            button_focus.append({'theme':theme,'control':name,**metric})
     panel.get_by_role('button',name='속성 패널 접기').click();expect(panel).to_have_count(0)
     expand=page.get_by_role('button',name='속성 패널 펼치기');expand.focus();expand.press('Enter');expect(panel).to_be_visible()
     assert not errors,errors
-    result={'browser':browser.version,'sections':orders,'contrast':reports,'pageErrors':errors,'ime':'Chromium CDP composition; OS IME not automated'}
+    result={'browser':browser.version,'sections':orders,'contrast':reports,'buttonFocus':button_focus,'pageErrors':errors,'ime':'Chromium CDP composition; OS IME not automated'}
     (artifacts/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
     print(json.dumps(result,ensure_ascii=False));browser.close()
