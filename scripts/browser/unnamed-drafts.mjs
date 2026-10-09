@@ -45,6 +45,8 @@ try {
   page.on("dialog", async dialog => { notices.push(dialog.message()); await dialog.accept(); });
   await page.goto(url);
   await page.getByRole("button", { name: "빈 캔버스에서 시작" }).waitFor();
+  const status = target => target.locator('[role="status"][aria-label="저장 상태"]');
+  const waitStatus = async (target, text) => { await status(target).filter({ hasText: text }).waitFor(); };
   async function state(target = page) {
     return target.evaluate(async () => {
       const { useEditorStore: editor } = await import("/src/features/editor/store/editorStore.ts");
@@ -65,6 +67,7 @@ try {
   await page.getByRole("button", {name: "File", exact: true}).waitFor();
   await edit("Fixture draft A");
   const original = await state();
+  await waitStatus(page, "파일 미저장 · 브라우저 초안 보관됨");
   await page.getByRole("button", { name: "홈으로" }).click();
   await drafts.getByRole("button", { name: "이어서 열기" }).click();
   await page.getByRole("button", {name: "File", exact: true}).waitFor();
@@ -76,6 +79,7 @@ try {
   await drafts.getByRole("button", { name: "이어서 열기" }).click();
   await page.getByRole("button", {name: "File", exact: true}).waitFor();
   assert.deepEqual(await state(), original);
+  await waitStatus(page, "파일 미저장 · 브라우저 초안 보관됨");
   console.log("PASS empty workspace Home/Resume/reload", original.key, createHash("sha256").update(JSON.stringify(original.spec)).digest("hex"));
 
   // A real opener copies sessionStorage; the new tab must use an independent UUID.
@@ -137,11 +141,13 @@ try {
     await page.evaluate(() => window.pendingSave);
   }
   await saveAs("Fixture saved");
+  await waitStatus(page, "파일 저장 실패");
   assert.deepEqual(await state(), original);
   await page.unroute("**/file/specs/*");
   await saveAs("Fixture saved");
   await page.waitForTimeout(650);
   assert.equal((await state()).file, "Fixture saved.json");
+  await waitStatus(page, "파일 저장됨");
   assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), original.spec);
   assert.equal(await page.evaluate(key => localStorage.getItem(key), original.key), null);
   await page.getByRole("button", { name: "홈으로" }).click();
@@ -246,6 +252,7 @@ try {
   await tryOwnedAction();
   await tabA.getByText(/다른 탭에서 사용 중인 초안/).waitFor();
   assert.deepEqual(await state(tabB), returningDraft);
+  assert.equal(await tabA.evaluate(async () => (await import("/src/features/editor/store/persistenceStatusStore.ts")).usePersistenceStatusStore.getState().draft.owner), "blocked");
   await tabB.close();
   if (returningAction === "delete") {
     await row(tabA).getByRole("button", {name: "삭제…"}).click();
@@ -304,6 +311,7 @@ try {
   await memory.getByRole("button", {name: "File", exact: true}).waitFor();
   await edit("Memory-only fixture", memory);
   const memoryState = await state(memory);
+  await waitStatus(memory, "파일 미저장 · 현재 탭에만 보관");
   await memory.getByRole("button", {name: "홈으로"}).click();
   await memory.getByText("브라우저 보관 대기 — 이 탭을 닫지 마세요.", {exact: true}).waitFor();
   await memory.getByRole("region", {name: "보관한 초안"}).getByRole("button", {name: "이어서 열기"}).click();

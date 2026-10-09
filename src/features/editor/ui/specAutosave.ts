@@ -1,3 +1,4 @@
+import { usePersistenceStatusStore, type DraftObservation } from "@/features/editor/store/persistenceStatusStore";
 import { beginDocumentTransition } from "./documentTransition";
 import { promptConfirm } from "@/features/editor/store/promptDialogStore";
 import { claimDraft } from "./draftOwnership";
@@ -40,7 +41,9 @@ export function startSpecAutosave() {
   const namedRecovery = reuseRecovery ? recovery : undefined;
   let key = document.fileName !== null ? projectStorageKey(document.fileName, untitledId)
     : namedRecovery?.key ?? projectStorageKey(null, untitledId);
-  let ownership = document.fileName === null ? claimDraft(key) : undefined;
+  let ownerState: DraftObservation["owner"] = "pending";
+  let sessionPreserved = false;
+  let ownership = document.fileName === null ? claimOwnership(key) : undefined;
   let baseline = namedRecovery ? namedRecovery.baseline : read(key);
   let conflicted = recovery?.conflicted ?? false;
   let diskConflict = recovery?.diskConflict ?? false;
@@ -76,11 +79,28 @@ export function startSpecAutosave() {
   function read(storageKey: string): string | null {
     try { return localStorage.getItem(storageKey); } catch { return null; }
   }
+  function reportDraft() {
+    usePersistenceStatusStore.setState({ draft: { documentId: useEditorStore.getState().documentId,
+      spec: document.spec, fileName: document.fileName, session: sessionPreserved,
+      shared: read(key) === serializeStoredDocument(document), owner: ownerState } });
+  }
+  function claimOwnership(draftKey: string) {
+    ownerState = "pending";
+    const claim = claimDraft(draftKey);
+    void claim.ready.then(owned => {
+      if (stopped || ownership !== claim) return;
+      ownerState = owned ? "owned" : claim.status === "busy" ? "blocked" : "unavailable";
+      reportDraft();
+    });
+    return claim;
+  }
   function preserve() {
     const active = edited && isRecoverableUnnamed(document) ? { key, raw: serializeStoredDocument(document), document } : null;
     const previous = useUnnamedDraftStore.getState().active;
     if (previous?.key !== active?.key || previous?.raw !== active?.raw) useUnnamedDraftStore.setState({ active });
-    return writeRecovery({ document, key, baseline, conflicted, renameBaseline, diskConflict, reason: pauseReason });
+    sessionPreserved = writeRecovery({ document, key, baseline, conflicted, renameBaseline, diskConflict, reason: pauseReason });
+    reportDraft();
+    return sessionPreserved;
   }
   function pause(fromDisk = false, reason: PauseReason = fromDisk ? "disk" : "remote") {
     pendingTransition?.abort();
@@ -115,7 +135,7 @@ export function startSpecAutosave() {
         saveSpecToStorage(document.spec, document.fileName, document.diskRevision, key);
         notifyUnnamedDrafts();
         preserve();
-      } catch { /* The per-tab recovery and explicit download remain available. */ }
+      } catch { reportDraft(); /* The per-tab recovery and explicit download remain available. */ }
     };
     // Serializes the compare/write pair across tabs. No unlocked write fallback:
     // unsupported browsers retain session recovery and manual file download.
@@ -151,7 +171,7 @@ export function startSpecAutosave() {
       } else oldOwnership?.release();
       if (next.fileName === null) untitledId = crypto.randomUUID();
       key = projectStorageKey(next.fileName, untitledId);
-      if (next.fileName === null) ownership = claimDraft(key);
+      if (next.fileName === null) ownership = claimOwnership(key);
       baseline = read(key);
       renameBaseline = read(`${key}:rename`);
       if (baseline !== null && baseline !== serializeStoredDocument(next) &&
@@ -372,7 +392,7 @@ export function startSpecAutosave() {
           if (!transition.current()) return "changed";
           await ownership?.release();
           if (!transition.current()) return "changed";
-          ownership = claimDraft(key);
+          ownership = claimOwnership(key);
           if (!await ownership.ready) return "busy";
           if (!transition.current()) return "changed";
           // A previous debounce may have stopped at the failed claim. Requeue
@@ -404,7 +424,7 @@ export function startSpecAutosave() {
             ownership?.release();
             key = projectStorageKey(null, crypto.randomUUID());
             baseline = null;
-            ownership = claimDraft(key);
+            ownership = claimOwnership(key);
             preserve();
             saveSpecToStorage(document.spec, null, null, key);
           }
@@ -412,6 +432,7 @@ export function startSpecAutosave() {
         } else if (!own) {
           ownership?.release();
           ownership = claim;
+          ownerState = "owned";
           claim = undefined;
           adoptLatest(draft.document, true, draft.key);
         }
@@ -444,7 +465,7 @@ export function startSpecAutosave() {
           ownership?.release();
           untitledId = crypto.randomUUID();
           key = projectStorageKey(null, untitledId);
-          ownership = claimDraft(key);
+          ownership = claimOwnership(key);
           baseline = null;
           renameBaseline = null;
         }

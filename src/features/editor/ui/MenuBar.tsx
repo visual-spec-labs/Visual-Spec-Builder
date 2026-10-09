@@ -1,3 +1,4 @@
+import { DocumentSaveStatus } from "./DocumentSaveStatus";
 import { useEffect, useRef, useState } from "react";
 
 import { useDocumentStore } from "@/features/editor/store/documentStore";
@@ -221,12 +222,15 @@ export function MenuBar() {
         </button>
       </div>
 
+      <div className="min-w-0 flex-1 text-center">
       <span
-        className="min-w-0 flex-1 truncate text-center text-xs text-content-muted"
+        className="block truncate text-xs text-content-muted"
         title={formatDocumentTitle(projectName, pageName, fileName)}
       >
         {formatDocumentTitle(projectName, pageName, fileName)}
       </span>
+      <DocumentSaveStatus />
+      </div>
 
       <ThemeToggle />
     </header>
