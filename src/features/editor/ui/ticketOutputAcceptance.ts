@@ -535,8 +535,11 @@ export interface RestoreReport {
 function isRunRecord(value: unknown): value is RunRecord {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Partial<RunRecord>;
-  return record.protocol === 2 && (record.phase === "committed" || record.phase === "recovery") && typeof record.runId === "string" && Array.isArray(record.files) &&
+  return record.protocol === 2 && (record.phase === "committed" || record.phase === "recovery") &&
+    typeof record.runId === "string" && typeof record.requestId === "string" && record.requestId.length > 0 && Array.isArray(record.files) &&
     record.files.every((file) => typeof file === "object" && file !== null && typeof file.path === "string" &&
+      typeof file.ticketId === "string" &&
+      (file.previousEntry === null || parseGenerationManifest(JSON.stringify({ protocol: GENERATION_MANIFEST_PROTOCOL, entries: { previous: file.previousEntry } })).entries.previous !== undefined) &&
       typeof file.writtenRevision === "string" &&
       (file.backupPath === null || typeof file.backupPath === "string") &&
       (file.previousRevision === null || typeof file.previousRevision === "string"));

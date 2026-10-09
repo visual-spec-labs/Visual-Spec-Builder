@@ -951,3 +951,21 @@ it("복구 provenance가 손상되면 동일 바이트여도 자동 undo하지 �
   expect(generatedWrites()).toEqual([]);
   expect(useTicketStore.getState().lastRun).toEqual(recovery);
 });
+
+
+it("복구 기록의 provenance 필드가 빠지면 예외나 mutation 없이 자동 undo를 거부한다", async () => {
+  await seedLastGoodAndManualEdit();
+  const { run } = await secondRoundToReview();
+  answerOverwriteReview({ [HEADER]: "overwrite" });
+  await finish(run);
+  const recovery = useTicketStore.getState().lastRun!;
+  const path = `${recovery.backupRoot}/run.json`;
+  const broken = JSON.parse(textOf(workspace, path)!);
+  delete broken.files[0].previousEntry;
+  workspace.files.set(path, JSON.stringify(broken));
+  workspace.log.length = 0;
+  await restoreLastRun();
+  expect(generatedWrites()).toEqual([]);
+  expect(useTicketStore.getState().lastRun).toEqual(recovery);
+  expect(useTicketStore.getState().restoreMessage).toContain("복구 범위 기록");
+});
