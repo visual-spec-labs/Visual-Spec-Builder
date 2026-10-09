@@ -223,3 +223,17 @@ Node·Python Playwright 1.62.0, 시스템 Chromium 151.0.7922.173에서 확인�
 
 CI의 최종 SHA 및 실제 실행 결과는 후속 Draft PR에 기록한다. 이 기록은 실제 모델/외부
 에이전트 또는 #292 전체 검증 완료의 증거가 아니다.
+
+
+## 손상 파일 Open의 완료 대기 회귀
+
+기준 develop `130f6b565402b8245cc2b7606e8450fba83cf020`의
+[CI 실패](https://github.com/visual-spec-labs/Visual-Spec-Builder/actions/runs/37981642459/job/113993370505)는
+`project-dialogs.mjs`가 picker 닫힘만 기다린 뒤 `broken.json` 알림 존재를 단언해서 발생했다.
+Open은 picker를 닫은 다음 비동기 파일 읽기·문서 전환 준비·JSON 파싱을 진행한다.
+
+실제 Chromium에서 broken.json 응답을 보류하자 picker가 먼저 닫히고 기존 알림 단언이
+실패하는 것을 재현했다. 회귀는 보류 중 문서/선택/history 보존과 알림 부재를 확인하고,
+응답 해제 전에 해당 파일의 **검증 실패 alert**를 구독해 최대 10초 기다린다. 이후에도 기존
+문서 보존과 알림 단언을 그대로 검사한다. 잘못된 오류나 알림 누락은 통과시키지 않는다.
+고정 sleep·자동 재시도·skip·제품 코드 변경은 추가하지 않았다. 기존 120초 여정 상한도 유지한다.
