@@ -141,6 +141,59 @@ try {
   await page.keyboard.press("Escape");
   assert.equal(await details.getAttribute("open"), null);
   console.log("PASS document replacement and keyboard state explanation");
+  // 지연 baseline r1보다 먼저 완료된 poll r2를 이전 응답이 덮지 않아야 한다.
+  let releaseBaseline;
+  let baselineCaptured;
+  const baselineGate = new Promise(resolve => { releaseBaseline = resolve; });
+  const captured = new Promise(resolve => { baselineCaptured = resolve; });
+  let firstRead = true;
+  await page.route("**/file/specs/*", async route => {
+    if (route.request().method() === "GET" && firstRead) {
+      firstRead = false;
+      const response = await route.fetch();
+      baselineCaptured();
+      await baselineGate;
+      await route.fulfill({response});
+    } else await route.continue();
+  });
+  await page.evaluate(async () => {
+    const {useEditorStore:s} = await import("/src/features/editor/store/editorStore.ts");
+    s.getState().loadSpec(structuredClone(s.getState().spec));
+  });
+  await captured;
+  const currentB = await state();
+  await writeFile(join(specs, "Status B.json"), JSON.stringify({...currentB, name:"외부 r2"}));
+  await waitStatus("외부 파일 변경");
+  await page.getByRole("button", {name:"내 편집 유지", exact:true}).click();
+  await page.evaluate(async () => {
+    const {usePersistenceStatusStore:s} = await import("/src/features/editor/store/persistenceStatusStore.ts");
+    const {useAgentEditStore:a} = await import("/src/features/editor/store/agentEditStore.ts");
+    window.qaDiskObservations = [];
+    window.qaNotices = [];
+    s.subscribe(state => window.qaDiskObservations.push(state.disk));
+    a.subscribe((next, prev) => { if (next.diskNotice !== prev.diskNotice && next.diskNotice) window.qaNotices.push(next.diskNotice); });
+  });
+  releaseBaseline();
+  await page.waitForTimeout(3500);
+  await waitStatus("외부 파일 변경");
+  assert.equal(await page.evaluate(() => window.qaDiskObservations.some(d => d?.json && JSON.parse(d.json).name === "Status B")), false);
+  await page.unroute("**/file/specs/*");
+  await page.route("**/file/specs/*", route => route.request().method() === "GET"
+    ? route.fulfill({status:503, body:"transient failure"}) : route.continue());
+  await waitStatus("파일 저장 미확인");
+  await page.unroute("**/file/specs/*");
+  await waitStatus("외부 파일 변경");
+  await page.getByRole("button", {name:"홈으로"}).click();
+  // 같은 메모리 문서를 Resume하는 navigation 경로. 파일을 다시 여는 동작과 구별한다.
+  await page.evaluate(async () => {
+    const {useNavigationStore:s} = await import("/src/features/editor/store/navigationStore.ts");
+    s.getState().openEditor();
+  });
+  await waitStatus("외부 파일 변경");
+  await page.waitForTimeout(3200);
+  assert.equal(await page.evaluate(() => window.qaNotices.length), 0);
+  assert.deepEqual(await state(), currentB);
+  console.log("PASS delayed r1 cannot overwrite r2; failed GET and Home/Resume recover without duplicate notice or false saved");
   const fallbackContext = await browser.newContext();
   const fallback = await fallbackContext.newPage();
   fallback.on("dialog", d => d.accept());

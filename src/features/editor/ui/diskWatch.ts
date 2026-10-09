@@ -47,6 +47,8 @@ export function startDiskWatch(): () => void {
   /** 사용자가 "내 편집 유지"를 고른 디스크 버전 — 같은 버전으로 다시 묻지 않는다. */
   let keptRevision: string | null = null;
   let generation = 0;
+  let readSequence = 0;
+  let acceptedRead = 0;
   let noticeGeneration = -1;
   const pending = new Set<AbortController>();
   const eligible = () => useNavigationStore.getState().screen === "editor" && !useSaveConflictStore.getState().paused;
@@ -88,16 +90,19 @@ export function startDiskWatch(): () => void {
   }
 
   /** 지금 문서의 디스크 버전 내용을 읽어 기준으로 삼는다. 읽는 동안 기준은 모른다. */
-  async function refreshBaseline() {
+  async function refreshBaseline(resetKept = true) {
     baselineJson = null;
     baselineRevision = null;
-    keptRevision = null;
+    if (resetKept) keptRevision = null;
     const { fileName, diskRevision } = useDocumentStore.getState();
     if (fileName === null || diskRevision === null) return;
     const requestGeneration = generation;
+    const requestRead = ++readSequence;
     const snapshot = await read(fileName);
     const now = useDocumentStore.getState();
-    if (stopped || requestGeneration !== generation || !eligible() || snapshot === null || now.fileName !== fileName || now.diskRevision !== diskRevision) return;
+    if (stopped || requestGeneration !== generation || !eligible() || requestRead < acceptedRead || now.fileName !== fileName || now.diskRevision !== diskRevision) return;
+    acceptedRead = requestRead;
+    if (snapshot === null) { observe(fileName, null, null); return; }
     const spec = parseDisk(snapshot.text);
     observe(fileName, snapshot.revision, spec ? toJson(spec) : null);
     if (snapshot.revision !== diskRevision) return; // 그 사이 디스크가 또 바뀌었다 — 감시가 처리한다
@@ -123,7 +128,7 @@ export function startDiskWatch(): () => void {
     if (s.screen !== prev.screen) {
       invalidate();
       // Home에서 Open은 문서를 먼저 바꾸고 화면을 옮긴다. 취소된 기준 읽기를 다시 시작한다.
-      if (s.screen === "editor" && baselineJson === null) void refreshBaseline();
+      if (s.screen === "editor" && baselineJson === null) void refreshBaseline(false);
     }
   });
   const unsubscribeConflict = useSaveConflictStore.subscribe((s, prev) => {
@@ -148,12 +153,15 @@ export function startDiskWatch(): () => void {
     checking = true;
     try {
       const requestGeneration = generation;
+      const requestRead = ++readSequence;
       const snapshot = await read(fileName);
-      if (stopped || requestGeneration !== generation || !eligible()) return;
-      if (snapshot === null) { observe(fileName, null, null); return; }
+      if (stopped || requestGeneration !== generation || !eligible() || requestRead < acceptedRead) return;
       // 기다리는 사이 다른 문서로 옮겼거나 저장으로 버전이 바뀌었으면 이번 결과는 쓰지 않는다.
       const now = useDocumentStore.getState();
       if (now.fileName !== fileName || now.diskRevision !== diskRevision) return;
+      // baseline과 poll이 겹쳐도 최신으로 반영한 읽기를 이전 응답이 덮지 못한다.
+      acceptedRead = requestRead;
+      if (snapshot === null) { observe(fileName, null, null); return; }
       if (snapshot.revision === diskRevision) {
         // 열기·저장 뒤 기준 읽기가 실패했으면(일시 오류) 여기서 다시 잡는다 — 그러지 않으면 다음
         // 열기·저장 전까지 바깥 변경을 모두 "미저장 편집이 있다"로 묻는다(#279 리뷰).
@@ -164,20 +172,22 @@ export function startDiskWatch(): () => void {
         observe(fileName, snapshot.revision, baselineJson);
         return;
       }
+      // 성공한 읽기의 증거는 알림 중복 여부와 무관하게 갱신한다.
+      // GET 실패/Home 전환으로 지운 관측값도 같은 외부 revision을 다시 읽으면 회복해야 한다.
+      const parsed = parseSpecJson(snapshot.text);
+      const spec = parsed.ok ? ("screen" in parsed.spec ? migrateV01(parsed.spec) : parsed.spec) : null;
+      observe(fileName, snapshot.revision, spec ? toJson(spec) : null);
       if (snapshot.revision === keptRevision) return;
       // 같은 버전을 이미 묻고 있다 — 3초마다 다시 띄우지 않는다(#279 리뷰).
       const shown = useAgentEditStore.getState().diskNotice;
       if (shown?.kind === "diskChanged" && shown.revision === snapshot.revision) return;
 
-      const parsed = parseSpecJson(snapshot.text);
       if (!parsed.ok) {
-        observe(fileName, snapshot.revision, null);
         keptRevision = snapshot.revision;
         useAgentEditStore.setState({ diskNotice: { kind: "diskInvalid", fileName, issueCount: parsed.issueCount } });
         return;
       }
-      const spec = "screen" in parsed.spec ? migrateV01(parsed.spec) : parsed.spec;
-      observe(fileName, snapshot.revision, toJson(spec));
+      if (spec === null) return;
       const currentJson = toJson(useEditorStore.getState().spec);
       if (toJson(spec) === currentJson) {
         baselineJson = currentJson;
