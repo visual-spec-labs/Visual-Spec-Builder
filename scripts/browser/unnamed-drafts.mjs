@@ -4,35 +4,19 @@
 // Playwright is an optional QA runner, not an application dependency.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
-const repo = fileURLToPath(new URL("../../", import.meta.url));
+import { startBrowserWorkspace } from "./harness.mjs";
 const workspace = await mkdtemp(join(tmpdir(), "vs-unnamed-"));
 const specs = join(workspace, "specs");
 await mkdir(specs);
-const server = spawn(process.execPath, [join(repo, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", "0"], {
-  cwd: repo, env: { ...process.env, VISUAL_SPEC_WORKSPACE: workspace }, stdio: ["ignore", "pipe", "pipe"],
-});
-let browser;
+let runner;
 try {
-  const url = await new Promise((resolve, reject) => {
-    let output = "";
-    const timer = setTimeout(() => reject(new Error(`Vite startup timed out: ${output}`)), 15000);
-    server.once("exit", code => { clearTimeout(timer); reject(new Error(`Vite exited ${code}: ${output}`)); });
-    server.stderr.on("data", chunk => { output += chunk; });
-    server.stdout.on("data", chunk => {
-      output += chunk;
-      const match = output.match(/http:\/\/127\.0\.0\.1:\d+\//);
-      if (match) { clearTimeout(timer); resolve(match[0]); }
-    });
-  });
-  browser = await chromium.launch({ executablePath: process.env.CHROME_BIN, args: ["--no-sandbox"] });
-  const context = await browser.newContext();
+  runner = await startBrowserWorkspace(workspace);
+  const { newContext, url } = runner;
+  const context = await newContext();
   const agentRequests = [];
   context.on("request", request => {
     if (request.method() === "PUT" && /\/runtime\/(nl-request|ticket-request)\.json/.test(request.url())) agentRequests.push(request.url());
@@ -221,7 +205,7 @@ try {
   // but a failed ownership claim. Same-key Resume must refuse B's active lock,
   // then explicitly reacquire after B closes (not keep a forever-false ready).
   for (const returningAction of ["resume", "delete"]) {
-  const returning = await browser.newContext();
+  const returning = await newContext();
   const tabA = await returning.newPage();
   tabA.on("dialog", d => d.accept());
   await tabA.goto(url);
@@ -291,7 +275,7 @@ try {
 
   }
 
-  const isolated = await browser.newContext();
+  const isolated = await newContext();
   const noWorkspace = await isolated.newPage();
   await noWorkspace.route("**/__vs/**", route => route.fulfill({status:404, body:"missing"}));
   await noWorkspace.goto(url);
@@ -301,7 +285,7 @@ try {
   assert.equal(await noWorkspace.getByRole("alertdialog").count(), 0);
   await isolated.close();
   console.log("PASS first-run demo/pristine blank and no-workspace controls have no recovery warning");
-  const withoutLocks = await browser.newContext();
+  const withoutLocks = await newContext();
   await withoutLocks.addInitScript(() => Object.defineProperty(navigator, "locks", {value: undefined}));
   const memory = await withoutLocks.newPage();
   memory.on("pageerror", error => errors.push(error.message));
@@ -328,7 +312,5 @@ try {
   assert.deepEqual(errors, []);
   console.log("PASS no page errors");
 } finally {
-  await browser?.close();
-  server.kill();
-  await rm(workspace, { recursive: true, force: true });
+  try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); }
 }

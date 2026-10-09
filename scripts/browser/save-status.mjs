@@ -4,13 +4,12 @@
 // Playwright is an optional QA runner, not an application dependency.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
+import { startBrowserWorkspace } from "./harness.mjs";
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const workspace = await mkdtemp(join(tmpdir(), "vs-save-status-"));
 const specs = join(workspace, "specs");
@@ -19,24 +18,11 @@ const fixture = JSON.parse(await readFile(join(repo, "examples/dashboard-cards.j
 for (const name of ["Status A", "Status B"]) {
   await writeFile(join(specs, `${name}.json`), JSON.stringify({ ...fixture, screen: { ...fixture.screen, name } }));
 }
-const server = spawn(process.execPath, [join(repo, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", "0"], {
-  cwd: repo, env: { ...process.env, VISUAL_SPEC_WORKSPACE: workspace }, stdio: ["ignore", "pipe", "pipe"],
-});
-let browser;
+let runner;
 try {
-  const url = await new Promise((resolve, reject) => {
-    let output = "";
-    const timer = setTimeout(() => reject(new Error(`Vite startup timed out: ${output}`)), 15000);
-    server.once("exit", code => { clearTimeout(timer); reject(new Error(`Vite exited ${code}: ${output}`)); });
-    server.stderr.on("data", chunk => { output += chunk; });
-    server.stdout.on("data", chunk => {
-      output += chunk;
-      const match = output.match(/http:\/\/127\.0\.0\.1:\d+\//);
-      if (match) { clearTimeout(timer); resolve(match[0]); }
-    });
-  });
-  browser = await chromium.launch({ executablePath: process.env.CHROME_BIN, args: ["--no-sandbox"] });
-  const context = await browser.newContext();
+  runner = await startBrowserWorkspace(workspace);
+  const { newContext, url } = runner;
+  const context = await newContext();
   const page = await context.newPage();
   page.setDefaultTimeout(12000);
   const errors = [];
@@ -95,12 +81,19 @@ try {
 
   // 읽기 실패 후 예전 저장 증거를 계속 표시하지 않는다.
   await menu("Save"); await waitStatus("파일 저장됨");
+  // UI의 일시적인 미확인 상태와 주입한 실패를 혼동하지 않도록 실제 응답도 확인한다.
+  const observedRead = statusCode => page.waitForResponse(response =>
+    response.request().method() === "GET" && response.url().includes("/file/specs/") && response.status() === statusCode);
+  const failedRead = observedRead(503);
   await page.route("**/file/specs/*", async route => {
     if (route.request().method() === "GET") await route.fulfill({status:503, body:"fixture unavailable"});
     else await route.continue();
   });
+  await failedRead;
   await waitStatus("파일 저장 미확인");
+  const recoveredRead = observedRead(200);
   await page.unroute("**/file/specs/*");
+  await recoveredRead;
   await waitStatus("파일 저장됨");
 
   // 다른 탭의 보관본 변경은 실제 storage 이벤트로 충돌 표시를 만든다.
@@ -194,7 +187,7 @@ try {
   assert.equal(await page.evaluate(() => window.qaNotices.length), 0);
   assert.deepEqual(await state(), currentB);
   console.log("PASS delayed r1 cannot overwrite r2; failed GET and Home/Resume recover without duplicate notice or false saved");
-  const fallbackContext = await browser.newContext();
+  const fallbackContext = await newContext();
   const fallback = await fallbackContext.newPage();
   fallback.on("dialog", d => d.accept());
   fallback.on("pageerror", e => errors.push(e.message));
@@ -208,7 +201,7 @@ try {
   await fallback.locator('[role="status"][aria-label="저장 상태"]').filter({hasText:"다운로드 요청됨"}).waitFor();
   assert.equal((await fallback.locator('[role="status"][aria-label="저장 상태"]').textContent()).includes("파일 저장됨"), false);
   await fallbackContext.close();
-  const quotaContext = await browser.newContext();
+  const quotaContext = await newContext();
   await quotaContext.addInitScript(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function(key, value) {
@@ -231,6 +224,5 @@ try {
   assert.deepEqual(errors, []);
   console.log("PASS no page errors; fixture sha256", createHash("sha256").update(JSON.stringify(fixture)).digest("hex"));
 } finally {
-  await browser?.close(); server.kill();
-  await rm(workspace, {recursive:true, force:true});
+  try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); }
 }

@@ -3,13 +3,12 @@
 //   node scripts/browser/document-transitions.mjs
 // Playwright is an optional QA runner, not an application dependency.
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
+import { startBrowserWorkspace } from "./harness.mjs";
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const workspace = await mkdtemp(join(tmpdir(), "vs-dialogs-"));
 const specs = join(workspace, "specs");
@@ -19,24 +18,11 @@ for (const name of ["Alpha", "Beta"]) {
   await writeFile(join(specs, `${name}.json`), JSON.stringify({ ...fixture, screen: { ...fixture.screen, name } }));
 }
 await writeFile(join(specs, "broken.json"), "{bad json");
-const server = spawn(process.execPath, [join(repo, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", "0"], {
-  cwd: repo, env: { ...process.env, VISUAL_SPEC_WORKSPACE: workspace }, stdio: ["ignore", "pipe", "pipe"],
-});
-let browser;
+let runner;
 try {
-  const url = await new Promise((resolve, reject) => {
-    let output = "";
-    const timer = setTimeout(() => reject(new Error(`Vite startup timed out: ${output}`)), 15000);
-    server.once("exit", code => { clearTimeout(timer); reject(new Error(`Vite exited ${code}: ${output}`)); });
-    server.stderr.on("data", chunk => { output += chunk; });
-    server.stdout.on("data", chunk => {
-      output += chunk;
-      const match = output.match(/http:\/\/127\.0\.0\.1:\d+\//);
-      if (match) { clearTimeout(timer); resolve(match[0]); }
-    });
-  });
-  browser = await chromium.launch({ executablePath: process.env.CHROME_BIN, args: ["--no-sandbox"] });
-  const context = await browser.newContext();
+  runner = await startBrowserWorkspace(workspace);
+  const { newContext, url } = runner;
+  const context = await newContext();
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   const errors = [];
@@ -129,7 +115,7 @@ try {
   await other.close();
   console.log("PASS real second-tab storage conflict cancels confirmation, preserves both drafts and hands off focus");
 
-  const clean = await browser.newContext();
+  const clean = await newContext();
   const accepted = await clean.newPage();
   accepted.on("dialog", async d => { notices.push(d.message()); await d.dismiss(); });
   await accepted.goto(url);
@@ -195,7 +181,5 @@ try {
   assert.deepEqual(errors, []);
   console.log("PASS explicit approval transitions; zero native dialogs or page errors");
 } finally {
-  await browser?.close();
-  server.kill();
-  await rm(workspace, { recursive: true, force: true });
+  try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); }
 }

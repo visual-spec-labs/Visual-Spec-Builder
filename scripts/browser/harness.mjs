@@ -12,7 +12,18 @@ export async function startBrowserWorkspace(workspace) {
     cwd: repo, env: { ...process.env, VISUAL_SPEC_WORKSPACE: workspace }, stdio: ["ignore", "pipe", "pipe"],
   });
   let browser;
-  async function close() {
+  let closing;
+  const onTerminate = () => { void close().finally(() => process.exit(143)); };
+  const onInterrupt = () => { void close().finally(() => process.exit(130)); };
+  process.once("SIGTERM", onTerminate);
+  process.once("SIGINT", onInterrupt);
+  function close() {
+    closing ??= closeResources();
+    return closing;
+  }
+  async function closeResources() {
+    process.off("SIGTERM", onTerminate);
+    process.off("SIGINT", onInterrupt);
     try { await browser?.close(); } finally {
       if (server.exitCode === null && server.signalCode === null) {
         const exited = once(server, "exit");
