@@ -17,6 +17,7 @@ const pages = {
   "long-login": LongLogin,
   "image-hero": ImageHeroPage,
   "responsive-cards": ResponsiveCardsPage,
+  "responsive-visibility": () => <ResponsiveCardsPage visibility />,
   "two-page-login": TwoPageLogin,
   "two-page-dashboard": DashboardPage,
 };

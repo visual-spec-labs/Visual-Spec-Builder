@@ -186,15 +186,16 @@ it("이미지를 읽지 못한 측정은 로딩 실패(3)다", () => {
 
   const result = compare(measurement(), generated);
   expect(result.status).toBe(3);
-  expect((JSON.parse(result.stdout) as Report).loadErrors).toEqual(["generated image hero did not load"]);
+  expect((JSON.parse(result.stdout) as Report).loadErrors).toContain("generated image hero did not load");
 });
 
 it("bounds가 같아도 줄 수와 placeholder 스타일이 다르면 실패한다", () => {
-  const gui = { ...measurement(), placeholders: { email: {
+  const renderedFonts = { title: [{ familyName: "Pretendard", isCustomFont: true }], "email::placeholder": [{ familyName: "Pretendard", isCustomFont: true }] };
+  const gui = { ...measurement(), renderedFonts, placeholders: { email: {
     text: "이메일", color: "rgb(17, 24, 39)", opacity: "0.6", fontFamily: "Pretendard", fontSize: "14px", fontWeight: "400", lines: 2,
   } } };
   gui.nodes.title = { ...gui.nodes.title, lines: 1 } as Bounds;
-  const generated = { ...measurement(), placeholders: { email: {
+  const generated = { ...measurement(), renderedFonts, placeholders: { email: {
     text: "이메일", color: "rgb(17, 24, 39)", opacity: "1", fontFamily: "Pretendard", fontSize: "14px", fontWeight: "400",
   } } };
   generated.nodes.title = { ...generated.nodes.title, lines: 2 } as Bounds;
@@ -220,4 +221,76 @@ it("셸 높이와 문서 scrollHeight가 계약과 다르면 실패한다", () =
     "shell.height: 900 != 844",
     "generated document scrollHeight 800 != max(viewport, shell) 844",
   ]));
+});
+
+it("같은 root 크기여도 생성 셸 누락은 실패한다", () => {
+  const gui = { ...measurement(), shell: { width: 390, height: 844 } };
+  const result = compare(gui, measurement());
+  expect(result.status).toBe(1);
+  expect(JSON.parse(result.stdout).errors).toContain("shell measurement missing on one side");
+});
+
+it.each([{}, { renderedFontsUnavailable: ["title"] }])("필요한 렌더 폰트 증거 누락은 무효다: %j", (extra) => {
+  const gui = { ...measurement(), expectedFontIds: ["title"], renderedFonts: { title: [{ familyName: "Pretendard", isCustomFont: true }] } };
+  const result = compare(gui, { ...measurement(), renderedFonts: {}, ...extra });
+  expect(result.status).toBe(3);
+  expect(JSON.parse(result.stdout).loadErrors).toContain("generated rendered font evidence missing: title");
+});
+
+it("양쪽 폰트 메타데이터를 지워도 줄 수에서 필요한 증거를 찾는다", () => {
+  const gui = measurement();
+  gui.nodes.title = { ...gui.nodes.title, lines: 1 } as Bounds;
+  expect(compare(gui, gui).status).toBe(3);
+});
+
+it("중첩 텍스트의 줄 수를 생략해도 통과하지 않는다", () => {
+  const renderedFonts = { title: [{ familyName: "Pretendard", isCustomFont: true }] };
+  const gui = { ...measurement(), renderedFonts };
+  gui.nodes.title = { ...gui.nodes.title, lines: 2 } as Bounds;
+  const result = compare(gui, { ...measurement(), renderedFonts });
+  expect(result.status).toBe(1);
+  expect(JSON.parse(result.stdout).errors).toContain("title: line count 2 != undefined");
+});
+
+it("폰트 네트워크 실패는 좌표가 같아도 무효다", () => {
+  const result = compare(measurement(), { ...measurement(), fontLoadErrors: ["NetworkError: woff2 failed"] });
+  expect(result.status).toBe(3);
+  expect(JSON.parse(result.stdout).loadErrors).toContain("generated font load failed: NetworkError: woff2 failed");
+});
+
+it("이미지 intrinsic dimensions가 바뀌면 같은 CSS 박스여도 실패한다", () => {
+  const gui = { ...measurement(), images: { hero: { loaded: true, naturalWidth: 1200, naturalHeight: 600 } } };
+  const generated = { ...measurement(), images: { hero: { loaded: true, naturalWidth: 600, naturalHeight: 1200 } } };
+  const result = compare(gui, generated);
+  expect(result.status).toBe(1);
+  expect(JSON.parse(result.stdout).errors).toContain("image hero.naturalWidth: 1200 != 600");
+});
+
+it("이미지 메타데이터를 지우면 측정 무효다", () => {
+  const gui = { ...measurement(), images: { hero: { loaded: true, naturalWidth: 1200, naturalHeight: 600 } } };
+  const result = compare(gui, measurement());
+  expect(result.status).toBe(3);
+  expect(JSON.parse(result.stdout).loadErrors).toContain("image hero: generated measurement missing");
+});
+
+it.each([
+  { renderedFonts: { title: null } },
+  { renderedFonts: { title: [{ familyName: "Pretendard", isCustomFont: "true" }] } },
+  { placeholders: { email: null } },
+  { placeholders: { email: { text: "email", lines: -1 } } },
+  { images: { hero: null } },
+  { images: { hero: { loaded: true, naturalWidth: -1, naturalHeight: 600 } } },
+  { images: { hero: { loaded: "true", naturalWidth: 1200, naturalHeight: 600 } } },
+  { renderedFontsUnavailable: {} },
+  { expectedFontIds: [null] },
+  { fontLoadErrors: [1] },
+  { shell: { width: 390, height: 844, documentScrollHeight: "844" } },
+  { shell: { width: -1, height: 844 } },
+  { documentScrollHeight: null },
+])("잘못된 nested metadata는 stack trace 없이 입력 오류(2)다: %j", (extra) => {
+  const result = compare(measurement(), { ...measurement(), ...extra });
+  expect(result.status).toBe(2);
+  expect(result.stderr).toContain("측정값이 잘못되었습니다");
+  expect(result.stderr).not.toContain("TypeError");
+  expect(result.stdout).toBe("");
 });

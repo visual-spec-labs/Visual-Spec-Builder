@@ -59,6 +59,31 @@ export function readMeasurement(value, label) {
   for (const key of ["placeholders", "renderedFonts", "images"]) {
     if (value[key] !== undefined && !isRecord(value[key])) throw new Error(`${label}: ${key}는 객체여야 합니다.`);
   }
+  const invalid = (path) => { throw new Error(`${label}: ${path} 측정값이 잘못되었습니다.`); };
+  const nonnegative = (number) => isFiniteNumber(number) && number >= 0;
+  for (const key of ["expectedFontIds", "renderedFontsUnavailable", "fontLoadErrors", "duplicateIds", "hiddenNodeIds"]) {
+    if (value[key] !== undefined && (!Array.isArray(value[key]) || !value[key].every((id) => typeof id === "string"))) invalid(key);
+  }
+  if (value.emptyIds !== undefined && (!Number.isInteger(value.emptyIds) || value.emptyIds < 0)) invalid("emptyIds");
+  if (viewport.window !== undefined && (!isRecord(viewport.window) || ![viewport.window.width, viewport.window.height].every((n) => isFiniteNumber(n) && n > 0))) invalid("viewport.window");
+  if (value.documentScrollHeight !== undefined && !nonnegative(value.documentScrollHeight)) invalid("documentScrollHeight");
+  if (value.shell) {
+    for (const key of ["width", "height", "scrollHeight", "documentScrollHeight"]) {
+      if (value.shell[key] !== undefined && !nonnegative(value.shell[key])) invalid(`shell.${key}`);
+    }
+  }
+  for (const [id, entry] of Object.entries(value.placeholders ?? {})) {
+    if (!isRecord(entry) || !PLACEHOLDER_KEYS.every((key) => typeof entry[key] === "string") ||
+        (entry.lines !== undefined && (!Number.isInteger(entry.lines) || entry.lines < 0))) invalid(`placeholders.${id}`);
+  }
+  for (const [id, fonts] of Object.entries(value.renderedFonts ?? {})) {
+    if (!Array.isArray(fonts) || !fonts.every((font) => isRecord(font) && typeof font.familyName === "string" &&
+        font.familyName.length > 0 && typeof font.isCustomFont === "boolean")) invalid(`renderedFonts.${id}`);
+  }
+  for (const [id, entry] of Object.entries(value.images ?? {})) {
+    if (!isRecord(entry) || typeof entry.loaded !== "boolean" ||
+        ![entry.naturalWidth, entry.naturalHeight].every(nonnegative)) invalid(`images.${id}`);
+  }
   return value;
 }
 
@@ -72,6 +97,8 @@ function declaredFaces(fontFaces) {
  * `loadErrors`는 폰트·이미지 로딩 실패라 레이아웃 판정과 따로 보고한다(측정 무효).
  */
 export function compareMeasurements(reference, generated) {
+  readMeasurement(reference, "GUI");
+  readMeasurement(generated, "generated");
   const errors = [];
   const loadErrors = [];
   if (reference.rootId !== generated.rootId) errors.push(`rootId: ${reference.rootId} != ${generated.rootId}`);
@@ -85,7 +112,18 @@ export function compareMeasurements(reference, generated) {
   if (JSON.stringify(referenceFaces) !== JSON.stringify(generatedFaces)) {
     errors.push(`viewport.fontFaces: ${JSON.stringify(referenceFaces)} != ${JSON.stringify(generatedFaces)}`);
   }
+  const expectedFontIds = new Set([reference, generated].flatMap((measurement) => [
+    ...(measurement.expectedFontIds ?? []),
+    ...Object.keys(measurement.renderedFonts ?? {}),
+    ...Object.entries(measurement.nodes).filter(([, node]) => node.lines > 0).map(([id]) => id),
+    ...Object.entries(measurement.placeholders ?? {}).filter(([, entry]) => entry.text.trim()).map(([id]) => `${id}::placeholder`),
+  ]));
   for (const [label, measurement] of [["GUI", reference], ["generated", generated]]) {
+    for (const id of expectedFontIds) {
+      if (!Object.hasOwn(measurement.renderedFonts ?? {}, id)) loadErrors.push(`${label} rendered font evidence missing: ${id}`);
+    }
+    for (const id of measurement.renderedFontsUnavailable ?? []) loadErrors.push(`${label} rendered font evidence unavailable: ${id}`);
+    for (const error of measurement.fontLoadErrors ?? []) loadErrors.push(`${label} font load failed: ${error}`);
     if (measurement.viewport.devicePixelRatio !== 1) errors.push(`${label} devicePixelRatio must be 1`);
     if (measurement.viewport.visualViewportScale !== 1) errors.push(`${label} visualViewportScale must be 1`);
     if (measurement.viewport.canvasZoomPercent !== 100) errors.push(`${label} canvasZoomPercent must be 100`);
@@ -104,7 +142,7 @@ export function compareMeasurements(reference, generated) {
       }
     }
     for (const [id, image] of Object.entries(measurement.images ?? {})) {
-      if (image?.loaded !== true) loadErrors.push(`${label} image ${id} did not load`);
+      if (image.loaded !== true || image.naturalWidth <= 0 || image.naturalHeight <= 0) loadErrors.push(`${label} image ${id} did not load`);
     }
   }
 
@@ -123,11 +161,20 @@ export function compareMeasurements(reference, generated) {
     const passed = Object.values(delta).every((amount) => Number.isFinite(amount) && amount <= tolerance);
     rows.push({ id, passed, delta });
     if (!passed) errors.push(`${id}: bounds delta exceeds ${tolerance} CSS px (${JSON.stringify(delta)})`);
-    if (a.lines !== undefined && b.lines !== undefined && a.lines !== b.lines) {
+    if (a.lines !== b.lines) {
       errors.push(`${id}: line count ${a.lines} != ${b.lines}`);
     }
   }
 
+  for (const id of new Set([...Object.keys(reference.images ?? {}), ...Object.keys(generated.images ?? {})])) {
+    const a = reference.images?.[id];
+    const b = generated.images?.[id];
+    if (!a || !b) loadErrors.push(`image ${id}: ${a ? "generated" : "GUI"} measurement missing`);
+    else for (const key of ["naturalWidth", "naturalHeight"]) {
+      if (a[key] !== b[key]) errors.push(`image ${id}.${key}: ${a[key]} != ${b[key]}`);
+    }
+  }
+  if (Boolean(reference.shell) !== Boolean(generated.shell)) errors.push("shell measurement missing on one side");
   if (reference.shell && generated.shell) {
     for (const key of ["width", "height"]) {
       const amount = Math.abs(reference.shell[key] - generated.shell[key]);
@@ -135,7 +182,9 @@ export function compareMeasurements(reference, generated) {
     }
   }
   for (const [label, measurement] of [["GUI", reference], ["generated", generated]]) {
-    const scrollHeight = measurement.shell?.documentScrollHeight;
+    const scrollHeight = measurement.documentScrollHeight ?? measurement.shell?.documentScrollHeight;
+    if (label === "generated" && measurement.shell && scrollHeight === undefined) errors.push("generated documentScrollHeight measurement missing");
+    if (!measurement.shell) continue;
     if (!isFiniteNumber(scrollHeight)) continue;
     // 문서는 viewport 또는 셸 중 큰 쪽만큼만 스크롤된다. 작으면 잘림, 크면 셸 밖 여분이다.
     const expected = Math.max(measurement.viewport.height, measurement.shell.height);

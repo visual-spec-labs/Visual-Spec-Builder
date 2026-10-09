@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { compareMeasurements, readMeasurement, TOLERANCE_CSS_PX } from "../compare-layout-measurements.mjs";
+import { capture, captureInPage } from "./layout-parity-capture.mjs";
 import { startBrowserWorkspace } from "./harness.mjs";
 
 const PRETENDARD = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/";
@@ -30,6 +31,10 @@ const project = (name, pages) => ({ version: "0.3", name, pageOrder: Object.keys
 const login = (await readExample("login-screen.json")).screen;
 const imageHero = (await readExample("image-hero.json")).screen;
 const responsiveCards = (await readExample("responsive-cards.json")).screen;
+const responsiveVisibility = structuredClone(responsiveCards);
+responsiveVisibility.name = "ResponsiveVisibility";
+responsiveVisibility.responsive.overrides.tablet.fadedCard = { visible: false };
+responsiveVisibility.responsive.overrides.desktop.fadedCard = { visible: true };
 const twoPage = await readExample("two-page-project.json");
 
 // 긴 페이지: 로그인 아래에 약관 텍스트(줄바꿈)와 520px 배너를 더해 844px를 넘긴다.
@@ -70,6 +75,9 @@ const TARGETS = [
   { file: "parity-responsive.json", spec: project("ParityResponsive", { cards: responsiveCards }), page: "cards", checks: [
     { generated: "responsive-cards", viewports: [767, 768, 769, 1023, 1024, 1025, 1440, 1600].map((width) => fixed(width, 1000)) },
   ] },
+  { file: "parity-visibility.json", spec: project("ParityVisibility", { cards: responsiveVisibility }), page: "cards", checks: [
+    { generated: "responsive-visibility", viewports: [767, 768, 769, 1023, 1024, 1025].map((width) => fixed(width, 1000)) },
+  ] },
   { file: "parity-two-page.json", spec: twoPage, page: "login", checks: [
     { generated: "two-page-login", viewports: [fixed(390, 844)] },
   ] },
@@ -96,166 +104,6 @@ function visibleSpecIds(screen) {
   };
   walk(screen.root);
   return ids.sort();
-}
-
-// 브라우저 안에서 실행한다. GUI와 생성 앱 모두 같은 함수로 잰다.
-async function captureInPage({ scopeSelector, shellSelector, rootId, inputIds, viewport, documentScroll }) {
-  const scope = scopeSelector ? document.querySelector(scopeSelector) : document;
-  if (!scope) throw new Error(`측정 범위가 없습니다: ${scopeSelector}`);
-  const all = [...scope.querySelectorAll("[data-node-id]")];
-  const ids = all.map((element) => element.dataset.nodeId);
-  const duplicateIds = [...new Set(ids.filter((id, index) => id && ids.indexOf(id) !== index))];
-  const emptyIds = ids.filter((id) => !id).length;
-  const isVisible = (element) => {
-    for (let current = element; current instanceof Element; current = current.parentElement) {
-      const style = getComputedStyle(current);
-      if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return false;
-    }
-    return element.getClientRects().length > 0;
-  };
-  const visible = all.filter(isVisible);
-  const hiddenNodeIds = all.filter((element) => !isVisible(element)).map((element) => element.dataset.nodeId);
-  const placeholderElement = (element) => element instanceof HTMLInputElement ? null : element.querySelector(":scope > span");
-
-  // unicode-range subset까지 받도록 실제 글자로 폰트를 요청한 뒤 전체 준비를 기다린다.
-  await Promise.all(visible.flatMap((element) => {
-    const style = getComputedStyle(element);
-    const texts = [element.textContent, element.getAttribute("placeholder")].filter((text) => text?.trim());
-    return texts.map((text) => document.fonts.load(`${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`, text));
-  }));
-  await document.fonts.ready;
-
-  const images = {};
-  for (const element of visible) {
-    const id = element.dataset.nodeId;
-    if (element instanceof HTMLImageElement) {
-      try { await element.decode(); } catch { /* 아래 loaded=false로 보고한다 */ }
-      images[id] = { loaded: element.complete && element.naturalWidth > 0, naturalWidth: element.naturalWidth, naturalHeight: element.naturalHeight };
-      continue;
-    }
-    const match = /url\("(.+?)"\)/.exec(getComputedStyle(element).backgroundImage);
-    if (!match) continue;
-    const image = new Image();
-    image.src = match[1];
-    let loaded = true;
-    try { await image.decode(); } catch { loaded = false; }
-    images[id] = { loaded: loaded && image.naturalWidth > 0, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
-  }
-  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-  const lineCount = (element) => {
-    const texts = [...element.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
-    if (texts.length === 0) return undefined;
-    const range = document.createRange();
-    const tops = new Set();
-    for (const text of texts) {
-      range.selectNodeContents(text);
-      for (const rect of range.getClientRects()) if (rect.width > 0) tops.add(Math.round(rect.top));
-    }
-    return tops.size;
-  };
-  const root = visible.find((element) => element.dataset.nodeId === rootId);
-  if (!root) throw new Error("표시 중인 root가 없습니다.");
-  // GUI 아트보드의 transform: scale을 되돌린다. 좌표는 root 바깥 모서리 기준이라 pan과 무관하다.
-  const shellElement = shellSelector ? document.querySelector(shellSelector) : null;
-  const scale = scopeSelector && shellElement ? shellElement.getBoundingClientRect().width / shellElement.offsetWidth : 1;
-  const rootRect = root.getBoundingClientRect();
-  const nodes = {};
-  for (const element of visible) {
-    const rect = element.getBoundingClientRect();
-    const lines = lineCount(element);
-    nodes[element.dataset.nodeId] = {
-      x: (rect.left - rootRect.left) / scale, y: (rect.top - rootRect.top) / scale,
-      width: rect.width / scale, height: rect.height / scale, ...(lines === undefined ? {} : { lines }),
-    };
-  }
-  const placeholders = {};
-  for (const id of inputIds) {
-    const element = visible.find((candidate) => candidate.dataset.nodeId === id);
-    if (!element) continue;
-    const span = placeholderElement(element);
-    const style = span ? getComputedStyle(span) : getComputedStyle(element, "::placeholder");
-    placeholders[id] = {
-      text: span ? span.textContent : element.placeholder, color: style.color, opacity: style.opacity,
-      fontFamily: style.fontFamily, fontSize: style.fontSize, fontWeight: style.fontWeight,
-      ...(span ? { lines: lineCount(span) } : {}),
-    };
-  }
-  const shellRect = shellElement?.getBoundingClientRect();
-  return {
-    rootId,
-    viewport: {
-      width: viewport.width, height: viewport.height, devicePixelRatio,
-      visualViewportScale: visualViewport?.scale ?? 1,
-      canvasZoomPercent: Math.round(scale * 10000) / 100,
-      fontStatus: document.fonts.status,
-      fontFaces: [...new Set([...document.fonts].map((font) => `${font.family}/${font.style}/${font.weight}/${font.status}`))].sort(),
-      window: { width: innerWidth, height: innerHeight },
-    },
-    nodes,
-    placeholders,
-    images,
-    ...(shellRect ? { shell: {
-      width: shellRect.width / scale, height: shellRect.height / scale, scrollHeight: shellElement.scrollHeight,
-      ...(documentScroll ? { documentScrollHeight: document.scrollingElement.scrollHeight } : {}),
-    } } : {}),
-    ...(documentScroll ? { documentScrollHeight: document.scrollingElement.scrollHeight } : {}),
-    duplicateIds, emptyIds, hiddenNodeIds,
-  };
-}
-
-/** CDP로 각 텍스트를 실제로 그린 플랫폼 폰트를 읽는다. 선언된 FontFace만으로는 폴백 여부를 알 수 없다. */
-async function readRenderedFonts(page, capture, inputIds) {
-  const cdp = await page.context().newCDPSession(page);
-  try {
-    await cdp.send("DOM.enable");
-    await cdp.send("CSS.enable");
-    const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
-    const byId = new Map();
-    const attribute = (node, name) => {
-      const attributes = node.attributes ?? [];
-      for (let index = 0; index < attributes.length; index += 2) if (attributes[index] === name) return attributes[index + 1];
-      return undefined;
-    };
-    const walk = (node) => {
-      const id = attribute(node, "data-node-id");
-      if (id !== undefined && !byId.has(id)) byId.set(id, node);
-      for (const child of [...(node.children ?? []), ...(node.shadowRoots ?? []), ...(node.contentDocument ? [node.contentDocument] : [])]) walk(child);
-    };
-    walk(root);
-    const fontsOf = async (nodeId) => (await cdp.send("CSS.getPlatformFontsForNode", { nodeId })).fonts
-      .map(({ familyName, isCustomFont }) => ({ familyName, isCustomFont }));
-    const findPlaceholder = (node) => {
-      if (attribute(node, "id") === "placeholder" || attribute(node, "pseudo") === "-webkit-input-placeholder") return node;
-      for (const child of [...(node.children ?? []), ...(node.shadowRoots ?? [])]) {
-        const found = findPlaceholder(child);
-        if (found) return found;
-      }
-      return undefined;
-    };
-    const renderedFonts = {};
-    const unavailable = [];
-    for (const [id, bounds] of Object.entries(capture.nodes)) {
-      const node = byId.get(id);
-      if (bounds.lines !== undefined && node) renderedFonts[id] = await fontsOf(node.nodeId);
-    }
-    for (const id of inputIds) {
-      const node = byId.get(id);
-      if (!node || !capture.nodes[id]) continue;
-      const target = node.nodeName === "INPUT" ? findPlaceholder(node) : node.children?.find((child) => child.nodeName === "SPAN");
-      if (target) renderedFonts[`${id}::placeholder`] = await fontsOf(target.nodeId);
-      else unavailable.push(`${id}::placeholder`);
-    }
-    return { renderedFonts, unavailable };
-  } finally {
-    await cdp.detach();
-  }
-}
-
-async function capture(page, options, inputIds) {
-  const result = await page.evaluate(captureInPage, { ...options, inputIds });
-  const { renderedFonts, unavailable } = await readRenderedFonts(page, result, inputIds);
-  return { ...result, renderedFonts, renderedFontsUnavailable: unavailable };
 }
 
 const workspace = await mkdtemp(join(tmpdir(), "vs-layout-parity-"));
@@ -304,9 +152,11 @@ try {
     if (generatedOrigin !== new URL(runner.url).origin) await context.route(`${generatedOrigin}/**`, (route) => route.continue());
   };
 
-  const guiContext = await runner.newContext({ viewport: EDITOR_VIEWPORT, deviceScaleFactor: 1 });
+  const proxyServer = process.env.HTTPS_PROXY ?? process.env.https_proxy;
+  const proxyOptions = proxyServer ? { proxy: { server: proxyServer, bypass: "localhost,127.0.0.1" } } : {};
+  const guiContext = await runner.newContext({ ...proxyOptions, viewport: EDITOR_VIEWPORT, deviceScaleFactor: 1 });
   await allowExtra(guiContext);
-  const generatedContext = await runner.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  const generatedContext = await runner.newContext({ ...proxyOptions, viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
   await allowExtra(generatedContext);
   const browserVersion = guiContext.browser()?.version();
 
@@ -347,7 +197,18 @@ try {
           }, pageWidth);
         };
         await resetZoom();
-        const guiOptions = {
+        // Vite가 실제 편집기 resolver를 로드한다. Node에 별도 반응형 구현을 복제하지 않는다.
+        const resolvedScreen = await gui.evaluate(async ({ screen, width }) => {
+          const { resolveResponsiveScreen } = await import("/src/features/editor/responsive/resolveResponsive.ts");
+          return resolveResponsiveScreen(screen, width);
+        }, { screen, width: viewport.width });
+        const expectedIds = visibleSpecIds(resolvedScreen);
+        const expectedFontIds = expectedIds.flatMap((id) => {
+          const node = resolvedScreen.nodes[id];
+          if (node.type === "input") return node.placeholder?.trim() ? [`${id}::placeholder`] : [];
+          return ["text", "button"].includes(node.type) && node.content?.trim() ? [id] : [];
+        });
+        const guiOptions = { expectedFontIds,
           scopeSelector: '[data-testid="responsive-artboard"]', shellSelector: '[data-testid="responsive-artboard"]',
           rootId: screen.root, viewport, documentScroll: false,
         };
@@ -376,12 +237,11 @@ try {
         await generated.goto(generatedTemplate.replace("{page}", encodeURIComponent(external ? screen.name : check.generated)));
         await generated.locator(`[data-node-id="${screen.root}"]`).waitFor();
         const generatedCapture = await capture(generated, {
-          scopeSelector: null, shellSelector: ".vsb-page", rootId: screen.root, viewport, documentScroll: true,
+          scopeSelector: null, shellSelector: ".vsb-page", rootId: screen.root, viewport, documentScroll: true, expectedFontIds,
         }, inputIds);
         await generated.close();
 
         // 같은 스펙의 보여야 할 노드가 GUI에 모두 그려졌는지, ID가 비거나 겹치지 않는지 따로 확인한다.
-        const expectedIds = visibleSpecIds(screen);
         const guiIds = Object.keys(guiCapture.nodes).sort();
         if (JSON.stringify(expectedIds) !== JSON.stringify(guiIds)) errors.push(`GUI ids ${JSON.stringify(guiIds)} != spec ${JSON.stringify(expectedIds)}`);
         for (const [label, measured, pageErrors] of [["GUI", guiCapture, gui.errors], ["generated", generatedCapture, generatedErrors]]) {
@@ -405,6 +265,7 @@ try {
         };
         results.push({
           case: check.generated, page: target.page, viewport, verdict,
+          measurements: { gui: guiCapture, generated: generatedCapture },
           root: { gui: bounds(guiCapture), generated: bounds(generatedCapture) },
           shell: { gui: guiCapture.shell, generated: generatedCapture.shell ?? null },
           documentScrollHeight: generatedCapture.documentScrollHeight,

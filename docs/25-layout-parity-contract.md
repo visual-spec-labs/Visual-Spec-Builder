@@ -57,7 +57,7 @@ page 종류의 계약만 다룬다. 아직 승인되지 않은 modal/widget 개�
 
 - 생성 요소마다 `data-node-id`에 IR 노드 ID를 남긴다. 빈 ID·중복 ID는 실패다.
 - `visible:false`인 노드와 그 자손은 GUI가 그리지 않고 생성 코드도 내지 않는다. 비교 대상 ID 집합은
-  스펙에서 보이는 노드 전체이며 GUI 측정 ID와 같아야 하고, 생성 측정 ID는 GUI와 같아야 한다.
+  현재 viewport 폭으로 실제 `resolveResponsiveScreen`을 적용한 스펙에서 보이는 노드 전체이며 GUI 측정 ID와 같아야 하고, 생성 측정 ID는 GUI와 같아야 한다.
 - DOM에 남아 있어도 `display:none`/`visibility:hidden|collapse`(조상 포함)이거나 박스가 없으면 양쪽에서
   제외하고 `hiddenNodeIds`로 기록한다(폭에 따라 숨는 반응형 노드).
 
@@ -72,16 +72,18 @@ page 종류의 계약만 다룬다. 아직 승인되지 않은 modal/widget 개�
 | 비교 viewport | 생성 앱의 브라우저 viewport. 고정 폭은 GUI 아트보드 폭 = `screen.size.width`, 반응형은 GUI 미리보기 폭 = viewport 폭 |
 | 폰트 대기 | 노드별 실제 글자로 `document.fonts.load()` → `document.fonts.ready` → `status === "loaded"` |
 | 폰트 동일성 | 고정 URL만 외부 요청을 허용하고 응답을 캐시해 두 탭에 같은 바이트를 준다. CSS SHA-256과 받은 woff2 수를 기록 |
-| 실제 렌더 폰트 | CDP `CSS.getPlatformFontsForNode`로 각 텍스트·placeholder를 그린 폰트를 읽는다. 모두 웹폰트 `Pretendard*`여야 한다 |
-| 이미지 | `<img>.decode()`와 배경 이미지 `Image.decode()` 완료, `naturalWidth > 0` |
+| 실제 렌더 폰트 | CDP `CSS.getPlatformFontsForNode`로 각 텍스트·placeholder를 그린 폰트를 읽는다. 모두 웹폰트 `Pretendard*`여야 한다. 필요한 ID 누락·빈 결과·CDP unavailable은 측정 무효 |
+| 이미지 | `<img>.decode()`와 배경 이미지 `Image.decode()` 완료, 모든 배경 URL 겹을 포함해 양쪽 intrinsic width/height > 0 및 일치. 누락은 무효 |
 | bounds | root와 보이는 모든 노드의 x/y/width/height 차이 **≤ 1 CSS px** |
 | 셸 | GUI 아트보드와 생성 셸의 width/height ≤ 1 CSS px. 생성 문서 `scrollHeight` = max(viewport 높이, 셸 높이) ± 1 |
-| 줄바꿈 | 텍스트 노드의 줄 수(Range line box)가 같다 |
+| 줄바꿈 | 자기 IR 노드 소유의 중첩 텍스트까지 Range로 읽는다. 줄 수 누락·불일치는 실패 |
 | placeholder | 문구·color·opacity·font-family/size/weight가 같고 GUI에서 한 줄 |
 
 판정과 종료 코드(`scripts/compare-layout-measurements.mjs`, `scripts/browser/layout-parity.mjs` 공통):
 `0` 통과, `1` 레이아웃·조건 불일치, `2` 입력 JSON 오류, `3` 폰트·이미지 로딩 실패(측정 무효).
-로딩 실패는 레이아웃 결과와 따로 `loadErrors`에 쌓고, 조건을 맞춰 다시 측정한다.
+로딩 실패·필수 폰트/이미지 증거 누락은 레이아웃 결과와 따로 `loadErrors`에 쌓고, 조건을 맞춰 다시 측정한다.
+`document.fonts.load()`의 reject와 CDP 오류도 보고서를 남기는 무효 판정이다. 잘못된 nested metadata는
+비교 전에 입력 오류(2)로 거절한다. 셸이 한쪽에만 있거나 생성 문서 scrollHeight가 없으면 실패한다.
 
 ## 3. 실행 방법
 
@@ -96,6 +98,8 @@ page 종류의 계약만 다룬다. 아직 승인되지 않은 modal/widget 개�
 # Linux
 export PLAYWRIGHT_MODULE=file:///tmp/vsb-browser-tools/node_modules/playwright/index.mjs
 node scripts/browser/layout-parity.mjs --out /tmp/layout-parity.json
+# CDN 없이 중첩 텍스트·실패한 woff2·두 번째 배경 이미지 실패 회귀
+node scripts/browser/layout-parity-regression.mjs
 ```
 
 ```powershell
@@ -107,7 +111,9 @@ node scripts/browser/layout-parity.mjs --out "$env:TEMP\layout-parity.json"
 
 스크립트는 임시 작업공간에 예제 스펙을 쓰고 자체 Vite 서버로 GUI와 fixture 앱
 (`test/fixtures/layout-parity`, Vite + `@tailwindcss/vite` + Preflight)을 함께 띄운다. `--case <이름>`을
-반복해 사례를 고를 수 있다.
+반복해 사례를 고를 수 있다. 프록시 환경에서는 `HTTPS_PROXY`(또는 `https_proxy`)를 적용하되
+localhost는 우회한다. 결과의 `measurements.gui`/`measurements.generated`에는 노드별 렌더 폰트,
+필요한 폰트 ID, 로딩 오류, 이미지 치수, 줄 수를 포함한 전체 비교 입력을 보존한다.
 
 **실제 AI 생성 결과 측정.** GUI에서 Export한 ZIP을 풀고 그 프로젝트 폴더(`pages/`·`components/`·
 `assets/`가 있는 곳)를 넘긴다. 페이지 파일 이름은 스펙의 page 이름이어야 한다(예: `pages/Login.tsx`).
@@ -181,7 +187,7 @@ Export 폴더 모양(`pages/Login.tsx` + `components/Card.tsx`, `as React.CSSPro
 | #280 완료 조건 | 상태 |
 |---|---|
 | viewport/min-height/긴 페이지·폰트·reset·placeholder 통합 계약 문서화 | 충족 — 1절 |
-| 같은 viewport·폰트 로딩·DPR 조건과 수치 허용 오차 | 충족 — 2절, 비교기 테스트 13개 |
+| 같은 viewport·폰트 로딩·DPR 조건과 수치 허용 오차 | 충족 — 2절, 비교기 테스트 34개 |
 | 실제 생성 코드의 모든 노드 x/y/width/height를 GUI와 비교 | **fixture 기준 충족, 실제 AI 출력 기준 미충족** — 도구와 실행 절차는 준비됨 |
 | 390×844 root 844 대 318 차이를 수정 후 같은 조건에서 재측정 | **fixture 기준 충족(318 재현 → 844), 실제 AI 출력 재측정 미실행** |
 | 이미지·반응형·다중 페이지 예제로 기준 검증 | fixture 기준 충족 — 4.1 |
@@ -191,6 +197,46 @@ Export 폴더 모양(`pages/Login.tsx` + `components/Card.tsx`, `as React.CSSPro
   [사용자 여정 문서](qa/user-journey-regression.md) 6단계와 같은 기록 형식을 따른다.
 - **CI 연결 안 함.** 이 도구는 고정 CDN 폰트에 네트워크로 닿아야 해 #346의 필수 Chromium 잡(외부 요청
   차단)에 넣지 않았다. 폰트 파일을 저장소나 CI 캐시에 두는 방안과 함께 후속으로 정한다.
-- **Linux 실측 미실행.** 이번 수치는 Windows 한 환경이다. 폰트가 웹폰트로 고정되므로 OS 차이는 줄지만
-  Linux Chromium에서도 같은 명령으로 다시 기록한다.
-- 폭에 따라 숨는 반응형 노드(DOM 유지 + `display:none`)는 규칙과 기록 필드만 있고 예제 사례는 없다.
+- Linux 재측정과 반응형 숨김/재표시 사례는 아래 리뷰 수정 검증에서 완료했다.
+
+
+## 6. PR #350 리뷰 수정 검증 (2026-10-09 UTC)
+
+Part of #280. 위 Windows 기록은 원본 실행 날짜를 유지한다. 이번 검증은 Debian 13,
+Node 24.19.0, pnpm 10.33.0, Playwright 1.62.0, 시스템 Chromium **151.0.7922.173**이다.
+Playwright 관리 Chromium 151.0.7922.34 다운로드는 실행 환경의 도메인 제한(403)으로 사용할 수 없어
+`CHROME_BIN=/usr/bin/chromium`으로 실행했다. CI의 고정 브라우저와 패치 버전이 다르다.
+DPR 1, GUI 1920×1080, Canvas 100% 및 75% 보정 비교, 생성 viewport는 아래 원자료에 기록했다.
+
+원자료: [전체 Linux 측정](qa/2026-10-09-layout-parity-linux.json) ·
+[수정 전/후 회귀 증거](qa/2026-10-09-layout-parity-review-regressions.json).
+모두 **사람이 작성한 fixture**이며 실제 모델 호출은 없다.
+
+- 22개 조건: **21 통과, 의도된 실패 1, 무효 0**. 통과 사례의 모든 노드 최대 차이 **0 CSS px**.
+  셸 없는 legacy root는 318px, GUI 844px로 기존 실패를 재현한다.
+- 기존 16조건 외 `responsive-visibility`는 767/768/769/1023/1024/1025px에서 검사한다.
+  `fadedCard`와 자손은 tablet에서 숨고 desktop에서 다시 보인다. 노드 수는 7/5/5/5/7/7이며
+  생성 DOM은 유지하고 CSS로 숨긴다. 현재 폭의 실제 편집기 resolver로 기대 ID를 계산해 모두 통과한다.
+- responsive fixture의 제목을 `span > strong`으로 감쌌다. 중첩 텍스트의 줄 수 1과 노드별
+  Pretendard 웹폰트 증거를 모든 폭에서 확인했다. 별도 Chromium 회귀는 중첩 텍스트 **2줄**, 부모가
+  자식 IR 노드의 텍스트를 중복 세지 않음, 실제 폴백 CDP 증거를 확인한다.
+- 폰트 CSS SHA-256 `a9d3417e168d008424337e8ee2df7b54ff082a57ed61e28421db681437cd67a2`,
+  woff2 31개, 실패 0. 최초 프록시 미설정 실행은 DNS 실패로 **무효(3)**였고, 프록시 적용 후 동일 CDN
+  바이트를 양쪽에 공급했다. 단순 좌표 일치로 폰트 실패를 통과시키지 않았다.
+- 실제 woff2 요청을 차단한 브라우저 회귀에서 기존 `Promise.all`은 `NetworkError`를 던졌지만
+  수정된 캡처는 `fontLoadErrors`와 폴백 증거를 반환하고 **무효(3)**로 판정한다.
+  다중 배경의 첫 이미지(1200×600)가 성공하고 두 번째 URL이 실패하는 경우도 무효다.
+- 원본 `b592e6b` 비교기를 실제 캡처 데이터에 실행했다. 셸 삭제, 폰트 증거 삭제, 줄 수 삭제,
+  이미지 map 삭제, intrinsic 크기 1200×600→600×1200은 기존에 모두 **0**이었다.
+  수정 후 각각 **1/3/1/3/1**이다. `renderedFonts.title=null`의 기존 TypeError는 입력 오류(2)가 된다.
+  CLI 회귀 34개가 누락 증거와 잘못된 배열·폰트/placeholder/image 레코드·scroll 치수를 검증한다.
+
+로컬 frozen install, typecheck, lint, production build, 스키마 생성 드리프트 검사 통과.
+전체 테스트 **116 파일/1871개 통과, 브라우저 opt-in 3개 skip**. 별도 활성화한 기존 Python Chromium
+검사 3개는 모두 실제 실행·통과했다. production build의 기존 500kB chunk 경고는 남아 있다.
+`layout-parity`와 새 capture 회귀는 로컬 실행 증거이며 **기존 필수 CI에 연결하지 않았다**.
+CI의 성공과 이 도구의 22조건 실측 성공은 별개다.
+
+Node 사용자 여정 다섯 개도 최종 순차 실행에서 모두 통과했다(`project-dialogs` 포함).
+초기 병행 부하 중 `unnamed-drafts`의 동시 Resume 소유권 단언이 한 번 실패했고, 단독 재실행과
+전체 순차 재실행은 통과했다. 이 여정 코드는 변경하지 않았다. CI에서도 최종 커밋의 결과를 따로 확인한다.
