@@ -52,7 +52,7 @@ export function persistenceLabels(input: {
     }
   }
   if (attempt?.phase === "saving") { file = "파일 저장 중"; fileHelp = "저장 응답을 기다립니다. 완료 전에는 저장된 것으로 표시하지 않습니다."; }
-  if (attempt?.phase === "failed") { file = "파일 저장 실패"; fileHelp = "저장에 실패했습니다. 현재 내용과 브라우저 보관 상태를 확인하고 다시 저장하거나 Export하세요."; }
+  if (attempt?.phase === "failed") { file = "파일 저장 실패"; fileHelp = "저장에 실패했습니다. 현재 내용과 브라우저 보관 상태를 확인하고 파일 → 저장 또는 파일 → JSON 내보내기를 사용하세요."; }
   if (attempt?.phase === "downloaded" && attempt.spec === spec) { file = "다운로드 요청됨"; fileHelp = "브라우저 다운로드를 요청했습니다. 실제 파일 저장 완료는 확인할 수 없습니다."; }
   if (paused) {
     file = reason === "draft" ? "초안 선택 필요" : "충돌 · 저장 중단";
@@ -67,7 +67,7 @@ export function persistenceLabels(input: {
   } else if (draft?.session) {
     browser = "현재 탭에만 보관"; draftHelp = file === "파일 저장됨"
       ? "탭 복구본을 기록했습니다. 현재 내용은 확인된 작업공간 파일에도 있습니다."
-      : "현재 탭 복구본만 기록했습니다. 공유 초안 보관은 아직 확인되지 않았습니다. 파일 미저장 내용은 탭을 닫기 전에 Save 또는 Export하세요.";
+      : "현재 탭 복구본만 기록했습니다. 공유 초안 보관은 아직 확인되지 않았습니다. 파일 미저장 내용은 탭을 닫기 전에 파일 → 저장 또는 파일 → JSON 내보내기를 사용하세요.";
   } else if (draft) {
     browser = "초안 보관 실패"; draftHelp = "현재 내용의 브라우저 보관을 확인하지 못했습니다. 이 탭을 닫지 말고 파일 → 저장 또는 파일 → JSON 내보내기로 보존하세요.";
   }
