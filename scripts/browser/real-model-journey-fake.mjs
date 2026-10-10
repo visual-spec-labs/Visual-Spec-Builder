@@ -94,6 +94,10 @@ try {
 
   /** real-model-journey.mjs를 실제 명령으로 실행하고 종료 코드와 마지막 증거 줄을 돌려준다. */
   async function journeyRun(mode, phase, options) {
+    // 각 사례는 한 단계의 종료 코드·카드 선택을 검증한다. 앞 사례의 마지막 문서/초안 복원 상태가
+    // 다음 카드 열기와 경쟁하지 않도록 브라우저 프로필만 격리한다. 작업공간과 요청 잠금은 유지해
+    // 실패한 단계의 잠금 해제 및 다음 요청 검사는 그대로 이어간다. 세션 복원은 별도 필수 여정이 맡는다.
+    await rm(join(root, "profile"), { recursive: true, force: true });
     const argv = [journey, phase, "--root", root, "--url", runner.url, "--agent-bin", agentBin, "--model", model, "--label", mode,
       ...Object.entries(options).flatMap(([key, value]) => [`--${key}`, value])];
     const logPath = join(root, "evidence/log.jsonl");
