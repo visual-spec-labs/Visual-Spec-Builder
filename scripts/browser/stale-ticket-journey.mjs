@@ -36,7 +36,7 @@ try {
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(runner.url);
   await page.getByRole("button").filter({ hasText: /Journey.*페이지/s }).click();
-  await page.getByRole("button", { name: "File", exact: true }).waitFor();
+  await page.getByRole("button", { name: "파일", exact: true }).waitFor();
   // 상태 판독용이다. 아래 사용자 조작(전달·편집·되돌리기·전환·다시 생성)은 GUI로 실행한다.
   await page.evaluate(async () => {
     window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
@@ -90,8 +90,8 @@ try {
     throw new Error("ticket waves did not finish");
   }
   async function exportFreshness() {
-    await button("File").click();
-    await page.getByRole("menuitem", { name: "Export Code", exact: true }).click();
+    await button("파일").click();
+    await page.getByRole("menuitem", { name: "코드 내보내기", exact: true }).click();
     await page.waitForFunction(() => exports.getState().status === "ready");
     // 페이지 티켓은 화면 전체를 입력으로 삼으므로 레이어 표시를 바꾸면 반드시 오래됨이다.
     // 컴포넌트 티켓은 기준에 따라 현재로 남을 수 있어(#281 컴포넌트 단위 지문) 전체 판정은 따로 읽는다.
@@ -158,14 +158,14 @@ try {
   await staleNotice.waitFor({ state: "detached" });
   const requestBefore = await currentRequestId();
   await layer("Caption").getByRole("button", { name: "숨기기", exact: true }).click();
-  await button("File").click();
-  await page.getByRole("menuitem", { name: "Open", exact: true }).click();
+  await button("파일").click();
+  await page.getByRole("menuitem", { name: "열기", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "other.json", exact: true }).click();
   await page.waitForFunction(() => editor.getState().spec.name === "Other");
   await staleNotice.waitFor();
   assert.equal(await button("에이전트에 전달").isDisabled(), true);
-  await button("File").click();
-  await page.getByRole("menuitem", { name: "Open", exact: true }).click();
+  await button("파일").click();
+  await page.getByRole("menuitem", { name: "열기", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "journey.json", exact: true }).click();
   await page.waitForFunction(() => editor.getState().spec.name === "Journey");
   await staleNotice.waitFor();

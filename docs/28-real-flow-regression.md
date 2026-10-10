@@ -27,8 +27,8 @@ FORCE_COLOR=1 bash scripts/browser/run-journeys.sh   # 마지막 줄: PASS all 9
 
 | #292 완료 조건 1 항목 | 여정(스크립트) | 단언 요약 |
 |---|---|---|
-| 편집 직후 문서 전환 | `document-transitions.mjs` | 편집한 문서에서 New/Open/홈 카드 전환 확인·취소, 교체 요청, 두 탭 저장 충돌, 늦은 응답 ABA |
-| 〃 + 낡은 티켓 | `stale-ticket-journey.mjs` 4단계 | 편집 직후 다른 문서를 Open하고 돌아와도 이전 티켓 계획은 전달 불가, 요청 파일을 쓰지 않음 |
+| 편집 직후 문서 전환 | `document-transitions.mjs` | 편집한 문서에서 새로 만들기/열기/홈 카드 전환 확인·취소, 교체 요청, 두 탭 저장 충돌, 늦은 응답 ABA |
+| 〃 + 낡은 티켓 | `stale-ticket-journey.mjs` 4단계 | 편집 직후 다른 문서를 열기로 열고 돌아와도 이전 티켓 계획은 전달 불가, 요청 파일을 쓰지 않음 |
 | 낡은 티켓 | `stale-ticket-journey.mjs` 1~3단계 | 컴포넌트 웨이브 응답 대기 중 레이어 숨김 → 받은 결과는 `done`, 페이지 웨이브 요청 없음, 전달 버튼 비활성. Undo로 전달 가능·Redo와 페이지 전환으로 다시 막힘. 다시 생성 → 전체 웨이브 → Export **현재**, 이후 편집 → 페이지 티켓 **오래됨** |
 | Export 페이지 전환 | `export-journey.mjs` | 검사 결과·다운로드 무효화, Beta 재검사, 문서 신원·history 보존 |
 | 다중 탭 요청 | `request-generation.mjs` | 대기 연장·중지·재시도, 두 탭에서 lease 만료/취소/재컴파일 뒤 늦은 A의 PUT 거부, B의 바이트·manifest 유지 |
@@ -78,7 +78,7 @@ $J setup --root $ROOT         # init → skills → assets/hero.png 배치, 버�
 (cd $ROOT/ws && BROWSER=none node "$VSB_REPO/bin/visual-spec.mjs")
 R="--root $ROOT --url http://localhost:5173/ --card Untitled"   # 홈 카드는 spec.name을 보인다
 
-$J draft --root $ROOT --url http://localhost:5173/ --instruction "<로그인 화면 설명>"   # 홈 → 자연어 초안 → 요청 → Save as
+$J draft --root $ROOT --url http://localhost:5173/ --instruction "<로그인 화면 설명>"   # 홈 → 자연어 초안 → 요청 → 다른 이름으로 저장
 $J add-page $R
 $J nl $R --page "Page 2" --instruction "<반응형 페이지 설명>"
 $J edit $R --page Login --node LoginButton --field 텍스트 --value 계속하기
@@ -87,7 +87,7 @@ $J tickets $R --page Landing
 $J edit $R --page Login --node Title --field 텍스트 --value "<새 제목>"   # 생성 뒤 GUI 수정
 $J touch $R --file real-flow/page1/pages/Login.tsx                      # 생성 파일 수동 수정(#282)
 $J tickets $R --page Login --overwrite backup   # 덮어쓰기 확인이 뜨면 모두 백업 후 덮어쓰기
-$J export $R --page Login         # Export Code 검사 → 결과 폴더 ZIP 내려받기
+$J export $R --page Login         # 코드 내보내기 검사 → 결과 폴더 ZIP 내려받기
 $J export $R --page Landing
 ```
 
@@ -205,7 +205,7 @@ woff2 25/30개, 폰트 실패 0, 텍스트는 양쪽 모두 `Pretendard`·`Prete
 2. **자연어 응답 스킬이 이미지 채우기 배경을 "표현할 수 없음"으로 안내한다.** `skills/visual-spec-nl-response/SKILL.md`
    113·437행은 이미지 채우기를 `error`로 답하라고 하지만 스키마에는 `ImageFill`이 있고 GUI는 이 Command를 검증·적용했다
    (3단계). 이번 실제 에이전트는 스키마를 따라 진행하며 이 불일치를 직접 지적했다. 다른 실행은 스킬을 따라 거절할 수 있다.
-3. **Save 직후 0.5초 안에 탭을 닫으면 저장한 내용과 같은 초안이 "저장하지 않은 초안"으로 뜬다.** 재현: 파일을 편집 → File → Save
+3. **Save 직후 0.5초 안에 탭을 닫으면 저장한 내용과 같은 초안이 "저장하지 않은 초안"으로 뜬다.** 재현: 파일을 편집 → 파일 → 저장
    → 알림을 닫자마자 탭 닫기 → 다시 열기. 자동저장 기록의 `diskRevision`이 500ms 디바운스 전의 이전 리비전으로 남아,
    내용이 바이트 단위로 같아도 복구 대화상자가 뜬다(실제 탭 닫기에서는 beforeunload 경고도 뜬다). 드라이버는 저장 후
    1.5초를 기다리도록 했다.
