@@ -6,13 +6,17 @@ import { TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH } from "@/features/editor/tic
 import { isAllDone, isReady, readyTickets } from "@/features/editor/ticket/ticketStatus";
 import type { TicketStatus } from "@/features/editor/ticket/types";
 import { buildTicketAgentInstruction } from "@/features/editor/ui/agentHandoff";
-import { CopyButton } from "@/features/editor/ui/CopyButton";
+import { AgentWaitStatus } from "@/features/editor/ui/AgentWaitStatus";
 import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
 import { openExportPanel } from "@/features/editor/ui/openExportPanel";
+import { OverwriteReviewPanel } from "@/features/editor/ui/OverwriteReviewPanel";
 import {
+  answerOverwriteReview,
   cancelTicketRun,
+  extendTicketWait,
   runAllTickets,
+  restoreLastRun,
   runOneTicket,
   STALE_TICKET_MESSAGE,
 } from "@/features/editor/ui/ticketRunner";
@@ -54,6 +58,11 @@ export function TicketPanel() {
   const running = useTicketStore((state) => state.running);
   const runError = useTicketStore((state) => state.runError);
   const runErrorRetryable = useTicketStore((state) => state.runErrorRetryable);
+  const wait = useTicketStore((state) => state.wait);
+  const acceptanceWarning = useTicketStore((state) => state.acceptanceWarning);
+  const overwriteReview = useTicketStore((state) => state.overwriteReview);
+  const lastRun = useTicketStore((state) => state.lastRun);
+  const restoreMessage = useTicketStore((state) => state.restoreMessage);
   const compile = useTicketStore((state) => state.compile);
   const markStatus = useTicketStore((state) => state.markStatus);
   const close = useTicketStore((state) => state.close);
@@ -83,6 +92,7 @@ export function TicketPanel() {
   const isStale = sourceDocumentId !== documentId || sourcePageId !== pageId || sourcePage !== page;
   const canExecute = workspaceAvailable === true && !isStale;
   const readyWave = readyTickets(tickets);
+  const waveSize = tickets.filter((ticket) => ticket.status === "in-progress").length;
 
   return (
     <aside className="flex flex-col overflow-hidden border-l border-line bg-surface [grid-area:props]">
@@ -125,7 +135,9 @@ export function TicketPanel() {
         </button>
       </header>
 
-      <HandoffStageIndicator current="handoff" />
+      {/* 이 요청의 임시 출력이 보이면 그때부터 "코드 생성" 단계다 — GUI가 가진 유일한 근거라
+          그 전에는 단정하지 않는다(#284, docs/20 "코드 생성"). */}
+      <HandoffStageIndicator current={running && (wait?.stagedFiles ?? 0) > 0 ? "generate" : "handoff"} />
 
       {isStale && (
         <p className="border-b border-line bg-surface-raised px-3 py-2 text-xs text-content-muted">
@@ -209,8 +221,41 @@ export function TicketPanel() {
         )}
       </div>
 
+      {acceptanceWarning !== null && !isStale && (
+        <p role="alert" className="border-t border-line px-3 py-2 text-xs text-error">
+          {acceptanceWarning}
+        </p>
+      )}
+
+      {/* 마지막 적용 되돌리기(#282). 적용이 쓴 바이트가 그대로인 파일만 백업으로 돌려놓는다 —
+          그 뒤 다시 고친 파일은 더 새로운 수정이라 건드리지 않는다. */}
+      {(lastRun !== null && !running) || restoreMessage !== null ? (
+        <div className="flex flex-col gap-1 border-t border-line px-3 py-2 text-xs text-content-muted">
+          {lastRun !== null && !running && (
+            <span>
+              마지막 적용이 파일 {lastRun.paths.length}개를 바꿨습니다(백업: <code>{lastRun.backupRoot}/</code>).{" "}
+              <button type="button" onClick={() => void restoreLastRun()} className="underline hover:text-content">
+                마지막 적용 되돌리기
+              </button>
+            </span>
+          )}
+          {restoreMessage !== null && <span role="alert">{restoreMessage}</span>}
+        </div>
+      ) : null}
+
+      {/* 쓰기 전 확인(#282)은 조작 영역이라 알림 영역(role=status) 밖에 둔다. */}
+      {overwriteReview !== null && (
+        <div className="border-t border-line px-3 py-2">
+          <OverwriteReviewPanel key={overwriteReview.requestId} review={overwriteReview} onAnswer={answerOverwriteReview} />
+        </div>
+      )}
+
       <div role="status" aria-live="polite" className="border-t border-line px-3 py-2 text-xs">
-        {workspaceAvailable !== true ? (
+        {overwriteReview !== null ? (
+          <span className="text-content-muted">
+            응답을 받았습니다. 위에서 기존 파일을 보존할지 덮어쓸지 고르면 적용합니다.
+          </span>
+        ) : workspaceAvailable !== true ? (
           <span className="text-content-muted">
             A안: 계획과 상태만 표시합니다. 실제 코드는 외부 에이전트가 생성합니다.
           </span>
@@ -228,7 +273,8 @@ export function TicketPanel() {
             {runErrorRetryable && (
               <span className="text-content-muted">
                 다시 전달하려면 위쪽 "에이전트에 전달"을 다시 눌러 새 요청을 만든
-                뒤 그 지시를 에이전트에 전달하세요.
+                뒤 그 지시를 에이전트에 전달하세요. 새 요청은 새 ID로 나가며, 이전
+                요청이 늦게 쓴 응답·파일은 반영하지 않습니다.
               </span>
             )}
             {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, ticketAgentClient.ts) —
@@ -240,18 +286,15 @@ export function TicketPanel() {
             />
           </div>
         ) : running ? (
-          <div className="flex flex-col gap-1 text-content-muted">
-            <span className="flex flex-wrap items-center gap-2">
-              에이전트 응답 대기 중 — 아직 전달하지 않았다면 지시를 복사해 에이전트에
-              붙여 넣으세요.
-              <CopyButton text={buildTicketAgentInstruction()} />
-            </span>
-            <HandoffDetails
-              requestPath={TICKET_REQUEST_PATH}
-              responsePath={TICKET_RESPONSE_PATH}
-              workspaceRoot={workspaceRoot}
-            />
-          </div>
+          <AgentWaitStatus
+            progress={wait}
+            instruction={buildTicketAgentInstruction()}
+            requestPath={TICKET_REQUEST_PATH}
+            responsePath={TICKET_RESPONSE_PATH}
+            workspaceRoot={workspaceRoot}
+            expectedOutputs={waveSize}
+            onExtend={extendTicketWait}
+          />
         ) : tickets.length === 0 ? null : isAllDone(tickets) && !isStale ? (
           <span className="text-content-muted">
             모든 티켓이 완료됐습니다. 다음:{" "}

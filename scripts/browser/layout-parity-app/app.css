@@ -1,0 +1,3 @@
+/* 대상 앱의 기본 구성(Tailwind v4). 복사본이 gitignore된 위치라 스캔 범위를 명시한다. */
+@import "tailwindcss";
+@source "./app";

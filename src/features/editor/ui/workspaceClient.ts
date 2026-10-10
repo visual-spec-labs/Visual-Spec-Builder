@@ -29,6 +29,7 @@ import {
   WORKSPACE_REQUEST_LOCK_RENEW_PARAM,
   type RequestLockKind,
 } from "@/features/workspace/protocol";
+import { sha256Hex } from "@/features/editor/export/contentHash";
 
 /**
  * 정말 우리 미들웨어가 답했는지 본다.
@@ -50,7 +51,7 @@ function isWorkspaceResponse(response: Response): boolean {
 let cachedStatus: { ok: true; root: string | null } | undefined;
 
 /** `/__vs/status`를 한 번 묻는다. 실패해도 예외를 던지지 않는다. */
-async function fetchWorkspaceStatus(signal?: AbortSignal): Promise<{ ok: boolean; root: string | null }> {
+async function fetchWorkspaceStatus(signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<{ ok: boolean; root: string | null }> {
   if (cachedStatus !== undefined) return cachedStatus;
 
   try {
@@ -69,7 +70,7 @@ async function fetchWorkspaceStatus(signal?: AbortSignal): Promise<{ ok: boolean
 }
 
 /** 작업공간이 연결돼 있는지 한 번 물어보고 결과를 기억한다. */
-export async function isWorkspaceAvailable(signal?: AbortSignal): Promise<boolean> {
+export async function isWorkspaceAvailable(signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<boolean> {
   return (await fetchWorkspaceStatus(signal)).ok;
 }
 
@@ -89,11 +90,12 @@ export async function listWorkspaceFiles(
   dir: WorkspaceDir,
   options: { recursive?: boolean; signal?: AbortSignal } = {},
 ): Promise<string[] | null> {
-  if (!(await isWorkspaceAvailable())) return null;
+  const signal = options.signal ?? AbortSignal.timeout(10_000);
+  if (!(await isWorkspaceAvailable(signal))) return null;
 
   const query = options.recursive === true ? `?${WORKSPACE_LIST_RECURSIVE_PARAM}=1` : "";
   try {
-    const response = await fetch(`${WORKSPACE_LIST_ROUTE}${dir}${query}`, { signal: options.signal });
+    const response = await fetch(`${WORKSPACE_LIST_ROUTE}${dir}${query}`, { signal });
     if (!response.ok || !isWorkspaceResponse(response)) return null;
     const body: unknown = await response.json();
     const files = (body as { files?: unknown }).files;
@@ -124,8 +126,8 @@ export async function listWorkspaceFileEntries(dir: WorkspaceDir): Promise<Works
 }
 
 /** 텍스트 파일 내용. 없거나 읽을 수 없으면 null. */
-export async function readWorkspaceTextFile(relativePath: string, signal?: AbortSignal): Promise<string | null> {
-  if (!(await isWorkspaceAvailable())) return null;
+export async function readWorkspaceTextFile(relativePath: string, signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<string | null> {
+  if (!(await isWorkspaceAvailable(signal))) return null;
 
   try {
     const response = await fetch(workspaceFileUrl(relativePath), { signal });
@@ -142,9 +144,9 @@ export async function readWorkspaceTextFile(relativePath: string, signal?: Abort
  * 연결 복원, #279)에서 쓴다.
  */
 export async function readWorkspaceTextFileStrict(
-  relativePath: string, signal?: AbortSignal,
+  relativePath: string, signal: AbortSignal = AbortSignal.timeout(10_000),
 ): Promise<{ ok: true; text: string | null } | { ok: false }> {
-  if (!(await isWorkspaceAvailable())) return { ok: false };
+  if (!(await isWorkspaceAvailable(signal))) return { ok: false };
   try {
     const response = await fetch(workspaceFileUrl(relativePath), { signal });
     if (!isWorkspaceResponse(response)) return { ok: false };
@@ -177,7 +179,7 @@ export async function readWorkspaceBinaryFile(
 }
 
 /** The token belongs to these exact bytes, not a later Save-time read. */
-export async function readWorkspaceSpecSnapshot(relativePath: string, signal?: AbortSignal): Promise<{ text: string; revision: string } | null> {
+export async function readWorkspaceSpecSnapshot(relativePath: string, signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<{ text: string; revision: string } | null> {
   if (!(await isWorkspaceAvailable(signal))) return null;
   try {
     const response = await fetch(workspaceFileUrl(relativePath), { signal });
@@ -185,6 +187,54 @@ export async function readWorkspaceSpecSnapshot(relativePath: string, signal?: A
     if (!response.ok || !isWorkspaceResponse(response) || !revision) return null;
     return { text: await response.text(), revision };
   } catch { return null; }
+}
+
+/**
+ * 파일 하나의 **바이트 그대로**와 그 버전(바이트의 SHA-256)을 읽는다(#282). 없음과 읽기 실패를 가른다.
+ *
+ * 쓰기 전 보호가 쓰는 읽기다. 텍스트로 읽으면(`Response.text()`) UTF-8 BOM이 떨어지고 잘못된
+ * 바이트가 대체 문자로 바뀌어, 백업이 원본 바이트와 달라지고 버전도 서버와 어긋난다. 버전은
+ * 받은 바이트로 여기서 계산한다 — 서버가 같은 바이트로 계산하므로 기대 버전 비교에 그대로 쓸 수 있다.
+ */
+export async function readWorkspaceFileSnapshot(
+  relativePath: string,
+  signal: AbortSignal = AbortSignal.timeout(10_000),
+): Promise<{ ok: true; snapshot: { bytes: Uint8Array; revision: string } | null } | { ok: false }> {
+  if (!(await isWorkspaceAvailable(signal))) return { ok: false };
+  try {
+    const response = await fetch(workspaceFileUrl(relativePath), { signal });
+    if (!isWorkspaceResponse(response)) return { ok: false };
+    if (response.status === 404) return { ok: true, snapshot: null };
+    if (!response.ok) return { ok: false };
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return { ok: true, snapshot: { bytes, revision: sha256Hex(bytes) } };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * 생성 파일을 지운다 — 서버가 지금 바이트의 버전이 `expectedRevision`과 같을 때만 지운다(#282).
+ * 앱이 새로 만든 파일을 되돌릴 때만 쓴다. 409면 그 뒤 누군가 고쳤다는 뜻이라 남겨 둔다.
+ */
+export async function deleteWorkspaceFile(relativePath: string, expectedRevision: string, requestOwner?: string, signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<WriteResult> {
+  if (!(await isWorkspaceAvailable(signal))) return { ok: false, error: "작업공간에 연결돼 있지 않습니다." };
+  try {
+    const response = await fetch(workspaceFileUrl(relativePath), {
+      method: "DELETE",
+      headers: { [WORKSPACE_EXPECTED_REVISION_HEADER]: expectedRevision, ...(requestOwner ? { [WORKSPACE_REQUEST_OWNER_HEADER]: requestOwner } : {}) },
+      signal,
+    });
+    if (!isWorkspaceResponse(response)) return { ok: false, error: "작업공간 응답이 아닙니다." };
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message = (payload as { error?: unknown } | null)?.error;
+      return { ok: false, error: typeof message === "string" ? message : `HTTP ${response.status}`, status: response.status };
+    }
+    return { ok: true, path: relativePath };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 export type WriteResult = { ok: true; path: string; revision?: string } | { ok: false; error: string; status?: number };
@@ -203,9 +253,9 @@ export async function writeWorkspaceFile(
   /** 잠금으로 보호되는 요청 파일(#273)에 쓸 때 잠금 주인. */
   requestOwner?: string,
   /** 취소(시간 제한) 신호. 응답 없는 요청이 호출 측을 무기한 붙잡지 않게 한다(#279). */
-  signal?: AbortSignal,
+  signal: AbortSignal = AbortSignal.timeout(10_000),
 ): Promise<WriteResult> {
-  if (!(await isWorkspaceAvailable())) {
+  if (!(await isWorkspaceAvailable(signal))) {
     return { ok: false, error: "작업공간에 연결돼 있지 않습니다." };
   }
 
@@ -245,7 +295,7 @@ export async function acquireRequestLock(
   kind: RequestLockKind,
   owner: string,
   renew = false,
-  signal?: AbortSignal,
+  signal: AbortSignal = AbortSignal.timeout(10_000),
 ): Promise<RequestLockOutcome> {
   try {
     const query = renew ? `?${WORKSPACE_REQUEST_LOCK_RENEW_PARAM}=1` : "";

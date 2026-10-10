@@ -28,7 +28,9 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
    .visual-spec/generated/pages/<PageName>.tsx
    .visual-spec/generated/components/<ComponentName>.tsx
    ```
-5. **파일을 쓰고 결과를 보고한다.** prettier/eslint 같은 포매터는 사용자가 요청하지 않는
+5. **쓸 경로에 이미 파일이 있으면 쓰기 전에 확인한다.** 아래 "이미 생성한 파일을 다시 만들
+   때"의 순서를 따른다 — 기존 파일을 먼저 덮어쓰고 diff를 보고하는 것은 보호가 아니다.
+6. **파일을 쓰고 결과를 보고한다.** prettier/eslint 같은 포매터는 사용자가 요청하지 않는
    한 자동으로 돌리지 않는다.
 
 **export 방식은 위치로 정해진다.** `pages/`의 페이지 컴포넌트는 `export default function
@@ -115,12 +117,50 @@ import { Sidebar } from "../components/Sidebar";
 
 [visual-spec-authoring](../visual-spec-authoring/SKILL.md)에서 후속 피드백("버튼 색
 바꿔줘" 등)을 반영해 원본 스펙 JSON을 고치고 넘어온 경우다. 같은 스펙은 항상 같은
-경로(4번)에 쓰이므로 원래 파일을 그대로 덮어쓰면 된다 — 새로 만들 때와 위치를 다시
-정할 이유가 없다. 새 화면을 처음 만들 때와 다르게 동작하는 건 이것 하나뿐이다.
+경로(4번)에 쓰이지만, **그 자리의 파일은 사람이 고쳤을 수 있다.** 그래서 기존 파일을 바로
+덮어쓰지 않고 아래 순서를 지킨다(이슈 #282, 사람이 보는 계약은 `docs/26` "#282" 절).
+쓰기 전에 확인하는 것이 핵심이다 — 덮어쓴 뒤 보여 주는 diff는 이미 잃은 코드를 알려 줄 뿐이다.
 
-- **결과를 새 코드 전체가 아니라 무엇이 바뀌었는지 diff로 요약해 보고한다.** 사용자가
-  요청한 건 "버튼 색 바꿔줘" 하나인데 파일 전체를 다시 붙여 넣으면 실제로 뭐가
-  바뀐 건지 찾기 어렵다.
+1. **영향 파일 목록을 정한다.** 이번에 쓸 `.visual-spec/generated/` 아래 경로 전부다. 아직
+   아무 파일도 쓰지 않는다.
+2. **경로마다 지금 상태를 판정한다.** 수용 기록 `.visual-spec/runtime/generation-manifest.json`의
+   `entries["<pages|components>/<이름>.tsx"]`와 지금 파일의 SHA-256을 비교한다. 해시는 바이트
+   그대로 계산한다(텍스트로 읽어 다시 쓰면 BOM·줄바꿈이 바뀐다):
+   ```
+   node -e "const c=require('crypto'),f=require('fs');console.log('sha256:'+c.createHash('sha256').update(f.readFileSync(process.argv[1])).digest('hex'))" <파일 경로>
+   ```
+   | 지금 상태 | 판정 | 처리 |
+   |---|---|---|
+   | 파일 없음 | 새 파일 | 쓴다 |
+   | 지금 바이트 = 새 코드 | 같음 | 쓰지 않는다 |
+   | 기록이 있고, 기록의 `projectKey`가 지금 스펙 파일 이름(`.visual-spec/specs/<이름>.json`의 `<이름>.json`)과 같고, `pageId`가 지금 페이지와 같고, 해시가 기록의 `contentHash`와 같다 | 마지막 정상 생성 그대로 | 백업 후 쓴다 |
+   | 그 밖 전부 — 기록 없음, 해시 다름, 다른 프로젝트·페이지의 기록, 스펙 파일 이름을 모름 | 확인 대상 | **묻는다** |
+
+   기록이 없는 기존 파일을 생성기가 만든 것으로 **추정하지 않는다.** 직접 만든 파일일 수 있다.
+   다른 프로젝트(이름을 바꾸거나 복사한 프로젝트 포함)의 기록도 이 프로젝트의 것으로 보지 않는다.
+3. **확인 대상이 하나라도 있으면 쓰기 전에 멈추고 보여 준다.** 영향 파일 목록과 각 판정, 확인
+   대상마다 "지금 파일 → 새 코드" diff를 보인다. 기록의 `requestId`로
+   `.visual-spec/staging/<requestId>/<경로>`가 남아 있고 그 해시가 기록과 같으면 그것이 마지막
+   생성 본문이다 — "마지막 생성 → 지금 파일" diff(사람이 바꾼 부분)도 함께 보인다. 파일마다
+   **보존**(바꾸지 않음) 또는 **백업 후 덮어쓰기**를, 또는 **전체 취소**를 고르게 한다. 답을 받기
+   전에는 아무것도 쓰지 않는다. 답이 없거나 애매한 파일은 보존이다.
+4. **바꿀 기존 파일을 먼저 백업한다.** 마지막 정상 생성 그대로인 파일도 포함한다. 새 실행 ID
+   (예: 현재 시각 + 임의 문자열)를 정해 `.visual-spec/backups/<실행 ID>/files/<경로>`에 **바이트
+   그대로** 복사하고(예: `cp`), 복사본 해시가 원본 해시와 같은지 확인한다. 이미 있는 백업 경로에는
+   쓰지 않는다. 하나라도 실패하면 **아무 파일도 쓰지 않고** 멈춘 뒤 보고한다.
+5. **쓰기 직전에 다시 비교한다.** 바꿀 파일마다 지금 해시가 2번에서 본 값과 같은지 다시 본다.
+   하나라도 다르면(확인한 뒤 누가 고쳤다) **아무것도 쓰지 않고** 2번부터 다시 한다.
+6. **쓴다.** 중간에 실패하면 이미 쓴 파일을 되돌린다 — 되돌리기 전에 그 파일이 방금 쓴 내용
+   그대로인지 해시로 확인하고, 그대로일 때만 백업으로 돌려놓는다(새로 만든 파일은 지운다). 그
+   사이 바뀐 파일은 손대지 않고 그 사실과 백업 위치를 보고한다.
+7. **결과를 보고한다.** 바꾼 파일·보존한 파일·백업 위치를 표로 보이고, 바뀐 내용은 새 코드 전체가
+   아니라 diff로 요약한다 — 사용자가 요청한 건 "버튼 색 바꿔줘" 하나인데 파일 전체를 다시
+   붙여 넣으면 실제로 뭐가 바뀐 건지 찾기 어렵다.
+
+수용 기록(`generation-manifest.json`)은 **쓰지 않는다** — GUI만 쓴다. 그래서 직접 실행으로 만든
+파일은 다음 재생성에서 "기록 없음"으로 다시 확인 대상이 된다. 확인 없이 다시 만들고 싶다면 GUI의
+구현 티켓으로 전달하면 GUI가 기록을 남긴다. 이 절차는 에이전트가 지키는 약속이라, 같은 순간 다른
+도구가 파일을 쓰는 경쟁까지 막지는 못한다(5번이 그 틈을 줄인다).
 
 ## 반응형 (`screen.responsive`)
 
@@ -249,7 +289,7 @@ stop과 `image:` 힌트는 아래 기존 배경 규칙 그대로다. `background
 
 ```tsx
 <style>{`
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css");
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css");
 html, body, #root { width: 100%; min-height: 100%; margin: 0; }
 @layer base {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
@@ -284,7 +324,9 @@ Tailwind를 사용하지 않거나 Preflight를 끄면 같은 base 규칙을 일
 60% opacity로 그리기 때문이다. 플랫폼 기본 input padding이나 border를 추가하지 않는다.
 
 GUI는 `src/styles/fonts.css`가 불러오는 Pretendard를 사용한다. 대상 앱도 같은 폰트 파일과
-fallback 순서를 로드해야 줄바꿈과 글자 폭을 비교할 수 있다. 폰트 파일·버전이 다르면 치수
+fallback 순서를 로드해야 줄바꿈과 글자 폭을 비교할 수 있다. 위 셸의 `@import` URL(static
+dynamic-subset, family `Pretendard`)을 다른 배포본으로 바꾸지 않는다. variable 배포 CSS는 family가
+`Pretendard Variable`이라 `[font-family:'Pretendard']` 텍스트가 OS 폴백 폰트로 그려진다. 폰트 파일·버전이 다르면 치수
 차이를 레이아웃 회귀라고 판정하지 않는다. 생성 요소마다 `data-node-id`에 Visual Spec 노드 ID를
 남긴다. 이 속성은 각 노드의 브라우저 실측을 Canvas와 연결하는 QA 표식이다.
 

@@ -20,6 +20,11 @@ import {
   writeWorkspaceFile,
 } from "@/features/editor/ui/workspaceClient";
 import { holdRequestLock, type HeldRequestLock } from "@/features/editor/ui/agentRequestLock";
+import {
+  AGENT_WAIT_WINDOW_MS,
+  createAgentRequestWait,
+  type AgentRequestWait,
+} from "@/features/editor/ui/agentRequestWait";
 import { RUNTIME_DIR } from "@/features/workspace/protocol";
 
 import {
@@ -36,14 +41,15 @@ import {
 export const NL_POLL_INTERVAL_MS = 1000;
 
 /**
- * 기다리기를 포기하는 시각. 3분이다.
+ * 처음 기다리는 시간. 3분이다.
  *
  * 에이전트가 답을 쓰기까지 사람의 조작(창 전환·요청 전달)이 끼는 경로라 몇 초로는
- * 모자라고, 무한정 기다리면 "요청 중"에 갇혀 다음 요청을 못 한다. 포기해도 요청
- * 파일은 남으므로 에이전트가 늦게 답을 써도 다음 요청 때 `requestId`가 달라
- * 조용히 무시된다(`parseNlResponse`의 `stale`).
+ * 모자라고, 무한정 기다리면 "요청 중"에 갇혀 다음 요청을 못 한다. 사용자는 "대기 연장"으로
+ * 같은 요청의 기한을 미룰 수 있다 — 연장 규칙은 티켓 통로와 같다(`ui/agentRequestWait.ts`, #284).
+ * 기다림이 끝나면 잠금 해제와 함께 요청 파일도 지워지고, 에이전트가 늦게 답을 써도 다음 요청은
+ * `requestId`가 달라 조용히 무시된다(`parseNlResponse`의 `stale`).
  */
-export const NL_TIMEOUT_MS = 180_000;
+export const NL_TIMEOUT_MS = AGENT_WAIT_WINDOW_MS;
 
 export type NlRequestOutcome =
   | { kind: "unavailable"; message: string }
@@ -58,6 +64,8 @@ export type NlRequestOutcome =
   | { kind: "lockLost"; message: string }
   | { kind: "writeFailed"; message: string }
   | { kind: "timeout"; message: string }
+  /** 기한까지 작업공간 서버에 닿지 못했다(#284). 티켓 통로의 같은 이름과 뜻이 같다. */
+  | { kind: "connectionLost"; message: string }
   | { kind: "cancelled" }
   | { kind: "response"; result: NlResponseResult };
 
@@ -89,11 +97,27 @@ export function createNlRequestId(): string {
  *
  * 취소는 토큰으로 받는다 — `AbortController`를 쓰지 않는 이유는 여기서 끊어야 하는
  * 것이 fetch 하나가 아니라 **폴링 루프 전체**여서다. 루프가 매 회차 앞에서 토큰을
- * 보므로, 취소가 걸리면 다음 GET을 아예 보내지 않는다.
+ * 보므로, 취소가 걸리면 다음 GET을 아예 보내지 않는다. 취소는 GUI가 기다림을 멈추는 것이지
+ * 에이전트를 멈추는 것이 아니다(티켓 통로와 같은 뜻, docs/26).
+ *
+ * `wait`는 호출부가 "대기 연장"과 진행 표시를 위해 넘긴다. 결과가 정해지면 `settle`한다.
  */
 export async function requestNlEdit(
   input: BuildNlRequestInput,
   cancel: NlCancelToken,
+  wait: AgentRequestWait = createAgentRequestWait(),
+): Promise<NlRequestOutcome> {
+  try {
+    return await sendNlRequest(input, cancel, wait);
+  } finally {
+    wait.settle();
+  }
+}
+
+async function sendNlRequest(
+  input: BuildNlRequestInput,
+  cancel: NlCancelToken,
+  wait: AgentRequestWait,
 ): Promise<NlRequestOutcome> {
   const request = buildNlRequest(input);
 
@@ -110,7 +134,7 @@ export async function requestNlEdit(
     // 잠금을 기다리는 사이 취소됐으면 요청 파일을 쓰지 않는다 — 쓰면 외부 에이전트가 정리 전에
     // 읽고 실행할 수 있다(PR #296 리뷰). 잠금은 아래 finally가 푼다.
     if (cancel.cancelled) return { kind: "cancelled" };
-    return await waitForNlResponse(request, cancel, lock === "unavailable" ? null : lock);
+    return await waitForNlResponse(request, cancel, wait, lock === "unavailable" ? null : lock);
   } finally {
     if (lock !== "unavailable") lock.release();
   }
@@ -119,6 +143,7 @@ export async function requestNlEdit(
 async function waitForNlResponse(
   request: ReturnType<typeof buildNlRequest>,
   cancel: NlCancelToken,
+  wait: AgentRequestWait,
   lock: HeldRequestLock | null,
 ): Promise<NlRequestOutcome> {
   const written = await writeWorkspaceFile(
@@ -139,7 +164,7 @@ async function waitForNlResponse(
       : { kind: "writeFailed", message: `요청을 저장하지 못했습니다 — ${written.error}` };
   }
 
-  const deadline = Date.now() + NL_TIMEOUT_MS;
+  wait.start();
   for (;;) {
     if (cancel.cancelled) return { kind: "cancelled" };
     if (lock !== null && !await lock.renew()) {
@@ -153,20 +178,35 @@ async function waitForNlResponse(
     // GET은 404이고, 초당 한 번씩 3분이면 개발자 도구 콘솔이 404로 가득 찬다 —
     // 정상 동작(아직 안 왔다)이 오류처럼 보이면 진짜 오류를 그 속에서 못 찾는다.
     // 목록 라우트는 폴더가 비어도 200이라 그 일이 생기지 않는다.
+    // 목록이 null이면 작업공간 서버에 닿지 않은 것이다 — "아직 응답 없음"과 구분해 알린다(#284).
     const files = await listWorkspaceFiles(RUNTIME_DIR);
+    wait.report(files === null ? "connectionLost" : "waiting");
     const result =
       files !== null && files.includes(NL_RESPONSE_FILE)
         ? parseNlResponse(await readWorkspaceTextFile(NL_RESPONSE_PATH), request.id)
         : ({ kind: "stale" } as const);
-    if (result.kind !== "stale") return { kind: "response", result };
+    if (cancel.cancelled) return { kind: "cancelled" };
+    if (!wait.expired() && result.kind !== "stale") {
+      // A slow response GET may outlive the lease. Verify ownership again before accepting it.
+      if (lock !== null && !await lock.renew(true)) {
+        return { kind: "lockLost", message: "응답 수용 전에 요청 잠금을 확인하지 못했습니다. 다시 요청하세요." };
+      }
+      if (cancel.cancelled) return { kind: "cancelled" };
+      if (!wait.expired()) return { kind: "response", result };
+    }
 
-    if (Date.now() >= deadline) {
+    if (wait.expired()) {
       // 원시 경로는 더 이상 이 문구에 넣지 않는다(#283) — 입력창이 "자세히"로
       // 같은 경로를 보여주고, 이 문구는 사람이 다음에 할 일만 말한다.
-      return {
-        kind: "timeout",
-        message: `${Math.round(NL_TIMEOUT_MS / 1000)}초 동안 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 지시를 다시 복사해 전달하세요.`,
-      };
+      return files === null
+        ? {
+            kind: "connectionLost",
+            message: "작업공간 연결이 끊긴 채 대기 시간이 끝났습니다. 개발 서버(`npx visual-spec`)가 실행 중인지 확인한 뒤 다시 요청하세요.",
+          }
+        : {
+            kind: "timeout",
+            message: "대기 시간 안에 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요.",
+          };
     }
     await sleep(NL_POLL_INTERVAL_MS);
   }
