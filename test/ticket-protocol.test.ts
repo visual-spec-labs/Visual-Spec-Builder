@@ -61,6 +61,7 @@ describe("buildTicketRequest", () => {
       pageId: "home",
       page,
       tickets: [pageTicket],
+      generatedRoot: "shop/home",
     });
 
     expect(request).toMatchObject({
@@ -77,12 +78,14 @@ describe("buildTicketRequest", () => {
         componentName: "Home",
         kind: "page",
         instances: ["root"],
-        filePath: ticketFilePath(pageTicket),
+        // 확정될 자리는 프로젝트·페이지 생성 자리 아래다(#281).
+        filePath: `shop/home/${ticketFilePath(pageTicket)}`,
         // 에이전트는 확정될 자리가 아니라 요청 전용 임시 출력에 쓴다(#284).
-        outputPath: `staging/wave-1/${ticketFilePath(pageTicket)}`,
+        outputPath: `staging/wave-1/shop/home/${ticketFilePath(pageTicket)}`,
       },
     ]);
     expect(request.outputRoot).toBe("staging/wave-1");
+    expect(request.generatedRoot).toBe("shop/home");
   });
 });
 
@@ -134,6 +137,19 @@ describe("parseTicketResponse — 기다림을 끝낼지 판정한다", () => {
 
     expect(result.kind).toBe("malformed");
     if (result.kind === "malformed") expect(result.message).toContain("99");
+  });
+
+  it("구버전 스킬의 v2 응답은 받지 않고 스킬 갱신을, 더 새 응답은 앱 업데이트를 안내한다 (#281 리뷰)", () => {
+    const older = parseTicketResponse(responseText({ protocol: 2, requestId: "wave-1", results: [] }), "wave-1");
+    expect(older.kind).toBe("malformed");
+    if (older.kind === "malformed") {
+      expect(older.message).toContain("에이전트의 티켓 응답 스킬이 구버전입니다(티켓 요청 규약 v2 응답, 이 GUI는 v3)");
+      expect(older.message).toContain("`visual-spec skills`");
+    }
+    const newer = parseTicketResponse(responseText({ protocol: TICKET_PROTOCOL_VERSION + 1, requestId: "wave-1", results: [] }), "wave-1");
+    expect(newer.kind === "malformed" && newer.message).toContain("Visual Spec Builder를 업데이트");
+    const odd = parseTicketResponse(responseText({ protocol: "3", requestId: "wave-1", results: [] }), "wave-1");
+    expect(odd.kind === "malformed" && odd.message).toContain("응답 형식 버전이 다릅니다");
   });
 
   it("results가 배열이 아니면 malformed", () => {

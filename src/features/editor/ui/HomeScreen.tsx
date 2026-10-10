@@ -219,7 +219,11 @@ export function HomeScreen() {
     abortLoad.current();
     const result = await renameProject(project.fileName, name);
     if (!result.ok) setMessage(result.error);
-    else if (drawnPreviews.current.has(project.fileName)) drawnPreviews.current.add(result.path.split("/").pop() ?? "");
+    else {
+      // 이름 변경은 됐지만 생성 기록에 남기지 못했다(#281 리뷰) — 이유와 복구 경로를 그대로 보인다.
+      if ("warning" in result) setMessage(result.warning);
+      if (drawnPreviews.current.has(project.fileName)) drawnPreviews.current.add(result.path.split("/").pop() ?? "");
+    }
     await refreshProjects();
     setRenaming(false);
   }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH } from "@/features/editor/ticket/ticketProtocol";
@@ -18,7 +19,11 @@ import {
   runAllTickets,
   restoreLastRun,
   runOneTicket,
+  PROJECT_CHANGED_AFTER_COMMIT_MESSAGE,
+  PROJECT_CHANGED_PLAN_MESSAGE,
+  PROJECT_CHANGED_TICKET_MESSAGE,
   STALE_TICKET_MESSAGE,
+  ticketPlanStaleness,
 } from "@/features/editor/ui/ticketRunner";
 import { getWorkspaceRoot, isWorkspaceAvailable } from "@/features/editor/ui/workspaceClient";
 
@@ -55,6 +60,8 @@ export function TicketPanel() {
   const sourcePage = useTicketStore((state) => state.sourcePage);
   const documentId = useEditorStore((state) => state.documentId);
   const sourceDocumentId = useTicketStore((state) => state.sourceDocumentId);
+  const projectIdentity = useDocumentStore((state) => state.projectIdentity);
+  const sourceProjectIdentity = useTicketStore((state) => state.sourceProjectIdentity);
   const running = useTicketStore((state) => state.running);
   const runError = useTicketStore((state) => state.runError);
   const runErrorRetryable = useTicketStore((state) => state.runErrorRetryable);
@@ -89,7 +96,11 @@ export function TicketPanel() {
   }, []);
 
   // ticketRunner.isTicketPlanStale과 같은 판정이다 — 여기서는 렌더가 따라오도록 구독값으로 계산한다.
-  const isStale = sourceDocumentId !== documentId || sourcePageId !== pageId || sourcePage !== page;
+  const staleness = ticketPlanStaleness(
+    { sourcePageId, sourcePage, sourceDocumentId, sourceProjectIdentity },
+    { activePageId: pageId, page, documentId, projectIdentity },
+  );
+  const isStale = staleness !== null;
   const canExecute = workspaceAvailable === true && !isStale;
   const readyWave = readyTickets(tickets);
   const waveSize = tickets.filter((ticket) => ticket.status === "in-progress").length;
@@ -141,7 +152,12 @@ export function TicketPanel() {
 
       {isStale && (
         <p className="border-b border-line bg-surface-raised px-3 py-2 text-xs text-content-muted">
-          {STALE_TICKET_MESSAGE}
+          {staleness === "project" ? PROJECT_CHANGED_PLAN_MESSAGE : STALE_TICKET_MESSAGE}
+          {/* 프로젝트가 바뀐 순간 진행 중이던 요청이 어떻게 끝났는지도 함께 보인다(다른 오류는 낡은 계획과 무관하다). */}
+          {staleness === "project" &&
+            (runError === PROJECT_CHANGED_TICKET_MESSAGE || runError === PROJECT_CHANGED_AFTER_COMMIT_MESSAGE) && (
+            <span className="mt-1 block">{runError}</span>
+          )}
         </p>
       )}
 

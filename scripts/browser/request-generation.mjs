@@ -15,7 +15,7 @@ async function respond(request, text) {
     await mkdir(join(path, ".."), { recursive: true });
     await writeFile(path, text);
   }
-  await writeFileAtomic(join(workspace, request.responsePath), JSON.stringify({ protocol: 2, requestId: request.id,
+  await writeFileAtomic(join(workspace, request.responsePath), JSON.stringify({ protocol: request.protocol, requestId: request.id,
     results: request.tickets.map(ticket => ({ ticketId: ticket.id, status: "done" })) }));
 }
 try {

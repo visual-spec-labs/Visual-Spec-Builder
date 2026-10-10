@@ -5,13 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startBrowserWorkspace, writeFileAtomic } from "./harness.mjs";
 const workspace = await mkdtemp(join(tmpdir(), "vs-recovery-provenance-"));
-const file = "components/Header.tsx";
+// shop.json 프로젝트의 page1 생성 자리(#281).
+const file = "shop/page1/components/Header.tsx";
 const target = join(workspace, "generated", file);
 const old = "export function Header() { return <header>old</header>; }\n";
 const next = "export function Header() { return <header>same A and B</header>; }\n";
 let runner;
 try {
-  await mkdir(join(workspace, "generated/components"), { recursive: true });
+  await mkdir(join(workspace, "generated/shop/page1/components"), { recursive: true });
   await writeFile(target, old);
   runner = await startBrowserWorkspace(workspace);
   const context = await runner.newContext();
@@ -60,7 +61,7 @@ try {
   const gate = new Promise(resolve => { unblock = resolve; });
   let entered;
   const reached = new Promise(resolve => { entered = resolve; });
-  await a.route('**/__vs/file/generated/components/Header.tsx', async route => {
+  await a.route('**/__vs/file/generated/shop/page1/components/Header.tsx', async route => {
     if (route.request().method() !== 'PUT') return route.continue();
     const response = await route.fetch();
     assert.equal(response.status(), 200);
@@ -79,7 +80,7 @@ try {
   await settle(b);
   unblock();
   await a.evaluate(() => window.run);
-  await a.unroute('**/__vs/file/generated/components/Header.tsx');
+  await a.unroute('**/__vs/file/generated/shop/page1/components/Header.tsx');
   const manifest = async () => JSON.parse(await readFile(join(workspace, 'runtime/generation-manifest.json'), 'utf8'));
   assert.equal(await readFile(target, 'utf8'), next);
   assert.equal((await manifest()).entries[file].requestId, requestB.id);

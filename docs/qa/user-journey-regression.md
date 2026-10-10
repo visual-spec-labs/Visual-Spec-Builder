@@ -1,6 +1,6 @@
 # 사용자 여정 fixture 회귀와 실제 모델 QA (#292)
 
-상태: 이 문서는 fixture 여정의 **실행 환경 준비**와 과거 기록을 보존한다. 검증 구분·필수 8개 여정·실제 모델
+상태: 이 문서는 fixture 여정의 **실행 환경 준비**와 과거 기록을 보존한다. 검증 구분·필수 9개 여정·실제 모델
 실행 절차와 2026-10-10 실제 모델 통합 실행 기록은 [28](../28-real-flow-regression.md)에 한 곳으로 모았다.
 아래 "5개 CI 게이트"와 "실제 모델 검증" 절은 그 이전(#338·#346) 시점의 기록이다.
 
@@ -78,13 +78,13 @@ VSB_RESPONSIVE_BROWSER=1 VSB_PAGE_SHELL_BROWSER=1 VSB_GRID_BROWSER=1 \
 ```
 
 일반 `pnpm test`는 위 3개 실측을 기본 skip하며 `scripts/browser/*.mjs`도 실행하지 않는다.
-CI의 별도 Chromium 잡이 이 3개 실측과 아래 5개 사용자 여정을 각각 명시 실행한다.
+CI의 별도 Chromium 잡이 이 3개 실측과 아래 9개 사용자 여정을 각각 명시 실행한다.
 따라서 일반 테스트 성공과 실제 브라우저 실행 여부를 각각 보고한다.
 
-## 기존 사용자 여정 5개 CI 게이트
+## 사용자 여정 9개 CI 게이트
 
-> #292에서 `stale-ticket-journey.mjs`·`request-generation.mjs`·`manual-change-guard.mjs`를 더해 **8개**가 됐다.
-> 마지막 줄은 `PASS all 8 fixture journeys (no skips)`다. 현재 목록은 [28](../28-real-flow-regression.md) 2절.
+> #292에서 `stale-ticket-journey.mjs`·`request-generation.mjs`·`manual-change-guard.mjs`를 더하고 #281의 `generation-ownership.mjs`를 유지해 **9개**가 됐다.
+> 마지막 줄은 `PASS all 9 fixture journeys (no skips)`다. 현재 목록은 [28](../28-real-flow-regression.md) 2절.
 
 기준 develop `157ab1752b9ca87df4e79002ebde99cb8965fad7`에서 기존 Node 스크립트를 연결한다.
 Linux에서 Node Playwright 1.62.0과 Chromium을 준비한 뒤 저장소 루트에서 실행한다.
@@ -107,6 +107,10 @@ Python이 설치한 같은 Chromium을 CHROME_BIN으로 지정한다. Node 도�
 | 3 | document-transitions.mjs | New/Open/카드 전환 취소·교체 요청·두 탭 충돌·명시적 승인·낡은 응답 ABA |
 | 4 | unnamed-drafts.mjs | Home/Resume/새로고침·탭별 UUID·동시 소유권·저장/삭제·Web Locks 없는 경우 |
 | 5 | save-status.mjs | 실제 저장/실패 표시·저장 중 편집·외부 변경/충돌·지연 응답·다운로드/보관 실패 |
+| 6 | stale-ticket-journey.mjs | 편집 뒤 낡은 티켓 전달 차단·재컴파일·재전달 |
+| 7 | request-generation.mjs | 다중 탭 요청·늦은 응답·잠금 소유권 |
+| 8 | manual-change-guard.mjs | 수동 변경 보호·확정·백업·되돌리기 |
+| 9 | generation-ownership.mjs | 손상 registry 차단·정상 404/direct 출력 ZIP·잠금 중 실제 Home 연속 rename·stale destination 배제·후속 가짜 티켓 수용의 신원/바이트 |
 
 기존 시나리오의 단언을 유지하고 세 스크립트의 중복 시작/종료를 공용 harness로 옮겼다.
 저장 상태의 읽기 실패/복구는 주입한 503과 복구된 200 응답도 확인한 뒤 기존 UI 단언을 실행한다.
@@ -119,7 +123,7 @@ Python이 설치한 같은 Chromium을 CHROME_BIN으로 지정한다. Node 도�
 
 각 여정은 120초 후 SIGTERM, 10초 후에도 종료되지 않으면 강제 종료한다. harness는 SIGTERM/
 SIGINT에서 브라우저와 Vite를 닫으며, Vite 종료에도 5초 상한을 둔다. 묶음은 첫 nonzero에서
-멈추고 임시 루트를 지운다. 마지막 `PASS all 5 fixture journeys (no skips)`는 다섯 프로세스가
+멈추고 임시 루트를 지운다. 마지막 `PASS all 9 fixture journeys (no skips)`는 아홉 프로세스가
 모두 exit 0일 때만 출력한다. `VSB_JOURNEY_TIMEOUT_SECONDS=1`처럼 제한을 줄여 실패 경로를
 진단할 수 있지만 120초보다 늘리거나 0으로 해제할 수는 없다. 게이트 단위 회귀는 exit 37과
 정지 fixture의 timeout 124가 다음 여정/성공 로그로 가려지지 않고 임시 파일을 정리함을 확인한다.

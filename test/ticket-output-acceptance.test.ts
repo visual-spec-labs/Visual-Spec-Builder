@@ -62,8 +62,13 @@ import {
   runOneTicket,
 } from "@/features/editor/ui/ticketRunner";
 
-const HEADER = "components/Header.tsx";
-const CARD = "components/Card.tsx";
+/**
+ * 이 시나리오들은 저장하지 않은 문서(파일 이름 없음)로 돈다. 처음 전달할 때 GUI가 이 문서에 세션 프로젝트를
+ * 정하고 그 자리(`generated/unsaved/page1/`)에 확정한다(#281). 경로는 `generated/` 기준이다.
+ */
+const ROOT = "unsaved/page1";
+const HEADER = `${ROOT}/components/Header.tsx`;
+const CARD = `${ROOT}/components/Card.tsx`;
 const A_BYTES = "export function Header() { return <header>A — 취소된 요청</header>; }\n";
 const B_BYTES = "export function Header() { return <header>B — 재시도 성공</header>; }\n";
 
@@ -92,8 +97,8 @@ function status(id: string) {
 }
 
 async function exportScan() {
-  const { activePageId, spec } = useEditorStore.getState();
-  const scan = await scanGeneratedCode(spec.pages[activePageId], activePageId);
+  const { activePageId, spec, documentId } = useEditorStore.getState();
+  const scan = await scanGeneratedCode(spec.pages[activePageId], activePageId, { fileName: null, documentId });
   if (scan.kind !== "ready" || scan.freshness === null) throw new Error("Export 훑기 실패");
   const byTicket = Object.fromEntries(scan.freshness.tickets.map((entry) => [entry.ticketId, entry.freshness]));
   return { scan, freshness: scan.freshness, byTicket };
@@ -204,7 +209,7 @@ describe("취소 A → 재시도 B 성공 → 늦은 A 응답/파일", () => {
     await run;
     for (const ticket of useTicketStore.getState().tickets) {
       const dir = ticket.kind === "page" ? "pages" : "components";
-      workspace.files.set(`generated/${dir}/${ticket.componentName}.tsx`, `export function ${ticket.componentName}() { return null; }\n`);
+      workspace.files.set(`generated/${ROOT}/${dir}/${ticket.componentName}.tsx`, `export function ${ticket.componentName}() { return null; }\n`);
     }
 
     // 티켓 상태: 모두 pending
@@ -424,7 +429,8 @@ describe("승격 중 재진입 회귀", () => {
     resume();
     await run;
     expect(workspace.files.get(`generated/${HEADER}`)).toBe(B_BYTES);
-    expect(workspace.files.has(GENERATION_MANIFEST_PATH)).toBe(false);
+    // 생성 자리 기록(projects, #281)은 요청 전에 생기지만 수용 기록(entries)은 하나도 없다
+    expect(parseGenerationManifest(textOf(workspace, GENERATION_MANIFEST_PATH) ?? null).entries).toEqual({});
     if (action === "cancel") {
       expect(status("Header")).toBe("pending");
       workspace.beforeRead = undefined;
@@ -455,7 +461,8 @@ describe("승격 중 재진입 회귀", () => {
     await tick();
     await run;
     expect(workspace.files.has(`generated/${HEADER}`)).toBe(false);
-    expect(workspace.files.has(GENERATION_MANIFEST_PATH)).toBe(false);
+    // 생성 자리 기록(projects, #281)은 요청 전에 생기지만 수용 기록(entries)은 하나도 없다
+    expect(parseGenerationManifest(textOf(workspace, GENERATION_MANIFEST_PATH) ?? null).entries).toEqual({});
     expect(status("Header")).not.toBe("in-progress");
     expect(status("Content")).toBe("pending");
   });

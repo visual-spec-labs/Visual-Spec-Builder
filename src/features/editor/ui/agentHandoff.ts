@@ -18,7 +18,7 @@
  */
 
 import { NL_REQUEST_PATH } from "@/features/editor/nl/nlProtocol";
-import { TICKET_REQUEST_PATH } from "@/features/editor/ticket/ticketProtocol";
+import { TICKET_PROTOCOL_VERSION, TICKET_REQUEST_PATH } from "@/features/editor/ticket/ticketProtocol";
 import { WORKSPACE_DIR_NAME } from "@/features/workspace/protocol";
 
 /** 자연어 편집 요청에 응답하도록 에이전트에게 건넬 문단. */
@@ -36,6 +36,7 @@ export function buildTicketAgentInstruction(): string {
     `visual-spec-ticket-response 스킬과 그 스킬이 참조하는 visual-spec-to-react ` +
     `지침을 읽고, 현재 ${WORKSPACE_DIR_NAME}/${TICKET_REQUEST_PATH}의 한 웨이브를 처리해 줘. ` +
     `요청된 파일을 실제로 생성·확인한 뒤 결과 응답을 써 줘. 수행한 검증과 미실행 ` +
-    `검증을 구분해 줘.`
+    `검증을 구분해 줘. 요청의 protocol(티켓 요청 규약 v${TICKET_PROTOCOL_VERSION})을 스킬이 지원하지 않으면 ` +
+    `파일을 쓰지 말고 \`visual-spec skills\`로 스킬을 갱신하라고 알려 줘.`
   );
 }

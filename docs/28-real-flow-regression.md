@@ -7,13 +7,13 @@
 
 | 구분 | 실행 위치·비용 | 확인하는 것 | 확인하지 않는 것 |
 |---|---|---|---|
-| **fixture 사용자 여정** | 필수 CI Chromium 잡(`run-journeys.sh`, 8개). 모델 비용 없음 | 실제 Chromium·Vite HTTP·작업공간 파일로 GUI 조작, 요청/응답 프로토콜, 상태 전이, 다운로드 | 모델이 만든 Command·TSX의 품질. 응답과 TSX는 스크립트가 쓴 결정적 fixture다 |
+| **fixture 사용자 여정** | 필수 CI Chromium 잡(`run-journeys.sh`, 9개). 모델 비용 없음 | 실제 Chromium·Vite HTTP·작업공간 파일로 GUI 조작, 요청/응답 프로토콜, 상태 전이, 다운로드 | 모델이 만든 Command·TSX의 품질. 응답과 TSX는 스크립트가 쓴 결정적 fixture다 |
 | **fixture 실측** | `layout-parity.mjs` 기본 모드(수동, 폰트 CDN 필요) | 계약을 따른 손 작성 생성 코드가 GUI와 같은 배치인지([25](25-layout-parity-contract.md)) | 실제 AI 출력의 배치 |
 | **실제 모델 실행** | 수동(`real-model-journey.mjs`). 이 기기의 인증된 Claude Code/Codex를 쓰며 **비용이 든다**. CI에서 실행하지 않는다 | 실제 모델이 만든 Command·TSX가 GUI 검증·재생성 보호·Export·독립 앱·실측을 통과하는지 | 기록한 SHA·CLI·모델 밖의 조합. 다른 모델·버전의 성공을 보증하지 않는다 |
 
 규칙:
 
-- CI 로그의 `PASS all 8 fixture journeys`는 fixture 결과다. PR·이슈에 "실제 모델 통과"로 적지 않는다.
+- CI 로그의 `PASS all 9 fixture journeys`는 fixture 결과다. PR·이슈에 "실제 모델 통과"로 적지 않는다.
 - 실제 모델 결과는 4절처럼 **통합 커밋 SHA·CLI 버전·모델·명령·소요 시간**과 함께 기록하고, 해당 조합에만 쓴다.
 - 중간 실패·재시도·권한 거부도 기록한다. 실패를 성공 기록으로 덮지 않는다.
 
@@ -22,7 +22,7 @@
 준비(Node Playwright 1.62.0·Chromium·`PLAYWRIGHT_MODULE`)는 [사용자 여정 문서](qa/user-journey-regression.md#비용-없는-독립-실행)를 따른다.
 
 ```bash
-FORCE_COLOR=1 bash scripts/browser/run-journeys.sh   # 마지막 줄: PASS all 8 fixture journeys (no skips)
+FORCE_COLOR=1 bash scripts/browser/run-journeys.sh   # 마지막 줄: PASS all 9 fixture journeys (no skips)
 ```
 
 | #292 완료 조건 1 항목 | 여정(스크립트) | 단언 요약 |
@@ -34,6 +34,7 @@ FORCE_COLOR=1 bash scripts/browser/run-journeys.sh   # 마지막 줄: PASS all 8
 | 다중 탭 요청 | `request-generation.mjs` | 대기 연장·중지·재시도, 두 탭에서 lease 만료/취소/재컴파일 뒤 늦은 A의 PUT 거부, B의 바이트·manifest 유지 |
 | 〃 (저장) | `project-dialogs.mjs`·`document-transitions.mjs` | 두 번째 탭 저장 충돌 대화상자, 초안·history 보존 |
 | 자산 실패 | `export-journey.mjs` | 검사 후 자산 삭제 → 다운로드 차단·누락 표시 → 복구·재시도 ZIP의 실제 바이트 |
+| 생성 소유권(#281) | `generation-ownership.mjs` | 손상 기록 차단·정상 direct 출력·잠금 중 이름 재방문·ZIP·복구 재시도·후속 티켓 신원 |
 | 재생성 보호(#282) | `manual-change-guard.mjs` | 실제 확인 UI, 취소·재시도, BOM/CRLF 백업, 되돌리기 |
 
 `stale-ticket-journey.mjs`는 #292에서 새로 만들었고, `request-generation.mjs`·`manual-change-guard.mjs`는 기존 스크립트를
@@ -219,7 +220,16 @@ woff2 25/30개, 폰트 실패 0, 텍스트는 양쪽 모두 `Pretendard`·`Prete
 
 | 완료 조건 | 상태 | 근거 |
 |---|---|---|
-| 편집 직후 문서 전환·낡은 티켓·Export 페이지 전환·다중 탭 요청·자산 실패를 사용자 여정으로 검증 | 충족(fixture) | 2절 표, 필수 CI 8개 여정. Windows 로컬 8/8 통과 |
+| 편집 직후 문서 전환·낡은 티켓·Export 페이지 전환·다중 탭 요청·자산 실패를 사용자 여정으로 검증 | 충족(fixture) | 2절 표, 필수 CI 9개 여정. 이전 HEAD의 Windows 로컬 기록은 8/8 통과 |
 | 실제 AI 자연어 생성→GUI 후속 수정→재생성→ZIP→독립 앱 typecheck/build/브라우저 표시 기록 | 충족(실제 모델, 1회) | 4절 단계 1~11과 독립 앱 표, [실행 기록](qa/2026-10-10-real-model-journey.json) |
 | 이미지·반응형·여러 페이지와 시각 비교 기준 포함 | 충족 | 이미지 노드·이미지 배경, 2페이지, 분기점 2개. GUI 대비 실측 9조건 통과(4절) |
 | fixture 회귀와 실제 모델 실행 구분, 실행 절차 문서화 | 충족 | 1·2·3절 |
+
+
+### 최신 develop 통합 시 검증 범위
+
+#357(protocol v3·생성 소유권)과 #361(범위 정정)을 포함한 develop을 #358에 일반 merge한다.
+필수 묶음은 기존 8개와 `generation-ownership.mjs`를 합친 9개다. 응답 fixture는 요청의 protocol과
+outputPath/responsePath를 따르며 원자적 응답 쓰기를 유지한다. fake CLI도 v3 요청에는 v3 응답을 쓴다.
+기존 실제 모델·독립 앱·0px 기록은 그때 기록한 과거 HEAD의 결과이며, 이 통합 HEAD에서 실제 모델을
+다시 실행했다는 근거가 아니다. 최신 통합 검증의 실행 SHA·CI·실패/재시도 이력은 PR #358에 별도 기록한다.

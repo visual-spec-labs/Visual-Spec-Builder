@@ -4,6 +4,7 @@ import { prepareProjectRename, publishProjectRename } from "@/features/editor/st
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { recordProjectRename } from "@/features/editor/ui/generationTarget";
 import { renameProject } from "@/features/editor/ui/renameProject";
 import { readWorkspaceSpecSnapshot } from "@/features/editor/ui/workspaceClient";
 import { WORKSPACE_MARKER_HEADER, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
@@ -12,11 +13,14 @@ vi.mock("@/features/editor/store/specStorage", async (original) => ({
   ...await original<typeof import("@/features/editor/store/specStorage")>(), publishProjectRename: vi.fn(), prepareProjectRename: vi.fn(),
 }));
 vi.mock("@/features/editor/ui/workspaceClient", () => ({ readWorkspaceSpecSnapshot: vi.fn() }));
+// 생성 기록(#281)은 `generation-ownership.test.ts`가 실제 구현으로 본다. 여기서는 결과 전달만 본다.
+vi.mock("@/features/editor/ui/generationTarget", () => ({ recordProjectRename: vi.fn() }));
 const fetchMock = vi.fn();
 const lockMock = vi.fn(async (_key: string, action: () => Promise<unknown>) => action());
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(prepareProjectRename).mockReturnValue(vi.fn());
+  vi.mocked(recordProjectRename).mockResolvedValue(null);
   useSaveConflictStore.setState({ paused: false, check: () => false });
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("navigator", { locks: { request: lockMock } });
@@ -139,6 +143,15 @@ describe("home rename", () => {
     expect(readWorkspaceSpecSnapshot).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(useEditorStore.getState()).toBe(before);
+  });
+  it("이름 변경은 성공하되 생성 기록에 남기지 못하면 이유·복구 경로를 warning으로 돌려주고, 같은 프로젝트라 신원 세대를 올리지 않는다 (#281 리뷰)", async () => {
+    const warning = "이름 변경을 생성 기록에 남기지 못했습니다 — 다른 탭(창)의 티켓 요청이 진행 중… 다음에 전달할 때 기록을 다시 시도";
+    vi.mocked(recordProjectRename).mockResolvedValue(warning);
+    const identity = useDocumentStore.getState().projectIdentity;
+    expect(await renameProject("old.json", "New")).toEqual({ ok: true, path: "specs/New.json", warning });
+    expect(recordProjectRename).toHaveBeenCalledWith("old.json", "New.json");
+    expect(useDocumentStore.getState().fileName).toBe("New.json");
+    expect(useDocumentStore.getState().projectIdentity).toBe(identity);
   });
   it("does not send invalid names or missing source", async () => {
     expect((await renameProject("old.json", "../New")).ok).toBe(false);

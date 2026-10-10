@@ -52,7 +52,7 @@ if (mode.startsWith("nl-")) {
   const request = read("runtime/ticket-request.json");
   const done = mode === "tickets-ok";
   if (done) for (const ticket of request.tickets) write(ticket.outputPath, "export function Fake() { return null; }\\n");
-  write(request.responsePath, JSON.stringify({ protocol: 2, requestId: request.id, results: request.tickets.map((ticket) =>
+  write(request.responsePath, JSON.stringify({ protocol: request.protocol, requestId: request.id, results: request.tickets.map((ticket) =>
     done ? { ticketId: ticket.id, status: "done" } : { ticketId: ticket.id, status: "failed", message: "가짜 빌드 실패" }) }));
 }
 process.stdout.write(JSON.stringify({ is_error: false, num_turns: 1, result: "fake " + mode }));
