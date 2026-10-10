@@ -508,3 +508,25 @@ D1~D4·§3·§5 권고안이며, 그 문서(#339)의 팀 승인·병합 전에�
 기존 `examples/` 11개는 수정 없이 통과한다. 계약 fixture는 `test/fixtures/screen-relations-project.json`
 이고 테스트는 `test/screen-relations-schema.test.ts`·`test/screen-relations-command-guard.test.ts`다.
 `examples/`의 연결 예제는 S1-11에서 추가한다. GUI·캔버스·티켓·코드 생성·자연어 지원은 후속 S1 작업이다.
+
+### S1-1 생성·Export 임시 차단
+
+선택 필드를 읽을 수 있다는 사실이 관계 동작을 생성할 수 있다는 뜻은 아니다.
+`ticket/screenRelationsGuard.ts`는 현재 처리할 **화면 한 장**이 `kind: modal/widget`이거나
+버튼 `action`을 하나라도 가지면 `unsupported`로 판정한다. 숨김 버튼·없는 target도 포함하며
+참조의 유효성은 판정하지 않는다. kind 생략/명시적 `page`이며 action이 없는 화면은 기존 경로다.
+다른 페이지를 조회하거나 프로젝트 전체를 생성·검증하지 않는다.
+
+- 요청 전송 전에 차단해 작업공간 요청 파일을 쓰지 않는다. 티켓은 pending이며 이유를 표시한다.
+- 이전 요청/직접 호출의 가짜 `done`도 출력 수용 시 failed로 바꾼다. staging·generated·수용 기록은 보존한다.
+- Export는 기존 파일/수용 기록이 있어도 `unsupported`로 표시하고 current/성공 요약·ZIP을 제공하지 않는다.
+  다운로드 함수도 같은 화면 가드를 적용하므로 부분 Export로 우회할 수 없다.
+- Open·저장·자동 복원·복제·붙여넣기의 kind/action 값을 제거하지 않는다. 티켓 계획의 구조 비교도 바꾸지 않는다.
+
+이 차단은 새 관계 기능이나 새 Command/Ticket 규약이 아니다. 스키마 확장으로 아직 지원하지 않는
+생성 경로가 성공으로 보이는 것을 막는 S1-1의 최소 방어이며, 팀 스키마 리뷰 대상에 포함한다.
+**해제 조건은 S1-2 참조 검증과 S1-8/9 생성·수용·Export 지원**(프로젝트 문맥,
+action을 반영한 반복 비교, 도달 가능한 화면의 전이적 입력 지문 및 #281 공동 결정)이다.
+Command 가드의 S1-3 해제와 별개이며, S1-2만 완료해도 이 가드를 해제하지 않는다.
+회귀는 `test/ticket-output-acceptance.test.ts`·`test/export-generated-code.test.ts`와
+`scripts/browser/screen-relations-guard.mjs`의 수동 응답 fixture로 확인한다. 실제 모델 검증은 아니다.

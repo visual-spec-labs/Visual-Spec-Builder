@@ -11,7 +11,7 @@ import { scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
  * 접지 않는 이유는 `exportGeneratedCode.ts` 의 `GeneratedScan` 주석과 같다 —
  * 사용자가 해야 할 일이 다르다.
  */
-export type ExportStatus = "idle" | "scanning" | "ready" | "no-workspace";
+export type ExportStatus = "idle" | "scanning" | "ready" | "no-workspace" | "unsupported";
 
 /** 검사와 ZIP 다운로드가 함께 사용하는 편집기 스냅샷. */
 export interface ExportTarget {
@@ -54,8 +54,8 @@ export const useExportStore = create<ExportState>((set) => {
     set({ status: "scanning", files: [], report: null, freshness: null, target });
     const scan = await scanGeneratedCode(target.page, target.pageId);
     if (runGeneration !== generation) return;
-    if (scan.kind === "no-workspace") {
-      set({ status: "no-workspace", files: [], report: null, freshness: null, target });
+    if (scan.kind === "no-workspace" || scan.kind === "unsupported") {
+      set({ status: scan.kind, files: [], report: null, freshness: null, target });
       return;
     }
     set({ status: "ready", files: scan.files, report: scan.report, freshness: scan.freshness, target });

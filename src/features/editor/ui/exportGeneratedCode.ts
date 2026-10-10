@@ -21,6 +21,8 @@
  *   통합한다고 못박아 둔 것과도 맞는다
  */
 
+import { hasUnsupportedScreenRelations, UNSUPPORTED_SCREEN_RELATIONS_MESSAGE } from "@/features/editor/ticket/screenRelationsGuard";
+
 import type { PageId, ScreenSpec } from "@/features/editor/schema";
 import { buildBundleEntries, bundleFileName, type BundleAsset } from "@/features/editor/export/bundle";
 import {
@@ -52,6 +54,7 @@ import { ASSET_DIR, GENERATED_DIR } from "@/features/workspace/protocol";
  * 않은 **정상 상태**다(#156이 A안으로 정리했다).
  */
 export type GeneratedScan =
+  | { kind: "unsupported"; message: string }
   | { kind: "no-workspace" }
   | {
       kind: "ready";
@@ -66,6 +69,9 @@ export type GeneratedScan =
     };
 
 export async function scanGeneratedCode(page: ScreenSpec, pageId?: PageId): Promise<GeneratedScan> {
+  if (hasUnsupportedScreenRelations(page)) {
+    return { kind: "unsupported", message: UNSUPPORTED_SCREEN_RELATIONS_MESSAGE };
+  }
   const paths = await listWorkspaceFiles(GENERATED_DIR, { recursive: true });
   if (paths === null) return { kind: "no-workspace" };
 
@@ -129,7 +135,8 @@ function downloadBlob(filename: string, blob: Blob): void {
 /**
  * 결과 폴더를 ZIP 하나로 내려받는다.
  *
- * 코드 검증 오류는 기존처럼 README에 적어 Export를 허용한다. 다만 검사 후 실제 자산
+ * 미지원 화면 관계는 부분 Export를 포함해 차단한다. 그 밖의 코드 검증 오류는
+ * 기존처럼 README에 적어 Export를 허용한다. 다만 검사 후 실제 자산
  * 바이트를 읽지 못하면 성공 ZIP을 만들지 않는다. 사용자가 명시적으로 부분 Export를
  * 고른 경우에만 읽힌 자산으로 보고서를 다시 만들어 누락을 README에 기록한다.
  */
@@ -138,8 +145,13 @@ export async function downloadGeneratedBundle(
   files: GeneratedFile[],
   report: VerifyReport,
   tickets: Ticket[],
+  page: ScreenSpec,
   allowPartial = false,
-): Promise<{ kind: "downloaded"; missing: string[] } | { kind: "missing-assets"; missing: string[] }> {
+): Promise<{ kind: "downloaded"; missing: string[] } | { kind: "missing-assets"; missing: string[] } |
+  { kind: "unsupported"; message: string; missing: string[] }> {
+  if (hasUnsupportedScreenRelations(page)) {
+    return { kind: "unsupported", message: UNSUPPORTED_SCREEN_RELATIONS_MESSAGE, missing: [] };
+  }
   const requiredAssets = [...new Set([...report.requiredAssets, ...report.usedAssets])]
     .sort((left, right) => left.localeCompare(right));
   const { assets, missing } = await loadBundleAssets(requiredAssets);

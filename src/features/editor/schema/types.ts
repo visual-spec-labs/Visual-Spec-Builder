@@ -43,7 +43,7 @@ export type Opacity = number;
  */
 export type Blur = number;
 /**
- * 버튼을 눌렀을 때의 화면 간 동작 하나(#265). button에만 둔다. 생략하면 동작 없음이고 null은 무효다. 갈래는 type으로 가르며 통째로 교체한다(반응형 override 대상이 아니다). target이 같은 프로젝트에 있는지, 대상의 kind가 맞는지는 JSON Schema가 아니라 프로젝트 검증이 본다.
+ * 버튼을 눌렀을 때의 화면 간 동작 하나(#265). button에만 둔다. 생략하면 동작 없음이고 null은 무효다. 갈래는 type으로 가르며 통째로 교체한다(반응형 override 대상이 아니다). S1-1은 형태 저장만 지원한다. target 존재·대상 kind 등 프로젝트 참조 검증은 후속 S1-2, 동작 코드 생성은 후속 S1-8/9 범위이며 아직 지원하지 않는다.
  */
 export type Action = NavigateAction | OpenModalAction | CloseAction;
 export type PageId = string;
@@ -247,21 +247,21 @@ export interface ButtonNode {
   action?: Action;
 }
 /**
- * 다른 page로 이동한다. 생성 코드는 라우터 없이 onNavigate(target) 콜백을 부른다.
+ * 다른 page로 이동할 의도를 저장한다. 라우터 없이 onNavigate(target) 콜백을 호출하는 코드 생성은 후속 S1-9에서 구현할 계약이며 현재 지원하지 않는다.
  */
 export interface NavigateAction {
   type: "navigate";
   target: PageId;
 }
 /**
- * modal 화면을 연다. 한 번에 모달 하나만 보이며 이미 열린 모달은 교체한다.
+ * modal 화면을 열 의도를 저장한다. 한 번에 하나의 모달을 열고 교체하는 동작은 후속 S1-9에서 구현할 계약이며 현재 지원하지 않는다.
  */
 export interface OpenModalAction {
   type: "openModal";
   target: PageId;
 }
 /**
- * 열린 모달을 닫는다. 대상이 없다.
+ * 열린 모달을 닫을 의도를 저장한다. target은 받지 않는다. 닫기 동작 코드 생성은 후속 S1-9에서 구현할 계약이며 현재 지원하지 않는다.
  */
 export interface CloseAction {
   type: "close";

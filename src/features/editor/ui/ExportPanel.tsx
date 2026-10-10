@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { hasUnsupportedScreenRelations, UNSUPPORTED_SCREEN_RELATIONS_MESSAGE } from "@/features/editor/ticket/screenRelationsGuard";
 import { compileTickets } from "@/features/editor/ticket/compileTickets";
 import type {
   FreshnessReport,
@@ -121,14 +122,15 @@ export function ExportPanel() {
     (freshness === null || freshness.overall === "current");
 
   async function handleDownload(allowPartial = false) {
-    if (report === null || target === null) return;
+    if (report === null || target === null || hasUnsupportedScreenRelations(page)) return;
     setIsDownloading(true);
     try {
       const result = await downloadGeneratedBundle(
         target.projectName,
         files,
         report,
-        compileTickets(page),
+        compileTickets(target.page),
+        target.page,
         allowPartial,
       );
       setAssetFailure(result.missing.length === 0 ? null : { report, target, names: result.missing });
@@ -177,6 +179,10 @@ export function ExportPanel() {
 
       <div className="flex-1 overflow-auto p-3">
         {status === "scanning" && <p className="text-sm text-content-muted">훑는 중…</p>}
+
+        {status === "unsupported" && (
+          <p role="alert" className="text-sm text-error">{UNSUPPORTED_SCREEN_RELATIONS_MESSAGE}</p>
+        )}
 
         {status === "no-workspace" && (
           <p className="text-sm text-content-muted">
