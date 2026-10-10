@@ -517,7 +517,8 @@ describe("S1-1 relation generation boundary", () => {
     const plan = await planTicketOutputs({ requestId: "old", pageId: "home", page,
       projectKey: "relations.json", waveTickets: tickets,
       results: tickets.map(ticket => doneResultForRelation(ticket.id)) });
-    const accepted = await commitTicketOutputs(plan);
+    workspace.owner = "old";
+    const accepted = await commitTicketOutputs(plan, {}, { renew: async () => workspace.owner === "old" });
     expect(accepted.results.every(result => result.status === "failed" && result.message?.includes("아직 지원하지 않습니다"))).toBe(true);
     expect(plan.targets).toEqual([]);
     expect(workspace.files).toEqual(before);
