@@ -1,0 +1,590 @@
+{
+  "version": "0.3",
+  "name": "Untitled",
+  "pages": {
+    "page1": {
+      "name": "Login",
+      "size": {
+        "width": 390,
+        "height": 844
+      },
+      "root": "root",
+      "nodes": {
+        "root": {
+          "type": "frame",
+          "name": "Screen",
+          "box": {
+            "width": "fill",
+            "height": "fill"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 0,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#FFFFFF"
+            }
+          ],
+          "children": [
+            {
+              "node": "hero"
+            },
+            {
+              "node": "content"
+            }
+          ]
+        },
+        "hero": {
+          "type": "image",
+          "name": "Hero",
+          "box": {
+            "width": "fill",
+            "height": 200
+          },
+          "src": "assets/hero.png",
+          "fit": "cover"
+        },
+        "content": {
+          "type": "frame",
+          "name": "Content",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 16,
+            "padding": {
+              "top": 24,
+              "right": 24,
+              "bottom": 24,
+              "left": 24
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "title"
+            },
+            {
+              "node": "emailInput"
+            },
+            {
+              "node": "passwordInput"
+            },
+            {
+              "node": "loginButton"
+            }
+          ]
+        },
+        "title": {
+          "type": "text",
+          "name": "Title",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "팀 공간에 로그인",
+          "color": "#111111",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 24,
+            "fontWeight": 700,
+            "lineHeight": 32,
+            "letterSpacing": -0.5,
+            "textAlign": "left"
+          }
+        },
+        "emailInput": {
+          "type": "input",
+          "name": "EmailInput",
+          "box": {
+            "width": "fill",
+            "height": 44
+          },
+          "placeholder": "이메일을 입력하세요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "passwordInput": {
+          "type": "input",
+          "name": "PasswordInput",
+          "box": {
+            "width": "fill",
+            "height": 44
+          },
+          "placeholder": "비밀번호를 입력하세요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "loginButton": {
+          "type": "button",
+          "name": "LoginButton",
+          "box": {
+            "width": "fill",
+            "height": 44
+          },
+          "content": "계속하기",
+          "color": "#FFFFFF",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "center"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#4F46E5"
+            }
+          ],
+          "border": {
+            "width": 0,
+            "color": "#4F46E5",
+            "radius": 8
+          }
+        }
+      }
+    },
+    "page-1": {
+      "name": "Landing",
+      "size": {
+        "width": 1440,
+        "height": 900
+      },
+      "root": "root",
+      "nodes": {
+        "root": {
+          "type": "frame",
+          "name": "Screen",
+          "box": {
+            "width": "fill",
+            "height": "fill"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 0,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#FFFFFF"
+            }
+          ],
+          "children": [
+            {
+              "node": "hero"
+            },
+            {
+              "node": "features"
+            }
+          ]
+        },
+        "hero": {
+          "type": "frame",
+          "name": "Hero",
+          "box": {
+            "width": "fill",
+            "height": 320
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 0,
+            "padding": {
+              "top": 24,
+              "right": 24,
+              "bottom": 24,
+              "left": 24
+            },
+            "mainAxis": "center",
+            "crossAxis": "start"
+          },
+          "background": [
+            {
+              "type": "image",
+              "src": "assets/hero.png",
+              "fit": "cover"
+            }
+          ],
+          "children": [
+            {
+              "node": "heroTitle"
+            }
+          ]
+        },
+        "heroTitle": {
+          "type": "text",
+          "name": "HeroTitle",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "화면 설계를 코드까지 한 번에",
+          "color": "#FFFFFF",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 40,
+            "fontWeight": 700,
+            "lineHeight": 52,
+            "letterSpacing": -0.5,
+            "textAlign": "left"
+          }
+        },
+        "features": {
+          "type": "frame",
+          "name": "Features",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 16,
+            "padding": {
+              "top": 32,
+              "right": 24,
+              "bottom": 32,
+              "left": 24
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "featureCard1"
+            },
+            {
+              "node": "featureCard2"
+            },
+            {
+              "node": "featureCard3"
+            }
+          ]
+        },
+        "featureCard1": {
+          "type": "frame",
+          "name": "FeatureCard1",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 20,
+              "right": 20,
+              "bottom": 20,
+              "left": 20
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#FFFFFF"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#E5E7EB",
+            "radius": 12
+          },
+          "children": [
+            {
+              "node": "featureTitle1"
+            },
+            {
+              "node": "featureDesc1"
+            }
+          ]
+        },
+        "featureTitle1": {
+          "type": "text",
+          "name": "FeatureTitle1",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "자동 레이아웃",
+          "color": "#111111",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 18,
+            "fontWeight": 600,
+            "lineHeight": 26,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "featureDesc1": {
+          "type": "text",
+          "name": "FeatureDesc1",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "Auto Layout 규칙으로 화면 구조를 일관되게 잡습니다.",
+          "color": "#4B5563",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 22,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "featureCard2": {
+          "type": "frame",
+          "name": "FeatureCard2",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 20,
+              "right": 20,
+              "bottom": 20,
+              "left": 20
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#FFFFFF"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#E5E7EB",
+            "radius": 12
+          },
+          "children": [
+            {
+              "node": "featureTitle2"
+            },
+            {
+              "node": "featureDesc2"
+            }
+          ]
+        },
+        "featureTitle2": {
+          "type": "text",
+          "name": "FeatureTitle2",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "반응형 분기점",
+          "color": "#111111",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 18,
+            "fontWeight": 600,
+            "lineHeight": 26,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "featureDesc2": {
+          "type": "text",
+          "name": "FeatureDesc2",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "폭별 차이만 덮어써 하나의 스펙으로 여러 화면을 다룹니다.",
+          "color": "#4B5563",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 22,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "featureCard3": {
+          "type": "frame",
+          "name": "FeatureCard3",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 20,
+              "right": 20,
+              "bottom": 20,
+              "left": 20
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#FFFFFF"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#E5E7EB",
+            "radius": 12
+          },
+          "children": [
+            {
+              "node": "featureTitle3"
+            },
+            {
+              "node": "featureDesc3"
+            }
+          ]
+        },
+        "featureTitle3": {
+          "type": "text",
+          "name": "FeatureTitle3",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "코드로 바로 연결",
+          "color": "#111111",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 18,
+            "fontWeight": 600,
+            "lineHeight": 26,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "featureDesc3": {
+          "type": "text",
+          "name": "FeatureDesc3",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "확정한 스펙을 React·Tailwind 코드로 옮깁니다.",
+          "color": "#4B5563",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 22,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        }
+      },
+      "responsive": {
+        "breakpoints": {
+          "tablet": {
+            "minWidthPx": 768
+          },
+          "desktop": {
+            "minWidthPx": 1024
+          }
+        },
+        "overrides": {
+          "tablet": {
+            "features": {
+              "layout": {
+                "direction": "row"
+              }
+            }
+          },
+          "desktop": {
+            "hero": {
+              "layout": {
+                "padding": {
+                  "left": 64,
+                  "right": 64
+                }
+              }
+            },
+            "features": {
+              "layout": {
+                "padding": {
+                  "left": 64,
+                  "right": 64
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "pageOrder": [
+    "page1",
+    "page-1"
+  ]
+}

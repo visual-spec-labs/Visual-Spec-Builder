@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startBrowserWorkspace } from "./harness.mjs";
+import { startBrowserWorkspace, writeFileAtomic } from "./harness.mjs";
 const workspace = await mkdtemp(join(tmpdir(), "vs-guard-"));
 // shop.json 프로젝트의 page1 생성 자리(#281).
 const target = join(workspace, "generated/shop/page1/components/Header.tsx");
@@ -44,7 +44,7 @@ try {
     const output = join(workspace, request.tickets[0].outputPath);
     await mkdir(join(output, '..'), { recursive: true });
     await writeFile(output, next);
-    await writeFile(join(workspace, 'runtime/ticket-response.json'), JSON.stringify({ protocol: request.protocol, requestId: request.id, results: [{ ticketId: 'Header', status: 'done' }] }));
+    await writeFileAtomic(join(workspace, request.responsePath), JSON.stringify({ protocol: request.protocol, requestId: request.id, results: [{ ticketId: 'Header', status: 'done' }] }));
     await page.waitForFunction(() => window.guard.tickets.getState().overwriteReview !== null);
   }
   await respond();
