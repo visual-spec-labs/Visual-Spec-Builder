@@ -220,7 +220,7 @@ Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
 ```
 
 **image** — `src`는 실제 워크스페이스 asset이 있을 때만 그 상대 경로를 쓴다. 없으면
-1×1 투명 PNG data URI로 자리만 잡는다(사용자가 나중에 Import로 교체한다).
+1×1 투명 PNG data URI로 자리만 잡는다(사용자가 나중에 이미지 속성의 경로(src)를 바꾼다. 파일 → 이미지 가져오기는 새 이미지 노드를 추가한다).
 ```json
 { "type": "image", "name": "Image",
   "box": { "width": 200, "height": 150 },

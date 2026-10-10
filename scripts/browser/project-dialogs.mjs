@@ -65,7 +65,7 @@ try {
   console.log("PASS Rename focus cycle, inert background, replacement input, Escape, opener restoration and keyboard continuation");
 
   await page.getByRole("button").filter({ hasText: /Alpha.*페이지/s }).click();
-  await page.getByRole("button", { name: "File", exact: true }).waitFor();
+  await page.getByRole("button", { name: "파일", exact: true }).waitFor();
   await page.evaluate(async () => {
     window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
     window.documentStore = (await import("/src/features/editor/store/documentStore.ts")).useDocumentStore;
@@ -76,14 +76,14 @@ try {
     selected: editor.getState().selectedId, history: editor.getState().history, file: documentStore.getState().fileName }));
   const before = await snapshot();
   async function menu(name) {
-    await page.getByRole("button", { name: "File", exact: true }).click();
+    await page.getByRole("button", { name: "파일", exact: true }).click();
     await page.getByRole("menuitem", { name, exact: true }).click();
   }
-  for (const action of ["Open", "Save as", "Open", "Save as"]) {
+  for (const action of ["열기", "다른 이름으로 저장", "열기", "다른 이름으로 저장"]) {
     await menu(action);
     await dialog.waitFor();
     await cycle();
-    if (action === "Open") {
+    if (action === "열기") {
       await page.keyboard.press("Delete");
       await page.keyboard.press("Control+z");
     }
@@ -109,11 +109,11 @@ try {
     assert.equal(await snapshot(), before);
   }
   console.log("PASS interrupted Open/Save as resolve without changing the document");
-  await menu("Save as");
+  await menu("다른 이름으로 저장");
   await dialog.getByRole("textbox").fill("취소할 이름");
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
   assert.equal(await snapshot(), before);
-  await menu("Open");
+  await menu("열기");
   // picker 닫힘은 비동기 읽기/파싱 완료가 아니다. 응답을 보류해 그 간격을 재현한다.
   const noticesBeforeCorruptOpen = notices.length;
   let releaseCorruptRead;
@@ -140,7 +140,7 @@ try {
   assert.ok(notices.some(message => message.includes("broken.json")));
   console.log("PASS repeated Open/Save as cancellation, Delete/Undo isolation, corrupt selection, document/history preservation");
 
-  await menu("Save as");
+  await menu("다른 이름으로 저장");
   await dialog.getByRole("textbox").fill("한글 사본");
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => documentStore.getState().fileName === "한글 사본.json");
@@ -183,7 +183,7 @@ try {
   // A real second-tab storage event must hand the whole modal session to the
   // save-conflict dialog, not autofocus invisible controls behind Save as.
   await page.getByRole("button").filter({ hasText: /Beta.*페이지/s }).click();
-  await page.getByRole("button", { name: "File", exact: true }).waitFor();
+  await page.getByRole("button", { name: "파일", exact: true }).waitFor();
   await page.evaluate(() => {
     editor.getState().setPageField(editor.getState().activePageId, "name", "Keep conflict draft");
     editor.getState().select("header");

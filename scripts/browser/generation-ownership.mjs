@@ -120,7 +120,7 @@ try {
     console.log('PASS actual Home A→B→C→B→A→B→C while locked, Export/ZIP and recovery retry preserve A; stale destination files retained');
     // Deliver one real GUI ticket with a deterministic response after recovery.
     await page.getByRole('button').filter({ hasText: /c.*페이지/s }).click();
-    await page.getByRole('button', { name: 'File', exact: true }).waitFor();
+    await page.getByRole('button', { name: '파일', exact: true }).waitFor();
     await page.evaluate(async () => {
         window.editor = (await import('/src/features/editor/store/editorStore.ts')).useEditorStore;
         window.tickets = (await import('/src/features/editor/store/ticketStore.ts')).useTicketStore;

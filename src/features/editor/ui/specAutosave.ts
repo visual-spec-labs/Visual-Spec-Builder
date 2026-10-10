@@ -252,7 +252,7 @@ export function startSpecAutosave() {
     const raw = serializeStoredDocument({ fileName, spec: JSON.parse(json),
       diskRevision: fileName === document.fileName ? document.diskRevision : null });
     if (typeof navigator === "undefined" || !navigator.locks) {
-      window.alert("안전한 탭 간 파일 저장을 사용할 수 없습니다. File → Export로 별도 다운로드하세요.");
+      window.alert("안전한 탭 간 파일 저장을 사용할 수 없습니다. 파일 → JSON 내보내기로 별도 다운로드하세요.");
       return false;
     }
     try {
@@ -288,7 +288,7 @@ export function startSpecAutosave() {
         return true;
       });
     } catch {
-      window.alert("안전하게 저장할 수 없습니다. 초안은 유지됩니다. File → Export로 별도 다운로드하세요.");
+      window.alert("안전하게 저장할 수 없습니다. 초안은 유지됩니다. 파일 → JSON 내보내기로 별도 다운로드하세요.");
       return false;
     }
   }
@@ -315,12 +315,12 @@ export function startSpecAutosave() {
         // durable write is never permission to lose it, even after confirmation.
         if (read(key) !== serializeStoredDocument(document)) {
           await promptConfirm({ title: "초안을 보관할 수 없습니다", signal: controller.signal,
-            message: "현재 작업을 유지합니다. File → Export로 파일을 보관한 뒤 다시 시도하세요.", confirmLabel: "현재 작업 유지" });
+            message: "현재 작업을 유지합니다. 파일 → JSON 내보내기로 파일을 보관한 뒤 다시 시도하세요.", confirmLabel: "현재 작업 유지" });
           return false;
         }
-        message = "이름 없는 초안을 이 브라우저에 보관한 뒤 이동합니다. Home의 보관한 초안에서 이어서 열 수 있습니다. 디스크 파일로 저장하려면 취소 후 File → Save를 사용하세요.";
+        message = "이름 없는 초안을 이 브라우저에 보관한 뒤 이동합니다. Home의 보관한 초안에서 이어서 열 수 있습니다. 디스크 파일로 저장하려면 취소 후 파일 → 저장을 사용하세요.";
       } else if (edited && read(key) !== serializeStoredDocument(document)) {
-        message = "현재 문서의 변경 내용을 자동저장하지 못했습니다. 계속하면 저장되지 않은 변경이 사라집니다. File → Export로 먼저 보관하려면 취소하세요.";
+        message = "현재 문서의 변경 내용을 자동저장하지 못했습니다. 계속하면 저장되지 않은 변경이 사라집니다. 파일 → JSON 내보내기로 먼저 보관하려면 취소하세요.";
       }
       if (message && !await promptConfirm({ title: "현재 문서를 떠나시겠습니까?", message, signal: controller.signal,
         confirmLabel: document.fileName === null ? "초안 보관 후 이동" : undefined })) return false;

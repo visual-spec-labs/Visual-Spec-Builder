@@ -84,7 +84,7 @@ export function UnnamedDrafts() {
   return (
     <section aria-label="보관한 초안" className="mb-6 w-full max-w-3xl rounded-panel border border-line bg-surface p-4">
       <h2 className="text-sm font-semibold text-content-strong">보관한 이름 없는 초안</h2>
-      <p className="my-2 text-xs text-content-muted">브라우저 초안이며 파일 저장과 다릅니다. 저장소 오류 시 이 탭을 닫지 마세요. 파일로 남기려면 이어서 열고 File → Save를 사용하세요.</p>
+      <p className="my-2 text-xs text-content-muted">브라우저 초안이며 파일 저장과 다릅니다. 저장소 오류 시 이 탭을 닫지 마세요. 파일로 남기려면 이어서 열고 파일 → 저장을 사용하세요.</p>
       {message && <p role="status" className="my-2 text-sm">{message}</p>}
       <ul className="flex flex-col gap-3">
         {drafts.map(draft => (

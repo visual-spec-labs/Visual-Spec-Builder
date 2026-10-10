@@ -110,7 +110,7 @@ export function TicketPanel() {
       <header className="flex items-center gap-2 border-b border-line px-3 py-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-xs font-semibold tracking-wide text-content-muted uppercase">
-            Implementation tickets
+            구현 티켓
           </h2>
           <p className="truncate text-xs text-content-muted">{page.name}</p>
         </div>

@@ -204,7 +204,7 @@ try {
       await gui.goto(runner.url);
       // 프로젝트 이름을 정규식 원문으로 쓰지 않는다. 이름이 정확히 같은 카드가 하나가 아니면 실패한다.
       await openProjectCard(gui, target.spec.name);
-      await gui.getByRole("button", { name: "File", exact: true }).waitFor();
+      await gui.getByRole("button", { name: "파일", exact: true }).waitFor();
       guiPages.set(target.file, gui);
     }
     if (target.spec.pageOrder.length > 1) await gui.getByRole("button", { name: screen.name, exact: true }).click();

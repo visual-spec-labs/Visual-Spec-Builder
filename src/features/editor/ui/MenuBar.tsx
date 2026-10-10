@@ -100,29 +100,29 @@ export function MenuBar() {
   const propsSlotBusy = exportOpen || ticketOpen;
 
   const FILE_MENU: MenuEntry[] = [
-    { kind: "action", label: "New", onSelect: () => void newSpec() },
-    { kind: "action", label: "Open", onSelect: handleOpen },
-    { kind: "action", label: "Save", onSelect: handleSave },
-    { kind: "action", label: "Save as", onSelect: handleSaveAs },
+    { kind: "action", label: "새로 만들기", onSelect: () => void newSpec() },
+    { kind: "action", label: "열기", onSelect: handleOpen },
+    { kind: "action", label: "저장", onSelect: handleSave },
+    { kind: "action", label: "다른 이름으로 저장", onSelect: handleSaveAs },
     { kind: "separator" },
-    { kind: "action", label: "Import", onSelect: importImageFromFile },
-    { kind: "action", label: "Export", onSelect: handleExport },
-    { kind: "action", label: "Export Code", onSelect: openExportPanel },
+    { kind: "action", label: "이미지 가져오기", onSelect: importImageFromFile },
+    { kind: "action", label: "JSON 내보내기", onSelect: handleExport },
+    { kind: "action", label: "코드 내보내기", onSelect: openExportPanel },
   ];
 
   const INSERT_MENU: MenuEntry[] = [
-    { kind: "action", label: "Button", onSelect: () => insertControl("button") },
-    { kind: "action", label: "Input", onSelect: () => insertControl("input") },
+    { kind: "action", label: "버튼", onSelect: () => insertControl("button") },
+    { kind: "action", label: "입력 필드", onSelect: () => insertControl("input") },
   ];
 
   const VIEW_MENU: MenuEntry[] = [
-    { kind: "action", label: "Zoom In", onSelect: zoomIn },
-    { kind: "action", label: "Zoom Out", onSelect: zoomOut },
-    { kind: "action", label: "Fit to Screen", onSelect: fitToScreen },
+    { kind: "action", label: "확대", onSelect: zoomIn },
+    { kind: "action", label: "축소", onSelect: zoomOut },
+    { kind: "action", label: "화면에 맞추기", onSelect: fitToScreen },
     { kind: "separator" },
-    { kind: "toggle", label: "Show Grid", checked: showGrid, onToggle: toggleGrid },
-    { kind: "toggle", label: "Panels/Sidebars", checked: showPanels, onToggle: togglePanels },
-    // 개별 패널 접기(#287) — "Panels/Sidebars"는 둘 다 숨기고, 이 둘은 한쪽만
+    { kind: "toggle", label: "격자 표시", checked: showGrid, onToggle: toggleGrid },
+    { kind: "toggle", label: "패널 표시", checked: showPanels, onToggle: togglePanels },
+    // 개별 패널 접기(#287) — "패널 표시"(Panels/Sidebars)는 둘 다 숨기고, 이 둘은 한쪽만
     // 좁은 레일로 접는다. 체크 표시는 "지금 실제로 보이는가"다 —
     // !collapsed만 보면 안 된다(자체 code-review 대응). showPanels가
     // 꺼져 있으면 treeCollapsed/propsCollapsed가 뭐든 두 패널 다 안 보이는데
@@ -134,13 +134,13 @@ export function MenuBar() {
     // 리뷰 4차 대응, panelToggle.ts 참고).
     {
       kind: "toggle",
-      label: "Layers Panel",
+      label: "레이어 패널",
       checked: showPanels && !treeCollapsed,
       onToggle: toggleTreePanel,
     },
     {
       kind: "toggle",
-      label: "Properties Panel",
+      label: "속성 패널",
       checked: showPanels && !propsCollapsed,
       onToggle: togglePropsPanel,
       disabled: propsSlotBusy,
@@ -193,21 +193,21 @@ export function MenuBar() {
           <span className="font-semibold text-content-strong">Visual Spec Builder</span>
         </button>
         <MenuButton
-          label="File"
+          label="파일"
           isOpen={openMenu === "file"}
           onToggle={() => setOpenMenu((prev) => (prev === "file" ? null : "file"))}
           onCloseMenu={() => setOpenMenu(null)}
           entries={FILE_MENU}
         />
         <MenuButton
-          label="Insert"
+          label="삽입"
           isOpen={openMenu === "insert"}
           onToggle={() => setOpenMenu((prev) => (prev === "insert" ? null : "insert"))}
           onCloseMenu={() => setOpenMenu(null)}
           entries={INSERT_MENU}
         />
         <MenuButton
-          label="View"
+          label="보기"
           isOpen={openMenu === "view"}
           onToggle={() => setOpenMenu((prev) => (prev === "view" ? null : "view"))}
           onCloseMenu={() => setOpenMenu(null)}

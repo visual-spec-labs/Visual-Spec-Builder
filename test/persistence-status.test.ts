@@ -89,6 +89,7 @@ it("실패는 저장됨이 아니며 Save as 취소는 기존 상태와 내용�
   vi.mocked(writeWorkspaceFile).mockResolvedValueOnce({ ok: false, error: "disk full", status: 507 });
   await saveSpec(useEditorStore.getState().spec);
   expect(labels().file).toBe("파일 저장 실패");
+  expect(labels().fileHelp).toContain("파일 → 저장 또는 파일 → JSON 내보내기");
   const before = labels(); const spec = useEditorStore.getState().spec;
   const pending = saveSpecAs(spec);
   await vi.advanceTimersByTimeAsync(0);
@@ -170,6 +171,7 @@ it("잠금 API 오류를 다른 탭 소유권이라고 단정하지 않는다", 
   vi.stubGlobal("navigator", { locks: { request: async () => { throw new Error("permission"); } } });
   await start(); edit(); await vi.advanceTimersByTimeAsync(600);
   expect(labels().browser).toBe("현재 탭에만 보관");
+  expect(labels().draftHelp).toContain("파일 → 저장 또는 파일 → JSON 내보내기");
 });
 
 // 실제 watcher에서 같은 외부 revision의 알림 억제와 관측 회복을 별도로 검증한다.
