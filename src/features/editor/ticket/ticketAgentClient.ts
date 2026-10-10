@@ -26,6 +26,7 @@ import {
   createAgentRequestWait,
   type AgentRequestWait,
 } from "@/features/editor/ui/agentRequestWait";
+import { hasUnsupportedScreenRelations, UNSUPPORTED_SCREEN_RELATIONS_MESSAGE } from "@/features/editor/ticket/screenRelationsGuard";
 import { RUNTIME_DIR, STAGING_DIR } from "@/features/workspace/protocol";
 
 import {
@@ -49,6 +50,7 @@ export const TICKET_POLL_INTERVAL_MS = 1000;
 export const TICKET_TIMEOUT_MS = AGENT_WAIT_WINDOW_MS;
 
 export type TicketBatchOutcome =
+  | { kind: "unsupported"; message: string }
   | { kind: "unavailable"; message: string }
   /** 같은 작업공간의 다른 탭 요청이 아직 응답을 기다린다(#273). 요청 파일을 쓰지 않았다. */
   | { kind: "busy"; message: string }
@@ -121,6 +123,9 @@ async function sendTicketBatch(
   wait: AgentRequestWait,
   retainLock: boolean,
 ): Promise<TicketBatchOutcome> {
+  if (hasUnsupportedScreenRelations(input.page)) {
+    return { kind: "unsupported", message: UNSUPPORTED_SCREEN_RELATIONS_MESSAGE };
+  }
   const request = buildTicketRequest(input);
 
   // 같은 작업공간의 다른 탭 요청을 덮어쓰지 않도록 요청 파일 잠금부터 잡는다(#273).

@@ -1,0 +1,394 @@
+{
+  "version": "0.3",
+  "name": "login-flow-relations",
+  "pages": {
+    "login": {
+      "name": "LoginPage",
+      "size": {
+        "width": 1440,
+        "height": 900
+      },
+      "root": "root",
+      "nodes": {
+        "root": {
+          "type": "frame",
+          "name": "LoginPage",
+          "box": {
+            "width": "fill",
+            "height": "fill"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 16,
+            "padding": {
+              "top": 24,
+              "right": 24,
+              "bottom": 24,
+              "left": 24
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F7F8FA"
+            }
+          ],
+          "children": [
+            {
+              "node": "title"
+            },
+            {
+              "node": "loginButton"
+            },
+            {
+              "node": "forgotButton"
+            }
+          ]
+        },
+        "title": {
+          "type": "text",
+          "name": "Title",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "로그인",
+          "typography": {
+            "fontFamily": "Inter",
+            "fontSize": 24,
+            "fontWeight": 400,
+            "lineHeight": 1.5,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "color": "#0F172A"
+        },
+        "loginButton": {
+          "type": "button",
+          "name": "LoginButton",
+          "box": {
+            "width": "auto",
+            "height": 40
+          },
+          "content": "로그인",
+          "typography": {
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 1.5,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "color": "#FFFFFF",
+          "background": [
+            {
+              "type": "solid",
+              "color": "#2563EB"
+            }
+          ],
+          "border": {
+            "width": 0,
+            "color": "#2563EB",
+            "radius": 8
+          },
+          "action": {
+            "type": "navigate",
+            "target": "dashboard"
+          }
+        },
+        "forgotButton": {
+          "type": "button",
+          "name": "ForgotButton",
+          "box": {
+            "width": "auto",
+            "height": 40
+          },
+          "content": "비밀번호 찾기",
+          "typography": {
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 1.5,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "color": "#FFFFFF",
+          "background": [
+            {
+              "type": "solid",
+              "color": "#2563EB"
+            }
+          ],
+          "border": {
+            "width": 0,
+            "color": "#2563EB",
+            "radius": 8
+          },
+          "action": {
+            "type": "openModal",
+            "target": "resetPassword"
+          }
+        }
+      }
+    },
+    "dashboard": {
+      "kind": "page",
+      "name": "DashboardPage",
+      "size": {
+        "width": 1440,
+        "height": 900
+      },
+      "root": "root",
+      "nodes": {
+        "root": {
+          "type": "frame",
+          "name": "DashboardPage",
+          "box": {
+            "width": "fill",
+            "height": "fill"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 16,
+            "padding": {
+              "top": 24,
+              "right": 24,
+              "bottom": 24,
+              "left": 24
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F7F8FA"
+            }
+          ],
+          "children": [
+            {
+              "node": "title"
+            },
+            {
+              "node": "logoutButton"
+            }
+          ]
+        },
+        "title": {
+          "type": "text",
+          "name": "Title",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "대시보드",
+          "typography": {
+            "fontFamily": "Inter",
+            "fontSize": 24,
+            "fontWeight": 400,
+            "lineHeight": 1.5,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "color": "#0F172A"
+        },
+        "logoutButton": {
+          "type": "button",
+          "name": "LogoutButton",
+          "box": {
+            "width": "auto",
+            "height": 40
+          },
+          "content": "로그아웃",
+          "typography": {
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 1.5,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "color": "#FFFFFF",
+          "background": [
+            {
+              "type": "solid",
+              "color": "#2563EB"
+            }
+          ],
+          "border": {
+            "width": 0,
+            "color": "#2563EB",
+            "radius": 8
+          },
+          "action": {
+            "type": "navigate",
+            "target": "login"
+          }
+        }
+      }
+    },
+    "resetPassword": {
+      "kind": "modal",
+      "name": "ResetPasswordModal",
+      "size": {
+        "width": 480,
+        "height": 320
+      },
+      "root": "root",
+      "nodes": {
+        "root": {
+          "type": "frame",
+          "name": "ResetPasswordModal",
+          "box": {
+            "width": "fill",
+            "height": "fill"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 16,
+            "padding": {
+              "top": 24,
+              "right": 24,
+              "bottom": 24,
+              "left": 24
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#FFFFFF"
+            }
+          ],
+          "children": [
+            {
+              "node": "title"
+            },
+            {
+              "node": "closeButton"
+            }
+          ]
+        },
+        "title": {
+          "type": "text",
+          "name": "Title",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "비밀번호 재설정",
+          "typography": {
+            "fontFamily": "Inter",
+            "fontSize": 20,
+            "fontWeight": 400,
+            "lineHeight": 1.5,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "color": "#0F172A"
+        },
+        "closeButton": {
+          "type": "button",
+          "name": "CloseButton",
+          "box": {
+            "width": "auto",
+            "height": 40
+          },
+          "content": "닫기",
+          "typography": {
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 1.5,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "color": "#FFFFFF",
+          "background": [
+            {
+              "type": "solid",
+              "color": "#2563EB"
+            }
+          ],
+          "border": {
+            "width": 0,
+            "color": "#2563EB",
+            "radius": 8
+          },
+          "action": {
+            "type": "close"
+          }
+        }
+      }
+    },
+    "notificationWidget": {
+      "kind": "widget",
+      "name": "NotificationWidget",
+      "size": {
+        "width": 320,
+        "height": 120
+      },
+      "root": "root",
+      "nodes": {
+        "root": {
+          "type": "frame",
+          "name": "NotificationWidget",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 16,
+            "padding": {
+              "top": 16,
+              "right": 16,
+              "bottom": 16,
+              "left": 16
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#FFFFFF"
+            }
+          ],
+          "children": [
+            {
+              "node": "title"
+            }
+          ]
+        },
+        "title": {
+          "type": "text",
+          "name": "Title",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "새 알림",
+          "typography": {
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 1.5,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "color": "#0F172A"
+        }
+      }
+    }
+  },
+  "pageOrder": [
+    "login",
+    "dashboard",
+    "resetPassword",
+    "notificationWidget"
+  ]
+}

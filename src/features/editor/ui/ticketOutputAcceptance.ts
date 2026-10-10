@@ -30,6 +30,8 @@
  * 디스크 rename 사이의 아주 짧은 틈도 남는다. 보호 범위는 docs/26 "#282 보호 범위"에 적었다.
  */
 
+import { hasUnsupportedScreenRelations, UNSUPPORTED_SCREEN_RELATIONS_MESSAGE } from "@/features/editor/ticket/screenRelationsGuard";
+
 import { holdRequestLock } from "./agentRequestLock";
 
 import { contentHash, sha256Hex } from "@/features/editor/export/contentHash";
@@ -166,6 +168,14 @@ export async function planTicketOutputs({
   waveTickets,
   results,
 }: TicketOutputAcceptanceInput): Promise<TicketOutputPlan> {
+  if (hasUnsupportedScreenRelations(page)) {
+    return {
+      requestId, pageId, owner: { projectId: generationTarget.projectId, pageId },
+      outputRoot: generationTarget.root, outputs: {},
+      results: waveTickets.map(ticket => failed(ticket.id, UNSUPPORTED_SCREEN_RELATIONS_MESSAGE)),
+      targets: [], review: { requestId, items: [] },
+    };
+  }
   const byId = new Map(waveTickets.map((ticket) => [ticket.id, ticket]));
   const owner: OverwriteOwner = { projectId: generationTarget.projectId, pageId };
   const outputs: Record<string, PlannedOutput> = {};

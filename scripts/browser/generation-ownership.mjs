@@ -24,7 +24,7 @@ try {
             window.owner = n => ({ fileName: n, documentId: 1, pageId: 'page1', projectPageIds: ['page1'] });
             window.scan = n => ex.scanGeneratedCode(seed, 'page1', owner(n));
             window.zip = async (s) => { let captured; const original = URL.createObjectURL; URL.createObjectURL = b => { captured = b; return 'blob:fixture'; }; const click = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = () => { }; try {
-                const result = await ex.downloadGeneratedBundle('audit', s.files, s.report, compile(seed));
+                const result = await ex.downloadGeneratedBundle('audit', s.files, s.report, compile(seed), seed);
                 return { result, text: captured ? await captured.text() : null };
             }
             finally {

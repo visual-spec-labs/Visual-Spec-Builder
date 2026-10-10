@@ -78,6 +78,19 @@ const SCREEN_STRUCTURAL_ROOTS: ReadonlySet<string> = new Set(["root", "nodes"]);
  */
 const NODE_STRUCTURAL_ROOTS: ReadonlySet<string> = new Set(["type", "children"]);
 
+/**
+ * #265 S1-1 임시 가드 — **S1-3에서 제거한다.**
+ *
+ * 이 파일은 쓰기 경로를 정본 스키마에서 도출하므로, 스키마에 `ScreenSpec.kind`와
+ * `ButtonNode.action`이 들어온 순간 updateScreen·updateNode가 그 경로(`action.target`
+ * 같은 하위 경로 포함)를 받게 된다. 참조 무결성 검증(S1-2)과 Command 계약(S1-3,
+ * action 통째 교체·하위 경로 거부·제거 명령)이 생기기 전에는 Command가 이 필드를
+ * 쓰지 못하게 막는다. 대상이 없는 action이 저장됐다가 S1-2 뒤 갑자기 무효가 되는
+ * 일을 피하려는 것이다(docs/06 "화면 종류·연결 선택 확장" 절).
+ */
+const SCREEN_RELATION_ROOTS_UNTIL_S1_3: ReadonlySet<string> = new Set(["kind"]);
+const NODE_RELATION_ROOTS_UNTIL_S1_3: ReadonlySet<string> = new Set(["action"]);
+
 const NODE_DEF_BY_TYPE: Record<Node["type"], string> = {
   frame: "FrameNode",
   text: "TextNode",
@@ -197,6 +210,7 @@ function isEditablePath(
 export function isEditableScreenPath(screen: ScreenSpec, path: string): boolean {
   // 맵 안으로 점 경로 쓰기는 금지한다. 전체 블록만 검증 후 교체한다.
   if (path.startsWith("responsive.")) return false;
+  if (SCREEN_RELATION_ROOTS_UNTIL_S1_3.has(path.split(".")[0])) return false;
   return isEditablePath("ScreenSpec", SCREEN_STRUCTURAL_ROOTS, screen, path);
 }
 
@@ -208,6 +222,7 @@ export function isEditableScreenPath(screen: ScreenSpec, path: string): boolean 
  * radius가 이미 모서리별 객체면 허용하고, 숫자 하나면 막는다.
  */
 export function isEditableNodePath(node: Node, path: string): boolean {
+  if (NODE_RELATION_ROOTS_UNTIL_S1_3.has(path.split(".")[0])) return false;
   return isEditablePath(
     NODE_DEF_BY_TYPE[node.type],
     NODE_STRUCTURAL_ROOTS,

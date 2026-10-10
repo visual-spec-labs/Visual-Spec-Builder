@@ -43,6 +43,11 @@ export type Opacity = number;
  */
 export type Blur = number;
 /**
+ * 버튼을 눌렀을 때의 화면 간 동작 하나(#265). button에만 둔다. 생략하면 동작 없음이고 null은 무효다. 갈래는 type으로 가르며 통째로 교체한다(반응형 override 대상이 아니다). S1-1은 형태 저장만 지원한다. target 존재·대상 kind 등 프로젝트 참조 검증은 후속 S1-2, 동작 코드 생성은 후속 S1-8/9 범위이며 아직 지원하지 않는다.
+ */
+export type Action = NavigateAction | OpenModalAction | CloseAction;
+export type PageId = string;
+/**
  * 대상 nodes[id].type에 해당하는 override만 허용한다(validator 의미 검증).
  */
 export type NodeOverride = FrameOverride | TextOverride | ImageOverride | ButtonOverride | InputOverride;
@@ -57,6 +62,10 @@ export type PartialRadius =
       bottomRight?: number;
       bottomLeft?: number;
     };
+/**
+ * 화면 종류(#265). 생략하면 "page"다 — 기존 문서는 모두 일반 페이지로 읽힌다. 첫 화면은 page여야 한다는 규칙과 kind별 size 해석은 이 스키마가 아니라 프로젝트 검증·후속 계약이 정한다(docs/24-screen-relations-design.md).
+ */
+export type ScreenKind = "page" | "modal" | "widget";
 
 /**
  * Visual Spec Schema v0.3 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 0.1 문서는 앱이 열 때 0.3으로 변환한다(schema/migrate.ts).
@@ -79,6 +88,7 @@ export interface ScreenSpec {
     [k: string]: Node;
   };
   responsive?: Responsive;
+  kind?: ScreenKind;
 }
 export interface FrameNode {
   type: "frame";
@@ -234,6 +244,27 @@ export interface ButtonNode {
   color: Color;
   background?: Background;
   border?: Border;
+  action?: Action;
+}
+/**
+ * 다른 page로 이동할 의도를 저장한다. 라우터 없이 onNavigate(target) 콜백을 호출하는 코드 생성은 후속 S1-9에서 구현할 계약이며 현재 지원하지 않는다.
+ */
+export interface NavigateAction {
+  type: "navigate";
+  target: PageId;
+}
+/**
+ * modal 화면을 열 의도를 저장한다. 한 번에 하나의 모달을 열고 교체하는 동작은 후속 S1-9에서 구현할 계약이며 현재 지원하지 않는다.
+ */
+export interface OpenModalAction {
+  type: "openModal";
+  target: PageId;
+}
+/**
+ * 열린 모달을 닫을 의도를 저장한다. target은 받지 않는다. 닫기 동작 코드 생성은 후속 S1-9에서 구현할 계약이며 현재 지원하지 않는다.
+ */
+export interface CloseAction {
+  type: "close";
 }
 export interface InputNode {
   type: "input";
@@ -361,8 +392,6 @@ export interface InputOverride {
   background?: Background;
   border?: PartialBorder;
 }
-
-export type PageId = string;
 
 /**
  * Visual Spec v0.3 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 화면 문서와 같은 ScreenSpec이다. 버전은 IR 세대를 뜻하고, 화면 문서와는 버전이 아니라 키(screen / pages)로 구별한다. 0.2 문서는 앱이 열 때 0.3으로 변환한다.

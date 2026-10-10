@@ -10,6 +10,7 @@ vi.mock("@/features/editor/ui/workspaceClient", () => ({
   readWorkspaceTextFile: vi.fn(),
 }));
 
+import { seedSpec } from "@/features/editor/store/seedSpec";
 import { verifyGenerated } from "@/features/editor/export/verifyGenerated";
 import { downloadGeneratedBundle } from "@/features/editor/ui/exportGeneratedCode";
 
@@ -66,10 +67,18 @@ describe("generated code asset export (#274)", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([false, true])("관계 화면은 이전 보고서와 부분 Export로도 ZIP을 만들지 않는다 (%s)", async allowPartial => {
+    const result = await downloadGeneratedBundle("Demo", files, report, [],
+      { ...seedSpec.screen, kind: "modal" }, allowPartial);
+    expect(result.kind).toBe("unsupported");
+    expect(readWorkspaceBinaryFile).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
+  });
+
   it("읽기 실패 때 전체 ZIP을 만들지 않고 재시도 대상을 돌려준다", async () => {
     readWorkspaceBinaryFile.mockResolvedValue(null);
 
-    const result = await downloadGeneratedBundle("Demo", files, report, []);
+    const result = await downloadGeneratedBundle("Demo", files, report, [], seedSpec.screen);
 
     expect(result).toEqual({ kind: "missing-assets", missing: ["hero.png"] });
     expect(click).not.toHaveBeenCalled();
@@ -80,7 +89,7 @@ describe("generated code asset export (#274)", () => {
     readWorkspaceBinaryFile.mockResolvedValue(null);
     const initiallyMissing = verifyGenerated({ files, tickets: [], assetNames: [] });
 
-    const result = await downloadGeneratedBundle("Demo", files, initiallyMissing, []);
+    const result = await downloadGeneratedBundle("Demo", files, initiallyMissing, [], seedSpec.screen);
 
     expect(result).toEqual({ kind: "missing-assets", missing: ["hero.png"] });
     expect(click).not.toHaveBeenCalled();
@@ -89,7 +98,7 @@ describe("generated code asset export (#274)", () => {
   it("asset endpoint의 네트워크 예외도 성공 다운로드로 처리하지 않는다", async () => {
     readWorkspaceBinaryFile.mockRejectedValue(new Error("network failure"));
 
-    const result = await downloadGeneratedBundle("Demo", files, report, []);
+    const result = await downloadGeneratedBundle("Demo", files, report, [], seedSpec.screen);
 
     expect(result).toEqual({ kind: "missing-assets", missing: ["hero.png"] });
     expect(click).not.toHaveBeenCalled();
@@ -100,8 +109,8 @@ describe("generated code asset export (#274)", () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValue(new Uint8Array([4, 5, 6]));
 
-    const failed = await downloadGeneratedBundle("Demo", files, report, []);
-    const retried = await downloadGeneratedBundle("Demo", files, report, []);
+    const failed = await downloadGeneratedBundle("Demo", files, report, [], seedSpec.screen);
+    const retried = await downloadGeneratedBundle("Demo", files, report, [], seedSpec.screen);
 
     expect(failed.kind).toBe("missing-assets");
     expect(retried).toEqual({ kind: "downloaded", missing: [] });
@@ -114,7 +123,7 @@ describe("generated code asset export (#274)", () => {
   it("부분 Export를 명시한 경우 실제 읽힌 파일만 넣고 누락을 README에 기록한다", async () => {
     readWorkspaceBinaryFile.mockResolvedValue(null);
 
-    const result = await downloadGeneratedBundle("Demo", files, report, [], true);
+    const result = await downloadGeneratedBundle("Demo", files, report, [], seedSpec.screen, true);
 
     expect(result).toEqual({ kind: "downloaded", missing: ["hero.png"] });
     const entries = await downloadedEntries();
@@ -127,7 +136,7 @@ describe("generated code asset export (#274)", () => {
   it("최종 ZIP에 들어간 실제 자산 바이트로 보고서를 다시 검증한다", async () => {
     readWorkspaceBinaryFile.mockResolvedValue(new Uint8Array([1, 2, 3]));
 
-    const result = await downloadGeneratedBundle("Demo", files, report, []);
+    const result = await downloadGeneratedBundle("Demo", files, report, [], seedSpec.screen);
 
     expect(result).toEqual({ kind: "downloaded", missing: [] });
     const entries = await downloadedEntries();
