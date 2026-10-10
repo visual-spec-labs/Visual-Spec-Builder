@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startBrowserWorkspace } from "./harness.mjs";
+import { startBrowserWorkspace, writeFileAtomic } from "./harness.mjs";
 const workspace = await mkdtemp(join(tmpdir(), "vs-recovery-provenance-"));
 const file = "components/Header.tsx";
 const target = join(workspace, "generated", file);
@@ -43,7 +43,7 @@ try {
     const output = join(workspace, request.tickets[0].outputPath);
     await mkdir(join(output, '..'), { recursive: true });
     await writeFile(output, text);
-    await writeFile(join(workspace, request.responsePath), JSON.stringify({ protocol: request.protocol, requestId: request.id, results: [{ticketId:'Header',status:'done'}] }));
+    await writeFileAtomic(join(workspace, request.responsePath), JSON.stringify({ protocol: request.protocol, requestId: request.id, results: [{ticketId:'Header',status:'done'}] }));
     return request;
   }
   async function settle(page) {
@@ -74,7 +74,7 @@ try {
   const lockPath = join(workspace, 'runtime/.ticket-request.lock');
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
   assert.equal(lock.owner, requestA.id);
-  await writeFile(lockPath, JSON.stringify({ ...lock, expiresAt: Date.now() - 1 }));
+  await writeFileAtomic(lockPath, JSON.stringify({ ...lock, expiresAt: Date.now() - 1 }));
   const requestB = await start(b, next);
   await settle(b);
   unblock();

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startBrowserWorkspace } from "./harness.mjs";
+import { startBrowserWorkspace, writeFileAtomic } from "./harness.mjs";
 const workspace = await mkdtemp(join(tmpdir(), "vs-guard-"));
 const target = join(workspace, "generated/components/Header.tsx");
 const original = Buffer.from('\ufeffexport function Header() { return <header>manual</header>; }\r\n');
@@ -42,7 +42,7 @@ try {
     const dir = join(workspace, 'staging', request.id, 'components');
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'Header.tsx'), next);
-    await writeFile(join(workspace, 'runtime/ticket-response.json'), JSON.stringify({ protocol: request.protocol, requestId: request.id, results: [{ ticketId: 'Header', status: 'done' }] }));
+    await writeFileAtomic(join(workspace, 'runtime/ticket-response.json'), JSON.stringify({ protocol: request.protocol, requestId: request.id, results: [{ ticketId: 'Header', status: 'done' }] }));
     await page.waitForFunction(() => window.guard.tickets.getState().overwriteReview !== null);
   }
   await respond();

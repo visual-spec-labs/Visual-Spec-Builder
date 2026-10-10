@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { copyFile, mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startBrowserWorkspace } from "./harness.mjs";
+import { startBrowserWorkspace, writeFileAtomic } from "./harness.mjs";
 
 const STALE = "화면이 바뀌었습니다. 현재 스펙으로 티켓을 다시 생성해야 전달할 수 있습니다.";
 const workspace = await mkdtemp(join(tmpdir(), "vs-stale-ticket-"));
@@ -72,7 +72,7 @@ try {
         ? `export default function ${name}() { return <main data-node-id="root" />; }\n`
         : `export function ${name}() { return <div />; }\n`);
     }
-    await writeFile(join(workspace, request.responsePath), JSON.stringify({ protocol: request.protocol, requestId: request.id,
+    await writeFileAtomic(join(workspace, request.responsePath), JSON.stringify({ protocol: request.protocol, requestId: request.id,
       results: request.tickets.map(ticket => ({ ticketId: ticket.id, status: "done" })) }));
   }
   /** 남은 웨이브를 모두 fixture로 응답해 전체 티켓을 끝낸다. */
