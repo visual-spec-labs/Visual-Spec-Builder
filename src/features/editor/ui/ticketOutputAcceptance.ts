@@ -127,6 +127,12 @@ export interface TicketOutputAcceptance {
   committed?: boolean;
 }
 
+/**
+ * 수용 기록이 이 앱보다 새 형식일 때의 안내. 이 앱은 그 형식을 해석할 수 없어 기록하지 못한다 — 기록 없이
+ * 쓴 출력은 누구의 것인지 가를 수 없으므로 `generated/`에도 쓰지 않는다(docs/26 #281 "요청 중 새 형식 기록").
+ */
+const NEWER_MANIFEST_MESSAGE = "생성 기록이 이 앱보다 새 형식이라 이번 출력을 확정하지 않았습니다. 앱을 업데이트한 뒤 다시 전달하세요.";
+
 function failed(ticketId: string, message: string): TicketResultItem {
   return { ticketId, status: "failed", message };
 }
@@ -172,6 +178,15 @@ export async function planTicketOutputs({
     };
   }
   const manifestText = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
+  // 요청 중 기록이 더 새 형식으로 바뀌었으면 계획 단계에서 멈춘다 — 빈 기록으로 읽고 쓰면 마지막에
+  // 기록을 거부당해 주인 없는 출력만 남는다. 아무 파일도 읽거나 쓰지 않는다.
+  if (manifestText.ok && isNewerGenerationManifest(manifestText.text)) {
+    return {
+      requestId, pageId, owner, outputRoot: generationTarget.root, outputs,
+      results: waveTickets.map((ticket) => failed(ticket.id, NEWER_MANIFEST_MESSAGE)),
+      targets: [], review: { requestId, items: [] },
+    };
+  }
   // 기록을 읽지 못하면 기록이 없는 것으로 판정한다 — 기존 파일은 모두 확인 대상이 된다(덮어쓰는 쪽으로 기울지 않는다).
   const manifest = parseGenerationManifest(manifestText.ok ? manifestText.text : null);
   const planned: TicketResultItem[] = [];
@@ -385,6 +400,12 @@ async function commitTicketOutputsNow(
     }
   }
 
+  // 2-1. 첫 쓰기 직전 기록 형식 재확인. 계획 뒤 다른 writer가 기록을 더 새 형식으로 바꿨으면 이 앱은
+  //      4단계에서 기록할 수 없다 — 쓰기 전에 멈춰, 기록하지 못할 출력을 `generated/`에 남기지 않는다.
+  if (!isCurrent()) return cancelled();
+  const manifestNow = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
+  if (manifestNow.ok && isNewerGenerationManifest(manifestNow.text)) return abort(NEWER_MANIFEST_MESSAGE);
+
   // 3. 쓰기. 파일마다 확인 당시 버전을 기대 버전으로 싣는다.
   const written: RunRecordFile[] = [];
   // plan.json is intent only. run.json authorizes only final confirmed/pending mutations.
@@ -461,7 +482,8 @@ async function commitTicketOutputsNow(
     if (target === undefined || entries[target.path] !== undefined) return result;
     return failed(result.ticketId, `기존 ${target.path}을(를) 보존해 바꾸지 않았습니다. 새 출력은 ${ticketOutputPath(plan.requestId, target.path)}에 남아 있습니다.`);
   });
-  const manifestError = Object.keys(entries).length === 0 ? null : await recordAcceptance(entries, { owner: plan.requestId, renew }, isCurrent);
+  const recorded = Object.keys(entries).length === 0 ? null : await recordAcceptance(entries, { owner: plan.requestId, renew }, isCurrent);
+  const manifestError = recorded?.message ?? null;
   if (!isCurrent()) {
     const restored = await compensate("취소되거나 재컴파일되었습니다.");
     // The manifest request may already have reached the server. Restore only entries of this request.
@@ -470,11 +492,19 @@ async function commitTicketOutputsNow(
     const metadataLease = await holdRequestLock("ticket", metadataOwner);
     let warning: string | null = "복구 기록 잠금을 얻지 못했습니다.";
     if (typeof metadataLease !== "string") {
-      try { warning = await recordAcceptance(previous, { owner: metadataOwner, renew: () => metadataLease.renew(true) }, () => true, plan.requestId); }
+      try { warning = (await recordAcceptance(previous, { owner: metadataOwner, renew: () => metadataLease.renew(true) }, () => true, plan.requestId))?.message ?? null; }
       finally { metadataLease.release(); }
     }
     if (warning !== null) restored.manifestError = warning;
     return restored;
+  }
+  // 2-1 재확인 뒤 기록 직전에 더 새 형식이 된 경우. 이 출력은 기록할 수 없으니 확정하지 않고 기존 보상
+  // 경로로 되돌린다. 단 보상도 기록으로 출처를 증명해야 손대므로(`recoveryProvenance`), 새 형식 기록 앞에서는
+  // 파일을 건드리지 않고 "복구 확인 필요"와 실행 기록을 남긴다 — 증명하지 못한 바이트를 지우지 않는다(#282).
+  if (recorded?.newerFormat === true) {
+    const result = await compensate("생성 기록이 확정 중 이 앱보다 새 형식으로 바뀌어 이번 출력을 기록하지 못했습니다.");
+    result.manifestError = recorded.message;
+    return result;
   }
   // Commit point: outputs and the manifest attempt have settled and cancellation was checked.
   // Saving the immutable recovery scope is final bookkeeping. Do not undo a committed result
@@ -535,17 +565,25 @@ async function rollback(written: RunRecordFile[], writes: OverwriteTarget[], lea
   return left;
 }
 
+/** 수용 기록을 남기지 못한 이유. `newerFormat`이면 기록이 이 앱보다 새 형식이라 손대지 않았다. */
+interface RecordFailure {
+  message: string;
+  newerFormat: boolean;
+}
+
 /**
  * 수용 기록에 확정한 항목을 합친다. 읽기에 실패하면 쓰지 않는다 — 없는 줄 알고 빈 기록으로
  * 덮으면 다른 파일들의 기록까지 지운다. 실패해도 판정은 "확인 불가"로 기울 뿐 거짓 "현재"가
  * 되지 않는다(docs/26 "수용 기록 형식").
  */
-async function recordAcceptance(updates: Record<string, ManifestEntry | null>, lease: MutationLease, isCurrent = () => true, onlyRequestId?: string): Promise<string | null> {
+async function recordAcceptance(updates: Record<string, ManifestEntry | null>, lease: MutationLease, isCurrent = () => true, onlyRequestId?: string): Promise<RecordFailure | null> {
+  const fail = (message: string, newerFormat = false): RecordFailure => ({ message, newerFormat });
   const current = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
-  if (!current.ok || isNewerGenerationManifest(current.text)) {
-    return "생성 기록을 읽지 못해 이번 변경을 기록하지 않았습니다. Export에서 이 파일들은 확인 불가로 보입니다.";
+  if (!current.ok) return fail("생성 기록을 읽지 못해 이번 변경을 기록하지 않았습니다. Export에서 이 파일들은 확인 불가로 보입니다.");
+  if (isNewerGenerationManifest(current.text)) {
+    return fail("생성 기록이 이 앱보다 새 형식이라 이번 변경을 기록하지 않았습니다. Export에서 이 파일들은 확인 불가로 보입니다.", true);
   }
-  if (!isCurrent() || !await lease.renew() || !isCurrent()) return "취소되거나 잠금을 잃어 생성 기록을 갱신하지 않았습니다.";
+  if (!isCurrent() || !await lease.renew() || !isCurrent()) return fail("취소되거나 잠금을 잃어 생성 기록을 갱신하지 않았습니다.");
   const manifest = parseGenerationManifest(current.text);
   const selected = onlyRequestId === undefined ? updates : Object.fromEntries(
     Object.entries(updates).filter(([path]) => manifest.entries[path]?.requestId === onlyRequestId),
@@ -561,7 +599,7 @@ async function recordAcceptance(updates: Record<string, ManifestEntry | null>, l
   );
   return written.ok
     ? null
-    : `생성 기록을 저장하지 못했습니다 — ${written.error}. Export에서 이 파일들은 확인 불가로 보입니다.`;
+    : fail(`생성 기록을 저장하지 못했습니다 — ${written.error}. Export에서 이 파일들은 확인 불가로 보입니다.`);
 }
 
 export interface RestoreReport {
@@ -680,7 +718,7 @@ async function restoreRegenerationRunNow(runId: string, isCurrent: () => boolean
   }
   if (Object.keys(updates).length > 0) {
     const error = await recordAcceptance(updates, lease, isCurrent, record.requestId);
-    report.error = error ?? report.error;
+    report.error = error?.message ?? report.error;
   }
   return report;
 }

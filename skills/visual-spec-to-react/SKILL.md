@@ -31,6 +31,9 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
    `<프로젝트 폴더>/<pageId>`(생성 자리)는 다른 프로젝트·페이지의 같은 이름(`Card`, `Login`)이 같은
    파일을 덮지 않게 나눈 자리다. 그 아래 배치와 상대 import는 아래 3절 그대로다.
    - **pageId**: 프로젝트 파일(`pages`가 있는 v0.3)이면 그 페이지의 키, 화면 하나짜리 JSON(`screen`)이면 `page1`.
+     같은 프로젝트에 대소문자만 다른 페이지 키(`Login`·`login`)가 있으면 그 페이지들은 쓰지 말고 멈춘 뒤, 한쪽
+     키를 바꾸라고 안내한다 — Windows·macOS 기본 파일 시스템에서 두 자리가 같은 폴더라 서로의 출력을 덮는다.
+     GUI 전달도 같은 이유로 거부한다.
    - **프로젝트 폴더**: `.visual-spec/runtime/generation-manifest.json`의 `projects`에서 `fileName`이 대상 스펙
      파일 이름(`.visual-spec/specs/<이름>.json`이면 `<이름>.json`)과 같은 항목의 `outputDir`다. GUI가 처음
      전달할 때 정하고, 앱 안에서 이름을 바꿔도 그대로다. 항목이 없으면 파일 이름에서 `.json`을 빼고

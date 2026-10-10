@@ -42,6 +42,7 @@ import { contentHash } from "@/features/editor/export/contentHash";
 import {
   chooseOutputDir,
   isLegacyGeneratedPath,
+  pageIdCaseConflicts,
   projectOutputDirName,
   ticketComponentKey,
   ticketInputFingerprint,
@@ -98,8 +99,15 @@ function agentCompletes(request: TicketRequest, mark: string): void {
   }));
 }
 
-/** 준비된 티켓을 끝까지(모든 웨이브) 전달하고 에이전트가 매번 성공한다. 처리한 요청들을 돌려준다. */
-async function deliver(mark: string, start: () => Promise<void> = runAllTickets): Promise<TicketRequest[]> {
+/**
+ * 준비된 티켓을 끝까지(모든 웨이브) 전달하고 에이전트가 매번 성공한다. 처리한 요청들을 돌려준다.
+ * `afterAgent`는 에이전트가 응답을 남긴 직후(GUI가 응답을 읽기 전) 다른 writer를 흉내 낼 때 쓴다.
+ */
+async function deliver(
+  mark: string,
+  start: () => Promise<void> = runAllTickets,
+  afterAgent: (request: TicketRequest) => void = () => {},
+): Promise<TicketRequest[]> {
   const run = start();
   const handled: TicketRequest[] = [];
   for (let round = 0; round < 20 && useTicketStore.getState().running; round++) {
@@ -108,6 +116,7 @@ async function deliver(mark: string, start: () => Promise<void> = runAllTickets)
     if (request === null || handled.some((done) => done.id === request.id)) continue;
     handled.push(request);
     agentCompletes(request, mark);
+    afterAgent(request);
   }
   await run;
   return handled;
@@ -232,6 +241,31 @@ describe("같은 이름이 서로 덮지 않는다", () => {
     expect(scan.files.map((file) => file.path).sort()).toEqual(
       ["components/Card.tsx", "components/Content.tsx", "components/Header.tsx", "pages/DashboardPage.tsx"],
     );
+  });
+
+  it("대소문자만 다른 PageId(Login·login)는 생성 자리가 같은 폴더가 되므로 전달하지 않고 이유를 알린다", async () => {
+    expect(pageIdCaseConflicts("Login", ["Login", "login", "LOGIN", "signup"])).toEqual(["LOGIN", "login"]);
+    expect(pageIdCaseConflicts("signup", ["Login", "login", "signup"])).toEqual([]);
+
+    const project: ProjectSpec = {
+      version: "0.3",
+      name: "Shop",
+      pages: { Login: structuredClone(seedSpec.screen), login: structuredClone(seedSpec.screen) },
+      pageOrder: ["Login", "login"],
+    };
+    openDocument(project, "shop.json");
+    const run = runAllTickets();
+    await tick();
+    await run;
+
+    expect(currentRequest()).toBeNull();
+    expect(workspace.files.has(GENERATION_MANIFEST_PATH)).toBe(false);
+    expect(generatedWrites()).toEqual([]);
+    const { runError, runErrorRetryable, tickets } = useTicketStore.getState();
+    expect(runError).toContain("대소문자만 다른 페이지");
+    expect(runError).toContain('"login"');
+    expect(runErrorRetryable).toBe(false);
+    expect(tickets.every((ticket) => ticket.status === "pending")).toBe(true);
   });
 
   it("같은 프로젝트의 다른 페이지에 같은 컴포넌트 이름이 있어도 페이지마다 다른 자리를 쓴다", async () => {
@@ -474,5 +508,55 @@ describe("호환과 저장하지 않은 문서", () => {
     expect(textOf(workspace, GENERATION_MANIFEST_PATH)).toBe(newer);
     expect(useTicketStore.getState().runError).toContain("새 형식");
     expect(useTicketStore.getState().tickets.every((ticket) => ticket.status === "pending")).toBe(true);
+  });
+});
+
+describe("요청 중 기록이 새 형식이 되면", () => {
+  const newer = JSON.stringify({ protocol: GENERATION_MANIFEST_PROTOCOL + 1, projects: {}, entries: {} });
+  const firstWave = () => useTicketStore.getState().tickets.filter((ticket) => ticket.status !== "pending");
+
+  it("계획 단계에서 멈추고 generated/에 아무것도 쓰지 않는다 — 기록도 그대로다", async () => {
+    // 에이전트가 응답한 뒤, GUI가 응답을 읽기 전에 다른 writer가 기록을 새 형식으로 바꾼다
+    await deliver("a", runAllTickets, () => workspace.files.set(GENERATION_MANIFEST_PATH, newer));
+
+    expect(generatedWrites()).toEqual([]);
+    expect(workspace.log.some((entry) => entry.includes(" backups/"))).toBe(false);
+    expect(textOf(workspace, GENERATION_MANIFEST_PATH)).toBe(newer);
+    expect(firstWave().length).toBeGreaterThan(0);
+    expect(firstWave().every((ticket) => ticket.status === "failed" && ticket.error?.includes("새 형식"))).toBe(true);
+    expect(useTicketStore.getState().lastRun).toBeNull();
+  });
+
+  it("계획 뒤 첫 쓰기 직전에 바뀌어도 쓰기 전에 다시 확인해 generated/에 아무것도 쓰지 않는다", async () => {
+    // 되돌리기 계획(plan.json)은 재비교·재확인 전에 쓴다 — 그 순간 기록이 바뀌는 경우다
+    workspace.beforeWrite = (path) => {
+      if (path.endsWith("/plan.json")) workspace.files.set(GENERATION_MANIFEST_PATH, newer);
+    };
+    await deliver("a");
+
+    expect(workspace.log.some((entry) => entry.endsWith("/plan.json"))).toBe(true);
+    expect(generatedWrites()).toEqual([]);
+    expect(textOf(workspace, GENERATION_MANIFEST_PATH)).toBe(newer);
+    expect(firstWave().every((ticket) => ticket.status === "failed" && ticket.error?.includes("새 형식"))).toBe(true);
+    expect(useTicketStore.getState().lastRun).toBeNull();
+  });
+
+  it("쓰기 뒤 기록 직전에 바뀌면 확정하지 않고 보상 경로로 넘긴다 — 출처를 증명하지 못한 파일은 지우지 않고 복구 확인 필요로 남긴다", async () => {
+    workspace.beforeWrite = (path) => {
+      if (path.startsWith("generated/")) workspace.files.set(GENERATION_MANIFEST_PATH, newer);
+    };
+    await deliver("a");
+
+    const written = generatedWrites();
+    expect(written.length).toBeGreaterThan(0);
+    // 새 형식 기록은 해석하지 못하므로 손대지 않는다
+    expect(textOf(workspace, GENERATION_MANIFEST_PATH)).toBe(newer);
+    expect(firstWave().every((ticket) => ticket.status === "failed")).toBe(true);
+    const { acceptanceWarning, lastRun } = useTicketStore.getState();
+    expect(acceptanceWarning).toContain("복구 확인 필요");
+    expect(acceptanceWarning).toContain("새 형식");
+    // 보상은 기록으로 이 요청의 출력임을 증명할 때만 되돌린다(#282) — 남은 파일을 실행 기록으로 알린다
+    expect(lastRun?.paths.length).toBe(written.length);
+    for (const path of lastRun?.paths ?? []) expect(workspace.files.has(`generated/${path}`)).toBe(true);
   });
 });

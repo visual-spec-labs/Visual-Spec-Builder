@@ -27,7 +27,7 @@ import {
   withProjectRenamed,
   type GenerationManifest,
 } from "@/features/editor/export/generationManifest";
-import { chooseOutputDir, pageOutputRoot, projectOutputDirName } from "@/features/editor/export/generationIdentity";
+import { chooseOutputDir, pageIdCaseConflicts, pageOutputRoot, projectOutputDirName } from "@/features/editor/export/generationIdentity";
 import type { PageId } from "@/features/editor/schema";
 
 import { holdRequestLock } from "./agentRequestLock";
@@ -40,6 +40,8 @@ export interface GenerationOwnerInput {
   /** `editorStore.documentId`. 저장하지 않은 문서의 세션 프로젝트를 찾는 데만 쓴다. */
   documentId: number;
   pageId: PageId;
+  /** 이 프로젝트의 모든 PageId. 대소문자만 다른 PageId가 있는지 보는 데만 쓴다. */
+  projectPageIds: readonly PageId[];
 }
 
 /** 정해진 생성 자리. */
@@ -89,7 +91,10 @@ export function unregisteredOutputDir(manifest: GenerationManifest, fileName: st
   return Object.values(manifest.projects).some((project) => project.outputDir === candidate) ? null : candidate;
 }
 
-export type GenerationTargetResult = { ok: true; target: GenerationTarget } | { ok: false; error: string };
+/** `retryable: false`면 다시 눌러도 같은 이유로 실패한다(사용자가 프로젝트를 고쳐야 한다). */
+export type GenerationTargetResult =
+  | { ok: true; target: GenerationTarget }
+  | { ok: false; error: string; retryable?: boolean };
 
 type ManifestRead = { ok: true; manifest: GenerationManifest } | { ok: false; error: string };
 
@@ -139,11 +144,24 @@ function targetOf(projectId: string, outputDir: string, pageId: PageId): Generat
  * 않은 채 정해 둔 세션 프로젝트가 있으면 지금 파일 이름을 이어받게 한다. 기록을 읽거나 쓰지 못하면 자리를
  * 정하지 않는다 — 주인을 기록하지 못한 채 만든 출력은 다음 판정에서 누구의 것인지 가를 수 없다.
  * 이미 기록된 프로젝트면 읽기만 하고 잠금을 잡지 않는다.
+ *
+ * 대소문자만 다른 PageId가 프로젝트에 있으면 기록을 읽기 전에 거부한다 — 그 두 페이지의 생성 자리는
+ * 대소문자를 가리지 않는 파일 시스템에서 같은 폴더라, 자리를 나눈다는 약속을 지킬 수 없다.
  */
 export async function ensureGenerationTarget(
   owner: GenerationOwnerInput,
   { now = () => new Date(), createId = createProjectId }: { now?: () => Date; createId?: () => string } = {},
 ): Promise<GenerationTargetResult> {
+  const conflicts = pageIdCaseConflicts(owner.pageId, owner.projectPageIds);
+  if (conflicts.length > 0) {
+    return {
+      ok: false,
+      retryable: false,
+      error: `페이지 ID "${owner.pageId}"와 대소문자만 다른 페이지(${conflicts.map((id) => `"${id}"`).join(", ")})가 ` +
+        "있어 전달하지 않았습니다. Windows·macOS 기본 파일 시스템에서는 두 페이지의 생성 폴더가 같아져 서로의 " +
+        "출력을 덮습니다. 프로젝트 JSON에서 한쪽 페이지 ID를 바꾼 뒤 다시 전달하세요.",
+    };
+  }
   const read = await readManifest();
   if (!read.ok) return read;
   const known = findGenerationProject(read.manifest, owner);

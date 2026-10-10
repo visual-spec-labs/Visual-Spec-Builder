@@ -59,9 +59,23 @@ export function chooseOutputDir(candidate: string, used: ReadonlySet<string>): s
   return `${candidate}-${suffix}`;
 }
 
-/** 한 페이지의 생성 출력 자리(`generated/` 기준). 이 아래 배치가 ZIP의 배치다. */
+/**
+ * 한 페이지의 생성 출력 자리(`generated/` 기준). 이 아래 배치가 ZIP의 배치다. PageId를 폴더 이름으로
+ * 그대로 쓴다 — 대소문자만 다른 PageId가 같은 폴더가 되는 경우는 `pageIdCaseConflicts`로 막는다.
+ */
 export function pageOutputRoot(outputDir: string, pageId: PageId): string {
   return `${outputDir}/${pageId}`;
+}
+
+/**
+ * 같은 프로젝트에서 `pageId`와 대소문자만 다른 PageId들. 스키마의 PageId 패턴(`^[A-Za-z0-9_-]+$`)은
+ * `Login`과 `login`을 다른 페이지로 허용하지만, 대소문자를 가리지 않는 파일 시스템(Windows·macOS 기본)
+ * 에서는 두 생성 자리가 같은 폴더다 — 수용 기록의 키는 서로 달라 한쪽 출력을 다른 쪽이 "기록 없음"으로
+ * 본다. 비어 있지 않으면 그 페이지는 생성 전달을 거부한다(docs/26 #281 "PageId 대소문자 충돌").
+ */
+export function pageIdCaseConflicts(pageId: PageId, pageIds: Iterable<PageId>): PageId[] {
+  const folded = pageId.toLowerCase();
+  return [...new Set(pageIds)].filter((id) => id !== pageId && id.toLowerCase() === folded).sort();
 }
 
 /** 티켓 파일의 `generated/` 기준 경로. `root`가 빈 문자열이면 이전(#281 전) 배치다. */

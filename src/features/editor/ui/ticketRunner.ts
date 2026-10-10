@@ -185,6 +185,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     fileName,
     documentId: sourceDocumentId ?? useEditorStore.getState().documentId,
     pageId: sourcePageId,
+    projectPageIds: Object.keys(useEditorStore.getState().spec.pages),
   });
   if (useTicketStore.getState().generation !== generation) {
     wait.settle();
@@ -199,7 +200,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
       running: false,
       wait: null,
       runError: located.ok ? null : located.error,
-      runErrorRetryable: !located.ok,
+      runErrorRetryable: !located.ok && located.retryable !== false,
     });
     return;
   }
