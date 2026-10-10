@@ -13,7 +13,10 @@ scratch=$(mktemp -d "${TMPDIR:-/tmp}/vsb-journeys.XXXXXX")
 trap 'rm -rf -- "$scratch"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-for journey in export-journey project-dialogs document-transitions unnamed-drafts save-status; do
+# 앞 5개는 #346의 기존 여정, 뒤 3개는 #292가 연결한 낡은 티켓·다중 탭 요청·수동 변경 보호 여정이다.
+journeys=(export-journey project-dialogs document-transitions unnamed-drafts save-status
+  stale-ticket-journey request-generation manual-change-guard)
+for journey in "${journeys[@]}"; do
   case_dir="$scratch/$journey"
   mkdir -p "$case_dir"
   echo "RUN $journey (limit ${limit}s)"
@@ -23,4 +26,4 @@ for journey in export-journey project-dialogs document-transitions unnamed-draft
     timeout --signal=TERM --kill-after=10s "${limit}s" node "scripts/browser/$journey.mjs"
   echo "PASS journey $journey"
 done
-echo 'PASS all 5 fixture journeys (no skips)'
+echo "PASS all ${#journeys[@]} fixture journeys (no skips)"
