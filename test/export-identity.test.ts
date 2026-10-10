@@ -93,9 +93,15 @@ describe("기록 없음(404)과 읽기 실패(500·네트워크)를 가른다", 
   });
 
   it.each(["http500", "network"] as const)("기록 읽기가 %s로 실패하면 검사 불가로 멈추고, 이름 변경·같은 slug 상황에서 남의 폴더를 고르지 않는다", async (kind) => {
-    // 같은 slug: "my shop"과 "my-shop"은 둘 다 후보가 "my-shop"이라 두 번째가 "my-shop-2"를 받았다
-    expect(await generate("my shop.json", "space")).toBe("my-shop/page1");
-    expect(await generate("my-shop.json", "dash")).toBe("my-shop-2/page1");
+    // 같은 slug의 두 소유자를 준비하고 실제 HTTP 읽기 실패를 검사한다.
+    // 등록 시 Windows rename의 EPERM이 읽기 실패 단언을 가리지 않도록 정적 기록을 쓴다.
+    // 실제 등록·이름 충돌·rename은 generation-ownership 및 아래 회귀에서 별도로 검증한다.
+    put(GENERATION_MANIFEST_PATH, JSON.stringify({ protocol: 2, entries: {}, projects: {
+      space: { fileName: "my shop.json", outputDir: "my-shop", createdAt: "2026-10-10T00:00:00Z" },
+      dash: { fileName: "my-shop.json", outputDir: "my-shop-2", createdAt: "2026-10-10T00:00:00Z" },
+    } }));
+    put("generated/my-shop/page1/pages/Home.tsx", "export default function Home(){return null} // space");
+    put("generated/my-shop-2/page1/pages/Home.tsx", "export default function Home(){return null} // dash");
     const before = await scanAs("my-shop.json");
     expect(before.kind === "ready" && before.files.every((file) => file.content.includes("// dash"))).toBe(true);
 
