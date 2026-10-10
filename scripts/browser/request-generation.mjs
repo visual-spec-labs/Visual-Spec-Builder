@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startBrowserWorkspace } from "./harness.mjs";
+import { startBrowserWorkspace, writeFileAtomic } from "./harness.mjs";
 
 const workspace = await mkdtemp(join(tmpdir(), "vs-request-generation-"));
 let runner;
@@ -15,7 +15,7 @@ async function respond(request, text) {
     await mkdir(join(path, ".."), { recursive: true });
     await writeFile(path, text);
   }
-  await writeFile(join(workspace, request.responsePath), JSON.stringify({ protocol: request.protocol, requestId: request.id,
+  await writeFileAtomic(join(workspace, request.responsePath), JSON.stringify({ protocol: request.protocol, requestId: request.id,
     results: request.tickets.map(ticket => ({ ticketId: ticket.id, status: "done" })) }));
 }
 try {
@@ -82,7 +82,7 @@ try {
   const lockPath = join(workspace, "runtime/.ticket-request.lock");
   const lock = JSON.parse(await readFile(lockPath, "utf8"));
   assert.equal(lock.owner, stale.id);
-  if (action === "expire") await writeFile(lockPath, JSON.stringify({ ...lock, expiresAt: Date.now() - 1 }));
+  if (action === "expire") await writeFileAtomic(lockPath, JSON.stringify({ ...lock, expiresAt: Date.now() - 1 }));
   if (action === "cancel") await a.getByRole("button", { name: "중지", exact: true }).click();
   if (action === "compile") await a.evaluate(() => {
     const { activePageId, spec } = editor.getState();
