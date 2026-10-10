@@ -69,13 +69,13 @@ export function UnnamedDrafts() {
     setPending(true);
     setMessage(null);
     const transition = beginDocumentTransition();
-    const confirm = async ({ targets, excluded }: BulkRemovalPlan) => await promptConfirm({
+    const confirm = async ({ targets, excluded }: BulkRemovalPlan) => transition.current() && await promptConfirm({
       title: "이름 없는 초안 모두 삭제",
       message: `보관한 이름 없는 초안 ${targets.length}개를 삭제합니다. 제외 ${excluded}개(${EXCLUDED}).\n디스크 파일은 삭제하지 않습니다. 되돌릴 수 없습니다.`,
       confirmLabel: `초안 ${targets.length}개 삭제`, signal: new AbortController().signal,
     }) && transition.current();
     try {
-      const result = await removeAllUnnamedDrafts(confirm);
+      const result = await removeAllUnnamedDrafts(confirm, transition);
       if (result) setMessage(bulkMessage(result));
       else if (!transition.current()) setMessage(messages.changed);
     } finally { busy.current = false; setPending(false); }

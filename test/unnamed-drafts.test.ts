@@ -8,6 +8,8 @@ import {
 } from "@/features/editor/store/unnamedDraftStore";
 import { loadStoredSpec, readRecovery, serializeStoredDocument, writeRecovery, type StoredDocument } from "@/features/editor/store/specStorage";
 import { startSpecAutosave } from "@/features/editor/ui/specAutosave";
+import { beginDocumentTransition } from "@/features/editor/ui/documentTransition";
+import { promptConfirm, usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 
 function storage() {
@@ -332,4 +334,55 @@ it("bulk delete skips only a draft whose raw changed after confirmation", async 
   expect(JSON.parse(localStorage.getItem(one.key)!).spec.name).toBe("Changed after confirmation");
   expect(localStorage.getItem(`${one.key}:deleted`)).toBeNull();
   expect(localStorage.getItem(two.key)).toBeNull(); expect(localStorage.getItem(`${two.key}:deleted`)).toBe("1");
+});
+
+it.each([1e20, -1e20, 8640000000000001, -8640000000000001])("treats out-of-Date-range metadata %s as untimed", savedAt => {
+  const draft = seed(); recordUnnamedDraftSaved(draft.key, savedAt);
+  expect(listUnnamedDrafts()[0].savedAt).toBeNull();
+});
+it("counts the pending active draft exactly once in the bulk exclusion total", async () => {
+  seed("free"); stop = startSpecAutosave();
+  useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "Pending write");
+  const active = useUnnamedDraftStore.getState().active!;
+  expect(localStorage.getItem(active.key)).toBeNull();
+  const confirm = vi.fn(async () => true);
+  expect(await removeAllUnnamedDrafts(confirm)).toEqual({ removed: 1, skipped: 0, failed: 0, excluded: 1 });
+  expect(confirm).toHaveBeenCalledWith({ targets: [expect.anything()], excluded: 1 });
+  expect(useUnnamedDraftStore.getState().active?.key).toBe(active.key);
+});
+
+
+it("does not open a stale bulk prompt after a delayed lock query", async () => {
+  seed(); stop = startSpecAutosave();
+  const manager = locks(); let release!: () => void;
+  vi.stubGlobal("navigator", { locks: { ...manager, query: async () => {
+    await new Promise<void>(resolve => { release = resolve; }); return manager.query();
+  } } });
+  const confirm = vi.fn(async () => true);
+  const pending = removeAllUnnamedDrafts(confirm, beginDocumentTransition());
+  beginDocumentTransition();
+  const latest = promptConfirm({ title: "Latest Open", message: "Keep this prompt", signal: new AbortController().signal });
+  const prompt = usePromptDialogStore.getState().state;
+  release(); expect(await pending).toBeNull();
+  expect(confirm).not.toHaveBeenCalled(); expect(usePromptDialogStore.getState().state).toBe(prompt);
+  usePromptDialogStore.getState().resolve(null); expect(await latest).toBe(false);
+});
+it("keeps a newer prompt and all remaining drafts when bulk waits on a mutation lock", async () => {
+  const manager = locks(); vi.stubGlobal("navigator", { locks: manager });
+  const one = seed("a-one"); const two = seed("b-two"); stop = startSpecAutosave();
+  let release!: () => void;
+  const held = navigator.locks.request(one.key, () => new Promise<void>(resolve => { release = resolve; }));
+  const pending = removeAllUnnamedDrafts(async () => true, beginDocumentTransition());
+  await vi.waitFor(() => expect(manager.requests.filter(key => key === one.key)).toHaveLength(2));
+  beginDocumentTransition();
+  const latest = promptConfirm({ title: "Latest New", message: "Keep this prompt", signal: new AbortController().signal });
+  const prompt = usePromptDialogStore.getState().state;
+  release(); await held; expect(await pending).toBeNull();
+  expect(usePromptDialogStore.getState().state).toBe(prompt);
+  expect(manager.requests).not.toContain(`${two.key}:owner`);
+  for (const draft of [one, two]) {
+    expect(localStorage.getItem(draft.key)).toBe(draft.raw);
+    expect(localStorage.getItem(`${draft.key}:deleted`)).toBeNull();
+  }
+  usePromptDialogStore.getState().resolve(null); expect(await latest).toBe(false);
 });

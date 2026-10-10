@@ -8,6 +8,7 @@ import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { checkBulkRegression } from "./unnamed-drafts-bulk.mjs";
 import { startBrowserWorkspace } from "./harness.mjs";
 const workspace = await mkdtemp(join(tmpdir(), "vs-unnamed-"));
 const specs = join(workspace, "specs");
@@ -370,6 +371,7 @@ try {
   assert.deepEqual(await uuidOrder(tab, 1), [0]);
   await bulk.close();
   console.log("PASS recent-first drafts with time/summary; bulk delete excludes the other-tab owner, Cancel keeps all, reload stays deleted");
+  for (const scenario of ["date", "pending", "query", "lock", "query-open", "lock-open", "cas", "failure"]) await checkBulkRegression(runner, scenario);
   assert.deepEqual(errors, []);
   console.log("PASS no page errors");
 } finally {

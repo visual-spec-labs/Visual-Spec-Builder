@@ -374,10 +374,10 @@ export function startSpecAutosave() {
     clearTimeout(timer);
     if (!conflicted) timer = setTimeout(() => { void flush(); }, 500);
   };
-  async function recover(draft: UnnamedDraft, deleting: boolean): Promise<DraftResult> {
+  async function recover(draft: UnnamedDraft, deleting: boolean, requestTransition?: ReturnType<typeof beginDocumentTransition>): Promise<DraftResult> {
     if (recoveryBusy || stopped) return "cancelled";
     recoveryBusy = true;
-    const transition = beginDocumentTransition();
+    const transition = requestTransition ?? beginDocumentTransition();
     let claim: ReturnType<typeof claimDraft> | undefined;
     const expectedGeneration = generation;
     const expectedDocument = serializeStoredDocument(current());
@@ -446,7 +446,7 @@ export function startSpecAutosave() {
       recoveryBusy = false;
     }
   }
-  useUnnamedDraftStore.setState({ resume: draft => recover(draft, false), remove: draft => recover(draft, true) });
+  useUnnamedDraftStore.setState({ resume: draft => recover(draft, false), remove: (draft, transition) => recover(draft, true, transition) });
   useSaveConflictStore.setState({ paused: conflicted, reason: pauseReason, loadLatest, check, pause, save, settle, discardDraft, readDraft, captureDocument, adoptRename });
   if (!recovery && baseline !== null && baseline !== serializeStoredDocument(document)) pause(false, draftOf(baseline, document));
   check();

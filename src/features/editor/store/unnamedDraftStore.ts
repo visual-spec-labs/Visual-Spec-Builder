@@ -1,3 +1,4 @@
+import type { beginDocumentTransition } from "../ui/documentTransition";
 import { create } from "zustand";
 import { migrateV01, type ProjectSpec } from "@/features/editor/schema";
 import { blankSpec } from "./blankSpec";
@@ -25,7 +26,7 @@ export function recordUnnamedDraftSaved(key: string, savedAt = Date.now()): void
 function readSavedAt(key: string): number | null {
   try {
     const savedAt: unknown = JSON.parse(localStorage.getItem(`${key}:meta`) ?? "null")?.savedAt;
-    return typeof savedAt === "number" && Number.isFinite(savedAt) ? savedAt : null;
+    return typeof savedAt === "number" && Number.isFinite(new Date(savedAt).getTime()) ? savedAt : null;
   } catch { return null; }
 }
 /** 최근 보관순, 시각 없는 초안은 끝, 같으면 키 순 — 결정적이다. */
@@ -70,6 +71,8 @@ export function removeUnnamedDraft(draft: Pick<UnnamedDraft, "key" | "raw">): bo
   return true;
 }
 
+type DraftTransition = ReturnType<typeof beginDocumentTransition>;
+
 export interface BulkRemovalPlan { targets: ListedUnnamedDraft[]; excluded: number }
 export interface BulkRemovalResult { removed: number; skipped: number; failed: number; excluded: number }
 
@@ -85,17 +88,22 @@ async function heldOwnerLocks(): Promise<Set<string>> {
  * "모두 삭제…"(#351). 이 탭의 현재 초안과 다른 탭이 소유한 초안은 제외한다. 확인 전에는 아무것도
  * 쓰지 않고(취소는 null), 확인 뒤에는 개별 삭제와 같은 remove()를 초안마다 순차 호출해 잠금·CAS·
  * `:deleted` 장벽을 그대로 거친다. 그 사이 원문이 바뀌거나 소유된 초안은 그 항목만 건너뛴다.
+ * UI의 전환을 모든 remove()에 공유한다. 새 전환이 시작되면 다음 항목이나 확인창을 열지 않는다.
  */
-export async function removeAllUnnamedDrafts(confirm: (plan: BulkRemovalPlan) => Promise<boolean>): Promise<BulkRemovalResult | null> {
+export async function removeAllUnnamedDrafts(confirm: (plan: BulkRemovalPlan) => Promise<boolean>, transition?: DraftTransition): Promise<BulkRemovalResult | null> {
   const activeKey = useUnnamedDraftStore.getState().active?.key;
   const drafts = listUnnamedDrafts();
   const owners = await heldOwnerLocks();
+  if (transition && !transition.current()) return null;
   const targets = drafts.filter(draft => draft.key !== activeKey && !owners.has(`${draft.key}:owner`));
-  const result: BulkRemovalResult = { removed: 0, skipped: 0, failed: 0, excluded: drafts.length - targets.length };
+  const pendingActive = activeKey && !drafts.some(draft => draft.key === activeKey) ? 1 : 0;
+  const result: BulkRemovalResult = { removed: 0, skipped: 0, failed: 0, excluded: drafts.length - targets.length + pendingActive };
   if (!targets.length) return result;
   if (!await confirm({ targets, excluded: result.excluded })) return null;
   for (const draft of targets) {
-    const outcome = await useUnnamedDraftStore.getState().remove(draft);
+    if (transition && !transition.current()) return null;
+    const outcome = await useUnnamedDraftStore.getState().remove(draft, transition);
+    if (transition && !transition.current()) return null;
     if (outcome === "ok") result.removed++;
     else if (outcome === "unavailable") result.failed++;
     else result.skipped++;
@@ -107,7 +115,7 @@ export const useUnnamedDraftStore = create<{
   revision: number;
   active: UnnamedDraft | null;
   resume: (draft: UnnamedDraft) => Promise<DraftResult>;
-  remove: (draft: UnnamedDraft) => Promise<DraftResult>;
+  remove: (draft: UnnamedDraft, transition?: DraftTransition) => Promise<DraftResult>;
 }>(() => ({ revision: 0, active: null, resume: async () => "unavailable", remove: async () => "unavailable" }));
 export function notifyUnnamedDrafts() {
   useUnnamedDraftStore.setState(s => ({ revision: s.revision + 1 }));
