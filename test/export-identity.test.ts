@@ -23,7 +23,8 @@ import { isExportTargetCurrent, useExportStore, type ExportTarget } from "@/feat
 import { seedSpec } from "@/features/editor/store/seedSpec";
 import { compileTickets } from "@/features/editor/ticket/compileTickets";
 import { downloadGeneratedBundle, scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
-import { ensureGenerationTarget, forgetUnsavedGenerationProjects } from "@/features/editor/ui/generationTarget";
+import { ensureGenerationTarget, forgetUnsavedGenerationProjects, recordProjectRename } from "@/features/editor/ui/generationTarget";
+import { holdRequestLock } from "@/features/editor/ui/agentRequestLock";
 import { createWorkspaceMiddleware, ensureWorkspaceDirs } from "@/features/workspace/workspaceServer";
 
 let root: string;
@@ -49,6 +50,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  server.closeIdleConnections();
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -189,4 +191,85 @@ describe("Save As 뒤 Export 결과와 다운로드", () => {
     expect(useDocumentStore.getState().projectIdentity).toBe(identity);
     expect(useExportStore.getState().status).toBe("idle");
   });
+});
+
+/** 실제 ZIP 바이트를 잡는다. DOM 다운로드 동작만 대체하고 묶음 생성·HTTP 읽기는 그대로 쓴다. */
+async function scanZip(fileName: string): Promise<string> {
+  const scan = await scanAs(fileName);
+  expect(scan.kind).toBe("ready");
+  if (scan.kind !== "ready") throw new Error("not ready");
+  let blob: Blob | undefined;
+  vi.spyOn(URL, "createObjectURL").mockImplementation((value) => { blob = value as Blob; return "blob:audit"; });
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  vi.stubGlobal("document", { createElement: () => ({ click: () => {} }) });
+  const result = await downloadGeneratedBundle("audit", scan.files, scan.report, compileTickets(seedSpec.screen));
+  expect(result.kind).toBe("downloaded");
+  expect(blob).toBeDefined();
+  return blob!.text();
+}
+
+describe("유효 JSON의 registry 구조 손상은 빈 기록이 아니다", () => {
+  it.each([
+    ["entries 누락", "entries", undefined], ["entries null", "entries", null],
+    ["entries 배열", "entries", []], ["entries 문자열", "entries", "bad"],
+    ["entries 항목 손상", "entries", { broken: {} }],
+    ["projects 누락", "projects", undefined], ["projects null", "projects", null],
+    ["projects 배열", "projects", []], ["projects 문자열", "projects", "bad"],
+    ["projects 항목 손상", "projects", { broken: { fileName: "my-shop.json" } }],
+  ])("%s: 다른 프로젝트 파일을 선택하지 않고 생성 기록도 덮지 않는다", async (_label, key, value) => {
+    await generate("my shop.json", "FOREIGN_SPACE");
+    await generate("my-shop.json", "OWN_DASH");
+    const before = await scanZip("my-shop.json");
+    expect(before).toContain("OWN_DASH");
+    expect(before).not.toContain("FOREIGN_SPACE");
+    const original = JSON.parse(fs.readFileSync(join(root, GENERATION_MANIFEST_PATH), "utf8"));
+    const damaged = JSON.stringify({ ...original, [key as string]: value });
+    put(GENERATION_MANIFEST_PATH, damaged);
+    expect(await scanAs("my-shop.json")).toMatchObject({ kind: "unavailable" });
+    expect(await ensureGenerationTarget({ fileName: "my-shop.json", documentId: 1, pageId: "page1", projectPageIds: ["page1"] }))
+      .toMatchObject({ ok: false });
+    expect(fs.readFileSync(join(root, GENERATION_MANIFEST_PATH), "utf8")).toBe(damaged);
+  });
+
+  it.each([null, { protocol: 1, entries: {} }, { protocol: 2, projects: {}, entries: {} }])(
+    "확정 404·정상 구형/현재 기록의 미등록 direct 출력은 ZIP에 유지한다: %j", async (manifest) => {
+      if (manifest !== null) put(GENERATION_MANIFEST_PATH, JSON.stringify(manifest));
+      put("generated/direct/page1/pages/Home.tsx", "export default function Home(){return null} // DIRECT");
+      expect(await scanZip("direct.json")).toContain("DIRECT");
+    },
+  );
+
+  it("유효 registry가 이미 소유한 slug는 미등록 문서의 fallback으로 쓰지 않는다", async () => {
+    await generate("my shop.json", "FOREIGN_SPACE");
+    expect(await scanZip("my-shop.json")).not.toContain("FOREIGN_SPACE");
+  });
+});
+
+describe("잠금 중 앱 내부 rename은 낡은 destination보다 출발 신원을 우선한다", () => {
+  it.each(["다음 전달", "연속 rename 후 전달", "잠금 해제 후 연속 rename"])("%s: Export·ZIP·다음 위치는 A, B 출력은 보존", async (mode) => {
+    await generate("a.json", "A_KNOWN");
+    await generate("b.json", "B_STALE");
+    await generate("c.json", "C_STALE");
+    const original = JSON.parse(fs.readFileSync(join(root, GENERATION_MANIFEST_PATH), "utf8"));
+    const aId = Object.keys(original.projects).find((id) => original.projects[id].fileName === "a.json")!;
+    const lock = await holdRequestLock("ticket", "audit-rename");
+    if (typeof lock === "string") throw new Error(lock);
+    try {
+      expect(await recordProjectRename("a.json", "b.json")).toContain("이름 변경은 완료");
+      expect(await scanZip("b.json")).toContain("A_KNOWN");
+      expect(await scanZip("b.json")).not.toContain("B_STALE");
+      if (mode === "연속 rename 후 전달") expect(await recordProjectRename("b.json", "c.json")).toContain("이름 변경은 완료");
+    } finally { lock.release(); }
+    if (mode === "잠금 해제 후 연속 rename") expect(await recordProjectRename("b.json", "c.json")).toBeNull();
+    const fileName = mode === "다음 전달" ? "b.json" : "c.json";
+    expect(await scanZip(fileName)).toContain("A_KNOWN");
+    expect(await scanZip(fileName)).not.toMatch(/B_STALE|C_STALE/);
+    const located = await ensureGenerationTarget({ fileName, documentId: 1, pageId: "page1", projectPageIds: ["page1"] });
+    expect(located).toMatchObject({ ok: true, target: { projectId: aId, root: "a/page1" } });
+    const after = JSON.parse(fs.readFileSync(join(root, GENERATION_MANIFEST_PATH), "utf8"));
+    expect(after.projects[aId].fileName).toBe(fileName);
+    expect(Object.entries(after.projects).filter(([, record]) => (record as { fileName: string }).fileName === fileName)).toHaveLength(1);
+    expect(fs.readFileSync(join(root, "generated/b/page1/pages/Home.tsx"), "utf8")).toContain("B_STALE");
+    expect(fs.readFileSync(join(root, "generated/c/page1/pages/Home.tsx"), "utf8")).toContain("C_STALE");
+  }, 15000);
 });

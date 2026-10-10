@@ -132,6 +132,23 @@ export function isNewerGenerationManifest(text: string | null): boolean {
 }
 
 /**
+ * 출력 위치를 정하기 전에 기록 전체를 믿을 수 있는지 확인한다. 관대한 파서는 복구·구형 항목 읽기에
+ * 계속 쓰지만, registry 손상을 빈 기록으로 바꾸면 남의 폴더를 filename 후보로 선택할 수 있다.
+ * null은 strict HTTP reader가 확인한 404만 뜻한다. protocol 1에는 projects가 없었다.
+ */
+export function isReadableGenerationManifest(text: string | null): boolean {
+  if (text === null) return true;
+  try {
+    const body: unknown = JSON.parse(text);
+    return isRecord(body) && (body.protocol === 1 || body.protocol === GENERATION_MANIFEST_PROTOCOL) &&
+      isRecord(body.entries) && Object.values(body.entries).every((entry) => normalizeEntry(entry) !== null) &&
+      (body.protocol === 1 || (isRecord(body.projects) && Object.values(body.projects).every(isProjectRecord)));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 기록 파일 본문을 읽는다. **절대 예외를 던지지 않는다.** 없거나 망가졌거나 모르는 버전이면
  * 빈 기록이다 — 기록이 없으면 판정은 "확인 불가" 쪽으로 기울 뿐 거짓 "현재"가 되지 않는다.
  * 모양이 틀린 항목 하나는 그 항목만 버린다. protocol 1은 2로 올려 읽는다(프로젝트 없음, 주인 모름).

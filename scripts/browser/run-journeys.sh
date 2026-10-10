@@ -13,7 +13,7 @@ scratch=$(mktemp -d "${TMPDIR:-/tmp}/vsb-journeys.XXXXXX")
 trap 'rm -rf -- "$scratch"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-for journey in export-journey project-dialogs document-transitions unnamed-drafts save-status; do
+for journey in export-journey project-dialogs document-transitions unnamed-drafts save-status generation-ownership; do
   case_dir="$scratch/$journey"
   mkdir -p "$case_dir"
   echo "RUN $journey (limit ${limit}s)"
@@ -23,4 +23,4 @@ for journey in export-journey project-dialogs document-transitions unnamed-draft
     timeout --signal=TERM --kill-after=10s "${limit}s" node "scripts/browser/$journey.mjs"
   echo "PASS journey $journey"
 done
-echo 'PASS all 5 fixture journeys (no skips)'
+echo 'PASS all 6 fixture journeys (no skips)'

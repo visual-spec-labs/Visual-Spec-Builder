@@ -22,6 +22,7 @@ import {
   findProjectByFileName,
   GENERATION_MANIFEST_PATH,
   isNewerGenerationManifest,
+  isReadableGenerationManifest,
   parseGenerationManifest,
   withProject,
   withProjectRenamed,
@@ -113,14 +114,17 @@ export function findGenerationProject(
   { fileName, documentId }: Pick<GenerationOwnerInput, "fileName" | "documentId">,
 ): { projectId: string; outputDir: string; adoptFileName: boolean; renameFrom?: string } | null {
   if (fileName !== null) {
-    const found = findProjectByFileName(manifest, fileName);
-    if (found !== null) return { projectId: found.projectId, outputDir: found.project.outputDir, adoptFileName: false };
-    // 이 탭에서 이름을 바꿨는데 기록하지 못했다 — 옛 이름의 기록이 이 프로젝트다.
+    // 이 탭이 아는 rename 출발점이 낡은 destination 파일명 기록보다 우선한다.
+    // 잠금 때문에 A→B를 기록하지 못했을 때 과거 B의 신원을 이어받으면 안 된다.
     const from = renamedFrom(fileName);
     const renamed = from === null ? null : findProjectByFileName(manifest, from);
     if (from !== null && renamed !== null) {
       return { projectId: renamed.projectId, outputDir: renamed.project.outputDir, adoptFileName: false, renameFrom: from };
     }
+    // 출발 기록을 잃었어도 낡은 destination 신원으로 넘어가지 않는다.
+    if (from !== null) return null;
+    const found = findProjectByFileName(manifest, fileName);
+    if (found !== null) return { projectId: found.projectId, outputDir: found.project.outputDir, adoptFileName: false };
   }
   const sessionId = unsavedProjects.get(documentId);
   const session = sessionId === undefined ? undefined : manifest.projects[sessionId];
@@ -150,6 +154,9 @@ async function readManifest(): Promise<ManifestRead> {
   if (!text.ok) return { ok: false, error: "생성 기록을 읽지 못해 출력 위치를 정하지 못했습니다. 작업공간 연결을 확인하세요." };
   if (isNewerGenerationManifest(text.text)) {
     return { ok: false, error: "생성 기록이 이 앱보다 새 형식입니다. 앱을 업데이트한 뒤 다시 전달하세요." };
+  }
+  if (!isReadableGenerationManifest(text.text)) {
+    return { ok: false, error: "생성 기록이 손상돼 출력 위치를 정하지 못했습니다. 기록을 백업하고 복구한 뒤 다시 전달하세요." };
   }
   return { ok: true, manifest: parseGenerationManifest(text.text) };
 }
@@ -279,7 +286,8 @@ function windowsDeviceNameIssue(owner: GenerationOwnerInput): string | null {
 /** 이름 변경을 기록하지 못했을 때 사용자가 알아야 할 복구 경로. 이름 변경 자체는 이미 끝났다. */
 const RENAME_RECORD_RECOVERY =
   "이름 변경은 완료됐습니다. 이 탭에서 이 프로젝트의 구현 티켓을 다음에 전달할 때 기록을 다시 시도해 같은 생성 폴더를 " +
-  "이어받습니다. 그 전에 새로고침하거나 다른 탭에서 전달하면 새 프로젝트(새 생성 폴더)로 시작하고, 이전 생성 파일은 옛 폴더에 그대로 남습니다.";
+  "이어받습니다. 그 전에 새로고침하거나 다른 탭에서 전달하면 새 프로젝트(새 생성 폴더)로 시작할 수 있으며, " +
+  "과거 대상 파일명 기록이 남아 있으면 그 기록을 이어받을 수 있습니다. 다음 전달로 복구하기 전에는 이 탭을 유지하세요. 이전 생성 파일은 옛 폴더에 그대로 남습니다.";
 
 /**
  * 앱 안 이름 변경을 기록에 옮긴다 — 같은 프로젝트 ID·같은 출력 폴더가 새 이름을 이어받는다. 기록에 없는
@@ -295,8 +303,8 @@ export async function recordProjectRename(from: string, to: string): Promise<str
     if (!read.ok) reason = read.error;
     else {
       // 앞서 기록하지 못한 변경(A→B)이 있으면 처음 이름(A)의 기록을 이번 이름(C)으로 옮긴다.
-      const origin = findProjectByFileName(read.manifest, from) !== null ? from : renamedFrom(from);
-      if (origin === null || findProjectByFileName(read.manifest, origin) === null) return null;
+      const origin = renamedFrom(from) ?? from;
+      if (findProjectByFileName(read.manifest, origin) === null) return null;
       const updated = await updateManifestLocked((manifest) => {
         const next = withProjectRenamed(manifest, origin, to);
         return { next: next === manifest ? null : next, result: null };

@@ -26,9 +26,9 @@ import { buildBundleEntries, bundleFileName, type BundleAsset } from "@/features
 import {
   classifyOutputFreshness,
   GENERATION_MANIFEST_PATH,
-  GENERATION_MANIFEST_PROTOCOL,
   isNewerGenerationManifest,
   parseGenerationManifest,
+  isReadableGenerationManifest,
   type FreshnessReport,
   type GenerationManifest,
 } from "@/features/editor/export/generationManifest";
@@ -204,13 +204,7 @@ function unreadableManifestReason(text: string | null): string | null {
   if (isNewerGenerationManifest(text)) {
     return "생성 기록이 이 앱보다 새 형식이라 이 프로젝트의 생성 위치를 확인할 수 없습니다. 앱을 업데이트한 뒤 다시 검사하세요.";
   }
-  try {
-    const body: unknown = JSON.parse(text);
-    if (typeof body === "object" && body !== null && !Array.isArray(body) && "protocol" in body &&
-      (body.protocol === 1 || body.protocol === GENERATION_MANIFEST_PROTOCOL)) return null;
-  } catch {
-    // 아래 문구로 알린다
-  }
+  if (isReadableGenerationManifest(text)) return null;
   return "생성 기록(runtime/generation-manifest.json)이 손상돼 이 프로젝트의 생성 위치를 확인할 수 없습니다. " +
     "파일을 고치거나(백업 후) 구현 티켓을 다시 전달한 뒤 다시 검사하세요.";
 }
