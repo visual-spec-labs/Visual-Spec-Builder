@@ -13,8 +13,14 @@
 2. `visual-spec`을 인자 없이 실행해 GUI를 열고, 티켓을 생성한 뒤 실행한다.
 3. 같은 프로젝트를 여는 외부 에이전트에게 현재 `ticket-request.json` 처리를 요청한다.
 4. 에이전트는 to-react 매핑을 참고하되 요청의 각 티켓 `outputPath`
-   (`.visual-spec/staging/<요청 id>/…`, 규약 v2 · #284)에만 파일을 작성한다. `filePath`는
-   GUI가 확정할 `.visual-spec/generated/` 기준 자리다. 이전 웨이브의 의존 파일은 보존한다.
+   (`.visual-spec/staging/<요청 id>/…`, 규약 v2부터 · #284)에만 파일을 작성한다. `filePath`는
+   GUI가 확정할 `.visual-spec/generated/` 기준 자리이고, 요청의 `generatedRoot`
+   (`<프로젝트 폴더>/<pageId>`, 규약 v3 · #281) 아래다 — 다른 프로젝트·페이지의 같은 이름이 같은 파일을 쓰지
+   않는다. 이전 웨이브의 의존 파일은 같은 자리에서 읽고 보존한다.
+   현재 GUI는 **티켓 요청 규약 v3**을 보낸다. 스킬은 v3과 구버전 GUI의 v2 요청을 처리하고, 요청과 같은 번호로
+   응답한다. 이미 설치된 v2 전용 스킬은 v3 요청을 받으면 쓰기 전에 멈추고 버전 불일치를 알린다 — GUI에는
+   만료로 보이며, 그 안내와 v2 응답을 받았을 때의 오류가 모두 `visual-spec skills`로 스킬을 갱신하라고 알린다
+   ([26](../26-agent-request-generation-contract.md) "#281 티켓 요청 규약 v3").
 5. `{ protocol, requestId, results }` 응답을 쓰면 GUI가 현재 요청인지·취소되지 않았는지 확인한 뒤
    임시 출력을 `generated/`로 확정하고 티켓 상태를 갱신한다. `done`인데 임시 출력이 없으면 실패로
    바꾼다. 전체 실행이면 다음 웨이브를 요청한다. 실패에는 티켓별 이유가 표시된다.

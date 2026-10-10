@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { OverwriteReview, RegenerationRunSummary } from "@/features/editor/export/overwriteGuard";
 import type { PageId, ScreenSpec } from "@/features/editor/schema";
 import { compileTickets } from "@/features/editor/ticket/compileTickets";
+import { useDocumentStore } from "./documentStore";
 import { useEditorStore } from "./editorStore";
 import { markTicketStatus } from "@/features/editor/ticket/ticketStatus";
 import type { Ticket, TicketStatus } from "@/features/editor/ticket/types";
@@ -15,6 +16,11 @@ interface TicketState {
   sourcePage: ScreenSpec | null;
   /** 컴파일 시점의 `editorStore.documentId`(#271). 페이지가 같은 참조여도 문서가 바뀌었는지 가른다. */
   sourceDocumentId: number | null;
+  /**
+   * 컴파일 시점의 `documentStore.projectIdentity`(#281 리뷰). 다른 이름으로 저장(복사)하면 문서 ID는
+   * 그대로라 이것으로 가른다 — 원본 프로젝트의 계획·진행 중인 요청을 복사본의 것으로 이어 가지 않는다.
+   */
+  sourceProjectIdentity: number | null;
   isOpen: boolean;
   /** 웨이브 하나가 요청을 보내고 응답을 기다리는 동안 true다. `ui/ticketRunner.ts`가 쓴다. */
   running: boolean;
@@ -82,6 +88,7 @@ export const useTicketStore = create<TicketState>((set) => ({
   sourcePageId: null,
   sourcePage: null,
   sourceDocumentId: null,
+  sourceProjectIdentity: null,
   isOpen: false,
   running: false,
   runError: null,
@@ -98,6 +105,7 @@ export const useTicketStore = create<TicketState>((set) => ({
       sourcePageId: pageId,
       sourcePage: page,
       sourceDocumentId: useEditorStore.getState().documentId,
+      sourceProjectIdentity: useDocumentStore.getState().projectIdentity,
       isOpen: true,
       running: false,
       runError: null,

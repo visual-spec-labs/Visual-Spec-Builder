@@ -28,10 +28,12 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 3. `validateVisualSpec` 검증을 통과하면 TSX 코드가 나온다. 실패하면 어떤 필드가 문제인지
    먼저 알려주고 멈춘다.
 4. 대상 프로젝트를 분석하거나 위치를 묻지 않는다 — 항상 고정 워크스페이스 경로
-   (`.visual-spec/generated/pages/`, 분리된 컴포넌트는
-   `.visual-spec/generated/components/`)에 쓴다. Visual Spec Builder는 라이브러리로
-   설치돼 프로젝트마다 폴더 구조가 다르므로, 도구가 정한 경로를 쓰는 게 유일하게
-   일반화되는 방식이다.
+   (`.visual-spec/generated/<프로젝트 폴더>/<pageId>/pages/`, 분리된 컴포넌트는 같은 자리의
+   `components/`)에 쓴다. Visual Spec Builder는 라이브러리로 설치돼 프로젝트마다 폴더 구조가
+   다르므로, 도구가 정한 경로를 쓰는 게 유일하게 일반화되는 방식이다. `<프로젝트 폴더>/<pageId>`는
+   다른 프로젝트·페이지의 같은 이름(`Card`, `Login`)이 서로 덮지 않게 나눈 자리이고(#281), 프로젝트
+   폴더는 수용 기록(`runtime/generation-manifest.json`)의 `projects`에서 찾는다. 정확한 규칙은
+   `SKILL.md` 4번, 경계는 `docs/26-agent-request-generation-contract.md` "#281" 절.
 
 ### 화면이 여러 컴포넌트로 쪼개질 때
 
@@ -56,8 +58,8 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 [visual-spec-authoring](./visual-spec-authoring.md)이 후속 피드백("버튼 색 바꿔줘" 등)을
 반영해 원본 스펙 JSON을 고치고 넘어온 경우다. 같은 스펙은 항상 같은 경로에 쓰이지만
 그 자리의 파일은 사람이 고쳤을 수 있으므로 **쓰기 전에 확인한다**(이슈 #282). 수용 기록
-(`runtime/generation-manifest.json`)과 지금 파일 해시를 비교해, 이 프로젝트·페이지의 마지막 정상
-생성 그대로인 파일만 백업 후 바꾼다. 기록이 없거나 해시가 다르거나 다른 프로젝트의 기록이면
+(`runtime/generation-manifest.json`)과 지금 파일 해시를 비교해, 이 프로젝트(`projectId`)·페이지의 마지막
+정상 생성 그대로인 파일만 백업 후 바꾼다. 기록이 없거나 해시가 다르거나 다른 프로젝트의 기록이면
 영향 파일 목록과 diff를 보이고 파일마다 보존/백업 후 덮어쓰기, 또는 전체 취소를 고르게 한다.
 백업(`backups/<실행 ID>/files/`)이 실패하거나 확인 뒤 파일이 다시 바뀌면 아무것도 쓰지 않는다.
 결과는 새 코드 전체가 아니라 무엇이 바뀌었는지 diff로 요약해 보고한다. 정확한 순서는
@@ -98,7 +100,7 @@ Visual Spec JSON(`version`, `screen.root`, `screen.nodes` 구조)을 읽어 Reac
 대상만 숫자 px variant를 쓸 수 있다. v3.2에서 도입된 `min-*`는 v3에서는 단순 문자열
 `screens`가 필요하며 v3.0/3.1·복합 screens에 가정하지 않는다. 이 저장소의 v4.3.3 검증을
 v3 또는 모든 v4 설정의 보장으로 확대하지 않는다. named variant도 실제 px 경계·정렬을
-확인한 경우에만 쓴다. 출력 경로는 기존 generated/pages·components 그대로다.
+확인한 경우에만 쓴다. 출력 경로는 생성 자리(`generated/<프로젝트 폴더>/<pageId>/`)의 pages·components다.
 root의 `crossAxis: start`는 `items-start` 또는 `align-items: flex-start`로 보존한다.
 설치된 스킬의 QA 참고는 함께 설치되는 visual-spec-docs와 저장소 raw URL로 연결한다.
 

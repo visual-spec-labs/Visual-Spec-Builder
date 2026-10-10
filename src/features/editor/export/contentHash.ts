@@ -73,9 +73,10 @@ export function contentHash(text: string): string {
 
 /**
  * 키를 정렬한 JSON. 편집이 노드 필드를 지웠다 다시 넣으면 키 순서가 바뀌는데, 내용이 같은
- * 페이지를 "입력이 바뀌었다"로 읽으면 멀쩡한 출력이 오래됨으로 보인다.
+ * 페이지를 "입력이 바뀌었다"로 읽으면 멀쩡한 출력이 오래됨으로 보인다. 컴포넌트 단위 지문
+ * (`generationIdentity.ticketInputFingerprint`, #281)도 같은 규칙을 쓴다.
  */
-function canonicalJson(value: unknown): string {
+export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (typeof value === "object" && value !== null) {
     const entries = Object.entries(value)
@@ -87,8 +88,8 @@ function canonicalJson(value: unknown): string {
 }
 
 /**
- * 티켓 요청에 실은 입력의 지문. 요청은 페이지 하나 전체를 싣기 때문에 지문도 페이지 단위다 —
- * 컴포넌트 단위 지문은 #281의 범위다(docs/26 "공유 계약 경계").
+ * 페이지 전체 입력의 지문. 페이지 티켓의 지문이고, #284 시절(protocol 1) 기록의 지문이기도 하다.
+ * 컴포넌트 티켓은 자기 하위 트리만 보는 지문을 쓴다(`generationIdentity.ticketInputFingerprint`, #281).
  */
 export function inputFingerprint(pageId: PageId, page: ScreenSpec): string {
   return contentHash(canonicalJson({ pageId, page }));

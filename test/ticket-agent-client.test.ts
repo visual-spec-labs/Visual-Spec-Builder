@@ -76,7 +76,7 @@ function startTicket(id = "req-1") {
   const progress: AgentWaitProgress[] = [];
   const wait = createAgentRequestWait((item) => progress.push(item));
   const cancel = { cancelled: false };
-  const outcome = requestTicketBatch({ id, pageId, page, tickets: wave }, cancel, wait);
+  const outcome = requestTicketBatch({ id, pageId, page, tickets: wave, generatedRoot: "shop/page1" }, cancel, wait);
   return { outcome, wait, cancel, progress };
 }
 
@@ -167,7 +167,7 @@ describe("티켓 요청 대기 — 진행 근거와 취소", () => {
     expect(progress.at(-1)).toMatchObject({ phase: "waiting", stagedFiles: 0 });
     // 다른 요청의 임시 출력은 세지 않는다
     workspace.files.set("staging/old-req/components/Header.tsx", "old");
-    workspace.files.set("staging/req-1/components/Header.tsx", "new");
+    workspace.files.set("staging/req-1/shop/page1/components/Header.tsx", "new");
     await vi.advanceTimersByTimeAsync(1000);
     expect(progress.at(-1)).toMatchObject({ phase: "waiting", stagedFiles: 1 });
     cancel.cancelled = true;
@@ -181,7 +181,7 @@ describe("티켓 요청 대기 — 진행 근거와 취소", () => {
     const request = JSON.parse(workspace.files.get(TICKET_REQUEST_PATH) ?? "{}");
     expect(request.outputRoot).toBe("staging/req-x");
     expect(request.tickets.map((item: { outputPath: string }) => item.outputPath)).toEqual(
-      wave.map((ticket) => `staging/req-x/components/${ticket.componentName}.tsx`),
+      wave.map((ticket) => `staging/req-x/shop/page1/components/${ticket.componentName}.tsx`),
     );
     cancel.cancelled = true;
     await vi.advanceTimersByTimeAsync(1000);
@@ -245,7 +245,7 @@ it("응답 GET이 기한 뒤 끝나면 성공 응답도 수용하지 않는다",
 });
 
 it("승격 호출자는 응답 후 잠금을 소유하고 명시적으로 해제한다", async () => {
-  const outcome = requestTicketBatch({ id: "held", pageId, page, tickets: wave }, { cancelled: false }, createAgentRequestWait(), true);
+  const outcome = requestTicketBatch({ id: "held", pageId, page, tickets: wave, generatedRoot: "shop/page1" }, { cancelled: false }, createAgentRequestWait(), true);
   await vi.advanceTimersByTimeAsync(1000);
   respondTicket("held");
   await vi.advanceTimersByTimeAsync(1000);

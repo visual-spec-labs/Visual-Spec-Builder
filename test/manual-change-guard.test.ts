@@ -49,6 +49,7 @@ vi.mock("@/features/editor/ui/agentRequestLock", () => ({
 import { bytesOf, resetMemoryWorkspace, textOf } from "./fixtures/memoryWorkspace";
 import { contentHash } from "@/features/editor/export/contentHash";
 import {
+  findProjectByFileName,
   GENERATION_MANIFEST_PATH,
   parseGenerationManifest,
   type GenerationManifest,
@@ -67,8 +68,10 @@ import {
   runOneTicket,
 } from "@/features/editor/ui/ticketRunner";
 
-const HEADER = "components/Header.tsx";
-const CARD = "components/Card.tsx";
+/** "shop.json" 프로젝트의 page1 생성 자리(#281). 경로는 `generated/` 기준이다. */
+const ROOT = "shop/page1";
+const HEADER = `${ROOT}/components/Header.tsx`;
+const CARD = `${ROOT}/components/Card.tsx`;
 const G_HEADER = `generated/${HEADER}`;
 const G_CARD = `generated/${CARD}`;
 /** 마지막 정상 생성(L). */
@@ -80,10 +83,11 @@ const M_HEADER = "export function Header() { return <header onClick={track}>L + 
 const N_HEADER = "export function Header() { return <header>N</header>; }\n";
 const N_CARD = "export function Card() { return <div>N</div>; }\n";
 /** 생성과 무관한 사용자 파일 — 대조군. */
-const EXTRA = "generated/components/Extra.tsx";
+const EXTRA = `generated/${ROOT}/components/Extra.tsx`;
 const EXTRA_BYTES = "export function Extra() { return null; }\n";
 
-const PATH_TO_TICKET: Record<string, string> = { [HEADER]: "Header", [CARD]: "Card" };
+/** 경로의 파일 이름이 티켓 ID다(`components/Header.tsx` → Header). 자리(프로젝트·페이지)와 무관하다. */
+const ticketOfPath = (path: string) => path.slice(path.lastIndexOf("/") + 1).replace(/\.tsx$/, "");
 
 function compileCurrent(): void {
   const { activePageId, spec } = useEditorStore.getState();
@@ -101,7 +105,7 @@ function respond(requestId: string, outputs: Record<string, string>): void {
   workspace.files.set(TICKET_RESPONSE_PATH, JSON.stringify({
     protocol: TICKET_PROTOCOL_VERSION,
     requestId,
-    results: Object.keys(outputs).map((path) => ({ ticketId: PATH_TO_TICKET[path], status: "done" })),
+    results: Object.keys(outputs).map((path) => ({ ticketId: ticketOfPath(path), status: "done" })),
   }));
 }
 
@@ -143,7 +147,8 @@ async function seedLastGoodAndManualEdit(): Promise<{ firstRequestId: string }> 
   await tick();
   await finish(run);
   expect(textOf(workspace, G_HEADER)).toBe(L_HEADER);
-  expect(manifest().entries[HEADER]?.projectKey).toBe("shop.json");
+  // 확정 기록의 주인은 이 작업공간 파일의 프로젝트 ID다(#281 — #282의 임시 projectKey를 대신한다).
+  expect(manifest().entries[HEADER]?.projectId).toBe(findProjectByFileName(manifest(), "shop.json")?.projectId);
 
   workspace.files.set(G_HEADER, M_HEADER); // 사람의 수동 수정
   workspace.files.set(EXTRA, EXTRA_BYTES);
@@ -241,18 +246,29 @@ describe("쓰기 전 감지와 영향 목록", () => {
     expect(manifest().entries[HEADER]).toBeUndefined();
   });
 
-  it("다른 프로젝트·이름 바꾼 프로젝트의 기록은 해시가 맞아도 이 프로젝트의 마지막 생성으로 보지 않는다", async () => {
+  it("복사본(다른 파일 이름)은 새 프로젝트의 자리에 만들고, 원본 프로젝트의 마지막 생성은 건드리지 않는다(#281)", async () => {
     await seedLastGoodAndManualEdit();
     workspace.files.set(G_HEADER, L_HEADER);
-    useDocumentStore.setState({ fileName: "shop-copy.json" }); // 복사본·이름 변경·같은 이름의 다른 프로젝트
-    const { run } = await secondRoundToReview();
+    workspace.log.length = 0;
+    // #282는 이 경우를 같은 경로의 foreign으로 물었다. #281부터 복사본은 자기 자리를 쓰므로 물을 것이 없다.
+    useDocumentStore.setState({ fileName: "shop-copy.json" });
+    const { run, request } = await secondRoundToReview({
+      ["shop-copy/page1/components/Header.tsx"]: N_HEADER,
+      ["shop-copy/page1/components/Card.tsx"]: N_CARD,
+    });
 
-    const kinds = useTicketStore.getState().overwriteReview?.items.map((item) => item.ownership);
-    expect(kinds).toEqual(["foreign", "foreign"]);
-    answerOverwriteReview("cancel");
-    await run;
+    expect(request.generatedRoot).toBe("shop-copy/page1");
+    expect(useTicketStore.getState().overwriteReview).toBeNull();
+    await finish(run);
     expect(textOf(workspace, G_HEADER)).toBe(L_HEADER);
     expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+    expect(textOf(workspace, "generated/shop-copy/page1/components/Header.tsx")).toBe(N_HEADER);
+    const original = findProjectByFileName(manifest(), "shop.json")?.projectId;
+    const copy = findProjectByFileName(manifest(), "shop-copy.json")?.projectId;
+    expect(copy).toBeDefined();
+    expect(copy).not.toBe(original);
+    expect(manifest().entries["shop-copy/page1/components/Header.tsx"]?.projectId).toBe(copy);
+    expect(manifest().entries[HEADER]?.projectId).toBe(original);
   });
 });
 
@@ -553,6 +569,14 @@ describe("await 경계와 불확실한 전송 결과", () => {
 
   it("외부 프로젝트의 동일 바이트를 보존하면 소유 기록을 가져오지 않는다", async () => {
     await seedLastGoodAndManualEdit();
+    // #281부터 다른 프로젝트는 자기 자리를 쓴다. 같은 자리에 남의 기록이 남는 경우(손으로 고친 기록·낡은
+    // 프로젝트 기록)를 흉내 내려고 other.json을 같은 출력 폴더를 가리키는 다른 프로젝트로 등록한다.
+    const seeded = manifest();
+    const shop = findProjectByFileName(seeded, "shop.json")!;
+    workspace.files.set(GENERATION_MANIFEST_PATH, JSON.stringify({
+      ...seeded,
+      projects: { ...seeded.projects, "p-other": { fileName: "other.json", outputDir: shop.project.outputDir, createdAt: "2026-10-11T00:00:00.000Z" } },
+    }));
     useDocumentStore.setState({ fileName: "other.json" });
     const before = textOf(workspace, GENERATION_MANIFEST_PATH);
     const { run } = await secondRoundToReview({ [HEADER]: M_HEADER, [CARD]: L_CARD });

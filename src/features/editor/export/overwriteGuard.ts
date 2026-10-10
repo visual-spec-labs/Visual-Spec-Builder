@@ -8,10 +8,11 @@
  * (`generationManifest.ts`)이고, 이 파일은 그 기록과 실제 바이트를 잇기만 한다.
  *
  * **기준 없는 기존 파일을 생성기 소유로 추정하지 않는다.** 기록이 없거나(직접 실행한 to-react,
- * 구버전 출력, 사람이 만든 파일) 기록의 프로젝트·페이지가 지금과 다르면(이름 변경·복사) 모두
- * 확인 대상이다. 틀리는 쪽을 "한 번 더 묻는다"로 고정한다 — 반대쪽 실수는
- * 사람이 고친 코드를 조용히 잃는 것이라 되돌릴 수 없다. 같은 파일 이름을 재사용한 새 프로젝트는
- * 임시 projectKey로 구분하지 못한다(#281). 경계와 근거는 docs/26 "#282".
+ * 구버전 출력, 사람이 만든 파일) 기록의 프로젝트·페이지가 지금과 다르거나 주인을 모르면 모두 확인
+ * 대상이다. 틀리는 쪽을 "한 번 더 묻는다"로 고정한다 — 반대쪽 실수는 사람이 고친 코드를 조용히 잃는
+ * 것이라 되돌릴 수 없다. 경계와 근거는 docs/26 "#282". #281부터 프로젝트·페이지마다 출력 자리가
+ * 달라(`generated/<프로젝트 폴더>/<PageId>/`) 같은 이름의 다른 프로젝트·복사본은 애초에 같은 경로를
+ * 쓰지 않는다. 이 판정은 그래도 같은 자리에 남의 기록이 있을 때의 마지막 선이다.
  */
 
 import type { PageId } from "@/features/editor/schema";
@@ -27,7 +28,7 @@ import type { ManifestEntry } from "./generationManifest";
  * - `owned` 이 프로젝트·페이지의 수용 기록과 바이트가 같다 — 마지막 정상 생성 그대로라 백업 후 바꾼다
  * - `modified` 이 프로젝트·페이지의 기록은 있는데 바이트가 다르다 — 수동 변경(또는 규약 밖 writer)
  * - `unowned` 수용 기록이 없다 — 누가 만든 파일인지 모른다
- * - `foreign` 기록이 다른 프로젝트·페이지의 것이거나 프로젝트를 알 수 없다
+ * - `foreign` 기록이 다른 프로젝트·페이지의 것이거나 주인을 모르는 기록이다(#281 전 기록)
  */
 export type OverwriteOwnership = "new" | "unchanged" | "owned" | "modified" | "unowned" | "foreign";
 
@@ -37,9 +38,13 @@ export interface FileSnapshot {
   revision: string;
 }
 
-/** 지금 생성하는 쪽. `projectKey`는 작업공간 파일 이름이며 저장하지 않은 문서면 null이다. */
+/**
+ * 지금 생성하는 쪽. `projectId`는 수용 기록의 프로젝트 ID다(#281, `generationManifest.ProjectRecord`).
+ * #282는 작업공간 파일 이름을 임시 키로 썼다 — 앱 안 이름 변경이 소유권을 끊었다. 지금은 이름 변경이
+ * 같은 ID를 이어받고, 복사는 새 ID·새 출력 폴더라 애초에 같은 경로를 쓰지 않는다.
+ */
 export interface OverwriteOwner {
-  projectKey: string | null;
+  projectId: string;
   pageId: PageId;
 }
 
@@ -65,10 +70,9 @@ export interface ClassifyOverwriteInput {
   owner: OverwriteOwner;
 }
 
-/** 기록이 지금 생성하는 프로젝트·페이지의 것인가. 어느 한쪽 프로젝트라도 모르면 아니다. */
+/** 기록이 지금 생성하는 프로젝트·페이지의 것인가. 주인을 모르는 기록(#284·#282 시절)은 아니다. */
 function recordBelongsTo(record: ManifestEntry, owner: OverwriteOwner): boolean {
-  return typeof record.projectKey === "string" && owner.projectKey !== null &&
-    record.projectKey === owner.projectKey && record.pageId === owner.pageId;
+  return record.projectId !== null && record.projectId === owner.projectId && record.pageId === owner.pageId;
 }
 
 export function classifyOverwrite({ path, ticketId, current, next, record, owner }: ClassifyOverwriteInput): OverwriteTarget {
@@ -121,4 +125,6 @@ export interface RegenerationRunSummary {
   paths: string[];
   /** 백업 폴더(작업공간 루트 기준). */
   backupRoot: string;
+  /** 그 적용이 쓴 페이지 생성 자리(`generated/` 기준, #281). 되돌린 파일을 티켓과 맞춰 볼 때 쓴다. */
+  outputRoot: string;
 }

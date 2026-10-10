@@ -24,13 +24,14 @@ function snapshot(text: string): FileSnapshot {
 
 function record(overrides: Partial<ManifestEntry> = {}): ManifestEntry {
   return {
-    requestId: "req-1", ticketId: "Header", pageId: "home", inputFingerprint: "sha256:x",
-    contentHash: contentHash(L), acceptedAt: "2026-10-10T00:00:00.000Z", projectKey: "shop.json",
+    requestId: "req-1", ticketId: "Header", componentName: "Header", projectId: "p-shop", pageId: "home",
+    componentKey: "component:header", inputScope: "component", inputFingerprint: "sha256:x",
+    contentHash: contentHash(L), ticketProtocol: 2, acceptedAt: "2026-10-10T00:00:00.000Z",
     ...overrides,
   };
 }
 
-const owner: OverwriteOwner = { projectKey: "shop.json", pageId: "home" };
+const owner: OverwriteOwner = { projectId: "p-shop", pageId: "home" };
 const classify = (current: FileSnapshot | null, entry: ManifestEntry | null, who: OverwriteOwner = owner) =>
   classifyOverwrite({ path: "components/Header.tsx", ticketId: "Header", current, next: N, record: entry, owner: who }).ownership;
 
@@ -39,7 +40,7 @@ describe("classifyOverwrite", () => {
     expect(classify(null, record())).toBe("new");
     expect(classify(snapshot(N), null)).toBe("unowned");
     expect(classify(snapshot(N), record({ contentHash: contentHash(N) }))).toBe("unchanged");
-    expect(classify(snapshot(N), record({ projectKey: "other.json" }))).toBe("foreign");
+    expect(classify(snapshot(N), record({ projectId: "p-other" }))).toBe("foreign");
   });
 
   it("이 프로젝트·페이지의 기록과 바이트가 같으면 owned, 다르면 modified", () => {
@@ -51,12 +52,11 @@ describe("classifyOverwrite", () => {
     expect(classify(snapshot(L), null)).toBe("unowned");
   });
 
-  it("다른 프로젝트·다른 페이지·프로젝트를 모르는 기록은 해시가 맞아도 foreign", () => {
-    expect(classify(snapshot(L), record({ projectKey: "other.json" }))).toBe("foreign");
+  it("다른 프로젝트·다른 페이지·주인을 모르는 기록은 해시가 맞아도 foreign", () => {
+    expect(classify(snapshot(L), record({ projectId: "p-other" }))).toBe("foreign");
     expect(classify(snapshot(L), record({ pageId: "about" }))).toBe("foreign");
-    expect(classify(snapshot(L), record({ projectKey: undefined }))).toBe("foreign"); // #284 시절 기록
-    expect(classify(snapshot(L), record({ projectKey: null }))).toBe("foreign"); // 저장 안 한 문서의 기록
-    expect(classify(snapshot(L), record(), { projectKey: null, pageId: "home" })).toBe("foreign");
+    expect(classify(snapshot(L), record({ projectId: null }))).toBe("foreign"); // #284·#282 시절 기록
+    expect(classify(snapshot(L), record(), { projectId: "p-copy", pageId: "home" })).toBe("foreign");
   });
 
   it("BOM만 다른 바이트도 같은 파일로 보지 않는다", () => {

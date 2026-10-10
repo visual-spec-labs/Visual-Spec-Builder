@@ -32,6 +32,7 @@ import { RUNTIME_DIR, STAGING_DIR } from "@/features/workspace/protocol";
 import {
   buildTicketRequest,
   parseTicketResponse,
+  TICKET_PROTOCOL_VERSION,
   TICKET_REQUEST_PATH,
   TICKET_RESPONSE_PATH,
   TICKET_RESPONSE_FILE,
@@ -225,7 +226,10 @@ async function waitForTicketResponse(
           }
         : {
             kind: "timeout",
-            message: "대기 시간 안에 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요.",
+            // 구버전 스킬(티켓 요청 규약 v2)은 v3 요청을 받으면 응답 없이 멈추고 에이전트 대화에만 버전 불일치를
+            // 알린다(#281 리뷰) — GUI에서는 이 만료로만 보이므로 그 경우의 할 일을 함께 적는다.
+            message: "대기 시간 안에 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요. " +
+              `에이전트가 티켓 요청 규약 버전이 다르다고 알렸다면 \`visual-spec skills\`로 스킬을 갱신한 뒤 다시 전달하세요(이 GUI는 규약 v${TICKET_PROTOCOL_VERSION}).`,
           };
     }
     await sleep(TICKET_POLL_INTERVAL_MS);

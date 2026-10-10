@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import loginScreen from "../examples/login-screen.json";
 import type { FrameNode, ScreenSpec } from "@/features/editor/schema";
+import { relativeToRoot } from "@/features/editor/export/generationIdentity";
 import { verifyGenerated } from "@/features/editor/export/verifyGenerated";
 import { compileTickets } from "@/features/editor/ticket/compileTickets";
 import { buildTicketRequest } from "@/features/editor/ticket/ticketProtocol";
@@ -56,7 +57,7 @@ describe("compiler → ticket request → export 식별자 호환 (PR #237)", ()
   it("요청의 이름·경로를 그대로 쓰는 named/default export와 상대 import가 실제 TypeScript 검사를 통과한다", () => {
     const screen = duplicateNames();
     const tickets = compileTickets(screen);
-    const request = buildTicketRequest({ id: "duplicate-names", pageId: "page1", page: screen, tickets });
+    const request = buildTicketRequest({ id: "duplicate-names", pageId: "page1", page: screen, tickets, generatedRoot: "shop/page1" });
     // 스킬/AI의 구현 품질 검사가 아니다. 요청의 이름을 재매핑하지 않고 쓰는 최소 코드 fixture다.
     const files = request.tickets.map((item) => {
       const dependencies = tickets.find((ticket) => ticket.id === item.id)!.dependsOn;
@@ -66,7 +67,8 @@ describe("compiler → ticket request → export 식별자 호환 (PR #237)", ()
         return `import { ${dependency.componentName} } from '${prefix}${dependency.componentName}';`;
       });
       return {
-        path: item.filePath,
+        // 요청 경로는 생성 자리(#281) 아래다. 검사와 ZIP은 그 자리 기준 경로로 본다.
+        path: relativeToRoot(request.generatedRoot, item.filePath) ?? item.filePath,
         content: `${imports.join("\n")}\nexport ${item.kind === "page" ? "default " : ""}function ${item.componentName}() { ${dependencies.map((name) => `${name}();`).join(" ")} return null; }`,
       };
     });

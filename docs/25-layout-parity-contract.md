@@ -126,6 +126,11 @@ node scripts/browser/layout-parity.mjs --generated-dir ./export/login --case log
 page 이름이 들어간다). 두 모드에서는 fixture 전용 대조군(`login-legacy`)을 건너뛴다. 결과 기록에는
 모델/요청 ID와 ZIP 해시를 함께 남겨 fixture 결과와 구분한다.
 
+**생성 경로가 나뉜 뒤(#281).** 작업공간의 생성 파일은 `.visual-spec/generated/<프로젝트 폴더>/<PageId>/` 아래에 있고
+Export ZIP은 그 한 페이지의 자리를 담는다. ZIP 안 배치(`pages/`·`components/`·`assets/`)는 그대로라 위
+명령은 바뀌지 않는다. ZIP 대신 작업공간을 직접 넘기려면 `.visual-spec/generated/`가 아니라 그 페이지의 자리를
+가리켜야 하고, 그 자리에는 `assets/`가 없으므로 이미지 노드가 있으면 ZIP을 쓴다(docs/26 "#281").
+
 ## 4. 실측 결과 (2026-10-10)
 
 환경: Windows 11, Node 24.12.0, Playwright 1.62.0의 Chromium 151.0.7922.34(headless shell), DPR 1.
