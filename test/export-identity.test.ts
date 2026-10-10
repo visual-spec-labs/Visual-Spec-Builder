@@ -279,3 +279,43 @@ describe("잠금 중 앱 내부 rename은 낡은 destination보다 출발 신원
     expect(fs.readFileSync(join(root, "generated/c/page1/pages/Home.tsx"), "utf8")).toContain("C_STALE");
   }, 15000);
 });
+
+
+describe("미기록 rename의 이름 재방문", () => {
+  it.each([
+    ["중간 이름 재방문", ["b.json", "c.json", "b.json"]],
+    ["원래 이름 복귀 후 다시 이동", ["b.json", "c.json", "a.json", "b.json"]],
+    ["원래 이름 복귀", ["b.json", "c.json", "a.json"]],
+  ] as const)("%s: 원래 A의 ZIP·신원을 유지하고 실패한 복구를 재시도한다", async (_label, names) => {
+    put(GENERATION_MANIFEST_PATH, JSON.stringify({ protocol: 2, entries: {}, projects: {
+      original: { fileName: "a.json", outputDir: "a", createdAt: "2026-10-10T00:00:00Z" },
+      staleB: { fileName: "b.json", outputDir: "b", createdAt: "2026-10-10T00:00:00Z" },
+      staleC: { fileName: "c.json", outputDir: "c", createdAt: "2026-10-10T00:00:00Z" },
+    } }));
+    for (const name of ["a", "b", "c"]) put(`generated/${name}/page1/pages/Home.tsx`, `export default function Home(){return null} // OWNER_${name}`);
+    const lock = await holdRequestLock("ticket", "audit-revisit");
+    if (typeof lock === "string") throw new Error(lock);
+    const last = names[names.length - 1];
+    const owner = { fileName: last, documentId: 1, pageId: "page1", projectPageIds: ["page1"] };
+    try {
+      let from = "a.json";
+      for (const to of names) {
+        expect(await recordProjectRename(from, to)).toContain("이름 변경은 완료");
+        expect(await scanZip(to)).toContain("OWNER_a");
+        expect(await scanZip(to)).not.toMatch(/OWNER_b|OWNER_c/);
+        from = to;
+      }
+      // 전달 복구도 잠금이 해제되기 전에는 실패하며 원래 신원을 잊지 않는다.
+      expect(await ensureGenerationTarget(owner)).toMatchObject({ ok: false });
+      expect(await scanZip(last)).toContain("OWNER_a");
+    } finally { lock.release(); }
+    expect(await ensureGenerationTarget(owner)).toMatchObject({ ok: true, target: { projectId: "original", root: "a/page1" } });
+    expect(await ensureGenerationTarget(owner)).toMatchObject({ ok: true, target: { projectId: "original", root: "a/page1" } });
+    const manifest = JSON.parse(fs.readFileSync(join(root, GENERATION_MANIFEST_PATH), "utf8"));
+    expect(manifest.projects.original.fileName).toBe(last);
+    // 이미 떠난 중간 이름 C를 가진 별도 문서는 A로 이어지면 안 된다.
+    expect(await scanZip("c.json")).toContain("OWNER_c");
+    expect(await scanZip("c.json")).not.toContain("OWNER_a");
+    for (const name of ["b", "c"]) expect(fs.readFileSync(join(root, `generated/${name}/page1/pages/Home.tsx`), "utf8")).toContain(`OWNER_${name}`);
+  }, 20000);
+});

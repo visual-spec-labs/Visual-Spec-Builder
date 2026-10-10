@@ -90,6 +90,24 @@ try {
     assert.equal(chained.location.projectId, a.projectId);
     assert.ok(chained.zip.text.includes('A_KNOWN'));
     assert.ok(!/B_STALE|C_STALE/.test(chained.zip.text));
+    // Revisiting an intermediate name or returning to the original must not form a provenance cycle.
+    let currentName = 'c';
+    for (const nextName of ['b', 'a', 'b', 'c']) {
+        await page.getByRole('button', { name: `${currentName} 이름 변경`, exact: true }).click();
+        await page.getByRole('alertdialog').getByRole('textbox').fill(nextName);
+        await page.getByRole('alertdialog').locator('button[type=submit]').click();
+        await page.getByRole('button', { name: `${nextName} 이름 변경`, exact: true }).waitFor();
+        const revisited = await page.evaluate(async name => {
+            const s = await scan(`${name}.json`);
+            return { location: s.location, zip: await zip(s) };
+        }, nextName);
+        assert.equal(revisited.location.projectId, a.projectId);
+        assert.ok(revisited.zip.text.includes('A_KNOWN'));
+        assert.ok(!/B_STALE|C_STALE/.test(revisited.zip.text));
+        currentName = nextName;
+    }
+    // A failed recovery attempt while still locked must retain that same origin for retry.
+    assert.equal((await page.evaluate(() => gt.ensureGenerationTarget(owner('c.json')))).ok, false);
     await page.evaluate(() => held.release());
     const next = await page.evaluate(() => gt.ensureGenerationTarget(owner('c.json')));
     assert.equal(next.target.projectId, a.projectId);
@@ -99,7 +117,7 @@ try {
     assert.equal(Object.values(recovered.projects).filter(p => p.fileName === 'c.json').length, 1);
     assert.ok((await readFile(join(workspace, 'generated/b/page1/pages/Home.tsx'), 'utf8')).includes('B_STALE'));
     assert.ok((await readFile(join(workspace, 'generated/c/page1/pages/Home.tsx'), 'utf8')).includes('C_STALE'));
-    console.log('PASS actual Home A→B→C while locked, Export/ZIP and next target preserve A; stale destination files retained');
+    console.log('PASS actual Home A→B→C→B→A→B→C while locked, Export/ZIP and recovery retry preserve A; stale destination files retained');
     // Deliver one real GUI ticket with a deterministic response after recovery.
     await page.getByRole('button').filter({ hasText: /c.*페이지/s }).click();
     await page.getByRole('button', { name: 'File', exact: true }).waitFor();

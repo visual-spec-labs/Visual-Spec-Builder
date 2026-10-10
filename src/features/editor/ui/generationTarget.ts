@@ -68,36 +68,20 @@ export interface GenerationTarget {
 const unsavedProjects = new Map<number, string>();
 
 /**
- * 기록하지 못한 앱 안 이름 변경(새 파일 이름 → 옛 파일 이름). 이름 변경은 이미 끝났는데 기록이 옛 이름을
- * 들고 있으면, 다음 전달이 새 프로젝트(새 폴더)로 시작해 이 프로젝트의 출력과 이어지지 않는다. 그래서 이
- * 탭이 들고 있다가 기록을 찾을 때 옛 이름으로 이어받고(`findGenerationProject`), 다음 전달 때 잠금 안에서
- * 다시 기록한다(`ensureGenerationTarget`). 새로고침하면 잊는다 — 그 전에 전달하지 않았다면 다음 전달은 새
- * 프로젝트로 시작한다(남의 출력을 덮는 쪽으로는 틀리지 않는다, docs/26 "#281 남은 한계").
+ * 기록하지 못한 앱 안 이름 변경(현재 파일 이름 → 최초 출발 이름).
+ * 직전 이름의 연결 목록으로 두면 A→B→C→B에서 B↔C 순환이 생겨 A를 잃는다. 매번 최초 출발 이름을
+ * 그대로 옮기고 떠난 이름의 항목은 지운다. 그 이름을 재사용한 다른 문서가 A를 이어받아도 안 된다.
+ * 같은 탭의 Export·다음 전달만 이 연결을 사용한다. 새로고침/다른 탭에서는 잊으며, 낡은 destination
+ * 기록이 남으면 파일명 재사용의 한계가 적용된다(docs/26 "#281 남은 한계").
  */
 const pendingRenames = new Map<string, string>();
 
-/** 새 이름에서 기록 대기 중인 이름 변경을 거슬러 가장 처음 이름까지 따라간다(A→B→C 연속 변경). */
 function renamedFrom(fileName: string): string | null {
-  const seen = new Set([fileName]);
-  let current = pendingRenames.get(fileName);
-  if (current === undefined) return null;
-  while (!seen.has(current)) {
-    seen.add(current);
-    const earlier = pendingRenames.get(current);
-    if (earlier === undefined) break;
-    current = earlier;
-  }
-  return current;
+  return pendingRenames.get(fileName) ?? null;
 }
 
-/** 기록한 이름 변경을 대기 목록에서 지운다(그 이름에 이르는 앞 단계까지). */
 function forgetPendingRename(fileName: string): void {
-  let current: string | undefined = fileName;
-  while (current !== undefined && pendingRenames.has(current)) {
-    const earlier: string | undefined = pendingRenames.get(current);
-    pendingRenames.delete(current);
-    current = earlier;
-  }
+  pendingRenames.delete(fileName);
 }
 
 function createProjectId(): string {
@@ -297,28 +281,36 @@ const RENAME_RECORD_RECOVERY =
  */
 export async function recordProjectRename(from: string, to: string): Promise<string | null> {
   // 이름 변경은 이미 끝난 뒤라 여기서 무엇이 실패해도(예외 포함) 그 결과를 뒤집지 않는다.
+  // 실패해도 직전 이름이 아니라 최초 출발점을 보존한다. 원래 이름 복귀(A→B→A)도 A→A로 유지한다.
+  const pendingOrigin = renamedFrom(from);
+  const origin = pendingOrigin ?? from;
   let reason: string;
   try {
     const read = await readManifest();
     if (!read.ok) reason = read.error;
     else {
       // 앞서 기록하지 못한 변경(A→B)이 있으면 처음 이름(A)의 기록을 이번 이름(C)으로 옮긴다.
-      const origin = renamedFrom(from) ?? from;
-      if (findProjectByFileName(read.manifest, origin) === null) return null;
-      const updated = await updateManifestLocked((manifest) => {
-        const next = withProjectRenamed(manifest, origin, to);
-        return { next: next === manifest ? null : next, result: null };
-      });
-      if (updated.ok) {
-        forgetPendingRename(from);
-        return null;
+      if (findProjectByFileName(read.manifest, origin) === null) {
+        if (pendingOrigin === null) return null; // 원래부터 생성 기록이 없는 문서
+        reason = "이름 변경의 출발 프로젝트 기록을 찾지 못했습니다.";
+      } else {
+        const updated = await updateManifestLocked((manifest) => {
+          const next = withProjectRenamed(manifest, origin, to);
+          return { next: next === manifest ? null : next, result: null };
+        });
+        if (updated.ok) {
+          forgetPendingRename(from);
+          forgetPendingRename(to);
+          return null;
+        }
+        reason = updated.error;
       }
-      reason = updated.error;
     }
   } catch {
     reason = "생성 기록을 읽거나 쓰는 중 오류가 났습니다.";
   }
-  pendingRenames.set(to, from);
+  forgetPendingRename(from);
+  pendingRenames.set(to, origin);
   return `이름 변경을 생성 기록에 남기지 못했습니다 — ${reason} ${RENAME_RECORD_RECOVERY}`;
 }
 
