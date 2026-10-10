@@ -9,7 +9,9 @@
 //
 // 단계: draft(홈 자연어 초안) · nl(현재 페이지 자연어 수정) · add-page · edit(속성 칸 GUI 편집) ·
 //       tickets(구현 티켓 전체 전달) · touch(생성 파일 수동 수정) · export(ZIP 내려받기) · snapshot
-import { spawn, execFileSync } from "node:child_process";
+// 에이전트가 시작하지 못했거나 0이 아닌 코드·signal로 끝났거나, 응답·GUI 적용·티켓 완료가 확인되지 않으면
+// 그 단계는 실패로 기록하고 종료 코드 1로 끝난다(PR #358 리뷰). 판정 규칙은 real-model-agent.mjs에 있다.
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFile, copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -17,10 +19,14 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import { openProjectCard } from "./project-card.mjs";
+import { AgentRunError, agentArgv, agentSpawnPlan, nlFailure, readNlGuiState, runAgentProcess, summarizeAgentOutput,
+  ticketRunFailure } from "./real-model-agent.mjs";
+
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const { values: args, positionals: [phase] } = parseArgs({ allowPositionals: true, options: {
   root: { type: "string" }, url: { type: "string" },
-  agent: { type: "string", default: "claude" }, model: { type: "string" },
+  agent: { type: "string", default: "claude" }, "agent-bin": { type: "string" }, model: { type: "string" },
   doc: { type: "string", default: "real-flow" }, card: { type: "string" }, page: { type: "string" },
   instruction: { type: "string" }, node: { type: "string" }, field: { type: "string" }, value: { type: "string" },
   file: { type: "string" }, append: { type: "string" }, overwrite: { type: "string", default: "backup" },
@@ -49,7 +55,13 @@ if (phase === "setup") {
   // 사용자가 쓸 이미지를 작업공간 assets/에 둔 상태에서 시작한다(1200×600 PNG).
   const hero = join(vs, "assets/hero.png");
   await copyFile(join(repo, "test/fixtures/layout-parity/assets/hero.png"), hero);
-  const version = (command) => { try { return execFileSync(command, ["--version"], { encoding: "utf8", shell: true }).trim(); } catch (error) { return `unavailable: ${error.message.split("\n")[0]}`; } };
+  // 버전 확인도 셸을 거치지 않는다(Windows .cmd는 agentSpawnPlan이 따로 다룬다).
+  const version = (command) => {
+    const plan = agentSpawnPlan(command, ["--version"]);
+    const result = spawnSync(plan.file, plan.args, { ...plan.options, encoding: "utf8" });
+    if (result.error || result.status !== 0) return `unavailable: ${(result.error?.message || result.stderr || `exit ${result.status}`).split("\n")[0]}`;
+    return result.stdout.trim();
+  };
   await record({ repoHead: execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim(),
     node: process.version, pnpm: version("pnpm"), claude: version("claude"), codex: version("codex"),
     heroSha256: sha256(await readFile(hero)) });
@@ -72,45 +84,34 @@ async function listFiles(dir) {
 /**
  * GUI가 보여 주는 지시문을 그대로 에이전트에 준다. 실행하는 동안 GUI의 "대기 연장"을 눌러
  * 사용자가 하듯 같은 요청의 기한만 미룬다(새 요청을 만들지 않는다).
+ * 시작 실패·0이 아닌 종료 코드·signal 종료·Claude 결과 is_error는 AgentRunError로 단계를 실패시킨다.
  */
 async function runAgent(page, instruction, tag) {
-  const started = Date.now();
   // 부모 세션의 인증·세션 변수를 물려주지 않는다. 사용자가 새 터미널에서 실행한 것과 같은 조건이다.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
     !/^(ANTHROPIC_|CLAUDECODE$|CLAUDE_CODE_|CLAUDE_PID$|CLAUDE_EFFORT$)/.test(key)));
   const output = join(evidence, `${tag}-agent.json`);
-  const argv = args.agent === "codex"
-    ? ["exec", "--sandbox", "workspace-write", "--skip-git-repo-check", "--ephemeral", "-C", ws, "--color", "never",
-      "--json", ...(args.model ? ["-m", args.model] : []), "-"]
-    : ["-p", "--output-format", "json", "--setting-sources", "project", "--permission-mode", "acceptEdits",
-      "--allowedTools", "Bash(node:*)", "--no-session-persistence", ...(args.model ? ["--model", args.model] : [])];
-  // 지시문은 셸 인자가 아니라 stdin으로 넘긴다(Windows .cmd 실행기에 한글·따옴표를 넣지 않는다).
-  const child = spawn(args.agent, argv, { cwd: ws, env, shell: true, stdio: ["pipe", "pipe", "pipe"] });
-  let stdout = "", stderr = "";
-  child.stdout.on("data", (chunk) => { stdout += chunk; });
-  child.stderr.on("data", (chunk) => { stderr += chunk; });
-  child.stdin.end(instruction);
-  const exited = new Promise((done) => child.on("exit", (code) => done(code)));
+  const argv = agentArgv(args.agent, { ws, model: args.model });
+  // 셸을 거치지 않고 argv를 그대로 넘기고, 지시문은 인자가 아니라 stdin으로 넘긴다.
+  // --agent-bin은 PATH 밖의 실행 파일(또는 검증용 가짜 CLI)을 가리킨다. 인자 형식은 --agent가 정한다.
+  const plan = agentSpawnPlan(args["agent-bin"] ?? args.agent, argv);
   let extensions = 0;
-  while (await Promise.race([exited.then(() => false), sleep(20000).then(() => true)])) {
-    const extend = page.getByRole("button", { name: "대기 연장", exact: true });
-    if (await extend.count() > 0 && await extend.first().isVisible()) { await extend.first().click(); extensions += 1; }
-  }
-  const code = await exited;
-  await writeFile(output, stdout, "utf8");
-  let summary = null;
+  let run;
   try {
-    if (args.agent === "codex") {
-      summary = { events: stdout.trim().split("\n").length };
-    } else {
-      const result = JSON.parse(stdout.slice(stdout.indexOf("{")));
-      summary = { isError: result.is_error, numTurns: result.num_turns, durationApiMs: result.duration_api_ms,
-        models: Object.keys(result.modelUsage ?? {}), permissionDenials: result.permission_denials?.length ?? 0,
-        result: String(result.result ?? "").slice(0, 2000) };
-    }
-  } catch (error) { summary = { parseError: error.message }; }
-  return { agent: args.agent, argv, exitCode: code, seconds: Math.round((Date.now() - started) / 1000),
-    extensions, stderrTail: stderr.slice(-500), output: relative(root, output), summary };
+    run = await runAgentProcess(plan, { cwd: ws, env, input: instruction, step: tag, onTick: async () => {
+      const extend = page.getByRole("button", { name: "대기 연장", exact: true });
+      if (await extend.count() > 0 && await extend.first().isVisible()) { await extend.first().click(); extensions += 1; }
+    } });
+  } catch (error) {
+    if (error instanceof AgentRunError) error.details = { ...error.details, agent: args.agent, argv, extensions };
+    throw error;
+  }
+  await writeFile(output, run.stdout, "utf8");
+  const { summary, failure } = summarizeAgentOutput(args.agent, run.stdout);
+  const result = { agent: args.agent, argv, exitCode: run.exitCode, signal: run.signal, seconds: run.seconds,
+    extensions, stderrTail: run.stderrTail.slice(-500), output: relative(root, output), summary };
+  if (failure) throw new AgentRunError(`${tag}: ${failure}`, { step: tag, stage: "agent-result", ...result });
+  return result;
 }
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
@@ -136,8 +137,8 @@ async function discardDraft() {
 async function openDocument() {
   await page.goto(args.url);
   await discardDraft();
-  // 홈 카드는 파일 이름이 아니라 프로젝트 이름(spec.name)을 보인다.
-  await page.getByRole("button").filter({ hasText: new RegExp(`${args.card ?? args.doc}.*페이지`, "s") }).first().click();
+  // 홈 카드는 파일 이름이 아니라 프로젝트 이름(spec.name)을 보인다. 이름이 정확히 같은 카드 하나만 연다.
+  await openProjectCard(page, args.card ?? args.doc);
   await button("File").waitFor();
   await discardDraft();
   if (args.page) await selectPage(args.page);
@@ -147,6 +148,9 @@ async function selectPage(name) {
   await button(name).first().click();
   await page.waitForFunction((name) => document.querySelector('[data-testid="responsive-artboard"]') !== null && name, name);
 }
+// 브라우저에서 실행한다(tickets 단계가 window.tickets에 ticketStore를 둔 뒤). 실행 상태와 티켓별 상태를 읽는다.
+const readTicketState = () => ({ running: tickets.getState().running, runError: tickets.getState().runError,
+  tickets: tickets.getState().tickets.map(({ id, componentName, kind, status, error }) => ({ id, componentName, kind, status, error })) });
 // Save 결과는 window.alert로 알린다. 문구를 증거로 남기고 닫는다.
 const alerts = [];
 page.on("dialog", async (dialog) => { alerts.push(dialog.message()); await dialog.accept(); });
@@ -174,15 +178,39 @@ async function nlRequest(tag) {
   await writeFile(join(evidence, `${tag}-nl-request.json`), JSON.stringify(request, null, 2), "utf8");
   const instruction = await page.evaluate(async () =>
     (await import("/src/features/editor/ui/agentHandoff.ts")).buildNlAgentInstruction());
+  try {
+    return await awaitNlResult(request, instruction, tag);
+  } catch (error) {
+    // GUI가 아직 응답을 기다리면 사용자처럼 취소하고, 다음 폴링이 요청 잠금을 푸는 것(DELETE)까지 기다린다.
+    // 그러지 않으면 탭을 닫은 뒤에도 잠금이 30초 남아 다음 단계의 요청이 막힌다.
+    const cancel = page.locator('section[aria-label="자연어 편집"]').getByRole("button", { name: "취소", exact: true });
+    if (await cancel.isVisible().catch(() => false)) {
+      const released = page.waitForResponse((response) => response.request().method() === "DELETE"
+        && response.url().includes("/request-lock/nl"), { timeout: 10000 }).catch(() => null);
+      await cancel.click().catch(() => {});
+      if (!await released) error.message += " (요청 잠금 해제를 확인하지 못했습니다)";
+    }
+    throw error;
+  }
+}
+async function awaitNlResult(request, instruction, tag) {
   const agent = await runAgent(page, instruction, tag);
-  const status = page.locator('section[aria-label="자연어 편집"] [role="status"]');
-  await page.waitForFunction(() => !document.querySelector('section[aria-label="자연어 편집"] textarea, section[aria-label="자연어 편집"] input')?.disabled, null, { timeout: 60000 }).catch(() => {});
-  await sleep(1500);
-  const response = await readJson(join(vs, "runtime/nl-response.json"));
-  await writeFile(join(evidence, `${tag}-nl-response.json`), JSON.stringify(response, null, 2), "utf8");
-  return { requestId: request.id, scope: request.scope, pageId: request.pageId, instructionSent: instruction,
+  // 종료 코드 0만으로 성공이라 하지 않는다. 이번 requestId의 유효한 응답이 있고 GUI가 적용을 끝내야 성공이다.
+  const responseText = await readFile(join(vs, "runtime/nl-response.json"), "utf8").catch(() => null);
+  let response = null;
+  try { response = responseText === null ? null : JSON.parse(responseText); } catch { /* malformed로 판정한다 */ }
+  await writeFile(join(evidence, `${tag}-nl-response.json`), responseText ?? "null", "utf8");
+  // 응답이 없거나 다른 요청 것이면 에이전트가 이미 끝났으므로 GUI 기한까지 기다리지 않는다.
+  const gui = response?.requestId === request.id && !response.error
+    ? await page.waitForFunction(readNlGuiState, null, { timeout: 60000, polling: 250 })
+      .then((handle) => handle.jsonValue(), () => ({ kind: "timeout" }))
+    : null;
+  const result = { requestId: request.id, scope: request.scope, pageId: request.pageId, instructionSent: instruction,
     responseRequestId: response?.requestId ?? null, commands: response?.commands?.length ?? null,
-    guiStatus: (await status.innerText()).trim(), agent };
+    guiState: gui?.kind ?? null, guiStatus: gui?.text ?? null, agent };
+  const failure = nlFailure({ requestId: request.id, response, malformed: responseText !== null && response === null, gui });
+  if (failure) throw new AgentRunError(`${tag}: ${failure}`, { step: tag, stage: "nl-response", ...result });
+  return result;
 }
 
 try {
@@ -231,23 +259,31 @@ try {
       (await import("/src/features/editor/ui/agentHandoff.ts")).buildTicketAgentInstruction());
     const requestPath = join(vs, "runtime/ticket-request.json");
     const generatedBefore = await listFiles(join(vs, "generated"));
+    // 앞 단계가 남긴 요청 파일을 이번 웨이브로 착각하지 않는다.
+    let lastId = (await readJson(requestPath))?.id ?? null;
     await button("에이전트에 전달").click();
     const waves = [];
-    let lastId = null;
-    for (let wave = 1; wave <= 8; wave++) {
+    const maxWaves = 8;
+    // 반복·대기 상한에 닿으면 성공으로 끝내지 않고 이유를 남긴다.
+    let limit = null;
+    for (let wave = 1; ; wave++) {
       let request;
-      for (let i = 0; i < 300 && !request; i++) {
+      let finished = false;
+      for (let i = 0; i < 300 && !request && !finished; i++) {
         const current = await readJson(requestPath);
         if (current && current.id !== lastId) request = current;
-        else if (!await page.evaluate(() => tickets.getState().running)) break;
+        else if (!await page.evaluate(() => tickets.getState().running)) finished = true;
         else await sleep(100);
       }
-      if (!request) break;
+      if (finished) break;
+      if (!request) { limit = `웨이브 ${wave} 요청을 30초 안에 받지 못했습니다(running=true).`; break; }
+      if (wave > maxWaves) { limit = `웨이브가 ${maxWaves}개를 넘었습니다.`; break; }
       lastId = request.id;
       await writeFile(join(evidence, `${label}-wave${wave}-request.json`), JSON.stringify(request, null, 2), "utf8");
       const agent = await runAgent(page, instruction, `${label}-wave${wave}`);
       // 응답을 수용하면 다음 웨이브 요청을 쓰거나, 덮어쓰기 확인을 띄우거나, 실행을 끝낸다.
       let review = null;
+      let settled = false;
       for (let i = 0; i < 600; i++) {
         const state = await page.evaluate(() => ({ running: tickets.getState().running, review: tickets.getState().overwriteReview !== null }));
         const current = await readJson(requestPath);
@@ -264,18 +300,21 @@ try {
           await page.waitForFunction(() => tickets.getState().overwriteReview === null);
           continue;
         }
-        if (!state.running || (current && current.id !== lastId)) break;
+        if (!state.running || (current && current.id !== lastId)) { settled = true; break; }
         await sleep(200);
       }
-      const ticketState = await page.evaluate(() => ({ running: tickets.getState().running, runError: tickets.getState().runError,
-        tickets: tickets.getState().tickets.map(({ id, componentName, kind, status, error }) => ({ id, componentName, kind, status, error })) }));
+      const ticketState = await page.evaluate(readTicketState);
       waves.push({ wave, requestId: request.id, tickets: request.tickets.map((ticket) => ticket.id), agent, review, after: ticketState });
+      if (!settled) { limit = `웨이브 ${wave} 응답 수용을 120초 안에 확인하지 못했습니다.`; break; }
       if (!ticketState.running) break;
     }
     const generatedAfter = await listFiles(join(vs, "generated"));
     await page.screenshot({ path: join(evidence, `${label}-tickets.png`) });
-    await record({ page: args.page, instructionSent: instruction, waves, generatedBefore, generatedAfter,
+    const final = await page.evaluate(readTicketState);
+    const failure = ticketRunFailure({ waves, final, limit });
+    await record({ page: args.page, instructionSent: instruction, waves, final, failure, generatedBefore, generatedAfter,
       manifest: await readJson(join(vs, "runtime/generation-manifest.json")) });
+    if (failure) throw new AgentRunError(`${label}: ${failure}`, { step: label, stage: "tickets", final, limit });
   } else if (phase === "touch") {
     // 사용자가 생성 파일을 직접 고친 상황(#282). 덮어쓰기 확인이 떠야 정상이다.
     const path = join(vs, "generated", args.file);
@@ -311,7 +350,8 @@ try {
   await page.screenshot({ path: join(evidence, `${label}-error.png`) }).catch(() => {});
   const dialogs = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"],[role="alertdialog"]')]
     .map((dialog) => dialog.textContent.slice(0, 500))).catch(() => []);
-  await record({ error: error.message.split("\n")[0], dialogs, pageErrors, alerts });
+  // 실패 단계·종료 코드·signal·stderr(AgentRunError.details)를 함께 남긴다.
+  await record({ error: error.message.split("\n")[0], details: error.details ?? null, dialogs, pageErrors, alerts });
   process.exitCode = 1;
 } finally {
   await context.close();
