@@ -217,8 +217,14 @@ describe("유효 JSON의 registry 구조 손상은 빈 기록이 아니다", () 
     ["projects 배열", "projects", []], ["projects 문자열", "projects", "bad"],
     ["projects 항목 손상", "projects", { broken: { fileName: "my-shop.json" } }],
   ])("%s: 다른 프로젝트 파일을 선택하지 않고 생성 기록도 덮지 않는다", async (_label, key, value) => {
-    await generate("my shop.json", "FOREIGN_SPACE");
-    await generate("my-shop.json", "OWN_DASH");
+    // 손상 판정의 입력을 직접 준비한다. 실제 등록은 위 HTTP/브라우저 회귀가 검증한다.
+    // Windows CI에서 반복 등록의 원자적 rename이 EPERM으로 실패하면 손상 단언에 도달하지 못한다.
+    put(GENERATION_MANIFEST_PATH, JSON.stringify({ protocol: 2, entries: {}, projects: {
+      space: { fileName: "my shop.json", outputDir: "my-shop", createdAt: "2026-10-10T00:00:00Z" },
+      dash: { fileName: "my-shop.json", outputDir: "my-shop-2", createdAt: "2026-10-10T00:00:00Z" },
+    } }));
+    put("generated/my-shop/page1/pages/Home.tsx", "export default function Home(){return null} // FOREIGN_SPACE");
+    put("generated/my-shop-2/page1/pages/Home.tsx", "export default function Home(){return null} // OWN_DASH");
     const before = await scanZip("my-shop.json");
     expect(before).toContain("OWN_DASH");
     expect(before).not.toContain("FOREIGN_SPACE");
