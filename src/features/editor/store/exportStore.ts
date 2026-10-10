@@ -4,7 +4,7 @@ import type { PageId, ScreenSpec } from "@/features/editor/schema";
 import type { FreshnessReport } from "@/features/editor/export/generationManifest";
 import type { GeneratedFile, VerifyReport } from "@/features/editor/export/verifyGenerated";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
+import { scanGeneratedCode, type GeneratedLocation } from "@/features/editor/ui/exportGeneratedCode";
 
 /**
  * `idle` 은 아직 한 번도 훑지 않은 상태다. `no-workspace` 를 `ready` 의 한 경우로
@@ -19,6 +19,8 @@ export interface ExportTarget {
   pageId: PageId;
   page: ScreenSpec;
   projectName: string;
+  /** 작업공간 파일 이름(#281). 생성 자리(`generated/<프로젝트 폴더>/<PageId>/`)를 찾는 데 쓴다. */
+  fileName: string | null;
 }
 
 interface ExportState {
@@ -28,6 +30,8 @@ interface ExportState {
   report: VerifyReport | null;
   /** 생성 세대 확인(#284). 파일·참조 검사(`report`)와 별개의 판정이다. */
   freshness: FreshnessReport | null;
+  /** 훑은 생성 자리(#281). */
+  location: GeneratedLocation | null;
   target: ExportTarget | null;
   /** 패널을 열고 곧바로 훑는다. */
   open: (target: ExportTarget) => Promise<void>;
@@ -44,21 +48,31 @@ interface ExportState {
  */
 let generation = 0;
 
-function clearResult(): Pick<ExportState, "status" | "files" | "report" | "freshness" | "target"> {
-  return { status: "idle", files: [], report: null, freshness: null, target: null };
+function clearResult(): Pick<ExportState, "status" | "files" | "report" | "freshness" | "location" | "target"> {
+  return { status: "idle", files: [], report: null, freshness: null, location: null, target: null };
 }
 
 export const useExportStore = create<ExportState>((set) => {
   async function run(target: ExportTarget): Promise<void> {
     const runGeneration = ++generation;
-    set({ status: "scanning", files: [], report: null, freshness: null, target });
-    const scan = await scanGeneratedCode(target.page, target.pageId);
+    set({ status: "scanning", files: [], report: null, freshness: null, location: null, target });
+    const scan = await scanGeneratedCode(target.page, target.pageId, {
+      fileName: target.fileName,
+      documentId: target.documentId,
+    });
     if (runGeneration !== generation) return;
     if (scan.kind === "no-workspace") {
-      set({ status: "no-workspace", files: [], report: null, freshness: null, target });
+      set({ status: "no-workspace", files: [], report: null, freshness: null, location: null, target });
       return;
     }
-    set({ status: "ready", files: scan.files, report: scan.report, freshness: scan.freshness, target });
+    set({
+      status: "ready",
+      files: scan.files,
+      report: scan.report,
+      freshness: scan.freshness,
+      location: scan.location,
+      target,
+    });
   }
 
   return {
@@ -67,6 +81,7 @@ export const useExportStore = create<ExportState>((set) => {
     files: [],
     report: null,
     freshness: null,
+    location: null,
     target: null,
     open: async (target) => {
       set({ isOpen: true });

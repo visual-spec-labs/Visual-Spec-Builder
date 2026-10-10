@@ -19,6 +19,12 @@
  *    파일을 같은 방식(기대 버전 = 방금 쓴 바이트)으로 되돌린다 — 그 사이 누가 고쳤으면 되돌리지 않는다.
  * 4. **기록** — 모두 썼을 때만 수용 기록을 갱신한다. 최종 실제/미해결 범위만 `run.json`에 남긴다.
  *
+ * ## 출력 신원(#281)
+ *
+ * 확정할 자리는 요청 때 정한 페이지 생성 자리(`generated/<프로젝트 폴더>/<PageId>/`, `ui/generationTarget.ts`)
+ * 아래다. 기록에는 프로젝트 ID·페이지·컴포넌트 신원·입력 범위와 지문·규약 버전을 함께 남긴다 — Export가
+ * 이 값으로 "이 프로젝트의 지금 입력으로 만든 출력인가"를 가른다.
+ *
  * 서버의 파일별 원자 쓰기와 기대 버전 비교는 **여러 파일 트랜잭션이 아니다.** 위 순서는 그 위에
  * 쌓은 보상(되돌리기)이고, 외부 에이전트처럼 HTTP를 거치지 않는 writer는 막지 못한다 — 서버 비교와
  * 디스크 rename 사이의 아주 짧은 틈도 남는다. 보호 범위는 docs/26 "#282 보호 범위"에 적었다.
@@ -26,10 +32,18 @@
 
 import { holdRequestLock } from "./agentRequestLock";
 
-import { contentHash, inputFingerprint, sha256Hex } from "@/features/editor/export/contentHash";
+import { contentHash, sha256Hex } from "@/features/editor/export/contentHash";
+import {
+  generatedTicketPath,
+  ticketComponentKey,
+  ticketInputFingerprint,
+  ticketInputScope,
+  type InputScope,
+} from "@/features/editor/export/generationIdentity";
 import {
   GENERATION_MANIFEST_PATH,
   GENERATION_MANIFEST_PROTOCOL,
+  isNewerGenerationManifest,
   parseGenerationManifest,
   withManifestUpdates,
   type ManifestEntry,
@@ -45,11 +59,11 @@ import {
   type RegenerationRunSummary,
 } from "@/features/editor/export/overwriteGuard";
 import type { PageId, ScreenSpec } from "@/features/editor/schema";
-import { ticketOutputPath, type TicketResultItem } from "@/features/editor/ticket/ticketProtocol";
-import { ticketFilePath } from "@/features/editor/export/generatedPaths";
+import { TICKET_PROTOCOL_VERSION, ticketOutputPath, type TicketResultItem } from "@/features/editor/ticket/ticketProtocol";
 import type { Ticket } from "@/features/editor/ticket/types";
 import { BACKUP_DIR, GENERATED_DIR, WORKSPACE_MISSING_REVISION } from "@/features/workspace/protocol";
 
+import type { GenerationTarget } from "./generationTarget";
 import {
   deleteWorkspaceFile,
   readWorkspaceFileSnapshot,
@@ -69,19 +83,30 @@ export interface TicketOutputAcceptanceInput {
   /** 요청에 실었던 입력 — 수용 기록의 입력 지문이 된다. 지금 편집 중인 페이지가 아니다. */
   pageId: PageId;
   page: ScreenSpec;
-  /** 요청 때 열려 있던 프로젝트의 작업공간 파일 이름(#282). 저장하지 않은 문서면 null. */
-  projectKey: string | null;
+  /** 요청 때 정한 주인 프로젝트와 페이지 생성 자리(#281). 확정할 경로가 이 아래다. */
+  target: GenerationTarget;
   /** 이 웨이브에 실었던 티켓들. 결과에 다른 id가 섞여 있으면 무시한다. */
   waveTickets: Ticket[];
   results: TicketResultItem[];
+}
+
+/** 확정 후보 파일 하나가 무엇의 출력인가(#281). 수용 기록에 그대로 옮긴다. */
+interface PlannedOutput {
+  componentName: string;
+  componentKey: string;
+  inputScope: InputScope;
+  inputFingerprint: string;
 }
 
 /** 쓰기 전 판정까지 마친 확정 계획. 아직 `generated/`는 그대로다. */
 export interface TicketOutputPlan {
   requestId: string;
   pageId: PageId;
-  fingerprint: string;
   owner: OverwriteOwner;
+  /** 이 요청의 페이지 생성 자리(`generated/` 기준). */
+  outputRoot: string;
+  /** 경로별 출력 신원과 입력 지문. */
+  outputs: Record<string, PlannedOutput>;
   /** 응답 순서 그대로의 결과. 출력이 없거나 읽지 못한 `done`은 이미 `failed`로 바뀌어 있다. */
   results: TicketResultItem[];
   /** 확정 후보(이 요청의 임시 출력이 있는 `done` 티켓). */
@@ -131,20 +156,21 @@ export async function planTicketOutputs({
   requestId,
   pageId,
   page,
-  projectKey,
+  target: generationTarget,
   waveTickets,
   results,
 }: TicketOutputAcceptanceInput): Promise<TicketOutputPlan> {
   const byId = new Map(waveTickets.map((ticket) => [ticket.id, ticket]));
+  const owner: OverwriteOwner = { projectId: generationTarget.projectId, pageId };
+  const outputs: Record<string, PlannedOutput> = {};
   const ids = new Set(results.map((result) => result.ticketId));
   if (ids.size !== results.length || ids.size !== byId.size || [...ids].some((id) => !byId.has(id))) {
     return {
-      requestId, pageId, fingerprint: inputFingerprint(pageId, page), owner: { projectKey, pageId },
+      requestId, pageId, owner, outputRoot: generationTarget.root, outputs,
       results: waveTickets.map((ticket) => failed(ticket.id, "응답 티켓이 중복되거나 요청 목록과 다릅니다. 다시 전달하세요.")),
       targets: [], review: { requestId, items: [] },
     };
   }
-  const owner: OverwriteOwner = { projectKey, pageId };
   const manifestText = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
   // 기록을 읽지 못하면 기록이 없는 것으로 판정한다 — 기존 파일은 모두 확인 대상이 된다(덮어쓰는 쪽으로 기울지 않는다).
   const manifest = parseGenerationManifest(manifestText.ok ? manifestText.text : null);
@@ -159,7 +185,7 @@ export async function planTicketOutputs({
       continue;
     }
 
-    const filePath = ticketFilePath(ticket);
+    const filePath = generatedTicketPath(generationTarget.root, ticket);
     const staged = await readWorkspaceTextFileStrict(ticketOutputPath(requestId, filePath));
     // 에이전트의 "done"만으로는 완료로 치지 않는다 — 이 요청의 임시 출력이 실제로 있어야 한다.
     // 응답보다 파일이 늦게 오는 부분 도착이 여기서 걸린다.
@@ -181,6 +207,12 @@ export async function planTicketOutputs({
     const record = manifest.entries[filePath] ?? null;
     const target = classifyOverwrite({ path: filePath, ticketId: ticket.id, current: current.snapshot, next: staged.text, record, owner });
     targets.push(target);
+    outputs[filePath] = {
+      componentName: ticket.componentName,
+      componentKey: ticketComponentKey(ticket),
+      inputScope: ticketInputScope(ticket),
+      inputFingerprint: ticketInputFingerprint(pageId, page, ticket),
+    };
     planned.push(result);
     const decide = needsDecision(target);
     review.items.push({
@@ -199,7 +231,7 @@ export async function planTicketOutputs({
     }
   }
 
-  return { requestId, pageId, fingerprint: inputFingerprint(pageId, page), owner, results: planned, targets, review };
+  return { requestId, pageId, owner, outputRoot: generationTarget.root, outputs, results: planned, targets, review };
 }
 
 /** 사용자 확인이 필요한 파일이 있는가. */
@@ -379,7 +411,7 @@ async function commitTicketOutputsNow(
     const scopeSaved = await persistScope(leftovers, "recovery");
     const result = abort(`${reason}${leftovers.length === 0 ? " 이번 적용을 되돌렸습니다." : " 복구를 완료하지 못했습니다."}`);
     if (leftovers.length > 0) {
-      result.run = { runId, paths: leftovers, backupRoot: runRoot(runId) };
+      result.run = { runId, paths: leftovers, backupRoot: runRoot(runId), outputRoot: plan.outputRoot };
       result.recoveryWarning = `복구 확인 필요: ${leftovers.join(", ")}. 실행 ${runId}, 기록: ${runRecordPath(runId)}, 원본: ${runRoot(runId)}/files/${scopeSaved ? "" : " — 복구 범위를 저장하지 못해 자동 복구를 중단합니다. plan.json은 복구 허용 기록이 아닙니다."}`;
     }
     return result;
@@ -409,14 +441,19 @@ async function commitTicketOutputsNow(
   const entries: Record<string, ManifestEntry> = {};
   for (const target of plan.targets) {
     if (!shouldWrite(target, decisions) && target.ownership !== "unchanged") continue;
+    const output = plan.outputs[target.path];
     entries[target.path] = {
       requestId: plan.requestId,
       ticketId: target.ticketId,
+      componentName: output.componentName,
+      projectId: plan.owner.projectId,
       pageId: plan.pageId,
-      inputFingerprint: plan.fingerprint,
+      componentKey: output.componentKey,
+      inputScope: output.inputScope,
+      inputFingerprint: output.inputFingerprint,
       contentHash: contentHash(target.next),
+      ticketProtocol: TICKET_PROTOCOL_VERSION,
       acceptedAt,
-      projectKey: plan.owner.projectKey,
     };
   }
   const results = plan.results.map((result) => {
@@ -448,7 +485,9 @@ async function commitTicketOutputsNow(
     manifestError,
     committed: true,
     ...(scopeSaved ? {} : { recoveryWarning: `복구 범위를 저장하지 못해 자동 복구를 중단합니다. 실행 ${runId}, 백업: ${runRoot(runId)}/files/` }),
-    run: files.length === 0 ? null : { runId, paths: files.map((file) => file.path), backupRoot: runRoot(runId) },
+    run: files.length === 0
+      ? null
+      : { runId, paths: files.map((file) => file.path), backupRoot: runRoot(runId), outputRoot: plan.outputRoot },
   };
 }
 
@@ -462,7 +501,8 @@ async function recoveryProvenance(file: RunRecordFile, requestId: string, allowP
     try { raw = JSON.parse(read.text); } catch { return "unverifiable"; }
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return "unverifiable";
     const root = raw as { protocol?: unknown; entries?: unknown };
-    if (root.protocol !== GENERATION_MANIFEST_PROTOCOL || typeof root.entries !== "object" || root.entries === null || Array.isArray(root.entries)) return "unverifiable";
+    // protocol 1(#281 전) 기록도 같은 모양의 항목을 가진다 — 읽기는 둘 다 받는다.
+    if ((root.protocol !== 1 && root.protocol !== GENERATION_MANIFEST_PROTOCOL) || typeof root.entries !== "object" || root.entries === null || Array.isArray(root.entries)) return "unverifiable";
     if (Object.hasOwn(root.entries, file.path) && parsed.entries[file.path] === undefined) return "unverifiable";
   }
   const current = parsed.entries[file.path] ?? null;
@@ -471,7 +511,10 @@ async function recoveryProvenance(file: RunRecordFile, requestId: string, allowP
   if (allowPrevious) {
     const previous = file.previousEntry;
     if (previous === null && current === null) return "match";
-    const keys: (keyof ManifestEntry)[] = ["requestId", "ticketId", "pageId", "inputFingerprint", "contentHash", "acceptedAt", "projectKey"];
+    const keys: (keyof ManifestEntry)[] = [
+      "requestId", "ticketId", "componentName", "projectId", "pageId", "componentKey", "inputScope",
+      "inputFingerprint", "contentHash", "ticketProtocol", "acceptedAt",
+    ];
     if (previous !== null && current !== null && keys.every((key) => previous[key] === current[key])) return "match";
   }
   return current === null ? "unverifiable" : "conflict";
@@ -499,7 +542,7 @@ async function rollback(written: RunRecordFile[], writes: OverwriteTarget[], lea
  */
 async function recordAcceptance(updates: Record<string, ManifestEntry | null>, lease: MutationLease, isCurrent = () => true, onlyRequestId?: string): Promise<string | null> {
   const current = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
-  if (!current.ok) {
+  if (!current.ok || isNewerGenerationManifest(current.text)) {
     return "생성 기록을 읽지 못해 이번 변경을 기록하지 않았습니다. Export에서 이 파일들은 확인 불가로 보입니다.";
   }
   if (!isCurrent() || !await lease.renew() || !isCurrent()) return "취소되거나 잠금을 잃어 생성 기록을 갱신하지 않았습니다.";

@@ -1,0 +1,478 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * 생성 파일의 프로젝트 소유권과 입력 버전 (이슈 #281, docs/26 "#281").
+ *
+ * **가상 시간 + 메모리 작업공간 fixture다.** 실제 실행기(`ui/ticketRunner.ts`)·생성 자리
+ * (`ui/generationTarget.ts`)·확정(`ui/ticketOutputAcceptance.ts`)·Export 훑기(`ui/exportGeneratedCode.ts`)를
+ * 그대로 돌리고, 작업공간 HTTP 클라이언트와 요청 잠금만 메모리 구현으로 바꿨다. 외부 에이전트는 테스트가
+ * 요청의 `outputPath`에 파일을 써서 흉내 낸다 — 실제 모델 실행이 아니다.
+ *
+ * 시나리오마다 세 가지를 따로 본다: `generated/`의 실제 바이트(누가 무엇을 덮었나), 수용 기록의 신원
+ * (프로젝트 ID·페이지·컴포넌트), Export 생성 세대 판정(현재/오래됨/부분/확인 불가).
+ */
+
+const workspace = vi.hoisted(() => ({
+  files: new Map<string, string | Uint8Array>(),
+  offline: false,
+  beforeWrite: null as ((path: string) => void) | null,
+  failWrite: null as ((path: string) => string | null) | null,
+  log: [] as string[],
+  /** 다른 탭이 티켓 요청 잠금을 쥐고 있다. */
+  lockBusy: false,
+}));
+
+vi.mock("@/features/editor/ui/workspaceClient", async () =>
+  (await import("./fixtures/memoryWorkspace")).memoryWorkspaceClient(workspace));
+
+vi.mock("@/features/editor/ui/agentRequestLock", () => ({
+  holdRequestLock: async (kind: string, owner: string) => workspace.lockBusy ? "busy" : ({
+    renew: async () => true,
+    release: () => {
+      const path = `runtime/${kind}-request.json`;
+      const request = workspace.files.get(path);
+      if (typeof request === "string" && (JSON.parse(request) as { id: string }).id === owner) {
+        workspace.files.delete(path);
+      }
+    },
+  }),
+}));
+
+import { contentHash } from "@/features/editor/export/contentHash";
+import {
+  chooseOutputDir,
+  isLegacyGeneratedPath,
+  projectOutputDirName,
+  ticketComponentKey,
+  ticketInputFingerprint,
+} from "@/features/editor/export/generationIdentity";
+import {
+  findProjectByFileName,
+  GENERATION_MANIFEST_PATH,
+  GENERATION_MANIFEST_PROTOCOL,
+  parseGenerationManifest,
+  type GenerationManifest,
+} from "@/features/editor/export/generationManifest";
+import type { ProjectSpec, ScreenSpec } from "@/features/editor/schema";
+import { useDocumentStore } from "@/features/editor/store/documentStore";
+import { useEditorStore } from "@/features/editor/store/editorStore";
+import { seedSpec } from "@/features/editor/store/seedSpec";
+import { useTicketStore } from "@/features/editor/store/ticketStore";
+import { compileTickets } from "@/features/editor/ticket/compileTickets";
+import { TICKET_PROTOCOL_VERSION, TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH, type TicketRequest } from "@/features/editor/ticket/ticketProtocol";
+import { scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
+import { forgetUnsavedGenerationProjects, recordProjectRename } from "@/features/editor/ui/generationTarget";
+import { cancelTicketRun, runAllTickets, runOneTicket } from "@/features/editor/ui/ticketRunner";
+
+import { resetMemoryWorkspace, textOf } from "./fixtures/memoryWorkspace";
+
+const tick = () => vi.advanceTimersByTimeAsync(1000);
+
+function compileCurrent(): void {
+  const { activePageId, spec } = useEditorStore.getState();
+  useTicketStore.getState().compile(activePageId, spec.pages[activePageId]);
+}
+
+/** 문서를 연다 — 새 문서 ID와 그 문서의 작업공간 파일 이름. */
+function openDocument(spec: ProjectSpec | typeof seedSpec, fileName: string | null): void {
+  useEditorStore.getState().loadSpec(structuredClone(spec));
+  useDocumentStore.setState({ fileName });
+  compileCurrent();
+}
+
+function currentRequest(): TicketRequest | null {
+  const text = textOf(workspace, TICKET_REQUEST_PATH);
+  return text === undefined ? null : (JSON.parse(text) as TicketRequest);
+}
+
+/** 에이전트 흉내 — 요청의 모든 티켓을 그 요청의 임시 출력에 쓰고 성공 응답을 남긴다. */
+function agentCompletes(request: TicketRequest, mark: string): void {
+  for (const ticket of request.tickets) {
+    const keyword = ticket.kind === "page" ? "export default function" : "export function";
+    workspace.files.set(ticket.outputPath, `${keyword} ${ticket.componentName}() { return null; } // ${mark}\n`);
+  }
+  workspace.files.set(TICKET_RESPONSE_PATH, JSON.stringify({
+    protocol: TICKET_PROTOCOL_VERSION,
+    requestId: request.id,
+    results: request.tickets.map((ticket) => ({ ticketId: ticket.id, status: "done" })),
+  }));
+}
+
+/** 준비된 티켓을 끝까지(모든 웨이브) 전달하고 에이전트가 매번 성공한다. 처리한 요청들을 돌려준다. */
+async function deliver(mark: string, start: () => Promise<void> = runAllTickets): Promise<TicketRequest[]> {
+  const run = start();
+  const handled: TicketRequest[] = [];
+  for (let round = 0; round < 20 && useTicketStore.getState().running; round++) {
+    await tick();
+    const request = currentRequest();
+    if (request === null || handled.some((done) => done.id === request.id)) continue;
+    handled.push(request);
+    agentCompletes(request, mark);
+  }
+  await run;
+  return handled;
+}
+
+function manifest(): GenerationManifest {
+  return parseGenerationManifest(textOf(workspace, GENERATION_MANIFEST_PATH) ?? null);
+}
+
+async function exportScan() {
+  const { activePageId, spec, documentId } = useEditorStore.getState();
+  const scan = await scanGeneratedCode(spec.pages[activePageId], activePageId, {
+    fileName: useDocumentStore.getState().fileName,
+    documentId,
+  });
+  if (scan.kind !== "ready" || scan.freshness === null) throw new Error("Export 훑기 실패");
+  const byTicket = Object.fromEntries(scan.freshness.tickets.map((entry) => [entry.ticketId, entry.freshness]));
+  return { scan, freshness: scan.freshness, byTicket };
+}
+
+/** `generated/`에 일어난 쓰기(백업·기록·임시 출력 제외). */
+function generatedWrites(): string[] {
+  return workspace.log.filter((entry) => entry.includes(" generated/"));
+}
+
+/** 같은 화면 두 장(page1·page2)을 가진 프로젝트 — 컴포넌트 이름이 모두 같다. */
+function twoPageProject(): ProjectSpec {
+  return {
+    version: "0.3",
+    name: "Shop",
+    pages: { page1: structuredClone(seedSpec.screen), page2: structuredClone(seedSpec.screen) },
+    pageOrder: ["page1", "page2"],
+  };
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-10T00:00:00Z"));
+  resetMemoryWorkspace(workspace);
+  workspace.lockBusy = false;
+  forgetUnsavedGenerationProjects();
+  useTicketStore.setState({
+    tickets: [], sourcePageId: null, sourcePage: null, sourceDocumentId: null, isOpen: false,
+    running: false, runError: null, runErrorRetryable: false, wait: null, acceptanceWarning: null,
+    overwriteReview: null, lastRun: null, restoreMessage: null, generation: 0,
+  });
+  openDocument(seedSpec, "shop.json");
+});
+
+afterEach(async () => {
+  cancelTicketRun();
+  await vi.advanceTimersByTimeAsync(2000);
+  vi.useRealTimers();
+});
+
+describe("신원과 자리 — 순수 함수", () => {
+  it("프로젝트 폴더 후보는 파일 이름에서 오고, 대소문자·공백·예약 이름을 피하며, 쓰인 이름과 겹치면 번호를 붙인다", () => {
+    expect(projectOutputDirName("shop.json")).toBe("shop");
+    expect(projectOutputDirName("My Shop.json")).toBe("my-shop");
+    expect(projectOutputDirName("쇼핑몰 v2.json")).toBe("쇼핑몰-v2");
+    expect(projectOutputDirName("pages.json")).toBe("pages-project");
+    expect(projectOutputDirName("...json")).toBe("project");
+    expect(chooseOutputDir("shop", new Set(["shop", "shop-2"]))).toBe("shop-3");
+    expect(isLegacyGeneratedPath("pages/Home.tsx")).toBe(true);
+    expect(isLegacyGeneratedPath("shop/page1/pages/Home.tsx")).toBe(false);
+  });
+
+  it("컴포넌트 신원은 노드 ID라 이름을 바꿔도 같고, 컴포넌트 지문은 자기 하위 트리 밖의 편집에 흔들리지 않는다", () => {
+    const screen = structuredClone(seedSpec.screen) as ScreenSpec;
+    const [header] = compileTickets(screen).filter((ticket) => ticket.id === "Header");
+    const page = compileTickets(screen).find((ticket) => ticket.kind === "page")!;
+
+    const renamed = structuredClone(screen);
+    renamed.nodes.header = { ...renamed.nodes.header, name: "TopBar" };
+    const renamedHeader = compileTickets(renamed).find((ticket) => ticket.instances[0] === "header")!;
+    expect(renamedHeader.componentName).toBe("TopBar");
+    expect(ticketComponentKey(renamedHeader)).toBe(ticketComponentKey(header));
+
+    // 카드 문구만 바꾼다 — Header 하위 트리 밖
+    const cardEdited = structuredClone(screen);
+    cardEdited.nodes.cardALabel = { ...cardEdited.nodes.cardALabel, content: "B" } as typeof cardEdited.nodes.cardALabel;
+    expect(ticketInputFingerprint("page1", cardEdited, header)).toBe(ticketInputFingerprint("page1", screen, header));
+    expect(ticketInputFingerprint("page1", cardEdited, page)).not.toBe(ticketInputFingerprint("page1", screen, page));
+
+    // Header 안의 문구·색을 바꾼다 — A→B
+    const titleEdited = structuredClone(screen);
+    titleEdited.nodes.headerTitle = { ...titleEdited.nodes.headerTitle, content: "B", color: "#FF0000" } as typeof titleEdited.nodes.headerTitle;
+    expect(ticketInputFingerprint("page1", titleEdited, header)).not.toBe(ticketInputFingerprint("page1", screen, header));
+    // 같은 입력이라도 다른 페이지면 다른 지문이다
+    expect(ticketInputFingerprint("page2", screen, header)).not.toBe(ticketInputFingerprint("page1", screen, header));
+  });
+});
+
+describe("같은 이름이 서로 덮지 않는다", () => {
+  it("다른 프로젝트의 같은 이름(Header·Card…)은 프로젝트마다 다른 자리에 확정되고 서로의 바이트·기록을 건드리지 않는다", async () => {
+    await deliver("shop");
+    const shopHeader = "generated/shop/page1/components/Header.tsx";
+    expect(textOf(workspace, shopHeader)).toContain("// shop");
+
+    openDocument(seedSpec, "blog.json");
+    workspace.log.length = 0;
+    const [first] = await deliver("blog");
+    expect(first.generatedRoot).toBe("blog/page1");
+    expect(generatedWrites().every((entry) => entry.includes(" generated/blog/page1/"))).toBe(true);
+    expect(textOf(workspace, shopHeader)).toContain("// shop");
+    expect(textOf(workspace, "generated/blog/page1/components/Header.tsx")).toContain("// blog");
+    expect(useTicketStore.getState().overwriteReview).toBeNull();
+
+    const shop = findProjectByFileName(manifest(), "shop.json")!;
+    const blog = findProjectByFileName(manifest(), "blog.json")!;
+    expect(shop.projectId).not.toBe(blog.projectId);
+    expect(manifest().entries["shop/page1/components/Header.tsx"]?.projectId).toBe(shop.projectId);
+    expect(manifest().entries["blog/page1/components/Header.tsx"]?.projectId).toBe(blog.projectId);
+    expect((await exportScan()).freshness.overall).toBe("current");
+
+    // 원래 프로젝트로 돌아가도 자기 출력이 현재다
+    openDocument(seedSpec, "shop.json");
+    const { freshness, scan } = await exportScan();
+    expect(freshness.overall).toBe("current");
+    expect(scan.location).toEqual({ layout: "project", root: "shop/page1", projectId: shop.projectId });
+    // ZIP·검사는 자리 기준 경로라 배치가 #157 그대로다
+    expect(scan.files.map((file) => file.path).sort()).toEqual(
+      ["components/Card.tsx", "components/Content.tsx", "components/Header.tsx", "pages/DashboardPage.tsx"],
+    );
+  });
+
+  it("같은 프로젝트의 다른 페이지에 같은 컴포넌트 이름이 있어도 페이지마다 다른 자리를 쓴다", async () => {
+    openDocument(twoPageProject(), "shop.json");
+    await deliver("page1");
+    useEditorStore.getState().selectPage("page2");
+    compileCurrent();
+    const [first] = await deliver("page2");
+
+    expect(first.generatedRoot).toBe("shop/page2");
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// page1");
+    expect(textOf(workspace, "generated/shop/page2/components/Header.tsx")).toContain("// page2");
+    const entries = manifest().entries;
+    expect(entries["shop/page1/components/Header.tsx"]?.pageId).toBe("page1");
+    expect(entries["shop/page2/components/Header.tsx"]?.pageId).toBe("page2");
+    expect(entries["shop/page1/components/Header.tsx"]?.projectId).toBe(entries["shop/page2/components/Header.tsx"]?.projectId);
+    expect((await exportScan()).freshness.overall).toBe("current");
+    useEditorStore.getState().selectPage("page1");
+    expect((await exportScan()).freshness.overall).toBe("current");
+  });
+});
+
+describe("이름 변경·복사", () => {
+  it("앱 안 이름 변경은 같은 프로젝트 ID·같은 폴더를 이어받아 Export가 현재이고, 재생성도 묻지 않고 백업 후 바꾼다", async () => {
+    await deliver("A");
+    const before = findProjectByFileName(manifest(), "shop.json")!;
+
+    expect(await recordProjectRename("shop.json", "store.json")).toBeNull();
+    useDocumentStore.setState({ fileName: "store.json" });
+    const after = findProjectByFileName(manifest(), "store.json")!;
+    expect(after.projectId).toBe(before.projectId);
+    expect(after.project.outputDir).toBe("shop");
+    expect(findProjectByFileName(manifest(), "shop.json")).toBeNull();
+    expect((await exportScan()).freshness.overall).toBe("current");
+
+    useEditorStore.getState().setNodeField("headerTitle", "content", "B");
+    compileCurrent();
+    const run = runOneTicket("Header");
+    await tick();
+    agentCompletes(currentRequest()!, "B");
+    await tick();
+    await run;
+    expect(useTicketStore.getState().overwriteReview).toBeNull(); // #282에서는 foreign으로 물었다
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// B");
+    expect(manifest().entries["shop/page1/components/Header.tsx"]?.projectId).toBe(before.projectId);
+    expect(Object.keys(manifest().projects)).toHaveLength(1);
+  });
+
+  it("앱 밖에서 이름을 바꾼(기록에 없는) 파일은 새 프로젝트로 보고, 옛 프로젝트의 출력을 자기 것으로 보이지 않는다", async () => {
+    await deliver("A");
+    useDocumentStore.setState({ fileName: "renamed-outside.json" });
+
+    const { scan, freshness } = await exportScan();
+    expect(scan.location).toEqual({ layout: "project", root: "renamed-outside/page1", projectId: null });
+    expect(freshness.overall).toBe("missing");
+
+    workspace.log.length = 0;
+    await deliver("new");
+    expect(generatedWrites().every((entry) => entry.includes(" generated/renamed-outside/page1/"))).toBe(true);
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A");
+    expect(findProjectByFileName(manifest(), "renamed-outside.json")?.projectId)
+      .not.toBe(findProjectByFileName(manifest(), "shop.json")?.projectId);
+  });
+
+  it("컴포넌트 이름을 바꾸면 같은 신원의 이전 이름 출력을 알아보고, 재생성 뒤에도 옛 파일은 지우지 않고 '이전 출력'으로 알린다", async () => {
+    await deliver("A");
+    useEditorStore.getState().setNodeField("header", "name", "TopBar");
+    compileCurrent();
+
+    const renamed = await exportScan();
+    const topBar = renamed.freshness.tickets.find((entry) => entry.ticketId === "TopBar")!;
+    expect(topBar.freshness).toBe("renamed");
+    expect(topBar.previousPath).toBe("shop/page1/components/Header.tsx");
+    expect(renamed.freshness.overall).not.toBe("current");
+    expect(renamed.freshness.superseded).toEqual([{
+      path: "shop/page1/components/Header.tsx",
+      componentName: "Header",
+      reason: "renamed",
+      currentPath: "shop/page1/components/TopBar.tsx",
+      changed: false,
+    }]);
+
+    await deliver("B");
+    const after = await exportScan();
+    expect(after.byTicket.TopBar).toBe("current");
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A");
+    expect(after.freshness.superseded.map((output) => output.reason)).toEqual(["renamed"]);
+    // 옛 파일도 ZIP에 함께 담기므로 전체는 아직 현재가 아니다(추가 파일도 판정에 넣는다, #282 감사 보강)
+    expect(after.freshness.overall).toBe("partial");
+    const entries = manifest().entries;
+    expect(entries["shop/page1/components/TopBar.tsx"]?.componentKey).toBe(entries["shop/page1/components/Header.tsx"]?.componentKey);
+    // 사람이 옛 파일을 지우면 현재다
+    workspace.files.delete("generated/shop/page1/components/Header.tsx");
+    expect((await exportScan()).freshness.overall).toBe("current");
+  });
+});
+
+describe("입력 최신성", () => {
+  it("A→B 텍스트·색 변경 뒤 이름·파일을 그대로 두면 파일·참조 검사는 4/4·오류 0이어도 현재 성공이 아니다", async () => {
+    await deliver("A");
+    const headerPath = "generated/shop/page1/components/Header.tsx";
+    const bytesA = textOf(workspace, headerPath);
+    expect((await exportScan()).freshness.overall).toBe("current");
+
+    useEditorStore.getState().setNodeField("headerTitle", "content", "B 문구");
+    useEditorStore.getState().setNodeField("headerTitle", "color", "#FF0000");
+    const { scan, freshness, byTicket } = await exportScan();
+
+    expect(textOf(workspace, headerPath)).toBe(bytesA); // 파일은 그대로
+    expect(scan.report.coveredCount).toBe(4);
+    expect(scan.report.errorCount).toBe(0);
+    expect(byTicket.Header).toBe("stale");
+    expect(byTicket.DashboardPage).toBe("stale");
+    // Header 하위 트리 밖의 컴포넌트는 그대로 현재다(컴포넌트 단위 지문)
+    expect(byTicket.Card).toBe("current");
+    expect(freshness.overall).not.toBe("current");
+    expect(freshness.overall).toBe("partial");
+  });
+
+  it("일부 파일만 B로 다시 만들면 그 파일만 현재이고 나머지는 오래됨이라 전체는 부분이다", async () => {
+    await deliver("A");
+    useEditorStore.getState().setNodeField("headerTitle", "content", "B 문구");
+    compileCurrent();
+    await deliver("B", () => runOneTicket("Header"));
+
+    const { byTicket, freshness } = await exportScan();
+    expect(byTicket.Header).toBe("current");
+    expect(byTicket.DashboardPage).toBe("stale");
+    expect(freshness.overall).toBe("partial");
+    const header = manifest().entries["shop/page1/components/Header.tsx"]!;
+    expect(header).toMatchObject({ inputScope: "component", componentKey: "component:header", ticketProtocol: TICKET_PROTOCOL_VERSION });
+
+    // 남은 티켓까지 B로 끝내면 현재다
+    await deliver("B");
+    expect((await exportScan()).freshness.overall).toBe("current");
+  });
+
+  it("재컴파일 뒤 늦게 온 A의 응답·임시 출력은 확정되지 않고, A가 generated/에 직접 쓰면 확인 불가로 드러난다", async () => {
+    await deliver("A0");
+    useEditorStore.getState().setNodeField("headerTitle", "content", "A 문구");
+    compileCurrent();
+    const runA = runOneTicket("Header");
+    await tick();
+    const requestA = currentRequest()!;
+
+    useEditorStore.getState().setNodeField("headerTitle", "content", "B 문구");
+    compileCurrent(); // 취소 없이 "다시 생성" — 진행 중이던 A는 세대가 달라 버려진다
+    await deliver("B", () => runOneTicket("Header"));
+    const headerPath = "generated/shop/page1/components/Header.tsx";
+    const bytesB = textOf(workspace, headerPath);
+    expect(bytesB).toContain("// B");
+
+    agentCompletes(requestA, "late-A"); // 늦은 A — 규약대로 임시 출력과 응답
+    await vi.advanceTimersByTimeAsync(10_000);
+    await runA; // A의 대기는 자기 응답을 보고 끝나지만 세대가 달라 아무것도 받지 않는다
+    expect(textOf(workspace, headerPath)).toBe(bytesB);
+    expect(manifest().entries["shop/page1/components/Header.tsx"]?.contentHash).toBe(contentHash(bytesB!));
+    expect((await exportScan()).byTicket.Header).toBe("current");
+
+    workspace.files.set(headerPath, "export function Header() { return null; } // late-A direct\n"); // 규약 무시
+    const { byTicket, freshness } = await exportScan();
+    expect(byTicket.Header).toBe("changed");
+    expect(freshness.overall).toBe("unverifiable");
+  });
+});
+
+describe("호환과 저장하지 않은 문서", () => {
+  it("이전 배치(generated/pages·components)만 있으면 호환해서 보이되 주인을 모르므로 최신으로 인정하지 않는다", async () => {
+    const legacy = {
+      "pages/DashboardPage.tsx": "export default function DashboardPage() { return null; }\n",
+      "components/Header.tsx": "export function Header() { return null; }\n",
+      "components/Card.tsx": "export function Card() { return null; }\n",
+      "components/Content.tsx": "export function Content() { return null; }\n",
+    };
+    for (const [path, content] of Object.entries(legacy)) workspace.files.set(`generated/${path}`, content);
+    // #284 시절(protocol 1) 기록 — 바이트는 맞지만 주인이 파일 이름뿐이다
+    workspace.files.set(GENERATION_MANIFEST_PATH, JSON.stringify({
+      protocol: 1,
+      entries: Object.fromEntries(Object.entries(legacy).map(([path, content]) => [path, {
+        requestId: "old", ticketId: path.split("/")[1].replace(".tsx", ""), pageId: "page1",
+        inputFingerprint: "sha256:old", contentHash: contentHash(content), acceptedAt: "2026-10-01T00:00:00.000Z",
+        projectKey: "shop.json",
+      }])),
+    }));
+
+    const before = await exportScan();
+    expect(before.scan.location.layout).toBe("legacy");
+    expect(before.scan.report.coveredCount).toBe(4);
+    expect(before.byTicket.Header).toBe("foreign");
+    expect(before.freshness.overall).toBe("unverifiable");
+
+    await deliver("new");
+    expect(textOf(workspace, "generated/components/Header.tsx")).toBe(legacy["components/Header.tsx"]); // 건드리지 않음
+    const after = await exportScan();
+    expect(after.scan.location.layout).toBe("project");
+    expect(after.freshness.overall).toBe("current");
+    expect(manifest().protocol).toBe(GENERATION_MANIFEST_PROTOCOL);
+    expect(manifest().entries["components/Header.tsx"]?.projectId).toBeNull(); // 옛 기록은 주인 모름으로 남는다
+  });
+
+  it("저장하지 않은 문서는 세션 프로젝트 자리에 만들고, 처음 저장한 뒤 전달하면 그 파일 이름을 이어받는다", async () => {
+    openDocument(seedSpec, null);
+    const [first] = await deliver("draft");
+    expect(first.generatedRoot).toBe("unsaved/page1");
+    const sessionId = Object.keys(manifest().projects)[0];
+    expect(manifest().projects[sessionId]?.fileName).toBeNull();
+    expect((await exportScan()).freshness.overall).toBe("current");
+
+    useDocumentStore.setState({ fileName: "draft.json" }); // 같은 문서를 처음 저장
+    expect((await exportScan()).freshness.overall).toBe("current");
+    useEditorStore.getState().setNodeField("headerTitle", "content", "B 문구");
+    compileCurrent();
+    await deliver("B");
+    expect(findProjectByFileName(manifest(), "draft.json")?.projectId).toBe(sessionId);
+    expect(Object.keys(manifest().projects)).toHaveLength(1);
+
+    forgetUnsavedGenerationProjects(); // 새로고침해도 파일 이름으로 찾는다
+    expect((await exportScan()).freshness.overall).toBe("current");
+  });
+
+  it("다른 탭이 티켓 잠금을 쥐고 있으면 생성 자리를 새로 기록하지 않고 전달하지 않는다 — 그 탭의 기록 갱신을 덮지 않는다", async () => {
+    workspace.lockBusy = true;
+    const run = runAllTickets();
+    await tick();
+    await run;
+    expect(workspace.files.has(GENERATION_MANIFEST_PATH)).toBe(false);
+    expect(currentRequest()).toBeNull();
+    expect(useTicketStore.getState().runError).toContain("다른 탭");
+    expect(await recordProjectRename("shop.json", "store.json")).toBeNull(); // 기록에 없는 프로젝트 — 할 일 없음
+  });
+
+  it("생성 기록이 이 앱보다 새 형식이면 덮어쓰지 않고 전달하지 않는다", async () => {
+    const newer = JSON.stringify({ protocol: GENERATION_MANIFEST_PROTOCOL + 1, projects: {}, entries: {} });
+    workspace.files.set(GENERATION_MANIFEST_PATH, newer);
+    const run = runAllTickets();
+    await tick();
+    await run;
+
+    expect(currentRequest()).toBeNull();
+    expect(textOf(workspace, GENERATION_MANIFEST_PATH)).toBe(newer);
+    expect(useTicketStore.getState().runError).toContain("새 형식");
+    expect(useTicketStore.getState().tickets.every((ticket) => ticket.status === "pending")).toBe(true);
+  });
+});

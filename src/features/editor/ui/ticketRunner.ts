@@ -25,10 +25,14 @@
  * **쓰기 전 확인(#282).** 확정 전에 바꿀 파일을 판정해, 사람이 고쳤거나 누구 것인지 모르는 파일이
  * 있으면 `ticketStore.overwriteReview`에 영향 목록·diff를 두고 사용자의 선택을 기다린다. 기다리는
  * 동안 "중지"(`cancelTicketRun`)나 재컴파일이 오면 아무 파일도 쓰지 않고 끝난다.
+ *
+ * **생성 자리(#281).** 요청을 쓰기 전에 이 문서의 주인 프로젝트와 페이지 생성 자리
+ * (`generated/<프로젝트 폴더>/<PageId>/`)를 정한다(`ui/generationTarget.ts`). 요청의 `filePath`와 확정
+ * 경로가 모두 그 아래라 다른 프로젝트·페이지의 같은 이름이 같은 파일을 쓰지 않는다.
  */
 
 import type { OverwriteDecision, OverwriteReview } from "@/features/editor/export/overwriteGuard";
-import { ticketFilePath } from "@/features/editor/export/generatedPaths";
+import { generatedTicketPath } from "@/features/editor/export/generationIdentity";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
@@ -38,6 +42,7 @@ import {
   type TicketCancelToken,
 } from "@/features/editor/ticket/ticketAgentClient";
 import { createAgentRequestWait, type AgentRequestWait } from "@/features/editor/ui/agentRequestWait";
+import { ensureGenerationTarget } from "@/features/editor/ui/generationTarget";
 import {
   commitTicketOutputs,
   planNeedsReview,
@@ -133,9 +138,10 @@ function revertToPending(waveTickets: Ticket[]): void {
  * 초기화해 두므로, 여기서 상태를 더 건드리지 않아도 UI는 깨끗한 상태로 보인다.
  */
 async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
-  const { sourcePageId, sourcePage, generation } = useTicketStore.getState();
-  // 요청 때의 프로젝트(#282). 확정 기록의 소유자가 되고, 기존 파일이 이 프로젝트의 마지막 생성인지 가른다.
-  const projectKey = useDocumentStore.getState().fileName;
+  const { sourcePageId, sourcePage, sourceDocumentId, generation } = useTicketStore.getState();
+  // 요청 때의 프로젝트(#282·#281). 생성 자리와 확정 기록의 주인이 되고, 기존 파일이 이 프로젝트의 마지막
+  // 생성인지 가른다.
+  const fileName = useDocumentStore.getState().fileName;
   if (sourcePageId === null || sourcePage === null || waveTickets.length === 0) return;
   // 첫 웨이브와 자동으로 이어지는 다음 웨이브 모두 여기서 막는다(#271). 응답을 기다리는
   // 동안 편집했다면 이미 받은 결과는 그 요청(이전 스펙)의 사실이라 반영하지만, 바뀐
@@ -172,8 +178,35 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     wait: { phase: "saving", deadline: null },
   }));
 
+  // 요청 파일을 쓰기 전에 생성 자리를 정한다(#281). 기록을 읽거나 쓰지 못하면 요청하지 않는다 — 주인을
+  // 남기지 못한 채 만든 출력은 나중에 누구의 것인지 가를 수 없다. 이 사이의 편집은 응답 대기 중 편집과
+  // 같다(#271) — 요청은 티켓을 만들 때의 입력(sourcePage)을 싣는다.
+  const located = await ensureGenerationTarget({
+    fileName,
+    documentId: sourceDocumentId ?? useEditorStore.getState().documentId,
+    pageId: sourcePageId,
+  });
+  if (useTicketStore.getState().generation !== generation) {
+    wait.settle();
+    return;
+  }
+  if (!located.ok || cancelToken.cancelled) {
+    if (activeWait === wait) activeWait = null;
+    activeCancel = null;
+    wait.settle();
+    revertToPending(waveTickets);
+    useTicketStore.setState({
+      running: false,
+      wait: null,
+      runError: located.ok ? null : located.error,
+      runErrorRetryable: !located.ok,
+    });
+    return;
+  }
+  const generationTarget = located.target;
+
   const outcome = await requestTicketBatch(
-    { id: requestId, pageId: sourcePageId, page: sourcePage, tickets: waveTickets },
+    { id: requestId, pageId: sourcePageId, page: sourcePage, tickets: waveTickets, generatedRoot: generationTarget.root },
     cancelToken,
     wait,
     true,
@@ -237,7 +270,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     requestId,
     pageId: sourcePageId,
     page: sourcePage,
-    projectKey,
+    target: generationTarget,
     waveTickets,
     results: outcome.result.results,
   });
@@ -380,7 +413,9 @@ export async function restoreLastRun(): Promise<void> {
     ...(state.generation === generation ? {
       running: false,
       tickets: state.tickets.map((ticket) =>
-        restored.has(ticketFilePath(ticket)) && ticket.status === "done" ? { ...ticket, status: "pending" } : ticket),
+        restored.has(generatedTicketPath(lastRun.outputRoot, ticket)) && ticket.status === "done"
+          ? { ...ticket, status: "pending" }
+          : ticket),
     } : {}),
     ...(state.lastRun === lastRun ? {
       lastRun: report.error !== null || report.failed.length > 0 ? lastRun : null,

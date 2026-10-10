@@ -6,6 +6,7 @@ import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { projectFileName } from "@/features/workspace/projectName";
 import { WORKSPACE_MARKER_HEADER, WORKSPACE_RENAME_ROUTE, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
+import { recordProjectRename } from "./generationTarget";
 import { readWorkspaceSpecSnapshot, type WriteResult } from "./workspaceClient";
 
 /** Rename disk metadata first. A rejected/uncertain request never changes the in-memory draft. */
@@ -65,6 +66,9 @@ async function renameLocked(fileName: string, name: string, nextFileName: string
       return { ok: false, error: "이름 변경 파일의 저장 버전을 확인할 수 없습니다. 메모리 작업을 보존했습니다. 파일을 다시 열어 확인하세요." };
     }
     publishProjectRename(fileName, renamedDiskSpec, nextFileName, revision);
+    // 생성 출력의 주인(#281): 같은 프로젝트 ID·출력 폴더가 새 이름을 이어받는다. 실패해도 이름 변경은 이미
+    // 끝났다 — 다음 전달에서 새 프로젝트(새 폴더)로 보일 뿐 남의 출력을 덮지 않는다(docs/26 "#281").
+    await recordProjectRename(fileName, nextFileName);
     if (useDocumentStore.getState().fileName === fileName) {
       useSaveConflictStore.getState().adoptRename(() => {
         useEditorStore.getState().renameProject(name);

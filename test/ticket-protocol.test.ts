@@ -61,6 +61,7 @@ describe("buildTicketRequest", () => {
       pageId: "home",
       page,
       tickets: [pageTicket],
+      generatedRoot: "shop/home",
     });
 
     expect(request).toMatchObject({
@@ -77,12 +78,14 @@ describe("buildTicketRequest", () => {
         componentName: "Home",
         kind: "page",
         instances: ["root"],
-        filePath: ticketFilePath(pageTicket),
+        // 확정될 자리는 프로젝트·페이지 생성 자리 아래다(#281).
+        filePath: `shop/home/${ticketFilePath(pageTicket)}`,
         // 에이전트는 확정될 자리가 아니라 요청 전용 임시 출력에 쓴다(#284).
-        outputPath: `staging/wave-1/${ticketFilePath(pageTicket)}`,
+        outputPath: `staging/wave-1/shop/home/${ticketFilePath(pageTicket)}`,
       },
     ]);
     expect(request.outputRoot).toBe("staging/wave-1");
+    expect(request.generatedRoot).toBe("shop/home");
   });
 });
 

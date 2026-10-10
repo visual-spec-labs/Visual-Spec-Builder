@@ -24,6 +24,13 @@
  * 출력만 읽어 `generated/<filePath>`로 확정한다(`ui/ticketOutputAcceptance.ts`). `filePath`는
  * 그대로 "확정될 자리"이자 출력 신원이다. 근거와 경계는 docs/26.
  *
+ * ## 페이지 생성 자리 (#281)
+ *
+ * `filePath`는 `generated/<프로젝트 폴더>/<PageId>/pages|components/<이름>.tsx`다. 앞의 두 단계
+ * (`generatedRoot`)가 프로젝트·페이지마다 달라 다른 프로젝트·페이지의 같은 이름이 같은 파일을 쓰지
+ * 않는다. 그 아래 배치와 상대 import 규칙은 v2 그대로라 규약 버전은 올리지 않는다 — v2 에이전트는
+ * 요청에 실린 `filePath`·`outputPath`를 그대로 따르면 된다.
+ *
  * ## 핸드셰이크
  *
  * ```
@@ -48,7 +55,7 @@
  */
 
 import type { NodeId, PageId, ScreenSpec } from "@/features/editor/schema";
-import { ticketFilePath } from "@/features/editor/export/generatedPaths";
+import { generatedTicketPath } from "@/features/editor/export/generationIdentity";
 import type { Ticket, TicketStatus } from "@/features/editor/ticket/types";
 import { RUNTIME_DIR, STAGING_DIR } from "@/features/workspace/protocol";
 
@@ -74,8 +81,8 @@ export interface TicketRequestItem {
   kind: "page" | "component";
   instances: NodeId[];
   /**
-   * 확정될 자리 — `.visual-spec/generated/` 기준 상대 경로. `export/generatedPaths.ticketFilePath`가
-   * 정한다. 에이전트는 여기에 직접 쓰지 않는다(v2).
+   * 확정될 자리 — `.visual-spec/generated/` 기준 상대 경로. `export/generationIdentity.generatedTicketPath`가
+   * 정한다(`<generatedRoot>/pages|components/<이름>.tsx`, #281). 에이전트는 여기에 직접 쓰지 않는다(v2).
    */
   filePath: string;
   /** 에이전트가 실제로 쓰는 임시 출력 — `.visual-spec/` 기준 상대 경로(#284). */
@@ -106,6 +113,11 @@ export interface TicketRequest {
   responsePath: string;
   /** 이 요청의 임시 출력 폴더(`.visual-spec/` 기준, #284). 각 티켓의 `outputPath`는 이 아래다. */
   outputRoot: string;
+  /**
+   * 이 페이지의 생성 자리(`.visual-spec/generated/` 기준, #281). 각 티켓의 `filePath`는 이 아래이고,
+   * 이전 웨이브가 확정한 의존 컴포넌트도 `generated/<generatedRoot>/components/`에 있다.
+   */
+  generatedRoot: string;
 }
 
 export interface BuildTicketRequestInput {
@@ -113,6 +125,8 @@ export interface BuildTicketRequestInput {
   pageId: PageId;
   page: ScreenSpec;
   tickets: Ticket[];
+  /** 이 페이지의 생성 자리(`ui/generationTarget.ts`가 정한다, #281). */
+  generatedRoot: string;
 }
 
 /** 요청 파일에 쓸 객체를 만든다. 순수 함수 — 파일을 쓰지 않는다. */
@@ -127,11 +141,12 @@ export function buildTicketRequest(input: BuildTicketRequestInput): TicketReques
       componentName: ticket.componentName,
       kind: ticket.kind,
       instances: ticket.instances,
-      filePath: ticketFilePath(ticket),
-      outputPath: ticketOutputPath(input.id, ticketFilePath(ticket)),
+      filePath: generatedTicketPath(input.generatedRoot, ticket),
+      outputPath: ticketOutputPath(input.id, generatedTicketPath(input.generatedRoot, ticket)),
     })),
     responsePath: TICKET_RESPONSE_PATH,
     outputRoot: ticketOutputRoot(input.id),
+    generatedRoot: input.generatedRoot,
   };
 }
 

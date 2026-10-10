@@ -37,7 +37,21 @@ vi.mock("@/features/editor/ui/ticketOutputAcceptance", () => ({
   restoreRegenerationRun: vi.fn(),
 }));
 
+// 생성 자리(#281)는 `generation-ownership.test.ts`가 메모리 작업공간으로 본다. 여기서는 언제나 정해진다.
+vi.mock("@/features/editor/ui/generationTarget", () => ({
+  ensureGenerationTarget: vi.fn(async ({ pageId }: { pageId: string }) => ({
+    ok: true,
+    target: { projectId: "p-seed", outputDir: "seed", root: `seed/${pageId}` },
+  })),
+}));
+
 const mockedRequestTicketBatch = vi.mocked(requestTicketBatch);
+
+/**
+ * 요청이 실제로 나갈 때까지 기다린다. 실행기는 요청 전에 생성 자리를 정하느라(#281) 한 번 비동기로
+ * 넘어간다 — 진행 중 표시는 그 전에 동기로 바뀌지만 `requestTicketBatch` 호출은 그 뒤다.
+ */
+const requestSent = (times = 1) => vi.waitFor(() => expect(mockedRequestTicketBatch).toHaveBeenCalledTimes(times));
 
 function doneResult(ticketId: string): { ticketId: string; status: "done" } {
   return { ticketId, status: "done" };
@@ -182,6 +196,7 @@ describe("ticketRunner (#184)", () => {
       "in-progress",
     );
 
+    await requestSent();
     cancelTicketRun();
     resolveOutcome({ kind: "cancelled" });
     await runPromise;
@@ -222,6 +237,7 @@ describe("ticketRunner (#184)", () => {
 
     const runPromise = runAllTickets();
     expect(useTicketStore.getState().running).toBe(true);
+    await requestSent();
 
     // TicketPanel의 "다시 생성"과 같은 순서: 재컴파일이 running·runError를 먼저 초기화한다.
     compileCurrent();
@@ -285,6 +301,7 @@ describe("낡은 티켓 실행 차단 (#271)", () => {
     );
 
     const runPromise = runAllTickets();
+    await requestSent();
     editHeaderTitle();
     resolveOutcome({
       kind: "response",
@@ -333,6 +350,7 @@ describe("낡은 티켓 실행 차단 (#271)", () => {
     );
 
     const runPromise = runAllTickets();
+    await requestSent();
     useEditorStore.getState().loadSpec(structuredClone(seedSpec));
     resolveOutcome({
       kind: "response",
@@ -353,6 +371,7 @@ describe("낡은 티켓 실행 차단 (#271)", () => {
       () => new Promise((resolve) => { resolveOutcome = resolve; }),
     );
     const runPromise = runAllTickets();
+    await requestSent();
     editHeaderTitle();
     resolveOutcome({
       kind: "response",

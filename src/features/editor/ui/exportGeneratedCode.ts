@@ -28,7 +28,9 @@ import {
   GENERATION_MANIFEST_PATH,
   parseGenerationManifest,
   type FreshnessReport,
+  type GenerationManifest,
 } from "@/features/editor/export/generationManifest";
+import { isLegacyGeneratedPath, pageOutputRoot, relativeToRoot } from "@/features/editor/export/generationIdentity";
 import {
   verifyGenerated,
   type GeneratedFile,
@@ -37,12 +39,61 @@ import {
 import type { Ticket } from "@/features/editor/ticket/types";
 import { createZip } from "@/features/editor/export/zip";
 import { compileTickets } from "@/features/editor/ticket/compileTickets";
+import { findGenerationProject, unregisteredOutputDir } from "@/features/editor/ui/generationTarget";
 import {
   listWorkspaceFiles,
   readWorkspaceBinaryFile,
   readWorkspaceTextFile,
 } from "@/features/editor/ui/workspaceClient";
 import { ASSET_DIR, GENERATED_DIR } from "@/features/workspace/protocol";
+
+/**
+ * Export가 훑은 자리(#281).
+ *
+ * - `project` 이 페이지의 생성 자리 `generated/<프로젝트 폴더>/<PageId>/`. `projectId`가 null이면 아직 GUI가
+ *   전달한 적 없는 프로젝트의 후보 폴더(직접 실행한 to-react 출력)라 어떤 파일도 "현재"가 될 수 없다
+ * - `legacy` #281 전 배치(`generated/pages/…`·`generated/components/…`). 이 페이지의 자리가 비어 있고 이전
+ *   배치 파일만 있을 때 호환을 위해 보인다. 어느 프로젝트의 것인지 모르므로 최신으로 인정하지 않는다
+ * - `unassigned` 이 문서는 아직 생성 자리가 없다(저장하지 않았고 전달한 적도 없다)
+ * - `all` 페이지를 주지 않은 호출(성능 측정 스크립트) — 예전처럼 `generated/` 전체를 본다
+ */
+export type GeneratedLocation =
+  | { layout: "project"; root: string; projectId: string | null }
+  | { layout: "legacy" | "unassigned" | "all"; root: ""; projectId: null };
+
+/** 생성하는 쪽의 신원 — `GenerationOwnerInput`에서 페이지를 뺀 것. */
+export interface GeneratedScanOwner {
+  fileName: string | null;
+  documentId: number;
+}
+
+/**
+ * 이 문서·페이지의 생성 자리를 찾는다(읽기만). 기록된 프로젝트의 자리, 없으면 아직 기록되지 않은 후보
+ * 폴더. 그 자리가 비어 있고 이전 배치 파일이 있으면 이전 배치를 본다.
+ */
+function locateGenerated(
+  manifest: GenerationManifest,
+  paths: string[],
+  owner: GeneratedScanOwner,
+  pageId: PageId,
+): GeneratedLocation {
+  const registered = findGenerationProject(manifest, owner);
+  const outputDir = registered?.outputDir ?? unregisteredOutputDir(manifest, owner.fileName);
+  const project: GeneratedLocation | null = outputDir === null
+    ? null
+    : { layout: "project", root: pageOutputRoot(outputDir, pageId), projectId: registered?.projectId ?? null };
+  if (project !== null && paths.some((path) => relativeToRoot(project.root, path) !== null)) return project;
+  if (paths.some(isLegacyGeneratedPath)) return { layout: "legacy", root: "", projectId: null };
+  return project ?? { layout: "unassigned", root: "", projectId: null };
+}
+
+/** 그 자리에서 Export·검증이 볼 경로인가. */
+function inLocation(location: GeneratedLocation, path: string): boolean {
+  if (location.layout === "all") return true;
+  if (location.layout === "legacy") return isLegacyGeneratedPath(path);
+  if (location.layout === "unassigned") return false;
+  return relativeToRoot(location.root, path) !== null;
+}
 
 /**
  * 훑기 결과.
@@ -63,31 +114,51 @@ export type GeneratedScan =
        * 스크립트 등)에서는 계산하지 않는다.
        */
       freshness: FreshnessReport | null;
+      /** 훑은 자리(#281). `files`의 경로는 이 자리 기준이라 ZIP 배치와 같다. */
+      location: GeneratedLocation;
     };
 
-export async function scanGeneratedCode(page: ScreenSpec, pageId?: PageId): Promise<GeneratedScan> {
+/**
+ * 이 페이지의 생성 자리를 훑는다. `files`·`report`는 자리 기준 경로(`pages/Home.tsx`)라 ZIP과 상대 import
+ * 검사가 #157 그대로다. 생성 세대 판정은 `generated/` 기준 전체 경로와 수용 기록으로 한다.
+ */
+export async function scanGeneratedCode(
+  page: ScreenSpec,
+  pageId?: PageId,
+  owner: GeneratedScanOwner = { fileName: null, documentId: -1 },
+): Promise<GeneratedScan> {
   const paths = await listWorkspaceFiles(GENERATED_DIR, { recursive: true });
   if (paths === null) return { kind: "no-workspace" };
 
-  const files: GeneratedFile[] = [];
-  for (const path of paths) {
+  // 기록이 없거나 읽히지 않으면 빈 기록으로 판정한다 — 파일이 있으면 "확인 불가"로 기운다.
+  const manifest = pageId === undefined
+    ? null
+    : parseGenerationManifest(await readWorkspaceTextFile(GENERATION_MANIFEST_PATH));
+  const location: GeneratedLocation = manifest === null || pageId === undefined
+    ? { layout: "all", root: "", projectId: null }
+    : locateGenerated(manifest, paths, owner, pageId);
+
+  const generatedFiles: GeneratedFile[] = [];
+  for (const path of paths.filter((candidate) => inLocation(location, candidate))) {
     const content = await readWorkspaceTextFile(`${GENERATED_DIR}/${path}`);
     // 목록에는 있는데 읽히지 않는 파일은 건너뛴다 — 그 경우 티켓 커버리지 검사가
     // "없다"로 잡아 주므로 여기서 따로 알릴 것이 없다.
-    if (content !== null) files.push({ path, content });
+    if (content !== null) generatedFiles.push({ path, content });
   }
+  const files = generatedFiles.map((file) => ({ ...file, path: relativeToRoot(location.root, file.path) ?? file.path }));
 
   const assetNames = (await listWorkspaceFiles(ASSET_DIR)) ?? [];
   const tickets = compileTickets(page);
-  // 기록이 없거나 읽히지 않으면 빈 기록으로 판정한다 — 파일이 있으면 "확인 불가"로 기운다.
-  const freshness = pageId === undefined
+  const freshness = manifest === null || pageId === undefined
     ? null
     : classifyOutputFreshness({
         tickets,
-        files,
-        manifest: parseGenerationManifest(await readWorkspaceTextFile(GENERATION_MANIFEST_PATH)),
+        files: generatedFiles,
+        manifest,
+        projectId: location.projectId,
         pageId,
         page,
+        root: location.root,
       });
 
   return {
@@ -95,6 +166,7 @@ export async function scanGeneratedCode(page: ScreenSpec, pageId?: PageId): Prom
     files,
     report: verifyGenerated({ files, tickets, assetNames }),
     freshness,
+    location,
   };
 }
 
