@@ -993,3 +993,158 @@ it("복구 기록의 provenance 필드가 빠지면 예외나 mutation 없이 �
   expect(useTicketStore.getState().lastRun).toEqual(recovery);
   expect(useTicketStore.getState().restoreMessage).toContain("복구 범위 기록");
 });
+
+/** 지금 확인 화면의 항목을 경로로 찾는다. */
+function reviewByPath() {
+  const review = useTicketStore.getState().overwriteReview;
+  if (review === null) throw new Error("쓰기 전 확인이 없습니다");
+  return Object.fromEntries(review.items.map((item) => [item.path, item]));
+}
+
+describe("통합 검증 — 입력 변경·재컴파일·재시도 뒤 수동 수정의 신원과 기준 (#359)", () => {
+  it("응답 전 중지 → 다시 입력 변경·재컴파일 → 재시도(보존) → 또 재시도(백업 후 덮어쓰기·되돌리기)까지 Header의 기준은 1차 기록(L)이다", async () => {
+    const { firstRequestId } = await seedLastGoodAndManualEdit();
+    const firstEntry = manifest().entries[HEADER];
+    expect(firstEntry?.requestId).toBe(firstRequestId);
+    expect(firstEntry?.contentHash).toBe(contentHash(L_HEADER));
+
+    // 응답 전 중지 — 그 요청의 늦은 응답·임시 출력은 아무것도 바꾸지 않는다
+    const stopped = runAllTickets();
+    await tick();
+    const stoppedRequest = currentRequest();
+    cancelTicketRun();
+    await tick();
+    await stopped;
+    respond(stoppedRequest.id, { [HEADER]: "export function Header() { return null; } // 중지된 요청\n" });
+
+    // 입력을 또 바꾸고 재컴파일한 뒤 재시도: Header는 여전히 1차 기록 기준의 수동 수정이다
+    useEditorStore.getState().setNodeField("headerTitle", "content", "두 번째 후속 수정");
+    compileCurrent();
+    const keep = await secondRoundToReview();
+    expect(keep.request.id).not.toBe(stoppedRequest.id);
+    let items = reviewByPath();
+    expect(items[HEADER]?.ownership).toBe("modified");
+    expect(items[HEADER]?.baselineText).toBe(L_HEADER);
+    expect(items[HEADER]?.currentText).toBe(M_HEADER);
+    answerOverwriteReview({ [HEADER]: "keep" });
+    await finish(keep.run);
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(manifest().entries[HEADER]).toEqual(firstEntry);
+    expect(manifest().entries[CARD]?.requestId).toBe(keep.request.id);
+    expect(manifest().entries[CARD]?.contentHash).toBe(contentHash(N_CARD));
+
+    // 또 입력 변경 → 재컴파일 → 재시도: 보존한 Header의 기준은 계속 1차 기록이고, Card는 직전 정상 결과 소유다
+    useEditorStore.getState().setNodeField("headerTitle", "content", "세 번째 후속 수정");
+    compileCurrent();
+    const beforeOverwrite = manifest();
+    const N2_HEADER = "export function Header() { return <header>N2</header>; }\n";
+    const N2_CARD = "export function Card() { return <div>N2</div>; }\n";
+    const again = await secondRoundToReview({ [HEADER]: N2_HEADER, [CARD]: N2_CARD });
+    items = reviewByPath();
+    expect(items[HEADER]?.ownership).toBe("modified");
+    expect(items[HEADER]?.baselineText).toBe(L_HEADER);
+    expect(items[CARD]?.ownership).toBe("owned");
+    answerOverwriteReview({ [HEADER]: "overwrite" });
+    await finish(again.run);
+    expect(textOf(workspace, G_HEADER)).toBe(N2_HEADER);
+    expect(textOf(workspace, G_CARD)).toBe(N2_CARD);
+    const { backupRoot } = useTicketStore.getState().lastRun!;
+    // 백업은 바꾸기 직전 바이트다 — 수동 수정 M과 직전 정상 결과 N
+    expect(contentHash(textOf(workspace, `${backupRoot}/files/${HEADER}`)!)).toBe(contentHash(M_HEADER));
+    expect(contentHash(textOf(workspace, `${backupRoot}/files/${CARD}`)!)).toBe(contentHash(N_CARD));
+
+    await restoreLastRun();
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(textOf(workspace, G_CARD)).toBe(N_CARD);
+    expect(textOf(workspace, EXTRA)).toBe(EXTRA_BYTES);
+    expect(manifest().entries).toEqual(beforeOverwrite.entries);
+    expect(manifest().entries[HEADER]).toEqual(firstEntry);
+  });
+});
+
+describe("통합 검증 — 다른 프로젝트의 출력·백업 (#359)", () => {
+  /** 앱 밖에서 shop.json을 지우고 같은 이름으로 새 프로젝트를 만든 상황 — 새 문서, 다른 내용. */
+  function recreateSameName(): void {
+    useEditorStore.getState().loadSpec(seedSpec);
+    useDocumentStore.setState({ fileName: "shop.json" });
+    useEditorStore.getState().setNodeField("headerTitle", "content", "같은 이름의 새 프로젝트");
+    compileCurrent();
+  }
+
+  // 남은 한계 재현(#357 "동일 파일명 ID 승계"). 원하는 동작을 단언하므로 지금은 실패해야 통과한다(it.fails).
+  // 한계를 고치면 이 테스트가 실패로 바뀌니 그때 it으로 바꾼다. 스펙 파일에 프로젝트 신원이 없어 앱은 앱 밖에서
+  // 지우고 다시 만든 파일을 같은 이름의 옛 파일과 구분할 근거가 없다.
+  it.fails("[남은 한계] 지우고 같은 이름으로 다시 만든 프로젝트는 옛 프로젝트의 ID·생성 자리를 이어받지 않아야 한다 — 지금은 이어받는다", async () => {
+    await seedLastGoodAndManualEdit();
+    const oldProjectId = findProjectByFileName(manifest(), "shop.json")!.projectId;
+    recreateSameName();
+    const { run, request } = await secondRoundToReview();
+    try {
+      expect(request.generatedRoot).not.toBe(ROOT);
+      expect(findProjectByFileName(manifest(), "shop.json")?.projectId).not.toBe(oldProjectId);
+    } finally {
+      answerOverwriteReview("cancel");
+      await finish(run);
+    }
+  });
+
+  it("그 한계 안에서도 옛 프로젝트의 수동 수정은 묻고 보존하며, 바뀐 옛 출력은 원본 바이트 백업과 되돌리기로 돌아온다", async () => {
+    await seedLastGoodAndManualEdit();
+    const before = manifest();
+    recreateSameName();
+    const { run } = await secondRoundToReview();
+    // 사람이 고친 Header는 묻지 않고 바뀌는 대상(owned)이 아니다
+    expect(reviewByPath()[HEADER]?.ownership).not.toBe("owned");
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    answerOverwriteReview({}); // 고르지 않으면 보존이다
+    await finish(run);
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(textOf(workspace, EXTRA)).toBe(EXTRA_BYTES);
+    // 옛 마지막 생성 Card가 바뀌었다면(지금 동작: owned로 묻지 않음) 원본 L 바이트가 백업에 있어야 한다
+    const lastRun = useTicketStore.getState().lastRun;
+    if (textOf(workspace, G_CARD) !== L_CARD) {
+      expect(textOf(workspace, `${lastRun!.backupRoot}/files/${CARD}`)).toBe(L_CARD);
+    }
+    await restoreLastRun();
+    expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(manifest().entries).toEqual(before.entries);
+  });
+
+  it("복사본으로 바꾼 뒤 옛 프로젝트의 되돌리기와 복사본의 적용·되돌리기는 서로의 파일·백업·기록을 건드리지 않는다", async () => {
+    await seedLastGoodAndManualEdit();
+    const first = await secondRoundToReview();
+    answerOverwriteReview({ [HEADER]: "overwrite" });
+    await finish(first.run);
+    const shopRun = useTicketStore.getState().lastRun!;
+    const shopBackups = new Map([...workspace.files].filter(([path]) => path.startsWith(`${shopRun.backupRoot}/`)));
+    expect(shopBackups.size).toBeGreaterThan(0);
+
+    // 다른 이름으로 저장(복사본) → 복사본 생성
+    const COPY_HEADER = "shop-copy/page1/components/Header.tsx";
+    const COPY_CARD = "shop-copy/page1/components/Card.tsx";
+    useDocumentStore.setState({ fileName: "shop-copy.json" });
+    compileCurrent();
+    workspace.log.length = 0;
+    const copy = await secondRoundToReview({ [COPY_HEADER]: N_HEADER, [COPY_CARD]: N_CARD });
+    expect(copy.request.generatedRoot).toBe("shop-copy/page1");
+    expect(useTicketStore.getState().overwriteReview).toBeNull();
+    await finish(copy.run);
+    expect(generatedWrites().every((entry) => entry.includes(" generated/shop-copy/page1/"))).toBe(true);
+    const copyRun = useTicketStore.getState().lastRun!;
+    expect(copyRun.runId).not.toBe(shopRun.runId);
+    const copyId = findProjectByFileName(manifest(), "shop-copy.json")!.projectId;
+    expect(manifest().entries[COPY_HEADER]?.projectId).toBe(copyId);
+
+    // 복사본의 되돌리기는 자기 새 파일만 지운다 — 원본의 파일·기록·백업은 그대로
+    const shopEntries = { [HEADER]: manifest().entries[HEADER], [CARD]: manifest().entries[CARD] };
+    await restoreLastRun();
+    expect(workspace.files.has(`generated/${COPY_HEADER}`)).toBe(false);
+    expect(workspace.files.has(`generated/${COPY_CARD}`)).toBe(false);
+    expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
+    expect(textOf(workspace, G_CARD)).toBe(N_CARD);
+    expect({ [HEADER]: manifest().entries[HEADER], [CARD]: manifest().entries[CARD] }).toEqual(shopEntries);
+    for (const [path, bytes] of shopBackups) expect(workspace.files.get(path)).toEqual(bytes);
+    expect(manifest().entries[HEADER]?.projectId).not.toBe(copyId);
+  });
+});
