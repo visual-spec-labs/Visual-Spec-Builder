@@ -2,7 +2,7 @@ import { usePersistenceStatusStore, type DraftObservation } from "@/features/edi
 import { beginDocumentTransition } from "./documentTransition";
 import { promptConfirm } from "@/features/editor/store/promptDialogStore";
 import { claimDraft } from "./draftOwnership";
-import { isRecoverableUnnamed, listUnnamedDrafts, notifyUnnamedDrafts, removeUnnamedDraft, useUnnamedDraftStore, type DraftResult, type UnnamedDraft } from "@/features/editor/store/unnamedDraftStore";
+import { isRecoverableUnnamed, listUnnamedDrafts, notifyUnnamedDrafts, recordUnnamedDraftSaved, removeUnnamedDraft, useUnnamedDraftStore, type DraftResult, type UnnamedDraft } from "@/features/editor/store/unnamedDraftStore";
 import { migrateV01 } from "@/features/editor/schema";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { seedSpec } from "@/features/editor/store/seedSpec";
@@ -132,6 +132,8 @@ export function startSpecAutosave() {
       try {
         localStorage.setItem(key, raw);
         baseline = raw;
+        // 마지막 보관 시각은 원문 밖 보조 키에 둔다 — 원문 CAS와 baseline은 그대로다(#351).
+        if (isRecoverableUnnamed(document)) recordUnnamedDraftSaved(key);
         saveSpecToStorage(document.spec, document.fileName, document.diskRevision, key);
         notifyUnnamedDrafts();
         preserve();
@@ -372,10 +374,10 @@ export function startSpecAutosave() {
     clearTimeout(timer);
     if (!conflicted) timer = setTimeout(() => { void flush(); }, 500);
   };
-  async function recover(draft: UnnamedDraft, deleting: boolean): Promise<DraftResult> {
+  async function recover(draft: UnnamedDraft, deleting: boolean, requestTransition?: ReturnType<typeof beginDocumentTransition>): Promise<DraftResult> {
     if (recoveryBusy || stopped) return "cancelled";
     recoveryBusy = true;
-    const transition = beginDocumentTransition();
+    const transition = requestTransition ?? beginDocumentTransition();
     let claim: ReturnType<typeof claimDraft> | undefined;
     const expectedGeneration = generation;
     const expectedDocument = serializeStoredDocument(current());
@@ -444,7 +446,7 @@ export function startSpecAutosave() {
       recoveryBusy = false;
     }
   }
-  useUnnamedDraftStore.setState({ resume: draft => recover(draft, false), remove: draft => recover(draft, true) });
+  useUnnamedDraftStore.setState({ resume: draft => recover(draft, false), remove: (draft, transition) => recover(draft, true, transition) });
   useSaveConflictStore.setState({ paused: conflicted, reason: pauseReason, loadLatest, check, pause, save, settle, discardDraft, readDraft, captureDocument, adoptRename });
   if (!recovery && baseline !== null && baseline !== serializeStoredDocument(document)) pause(false, draftOf(baseline, document));
   check();
