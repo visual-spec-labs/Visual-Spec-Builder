@@ -111,10 +111,13 @@ it.runIf(process.platform === "win32")("거부하지 않으면 무엇이 깨지�
       "text/plain; charset=utf-8", WORKSPACE_MISSING_REVISION);
     expect(written.ok, path).toBe(true); // Node는 `\\?\` 경로로 써 버린다
   }
-  /** PowerShell(일반 Win32 경로 해석)에서 그 경로가 보이는가. 탐색기·git·편집기가 쓰는 해석과 같다. */
-  const visibleToWin32 = (relative: string) => execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command",
-    `Test-Path -LiteralPath '${join(root, relative).replaceAll("'", "''")}'`], { encoding: "utf8" }).trim() === "True";
-  expect(visibleToWin32(normal)).toBe(true);
-  expect(visibleToWin32(`${GENERATED_DIR}/shop/con`)).toBe(false);
-  expect(visibleToWin32(deviceFile)).toBe(false);
-});
+  /**
+   * PowerShell(일반 Win32 경로 해석)에서 각 경로가 보이는가. 탐색기·git·편집기가 쓰는 해석과 같다.
+   * PowerShell 기동이 CI 러너에서 1회 수 초 걸리므로 한 번만 띄워 모든 경로를 확인한다.
+   * cmd.exe의 `if exist`는 장치 이름 경로를 장치가 있다며 참으로 답하므로 이 확인을 대신할 수 없다.
+   */
+  const visibleToWin32 = (relatives: string[]) => execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command",
+    relatives.map((relative) => `Test-Path -LiteralPath '${join(root, relative).replaceAll("'", "''")}'`).join("; ")],
+  { encoding: "utf8" }).trim().split(/\r?\n/).map((line) => line.trim() === "True");
+  expect(visibleToWin32([normal, `${GENERATED_DIR}/shop/con`, deviceFile])).toEqual([true, false, false]);
+}, 30_000);
