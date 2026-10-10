@@ -38,6 +38,17 @@ import { loadStoredFileName, loadStoredDiskRevision } from "@/features/editor/st
  * - `ui/openSpecFromFile.ts` — Open이 성공하면 연 파일 이름을 적는다
  * - `ui/exportSpecAsJson.ts` — Save는 여기 적힌 이름에 쓰고, Save as는 새 이름을 적는다
  * - `ui/newSpec.ts` — New는 비운다(아직 어느 파일도 아니다)
+ * - `ui/renameProject.ts` — 앱 안 이름 변경은 `adoptRenamedFileName`으로 새 이름을 적는다
+ *
+ * ## 프로젝트 신원 세대 (#281 리뷰)
+ *
+ * 파일 이름이 바뀌는 일은 둘로 갈린다. 앱 안 이름 변경은 **같은 프로젝트**(같은 생성 기록 ID·출력
+ * 폴더)이고, 다른 이름으로 저장(복사)·다른 파일 열기는 **다른 프로젝트**다. 진행 중인 티켓 요청과 Export
+ * 결과는 요청·검사 때의 프로젝트에 묶여 있어 이 둘을 가려야 한다 — 파일 이름만 비교하면 이름 변경도
+ * 복사로 보이고, 문서 ID(`editorStore.documentId`)는 다른 이름으로 저장해도 그대로라 복사를 놓친다.
+ * 그래서 `projectIdentity`를 둔다: 이름 있는 파일에서 **다른 이름**으로 바뀌면 1 올리고, 앱 안 이름
+ * 변경(`adoptRenamedFileName`)은 올리지 않는다. 저장하지 않은 문서(null)를 처음 저장할 때도 올리지
+ * 않는다 — 그 문서의 생성 자리는 처음 저장한 파일 이름을 이어받는다(`ui/generationTarget.ts`).
  */
 export interface DocumentState {
   /**
@@ -50,13 +61,23 @@ export interface DocumentState {
    */
   fileName: string | null;
   diskRevision: string | null;
+  /** 프로젝트 신원 세대(위 "프로젝트 신원 세대"). 값 자체는 뜻이 없고 같은지만 본다. */
+  projectIdentity: number;
   setFileName: (fileName: string, diskRevision?: string | null) => void;
+  /** 앱 안 이름 변경을 적는다 — 같은 프로젝트라 `projectIdentity`를 올리지 않는다. */
+  adoptRenamedFileName: (fileName: string, diskRevision: string | null) => void;
   clearFileName: () => void;
 }
 
 export const useDocumentStore = create<DocumentState>((set) => ({
   fileName: loadStoredFileName() ?? null,
   diskRevision: loadStoredDiskRevision(),
-  setFileName: (fileName, diskRevision = null) => set({ fileName, diskRevision }),
+  projectIdentity: 0,
+  setFileName: (fileName, diskRevision = null) => set((state) => ({
+    fileName,
+    diskRevision,
+    projectIdentity: state.fileName !== null && state.fileName !== fileName ? state.projectIdentity + 1 : state.projectIdentity,
+  })),
+  adoptRenamedFileName: (fileName, diskRevision) => set({ fileName, diskRevision }),
   clearFileName: () => set({ fileName: null, diskRevision: null }),
 }));

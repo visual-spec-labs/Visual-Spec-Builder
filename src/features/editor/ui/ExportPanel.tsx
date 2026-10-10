@@ -7,9 +7,10 @@ import type {
   TicketFreshness,
 } from "@/features/editor/export/generationManifest";
 import type { VerifyIssue, VerifyReport } from "@/features/editor/export/verifyGenerated";
+import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { useExportStore } from "@/features/editor/store/exportStore";
-import { downloadGeneratedBundle } from "@/features/editor/ui/exportGeneratedCode";
+import { isExportTargetCurrent, useExportStore } from "@/features/editor/store/exportStore";
+import { downloadGeneratedBundle, type GeneratedLocation } from "@/features/editor/ui/exportGeneratedCode";
 import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
 import { openTicketPanel } from "@/features/editor/ui/openTicketPanel";
 
@@ -58,18 +59,34 @@ const FRESHNESS_SUMMARY: Record<OverallFreshness, string> = {
   partial: "부분 — 일부 티켓만 지금 화면으로 생성·확정됐습니다. 나머지 티켓을 전달하세요.",
   stale: "오래됨 — 확정한 뒤 화면이 바뀌었습니다. 티켓을 다시 생성해 전달해야 최신 결과가 됩니다.",
   unverifiable:
-    "확인 불가 — GUI가 수용하지 않은 파일이 있습니다(취소·만료된 요청의 늦은 출력, 직접 수정, 직접 실행한 생성 등). 파일·참조 검사와 별개로 최신 생성 완료로 보지 않습니다.",
+    "확인 불가 — GUI가 수용하지 않았거나 이 프로젝트·페이지의 것인지 확인할 수 없는 파일이 있습니다(취소·만료된 요청의 늦은 출력, 직접 수정, 직접 실행한 생성, 다른 프로젝트의 출력 등). 파일·참조 검사와 별개로 최신 생성 완료로 보지 않습니다.",
 };
 
 const TICKET_FRESHNESS_LABEL: Record<TicketFreshness, string> = {
   current: "현재",
   stale: "오래됨",
+  renamed: "이전 이름 파일만 있음",
   changed: "확정 뒤 바뀜",
+  foreign: "다른 프로젝트·페이지의 기록",
   unrecorded: "기록 없음",
   missing: "없음",
 };
 
-function FreshnessSummary({ freshness }: { freshness: FreshnessReport }) {
+/** 생성 자리 안내(#281). 이전 배치·후보 폴더는 왜 "현재"가 될 수 없는지 함께 말한다. */
+function locationText(location: GeneratedLocation): string {
+  if (location.layout === "legacy") {
+    return "이전 배치(generated/pages·components)의 파일입니다. 어느 프로젝트·페이지의 것인지 기록이 없어 최신 생성으로 보지 않습니다. 구현 티켓을 다시 전달하면 이 페이지의 자리에 새로 만듭니다.";
+  }
+  if (location.layout === "unassigned") {
+    return "이 문서의 생성 자리가 아직 없습니다. 구현 티켓을 처음 전달할 때 정해집니다.";
+  }
+  if (location.layout === "project" && location.projectId === null) {
+    return `생성 위치: generated/${location.root}/ — GUI로 전달한 적이 없는 프로젝트라 수용 기록이 없습니다.`;
+  }
+  return location.layout === "project" ? `생성 위치: generated/${location.root}/` : "";
+}
+
+function FreshnessSummary({ freshness, location }: { freshness: FreshnessReport; location: GeneratedLocation | null }) {
   const settled = freshness.overall === "current" || freshness.overall === "empty";
   return (
     <section aria-label="생성 세대 확인" className="rounded-panel border border-line bg-surface-raised p-2">
@@ -77,6 +94,21 @@ function FreshnessSummary({ freshness }: { freshness: FreshnessReport }) {
       <p className={`mt-1 text-xs ${settled ? "text-content-muted" : "text-error"}`}>
         {FRESHNESS_SUMMARY[freshness.overall]}
       </p>
+      {location !== null && location.layout !== "all" && (
+        <p className="mt-1 break-all text-xs text-content-muted">{locationText(location)}</p>
+      )}
+      {freshness.superseded.length > 0 && (
+        <ul aria-label="더 이상 쓰지 않는 이전 출력" className="mt-1 flex flex-col gap-0.5">
+          {freshness.superseded.map((output) => (
+            <li key={output.path} className="break-all text-xs text-content-muted">
+              {output.reason === "renamed"
+                ? `이름이 바뀐 컴포넌트의 이전 파일: ${output.path} → ${output.currentPath}`
+                : `지금 티켓에 없는 컴포넌트의 파일: ${output.path}`}
+              {output.changed && " (확정 뒤 수정됨 — 새 파일로 옮겨지지 않습니다)"}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -97,7 +129,9 @@ export function ExportPanel() {
   const files = useExportStore((state) => state.files);
   const report = useExportStore((state) => state.report);
   const freshness = useExportStore((state) => state.freshness);
+  const location = useExportStore((state) => state.location);
   const target = useExportStore((state) => state.target);
+  const unavailableMessage = useExportStore((state) => state.unavailableMessage);
   const rescan = useExportStore((state) => state.rescan);
   const close = useExportStore((state) => state.close);
 
@@ -130,7 +164,10 @@ export function ExportPanel() {
         report,
         compileTickets(page),
         allowPartial,
+        () => isExportTargetCurrent(target),
       );
+      // 검사 뒤 문서·프로젝트가 바뀌었으면 내려받지 않았다 — 구독이 결과를 지워 다시 검사 안내가 보인다.
+      if (result.kind === "stale") return;
       setAssetFailure(result.missing.length === 0 ? null : { report, target, names: result.missing });
     } finally {
       setIsDownloading(false);
@@ -156,6 +193,7 @@ export function ExportPanel() {
               pageId: activePageId,
               page: spec.pages[activePageId],
               projectName: spec.name,
+              fileName: useDocumentStore.getState().fileName,
             });
           }}
           disabled={status === "scanning"}
@@ -187,8 +225,14 @@ export function ExportPanel() {
 
         {status === "idle" && (
           <p className="text-sm text-content-muted">
-            스펙이 수정되거나 문서·페이지가 바뀌어 이전 검사 결과를 지웠습니다. 현재 페이지를 다시
-            검사해 주세요.
+            스펙이 수정되거나 문서·페이지가 바뀌었거나 다른 이름으로 저장해 이전 검사 결과를 지웠습니다.
+            현재 페이지를 다시 검사해 주세요.
+          </p>
+        )}
+
+        {status === "unavailable" && (
+          <p role="alert" className="text-sm text-error">
+            검사 불가 — {unavailableMessage}
           </p>
         )}
 
@@ -196,7 +240,7 @@ export function ExportPanel() {
           <div className="flex flex-col gap-3">
             <Summary report={report} />
 
-            {freshness !== null && <FreshnessSummary freshness={freshness} />}
+            {freshness !== null && <FreshnessSummary freshness={freshness} location={location} />}
 
             {report.fileCount === 0 && (
               <p className="rounded-panel border border-line bg-surface-raised p-3 text-xs text-content-muted">

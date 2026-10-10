@@ -1,3 +1,4 @@
+import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useExportStore } from "@/features/editor/store/exportStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
@@ -22,5 +23,6 @@ export function openExportPanel(): void {
     pageId: activePageId,
     page: spec.pages[activePageId],
     projectName: spec.name,
+    fileName: useDocumentStore.getState().fileName,
   });
 }

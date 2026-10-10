@@ -25,9 +25,26 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
    묻지 않는다. Visual Spec Builder는 라이브러리로 설치돼 프로젝트마다 폴더 구조가 다른
    상태로 쓰이므로, 대상 프로젝트에 의존하지 않는 도구 전용 경로에 쓴다.
    ```
-   .visual-spec/generated/pages/<PageName>.tsx
-   .visual-spec/generated/components/<ComponentName>.tsx
+   .visual-spec/generated/<프로젝트 폴더>/<pageId>/pages/<PageName>.tsx
+   .visual-spec/generated/<프로젝트 폴더>/<pageId>/components/<ComponentName>.tsx
    ```
+   `<프로젝트 폴더>/<pageId>`(생성 자리)는 다른 프로젝트·페이지의 같은 이름(`Card`, `Login`)이 같은
+   파일을 덮지 않게 나눈 자리다. 그 아래 배치와 상대 import는 아래 3절 그대로다.
+   - **pageId**: 프로젝트 파일(`pages`가 있는 v0.3)이면 그 페이지의 키, 화면 하나짜리 JSON(`screen`)이면 `page1`.
+     같은 프로젝트에 대소문자만 다른 페이지 키(`Login`·`login`)가 있으면 그 페이지들은 쓰지 말고 멈춘 뒤, 한쪽
+     키를 바꾸라고 안내한다 — Windows·macOS 기본 파일 시스템에서 두 자리가 같은 폴더라 서로의 출력을 덮는다.
+     GUI 전달도 같은 이유로 거부한다. 페이지 키나 컴포넌트 이름(`<이름>.tsx`)이 Windows 장치 이름(`con`·`prn`·
+     `aux`·`nul`·`com0`~`com9`·`lpt0`~`lpt9`, 대소문자·확장자와 상관없이 — 예: `Con.tsx`)이어도 쓰지 말고 멈춘 뒤
+     이름을 바꾸라고 안내한다 — Windows에서 그 폴더·파일은 탐색기·git·편집기가 열거나 지우지 못한다. GUI 전달도 거부한다.
+   - **프로젝트 폴더**: `.visual-spec/runtime/generation-manifest.json`의 `projects`에서 `fileName`이 대상 스펙
+     파일 이름(`.visual-spec/specs/<이름>.json`이면 `<이름>.json`)과 같은 항목의 `outputDir`다. GUI가 처음
+     전달할 때 정하고, 앱 안에서 이름을 바꿔도 그대로다. 항목이 없으면 파일 이름에서 `.json`을 빼고
+     소문자로 바꾼 뒤 글자·숫자·`_`·`-` 밖의 문자를 `-`로 바꾼 값이다(양 끝 `-`는 빼고, 비면 `project`,
+     `pages`·`components`·Windows 장치 이름이면 뒤에 `-project`). 그 값을 `projects`의 **다른** 항목이 `outputDir`로 이미 쓰고
+     있으면 쓰지 말고 멈춘 뒤, GUI에서 구현 티켓을 한 번 전달해 자리를 정하라고 안내한다.
+   - `.visual-spec/specs/` 밖의 JSON(예: `examples/login-screen.json`)도 그 파일 이름으로 같은 규칙을 쓴다.
+   - 이전 배치(`generated/pages/`·`generated/components/` 바로 아래)에는 새로 쓰지 않는다. 그 파일은 어느
+     프로젝트의 것인지 기록이 없어 GUI Export가 최신으로 인정하지 않는다.
 5. **쓸 경로에 이미 파일이 있으면 쓰기 전에 확인한다.** 아래 "이미 생성한 파일을 다시 만들
    때"의 순서를 따른다 — 기존 파일을 먼저 덮어쓰고 diff를 보고하는 것은 보호가 아니다.
 6. **파일을 쓰고 결과를 보고한다.** prettier/eslint 같은 포매터는 사용자가 요청하지 않는
@@ -90,7 +107,9 @@ import { Sidebar } from "../components/Sidebar";
 ```
 
 같은 폴더는 `./`, 상위 폴더로 나갈 땐 `../`만 쓴다. 파일 위치(`pages/` vs `components/`)가
-정해져 있으므로 상대 경로 depth는 항상 예측 가능하다.
+정해져 있으므로 상대 경로 depth는 항상 예측 가능하다. 생성 자리(`<프로젝트 폴더>/<pageId>/`) 밖 —
+다른 프로젝트·페이지의 자리나 이전 배치 — 의 같은 이름 파일은 import하지 않는다. 이름이 같아도 다른
+컴포넌트다.
 
 ## 여러 화면을 한 번에 처리한다
 
@@ -101,13 +120,14 @@ import { Sidebar } from "../components/Sidebar";
   중단하지만, 배치에서는 그 파일의 실패를 기록해두고 나머지 파일은 계속 처리한다. 화면
   9개 중 1개가 틀렸다고 나머지 8개까지 막을 이유가 없다.
 
-(파일 위치는 4번과 같이 항상 고정 경로라, 배치라고 해서 미리 확인할 것이 따로 없다.)
+(파일 위치는 4번 규칙으로 파일마다 정해진다. 배치라고 해서 미리 확인할 것이 따로 없다 — 스펙 파일이
+다르면 생성 자리도 다르다.)
 
 끝나면 파일별 결과를 표로 보고한다.
 
 | 파일 | 컴포넌트 | 결과 |
 |---|---|---|
-| `login-screen.json` | `Login` | 작성됨 — `.visual-spec/generated/pages/Login.tsx` |
+| `login-screen.json` | `Login` | 작성됨 — `.visual-spec/generated/login-screen/page1/pages/Login.tsx` |
 | `dashboard-cards.json` | `DashboardPage` | 검증 실패 — `child-missing` 1건 |
 
 표는 요약일 뿐이다. 실패한 파일은 표 아래에 `issues` 전체를 그대로 붙인다 — 단일 파일
@@ -121,10 +141,10 @@ import { Sidebar } from "../components/Sidebar";
 덮어쓰지 않고 아래 순서를 지킨다(이슈 #282, 사람이 보는 계약은 `docs/26` "#282" 절).
 쓰기 전에 확인하는 것이 핵심이다 — 덮어쓴 뒤 보여 주는 diff는 이미 잃은 코드를 알려 줄 뿐이다.
 
-1. **영향 파일 목록을 정한다.** 이번에 쓸 `.visual-spec/generated/` 아래 경로 전부다. 아직
-   아무 파일도 쓰지 않는다.
+1. **영향 파일 목록을 정한다.** 이번에 쓸 `.visual-spec/generated/<프로젝트 폴더>/<pageId>/` 아래 경로
+   전부다(4번). 아직 아무 파일도 쓰지 않는다.
 2. **경로마다 지금 상태를 판정한다.** 수용 기록 `.visual-spec/runtime/generation-manifest.json`의
-   `entries["<pages|components>/<이름>.tsx"]`와 지금 파일의 SHA-256을 비교한다. 해시는 바이트
+   `entries["<프로젝트 폴더>/<pageId>/<pages|components>/<이름>.tsx"]`와 지금 파일의 SHA-256을 비교한다. 해시는 바이트
    그대로 계산한다(텍스트로 읽어 다시 쓰면 BOM·줄바꿈이 바뀐다):
    ```
    node -e "const c=require('crypto'),f=require('fs');console.log('sha256:'+c.createHash('sha256').update(f.readFileSync(process.argv[1])).digest('hex'))" <파일 경로>
@@ -133,11 +153,12 @@ import { Sidebar } from "../components/Sidebar";
    |---|---|---|
    | 파일 없음 | 새 파일 | 쓴다 |
    | 지금 바이트 = 새 코드 | 같음 | 쓰지 않는다 |
-   | 기록이 있고, 기록의 `projectKey`가 지금 스펙 파일 이름(`.visual-spec/specs/<이름>.json`의 `<이름>.json`)과 같고, `pageId`가 지금 페이지와 같고, 해시가 기록의 `contentHash`와 같다 | 마지막 정상 생성 그대로 | 백업 후 쓴다 |
-   | 그 밖 전부 — 기록 없음, 해시 다름, 다른 프로젝트·페이지의 기록, 스펙 파일 이름을 모름 | 확인 대상 | **묻는다** |
+   | 기록이 있고, 기록의 `projectId`가 4번에서 찾은 `projects` 항목의 키와 같고, `pageId`가 지금 페이지와 같고, 해시가 기록의 `contentHash`와 같다 | 마지막 정상 생성 그대로 | 백업 후 쓴다 |
+   | 그 밖 전부 — 기록 없음, 해시 다름, 다른 프로젝트·페이지의 기록, `projectId`가 없는 옛 기록, `projects`에 이 스펙 파일 항목이 없음 | 확인 대상 | **묻는다** |
 
    기록이 없는 기존 파일을 생성기가 만든 것으로 **추정하지 않는다.** 직접 만든 파일일 수 있다.
-   다른 프로젝트(이름을 바꾸거나 복사한 프로젝트 포함)의 기록도 이 프로젝트의 것으로 보지 않는다.
+   다른 프로젝트(복사한 프로젝트·같은 이름의 다른 프로젝트 포함)의 기록도 이 프로젝트의 것으로 보지 않는다.
+   앱 안에서 이름을 바꾼 프로젝트는 `projects` 항목이 새 이름을 이어받으므로 같은 프로젝트다.
 3. **확인 대상이 하나라도 있으면 쓰기 전에 멈추고 보여 준다.** 영향 파일 목록과 각 판정, 확인
    대상마다 "지금 파일 → 새 코드" diff를 보인다. 기록의 `requestId`로
    `.visual-spec/staging/<requestId>/<경로>`가 남아 있고 그 해시가 기록과 같으면 그것이 마지막
@@ -654,7 +675,7 @@ export default function Login() {
 - `header`는 자식이 `headerTitle` 하나뿐이라 반복이 없다 → `Header.tsx`에 인라인
 
 ```tsx
-// .visual-spec/generated/components/Card.tsx
+// .visual-spec/generated/dashboard-cards/page1/components/Card.tsx
 interface CardProps {
   label: string;
   value: string;
@@ -671,7 +692,7 @@ export function Card({ label, value }: CardProps) {
 ```
 
 ```tsx
-// .visual-spec/generated/components/Content.tsx
+// .visual-spec/generated/dashboard-cards/page1/components/Content.tsx
 import { Card } from "./Card";
 
 export function Content() {
@@ -685,7 +706,7 @@ export function Content() {
 ```
 
 ```tsx
-// .visual-spec/generated/components/Header.tsx
+// .visual-spec/generated/dashboard-cards/page1/components/Header.tsx
 export function Header() {
   return (
     <div className="flex flex-col gap-[0px] pt-[0px] pr-[0px] pb-[0px] pl-[0px] justify-start items-start self-stretch h-auto flex-[0_0_auto] min-h-0">
@@ -696,7 +717,7 @@ export function Header() {
 ```
 
 ```tsx
-// .visual-spec/generated/pages/DashboardPage.tsx
+// .visual-spec/generated/dashboard-cards/page1/pages/DashboardPage.tsx
 import { Header } from "../components/Header";
 import { Content } from "../components/Content";
 

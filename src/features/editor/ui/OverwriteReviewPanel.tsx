@@ -22,7 +22,7 @@ const OWNERSHIP_LABEL: Record<OverwriteOwnership, string> = {
 const OWNERSHIP_HINT: Partial<Record<OverwriteOwnership, string>> = {
   modified: "마지막으로 수용한 생성 결과 뒤에 이 파일이 바뀌었습니다.",
   unowned: "앱이 수용한 기록이 없어 생성기가 만든 파일이라고 단정하지 않습니다(직접 실행·구버전 출력·직접 만든 파일).",
-  foreign: "다른 프로젝트(이름 변경·복사 포함)나 다른 페이지의 기록입니다. 이 프로젝트의 출력으로 보지 않습니다.",
+  foreign: "다른 프로젝트·페이지의 기록이거나 주인을 기록하기 전(#281 전)의 기록입니다. 이 프로젝트의 출력으로 보지 않습니다.",
 };
 
 function DiffView({ before, after }: { before: string; after: string }) {

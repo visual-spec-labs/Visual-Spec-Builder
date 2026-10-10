@@ -144,7 +144,7 @@ jobs:
           mkdir -p "$qa_tools"
           pnpm --dir "$qa_tools" add playwright@1.62.0
           echo "PLAYWRIGHT_MODULE=file://$qa_tools/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
-      - name: 실제 사용자 여정 5개 (fixture 전용, skip 금지)
+      - name: 실제 사용자 여정 6개 (fixture 전용, skip 금지)
         env:
           CHROME_BIN: /usr/bin/chromium
           FORCE_COLOR: '1'

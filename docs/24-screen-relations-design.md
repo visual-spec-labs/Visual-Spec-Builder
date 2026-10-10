@@ -20,7 +20,7 @@ S1 구현에 착수하지 않는다.** 이후에도 스키마 변경은 기능�
 덮어쓴다. 저장 ID와 런타임 DOM ID는 구분한다. 이 방향은 제품 방향 담당 @Yumesa2025의 승인을 받았다.
 
 명시적 action 제거 명령과 **Command v0.2를 우선 추천**하되 팀 계약 승인은 대기한다.
-프로젝트 compile 진입점을 별도로 두고 프로젝트용 Ticket v0.2와 다음 티켓 요청 규약 버전(현재 v2 다음)은
+프로젝트 compile 진입점을 별도로 두고 프로젝트용 Ticket v0.2와 다음 티켓 요청 규약 버전(현재 v3 다음)은
 **#281 신원·경로 합의 뒤** 확정한다. S0 팀 승인 → S0-2 범위 정정 → 별도 스키마 → 프로젝트 검증 → Command → GUI
 순서다. 이 문서의 제품 방향 승인만으로 다음 단계에 착수하거나 병합하지 않는다.
 
@@ -36,8 +36,8 @@ S1 구현에 착수하지 않는다.** 이후에도 스키마 변경은 기능�
 | GUI | [스토어 계약](EDITOR_STORE_CONTRACT.md): 페이지 추가/삭제는 Command 밖, history는 프로젝트 snapshot. GUI 배치는 no-op을 건너뛸 수 있음 | 관계 정리는 기존 배치의 부분 적용을 그대로 사용하지 않고 원자적 결과로 확장 검토 |
 | 홈 | [HomeScreen](../src/features/editor/ui/HomeScreen.tsx)의 cover와 loadSpec의 초기 활성 페이지는 pageOrder[0] | kind 필터만 따로 넣어 홈/열기 결과를 다르게 하지 않음 |
 | page 셸 | [25](25-layout-parity-contract.md)(#280): page 셸 정본. size.width=폭, size.height=첫 화면 최소 높이, root.box는 크기를 정하지 않음. modal/widget(#265)에는 적용하지 않는다고 명시 | §3의 page 해석은 25와 같음. modal/widget의 크기 해석은 #280과 별도 합의 |
-| Ticket | [11](11-ticket-schema-freeze.md), [compileTickets](../src/features/editor/ticket/compileTickets.ts): ScreenSpec 하나, instances는 그 화면의 NodeId[], id와 이름은 호출 내 고유. 전달은 요청 규약 v2(#284, staging 확정, [26](26-agent-request-generation-contract.md)) | 같은 root/Card를 가진 여러 화면을 평탄 병합하면 문맥·이름 충돌. 1차부터 프로젝트 소스 문맥 필요 |
-| 실행 | [ticketProtocol](../src/features/editor/ticket/ticketProtocol.ts): 요청 규약 v2(#284, staging 확정, [26](26-agent-request-generation-contract.md)). pageId+page 한 장, 웨이브 티켓, 에이전트는 `staging/<requestId>/`에 쓰고 GUI가 `generated/`로 확정 | Ticket 스키마와 티켓 요청 규약은 별개 계약. 프로젝트 정보 전달은 다음 티켓 요청 규약 버전(현재 v2 다음)의 설계 대상 |
+| Ticket | [11](11-ticket-schema-freeze.md), [compileTickets](../src/features/editor/ticket/compileTickets.ts): ScreenSpec 하나, instances는 그 화면의 NodeId[], id와 이름은 호출 내 고유. 전달은 요청 규약 v3(#284 staging 확정 + #281 생성 자리, [26](26-agent-request-generation-contract.md)) | 같은 root/Card를 가진 여러 화면을 평탄 병합하면 문맥·이름 충돌. 1차부터 프로젝트 소스 문맥 필요 |
+| 실행 | [ticketProtocol](../src/features/editor/ticket/ticketProtocol.ts): 요청 규약 v3(#284 staging 확정, #281 `generatedRoot`, [26](26-agent-request-generation-contract.md)). pageId+page 한 장, 웨이브 티켓, 에이전트는 `staging/<requestId>/`에 쓰고 GUI가 `generated/`로 확정 | Ticket 스키마와 티켓 요청 규약은 별개 계약. 프로젝트 정보 전달은 다음 티켓 요청 규약 버전(현재 v3 다음)의 설계 대상 |
 | 생성 수용·보호 | [26](26-agent-request-generation-contract.md)(#284·#282): 요청 세대(requestId), staging 확정, 수용 기록 `runtime/generation-manifest.json`, 쓰기 전 수동 변경 보호([overwriteGuard](../src/features/editor/export/overwriteGuard.ts)) | 프로젝트 compile은 이 경계 위에 얹고 대체하지 않음. manifest·복구 `run.json`의 `protocol`은 티켓 요청 규약과 별개 버전 |
 | Export | [verifyGenerated](../src/features/editor/export/verifyGenerated.ts), [generatedPaths](../src/features/editor/export/generatedPaths.ts): 파일/상대 import/자산 검사, 이름 기반 pages/components 경로(**#281 PR #357 병합 시 PageId 자리 기준으로 갱신 필요**). [generationManifest](../src/features/editor/export/generationManifest.ts): current/stale/changed/unrecorded/missing 판정, 입력 지문은 [contentHash](../src/features/editor/export/contentHash.ts)의 페이지 단위 | 컴파일·동작 검증은 아님. 지문이 페이지 하나만 보므로 화면 관계가 생기면 다른 화면의 변경을 오래됨으로 잡지 못함(§6·§7 S1-8/9 게이트). [21](21-app-scope-a11y-design.md)의 컴포넌트 묶음 범위 유지 추천 |
 | 공용 스타일 | [27](27-user-design-system-scope.md)(#290): 공용 컴포넌트는 #265 소관. 색·글자 스타일 스키마(2-1)는 #265 S1-1·S1-2 뒤, 상태 스타일(2-3)은 #265 S1 뒤 | 정본 스키마 동시 수정을 피하려고 §7 S1-1·S1-2를 #290 2-1/2-3의 선행으로 표기 |
@@ -62,7 +62,7 @@ S1 구현에 착수하지 않는다.** 이후에도 스키마 변경은 기능�
 | D8. 위젯 override | 임의 partial / 반응형 NodeOverride 그대로 / 제한된 내용·색 | **직접 원본 노드의 content·color만** 우선. Text/Button에 한정. NodeOverride는 content를 못 받고 layout까지 허용하므로 그대로 재사용하지 않음 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §4, 승인 §8 |
 | D9. 재사용/순환 | 이름으로 합치기 / ref 신원 | **프로젝트 widget PageId로만 공유**, 런타임 DOM ID와 저장 ID 분리. instance 포함 그래프의 자기/간접 순환 금지. navigate/openModal 이동 그래프의 순환은 허용하며 생성 dependsOn에 그대로 옮기지 않음 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §4·§9, 승인 §8 |
 | D10. Command 제거 표현 | 새 unset 명령 / IR action:null / path 한정 null 삭제 | **명시적 제거 명령 + Command v0.2 우선 추천**. 값 쓰기와 삭제를 구분하고 IR에는 action을 생략. null sentinel·범용 Merge Patch는 기본안에서 제외. 정확한 명령·버전은 §5 팀 승인 대기 | 우선 추천 방향 승인 / 명령·버전 미확정 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §5·§9, 승인 §8 |
-| D11. 프로젝트 Ticket | 기존 배열+외부 문맥 / sourcePageId 추가 / 새 프로젝트 계약 | **프로젝트용 Ticket v0.2와 다음 티켓 요청 규약 버전(현재 v2 다음) 별도 설계**를 S0에서 논의하고 S1-8/9 착수 전에 합의. 여기서 버전은 ticketProtocol의 티켓 요청 규약이며 manifest·복구 run.json의 protocol이 아님. 기존 v0.1·요청 규약 v2를 조용히 재해석하지 않음. 신원·경로는 #281과 공동 결정 | 별도 진입점 방향 승인 / #281·버전 합의 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §6·§7, 승인 §8 |
+| D11. 프로젝트 Ticket | 기존 배열+외부 문맥 / sourcePageId 추가 / 새 프로젝트 계약 | **프로젝트용 Ticket v0.2와 다음 티켓 요청 규약 버전(현재 v3 다음) 별도 설계**를 S0에서 논의하고 S1-8/9 착수 전에 합의. 여기서 버전은 ticketProtocol의 티켓 요청 규약이며 manifest·복구 run.json의 protocol이 아님. 기존 v0.1·요청 규약 v3을 조용히 재해석하지 않음. 신원·경로는 #281과 공동 결정 | 별도 진입점 방향 승인 / #281·버전 합의 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §6·§7, 승인 §8 |
 
 제품 방향 승인과 팀의 계약 승인을 같은 칸의 한 상태로 합치지 않는다. 팀 합의가 나면
 정확한 조건·승인자·근거 리뷰/PR 링크를 추가한다. 일반 문서 리뷰와 CI 성공은 팀 설계
@@ -276,18 +276,18 @@ S1-8에서는 action 없음/type/target을 정규화해 구조 비교에 포함�
 1차부터 `instances: NodeId[]`를 해석할 sourcePageId가 필요하다. 추천 v0.2는 티켓별
 sourcePageId와 기존 로컬 instances를 함께 보관하며 Ticket.kind는 page/component로
 유지하는 방향이다. IR의 kind=modal/widget과 Ticket.kind를 같은 enum으로 만들지 않는다.
-프로젝트 웨이브는 다음 티켓 요청 규약 버전(현재 v2 다음)에서 프로젝트 snapshot·소스 문맥·
-전역 티켓/의존 ID를 전달하는 안이다. 현재 요청 규약 v2(#284)는 pageId+page 한 장과
+프로젝트 웨이브는 다음 티켓 요청 규약 버전(현재 v3 다음)에서 프로젝트 snapshot·소스 문맥·
+전역 티켓/의존 ID를 전달하는 안이다. 현재 요청 규약 v3(#284 staging, #281 생성 자리)은 pageId+page 한 장과
 `staging/<requestId>/` 임시 출력을 쓰는 단일 화면 요청이며, 이를 프로젝트 요청으로 재해석하지 않는다.
-현재 GUI는 응답의 `protocol`이 `TICKET_PROTOCOL_VERSION`(2)과 다르면 형식 오류로 거부한다
+현재 GUI는 응답의 `protocol`이 `TICKET_PROTOCOL_VERSION`(3)과 다르면 형식 오류로 거부한다
 ([ticketProtocol](../src/features/editor/ticket/ticketProtocol.ts)). **정확한 필드·버전 번호·
 구형 요청 처리·파일명 규칙은 #281 신원·경로 합의와 팀 승인 뒤 확정**한다. #265의 "Ticket은 2차에서 판단"보다
 앞당기자는 근거가 현재 단일 화면 요청 규약이다. 판단 착수는 S0, 결론 시한은 S1-8/9 착수
 전으로 제안한다. 이는 v0.2나 특정 요청 규약 번호의 채택을 뜻하지 않으며 시점 변경도 §7의 승인 대상이다.
 
 **이름이 같은 세 `protocol`:** 이 문서가 말하는 버전 변경 후보는 티켓 요청 규약
-(`ticketProtocol.ts`의 `TICKET_PROTOCOL_VERSION`, 현재 2)뿐이다. 수용 기록
-`runtime/generation-manifest.json`의 `protocol`(develop 기준 1)과 복구 기록
+(`ticketProtocol.ts`의 `TICKET_PROTOCOL_VERSION`, 현재 3)뿐이다. 수용 기록
+`runtime/generation-manifest.json`의 `protocol`(#281 기준 2)과 복구 기록
 `backups/<runId>/run.json`의 `protocol`(2)은 별개 버전이며([26](26-agent-request-generation-contract.md)),
 manifest 키·안정 ID 변경은 #281 소관이다. 이 문서는 두 기록의 버전을 바꾸자고 제안하지 않는다.
 
@@ -398,7 +398,7 @@ Ticket 버전 숫자와 티켓 요청 규약의 버전 번호·형식은 위 시
 | D8 | 직접 Text/Button 내용·글자색, base→responsive→instance | override 오류·원본 변경·detach 계약 |
 | D9 | 프로젝트 widget ID 공유·포함 cycle 금지·저장/DOM ID 분리 | 런타임 ID 충돌 방어와 #281 신원 경계 |
 | D10 | 명시 제거 명령·Command v0.2 우선 추천 | **팀 승인 대기:** 명령 이름/범위·없는 값 처리·버전·구 소비자 대응 |
-| D11 | 별도 프로젝트 compile, Ticket v0.2와 다음 티켓 요청 규약 버전(현재 v2 다음) 후보 | **#281 신원·경로 합의 후 확정:** 문맥 필드·버전·이름/소유권·구 요청 처리 |
+| D11 | 별도 프로젝트 compile, Ticket v0.2와 다음 티켓 요청 규약 버전(현재 v3 다음) 후보 | **#281 신원·경로 합의 후 확정:** 문맥 필드·버전·이름/소유권·구 요청 처리 |
 
 | 계획 변경 | 방향 | 팀 승인자 | 근거 |
 |---|---|---|---|

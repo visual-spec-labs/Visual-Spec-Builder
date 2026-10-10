@@ -23,6 +23,7 @@ describe("티켓 응답 스킬 예제 계약 (#217)", () => {
       pageId: request.pageId,
       page: request.page,
       tickets: compileTickets(request.page),
+      generatedRoot: request.generatedRoot,
     })).toEqual(request);
   });
 

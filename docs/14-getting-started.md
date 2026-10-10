@@ -67,7 +67,7 @@ CLI는 도구 저장소의 Vite 서버를 띄우고, 실행한 폴더의 `.visua
 |---|---|
 | `.visual-spec/specs/` | 저장한 화면·프로젝트 JSON |
 | `.visual-spec/assets/` | 가져온 이미지 |
-| `.visual-spec/generated/` | 에이전트가 생성한 `pages/`·`components/` 코드 |
+| `.visual-spec/generated/` | 에이전트가 생성한 코드. 프로젝트·페이지마다 `<프로젝트 폴더>/<pageId>/` 아래에 `pages/`·`components/`가 있다(#281) |
 | `.visual-spec/runtime/` | 자연어·티켓 요청과 응답 JSON |
 | `.claude/skills/` | `skills` 명령이 복사한 에이전트 지침 — Claude Code가 읽는 위치 |
 | `.agents/skills/` | 같은 지침 사본 — Codex가 읽는 위치 |
