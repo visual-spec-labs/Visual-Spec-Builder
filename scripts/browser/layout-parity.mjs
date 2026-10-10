@@ -1,6 +1,8 @@
 // 선택적 실측(#280): 실제 GUI 아트보드 DOM과 생성 앱 DOM의 모든 노드 bounds를 같은 조건에서 비교한다.
 // 생성 쪽 기본값은 test/fixtures/layout-parity의 수동 매핑 fixture이며 실제 AI 출력이 아니다.
-// 실제 생성 결과는 둘 중 하나로 잰다. {page}에는 스펙의 page.name(예: Login)이 들어간다.
+// 실제 생성 결과는 둘 중 하나로 잰다. {page}에는 Export와 같은 compileTickets 결과의 page 티켓 componentName
+// (= Export 결과 pages/<이름>.tsx의 <이름>, 예: "checkout page" → CheckoutPage, "로그인" → Screen)이
+// URL 인코딩되어 들어간다. 스펙의 표시 이름(page.name)은 보고서 case와 --case에만 쓴다(PR #358 리뷰).
 //   --generated-dir <Export 결과 폴더>  pages/<page>.tsx를 layout-parity-app 틀(Vite + Tailwind v4)로 띄운다.
 //   --generated-url "http://127.0.0.1:5173/?page={page}"  이미 실행 중인 대상 앱을 그대로 잰다.
 // 내장 예제가 아닌 스펙(실제 AI 생성·GUI 수정 결과)은 --spec <ProjectSpec JSON>으로 넘긴다(#292).
@@ -18,6 +20,7 @@ import { parseArgs } from "node:util";
 import { compareMeasurements, readMeasurement, TOLERANCE_CSS_PX } from "../compare-layout-measurements.mjs";
 import { capture, captureInPage } from "./layout-parity-capture.mjs";
 import { startBrowserWorkspace } from "./harness.mjs";
+import { openProjectCard } from "./project-card.mjs";
 
 const PRETENDARD = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/";
 const FIXTURE_PATH = "/test/fixtures/layout-parity/index.html?page={page}";
@@ -101,7 +104,7 @@ const selected = TARGETS.map((target) => ({ ...target, checks: target.checks.fil
   .filter((target) => target.checks.length > 0);
 if (selected.length === 0) throw new Error(`선택한 사례가 없습니다: ${args.case}`);
 
-/** 지정한 ProjectSpec의 페이지마다 사례 하나를 만든다. 사례 이름은 page.name이다. */
+/** 지정한 ProjectSpec의 페이지마다 사례 하나를 만든다. 사례 이름(표시·--case용)은 page.name이다. */
 function specTargets(spec) {
   if (spec.version !== "0.3" || !Array.isArray(spec.pageOrder)) throw new Error("--spec은 0.3 ProjectSpec(pageOrder·pages)이어야 합니다.");
   return spec.pageOrder.map((page) => {
@@ -199,12 +202,19 @@ try {
       gui.on("pageerror", (error) => errors.push(error.message));
       gui.errors = errors;
       await gui.goto(runner.url);
-      await gui.getByRole("button").filter({ hasText: new RegExp(`${target.spec.name}.*페이지`, "s") }).click();
+      // 프로젝트 이름을 정규식 원문으로 쓰지 않는다. 이름이 정확히 같은 카드가 하나가 아니면 실패한다.
+      await openProjectCard(gui, target.spec.name);
       await gui.getByRole("button", { name: "File", exact: true }).waitFor();
       guiPages.set(target.file, gui);
     }
     if (target.spec.pageOrder.length > 1) await gui.getByRole("button", { name: screen.name, exact: true }).click();
     await gui.locator(`[data-testid="responsive-artboard"] [data-node-id="${screen.root}"]`).waitFor();
+    // 생성 쪽 파일 이름은 표시 이름이 아니라 Export와 같은 page 티켓 componentName이다. GUI의 Vite가 같은 TS 소스를 읽는다.
+    const pageFile = external
+      ? await gui.evaluate(async (screen) =>
+        (await import("/scripts/browser/layout-parity-names.mjs")).pageComponentName(screen), screen)
+      : null;
+    if (external && !pageFile) throw new Error(`${screen.name}: page 티켓이 없어 생성 파일 이름을 정할 수 없습니다.`);
 
     for (const check of target.checks) {
       for (const viewport of check.viewports) {
@@ -260,7 +270,7 @@ try {
         const generatedErrors = [];
         generated.on("pageerror", (error) => generatedErrors.push(error.message));
         await generated.setViewportSize(viewport);
-        await generated.goto(generatedTemplate.replace("{page}", encodeURIComponent(external ? screen.name : check.generated)));
+        await generated.goto(generatedTemplate.replace("{page}", encodeURIComponent(pageFile ?? check.generated)));
         await generated.locator(`[data-node-id="${screen.root}"]`).waitFor();
         const generatedCapture = await capture(generated, {
           scopeSelector: null, shellSelector: ".vsb-page", rootId: screen.root, viewport, documentScroll: true, expectedFontIds,
@@ -290,7 +300,7 @@ try {
           return { x, y, width, height };
         };
         results.push({
-          case: check.generated, page: target.page, viewport, verdict,
+          case: check.generated, page: target.page, ...(pageFile ? { pageFile } : {}), viewport, verdict,
           measurements: { gui: guiCapture, generated: generatedCapture },
           root: { gui: bounds(guiCapture), generated: bounds(generatedCapture) },
           shell: { gui: guiCapture.shell, generated: generatedCapture.shell ?? null },
