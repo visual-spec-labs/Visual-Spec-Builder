@@ -48,20 +48,20 @@ try {
   }
   const drafts = page.getByRole("region", { name: "보관한 초안" });
   await page.getByRole("button", { name: "빈 캔버스에서 시작" }).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   await edit("Fixture draft A");
   const original = await state();
   await waitStatus(page, "파일 미저장 · 브라우저 초안 보관됨");
   await page.getByRole("button", { name: "홈으로" }).click();
   await drafts.getByRole("button", { name: "이어서 열기" }).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(), original);
   await page.getByRole("button", { name: "홈으로" }).click();
   await page.reload();
   await drafts.getByRole("button", { name: "이어서 열기" }).waitFor();
   assert.deepEqual(await state(), original);
   await drafts.getByRole("button", { name: "이어서 열기" }).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(), original);
   await waitStatus(page, "파일 미저장 · 브라우저 초안 보관됨");
   console.log("PASS empty workspace Home/Resume/reload", original.key, createHash("sha256").update(JSON.stringify(original.spec)).digest("hex"));
@@ -101,7 +101,7 @@ try {
   await page.getByRole("alertdialog").getByRole("button", { name: "취소", exact: true }).click();
   assert.deepEqual(await state(), original);
   await drafts.getByRole("button", { name: "이어서 열기" }).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   await page.evaluate(async () => {
     const { saveSpecAs } = await import("/src/features/editor/ui/exportSpecAsJson.ts");
     const { useEditorStore } = await import("/src/features/editor/store/editorStore.ts");
@@ -139,8 +139,8 @@ try {
   assert.deepEqual((await state()).spec, original.spec);
   console.log("PASS Save as cancel/failure retain draft; successful real Save retires UUID and reopens exact content");
   async function newFromEditor() {
-    await page.getByRole("button", {name: "File", exact: true}).click();
-    await page.getByRole("menuitem", {name: "New", exact: true}).click();
+    await page.getByRole("button", {name: "파일", exact: true}).click();
+    await page.getByRole("menuitem", {name: "새로 만들기", exact: true}).click();
   }
   await newFromEditor(); // named, unedited control: no transition warning
   await edit("Fixture draft B");
@@ -154,7 +154,7 @@ try {
   assert.notEqual((await state()).key, second.key);
   await page.getByRole("button", {name: "홈으로"}).click();
   await drafts.getByRole("button", {name: "이어서 열기"}).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(), second);
   await page.getByRole("button", {name: "홈으로"}).click();
   await drafts.getByRole("button", {name: "삭제…"}).click();
@@ -190,7 +190,7 @@ try {
   assert.deepEqual(await state(winner), race);
   await winner.close();
   await loser.getByRole("region", {name: "보관한 초안"}).getByRole("button", {name: "이어서 열기"}).click();
-  await loser.getByRole("button", {name: "File", exact: true}).waitFor();
+  await loser.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(loser), race);
   await edit("After ownership transfer", loser);
   const afterTransfer = await state(loser);
@@ -210,7 +210,7 @@ try {
   tabA.on("dialog", d => d.accept());
   await tabA.goto(url);
   await tabA.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
-  await tabA.getByRole("button", {name: "File", exact: true}).waitFor();
+  await tabA.getByRole("button", {name: "파일", exact: true}).waitFor();
   await edit("Return ownership fixture", tabA);
   const returningDraft = await state(tabA);
   await tabA.goto("about:blank");
@@ -220,7 +220,7 @@ try {
   await row(tabB).getByRole("button", {name: "이어서 열기"}).click();
   const tabBPrompt = tabB.getByRole("alertdialog").getByRole("button", {name: "초안 보관 후 이동", exact: true});
   await tabBPrompt.click();
-  await tabB.getByRole("button", {name: "File", exact: true}).waitFor();
+  await tabB.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(tabB), returningDraft);
   const tryOwnedAction = async () => {
     if (returningAction === "delete") {
@@ -255,7 +255,7 @@ try {
     continue;
   }
   await row(tabA).getByRole("button", {name: "이어서 열기"}).click();
-  await tabA.getByRole("button", {name: "File", exact: true}).waitFor();
+  await tabA.getByRole("button", {name: "파일", exact: true}).waitFor();
   await edit("Reacquired after owner closed", tabA);
   const reacquired = await state(tabA);
   assert.equal(reacquired.key, returningDraft.key);
@@ -292,20 +292,20 @@ try {
   await memory.goto(url);
   await memory.getByText("프로젝트 2개", {exact: true}).waitFor();
   await memory.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
-  await memory.getByRole("button", {name: "File", exact: true}).waitFor();
+  await memory.getByRole("button", {name: "파일", exact: true}).waitFor();
   await edit("Memory-only fixture", memory);
   const memoryState = await state(memory);
   await waitStatus(memory, "파일 미저장 · 현재 탭에만 보관");
   await memory.getByRole("button", {name: "홈으로"}).click();
   await memory.getByText("브라우저 보관 대기 — 이 탭을 닫지 마세요.", {exact: true}).waitFor();
   await memory.getByRole("region", {name: "보관한 초안"}).getByRole("button", {name: "이어서 열기"}).click();
-  await memory.getByRole("button", {name: "File", exact: true}).waitFor();
+  await memory.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(memory), memoryState);
-  await memory.getByRole("button", {name: "File", exact: true}).click();
-  await memory.getByRole("menuitem", {name: "New", exact: true}).click();
+  await memory.getByRole("button", {name: "파일", exact: true}).click();
+  await memory.getByRole("menuitem", {name: "새로 만들기", exact: true}).click();
   await memory.getByRole("alertdialog").getByText("초안을 보관할 수 없습니다", {exact: true}).waitFor();
   await memory.getByRole("alertdialog").getByRole("button", {name: "현재 작업 유지", exact: true}).click();
-  await memory.getByRole("button", {name: "File", exact: true}).waitFor();
+  await memory.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(memory), memoryState);
   await withoutLocks.close();
   console.log("PASS unavailable Web Locks: Home resumes memory-only draft; failed preservation cannot replace it");

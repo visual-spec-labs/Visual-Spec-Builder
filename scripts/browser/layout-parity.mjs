@@ -174,7 +174,7 @@ try {
       gui.errors = errors;
       await gui.goto(runner.url);
       await gui.getByRole("button").filter({ hasText: new RegExp(`${target.spec.name}.*페이지`, "s") }).click();
-      await gui.getByRole("button", { name: "File", exact: true }).waitFor();
+      await gui.getByRole("button", { name: "파일", exact: true }).waitFor();
       guiPages.set(target.file, gui);
     }
     if (target.spec.pageOrder.length > 1) await gui.getByRole("button", { name: screen.name, exact: true }).click();

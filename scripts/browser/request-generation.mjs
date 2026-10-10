@@ -29,7 +29,7 @@ try {
     page.on("pageerror", e => errors.push(e.message));
     await page.goto(runner.url);
     await page.getByRole("button").filter({ hasText: /페이지/s }).first().click();
-    await page.getByRole("button", { name: "File", exact: true }).waitFor();
+    await page.getByRole("button", { name: "파일", exact: true }).waitFor();
     await page.evaluate(async () => {
       window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
       window.tickets = (await import("/src/features/editor/store/ticketStore.ts")).useTicketStore;

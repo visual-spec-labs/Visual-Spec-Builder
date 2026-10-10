@@ -31,7 +31,7 @@ try {
   const status = page.locator('[role="status"][aria-label="저장 상태"]');
   const waitStatus = async text => { await status.filter({hasText: text}).waitFor(); };
   const menu = async name => {
-    await page.getByRole("button", {name:"File", exact:true}).click();
+    await page.getByRole("button", {name:"파일", exact:true}).click();
     await page.getByRole("menuitem", {name, exact:true}).click();
   };
   const edit = async name => page.evaluate(async name => {
@@ -48,7 +48,7 @@ try {
   await edit("직접 편집한 내용");
   await waitStatus("수정됨 · 파일 미저장 · 브라우저 초안 보관됨");
   const before = await state();
-  await menu("Save as");
+  await menu("다른 이름으로 저장");
   await page.getByRole("alertdialog").getByRole("button", {name:"취소", exact:true}).click();
   assert.deepEqual(await state(), before);
   await waitStatus("수정됨 · 파일 미저장");
@@ -56,10 +56,10 @@ try {
     if (route.request().method() === "PUT") await route.fulfill({status:507, contentType:"application/json", body:JSON.stringify({error:"fixture full"})});
     else await route.continue();
   });
-  await menu("Save"); await waitStatus("파일 저장 실패");
+  await menu("저장"); await waitStatus("파일 저장 실패");
   assert.deepEqual(await state(), before);
   await page.unroute("**/file/specs/*");
-  await menu("Save"); await waitStatus("파일 저장됨");
+  await menu("저장"); await waitStatus("파일 저장됨");
   assert.deepEqual(JSON.parse(await readFile(join(specs,"Status A.json"),"utf8")), before);
   console.log("PASS real save, failed save and cancelled Save as match disk bytes");
 
@@ -71,7 +71,7 @@ try {
     if (route.request().method() === "PUT") await gate;
     await route.continue();
   });
-  await menu("Save"); await waitStatus("파일 저장 중");
+  await menu("저장"); await waitStatus("파일 저장 중");
   await edit("대기 중 추가 편집"); release();
   await waitStatus("수정됨 · 파일 미저장");
   const disk = JSON.parse(await readFile(join(specs,"Status A.json"),"utf8"));
@@ -80,7 +80,7 @@ try {
   console.log("PASS pending Save never marks later edits saved");
 
   // 읽기 실패 후 예전 저장 증거를 계속 표시하지 않는다.
-  await menu("Save"); await waitStatus("파일 저장됨");
+  await menu("저장"); await waitStatus("파일 저장됨");
   // UI의 일시적인 미확인 상태와 주입한 실패를 혼동하지 않도록 실제 응답도 확인한다.
   const observedRead = statusCode => page.waitForResponse(response =>
     response.request().method() === "GET" && response.url().includes("/file/specs/") && response.status() === statusCode);
@@ -194,9 +194,9 @@ try {
   await fallback.route("**/__vs/**", route => route.fulfill({status:404, body:"no workspace"}));
   await fallback.goto(url);
   await fallback.getByRole("button").filter({hasText:/DashboardPage.*페이지/s}).click();
-  await fallback.getByRole("button", {name:"File", exact:true}).click();
+  await fallback.getByRole("button", {name:"파일", exact:true}).click();
   const download = fallback.waitForEvent("download");
-  await fallback.getByRole("menuitem", {name:"Save", exact:true}).click();
+  await fallback.getByRole("menuitem", {name:"저장", exact:true}).click();
   await download;
   await fallback.locator('[role="status"][aria-label="저장 상태"]').filter({hasText:"다운로드 요청됨"}).waitFor();
   assert.equal((await fallback.locator('[role="status"][aria-label="저장 상태"]').textContent()).includes("파일 저장됨"), false);
@@ -213,7 +213,7 @@ try {
   quota.on("pageerror", e => errors.push(e.message));
   await quota.goto(url);
   await quota.getByRole("button", {name:"+ 새 프로젝트", exact:true}).click();
-  await quota.getByRole("button", {name:"File", exact:true}).waitFor();
+  await quota.getByRole("button", {name:"파일", exact:true}).waitFor();
   await quota.evaluate(async () => {
     const {useEditorStore:s} = await import("/src/features/editor/store/editorStore.ts");
     s.getState().setPageField(s.getState().activePageId, "name", "보관 실패 fixture");
