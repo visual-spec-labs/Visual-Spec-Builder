@@ -31,6 +31,7 @@
 - `typography`
 - `shadow` · `opacity` · `blur`
 - `ScreenSpec.responsive` — 선택적 breakpoint·노드별 표현 override. 아래 반응형 확장 계약 참고.
+- `ScreenSpec.kind`·`ButtonNode.action` — 화면 종류와 버튼 하나의 화면 간 동작. 아래 "화면 종류·연결 선택 확장" 절(#265 S1-1 제안) 참고.
 
 지원하지 않는다.
 
@@ -72,6 +73,9 @@ import type {
   Breakpoint,
   NodeOverride, // FrameOverride | TextOverride | ImageOverride | ButtonOverride | InputOverride
   PartialBox, PartialLayout, PartialPadding, PartialBorder, PartialRadius, PartialTypography,
+  ScreenKind,    // "page" | "modal" | "widget" — #265 S1-1 제안
+  Action,        // NavigateAction | OpenModalAction | CloseAction — #265 S1-1 제안
+  NavigateAction, OpenModalAction, CloseAction,
 } from "@/features/editor/schema";
 ```
 
@@ -462,3 +466,67 @@ ImageNode 자체를 배경으로 삽입하지 않는다. leaf 노드의 box/선�
 
 **정본·생성 타입·계약 테스트 PR은 기능 PR과 분리하고 병합 전에 팀 스키마 리뷰가 필요하다.**
 스키마 PR의 기존 UI 타입 가드는 후속 기능 PR의 renderer/편집 지원을 대신하지 않는다.
+
+
+## 화면 종류·연결 선택 확장 — #265 S1-1 PR 제안
+
+현재 상태: #265 S1-1 스키마 PR의 제안이다. 설계 근거는 [24](24-screen-relations-design.md)의
+D1~D4·§3·§5 권고안이며, 그 문서(#339)의 팀 승인·병합 전에는 이 절도 병합하지 않는다.
+승인 결과가 권고안과 다르면 이 절과 정본을 함께 고친다. 최소 1명의 팀 승인이 필요하다.
+
+정본에 `ScreenSpec.kind`와 `ButtonNode.action`을 선택 필드로 추가한다. **문서 버전 0.3 유지가
+이 PR의 제안**이다. 기존 0.3 문서는 변환 없이 새 검증기를 통과한다. 확장 전 0.3 validator
+(이전 빌드, 이전 `bin/lib/schema.mjs`, 복사해 둔 옛 스킬 사본)는 `additionalProperties: false`
+때문에 `kind`·`action`이 있는 새 문서를 거부한다. 같은 버전이어도 양방향 호환은 아니다.
+
+- **`kind`** — `"page"` | `"modal"` | `"widget"`. 생략은 `page`이고 기존 문서는 모두 일반 페이지로
+  읽힌다(위 "선택 필드를 추가할 때"의 조건). 세 종류 모두 같은 `pages` 맵과 `pageOrder`에 둔다.
+  kind별 `size` 해석(모달 패널 크기 등)과 첫 화면 규칙은 이 절의 범위가 아니다(24 §3, #280).
+- **`action`** — `button`에만 둔다. frame·text·image·input에 붙이면 무효다. 한 노드에 하나이며
+  생략은 동작 없음이다. `null`·배열은 무효다. 갈래는 `type`으로 가른다.
+  - `{ "type": "navigate", "target": PageId }` — 다른 page로 이동
+  - `{ "type": "openModal", "target": PageId }` — modal 열기
+  - `{ "type": "close" }` — 열린 모달 닫기. target을 받지 않는다
+  - 세 갈래 모두 추가 속성 금지다. 외부 URL·조건·이벤트 이름은 없다.
+- **반응형 override 대상이 아니다.** `ButtonOverride`에 `action`이 없고 화면 단위 override가 없으므로
+  `responsive`로 `kind`·`action`을 바꾸면 무효다.
+- **새 `$defs`.** `ScreenKind`, `Action`(`oneOf`), `NavigateAction`, `OpenModalAction`, `CloseAction`.
+  생성 타입도 같은 이름으로 공개된다. `PageId`는 이제 화면 문서 쪽 타입에서도 참조되므로
+  `scripts/generate-types.mjs`가 중복 선언을 붙이지 않게 했다(공개 이름은 그대로).
+- **스키마가 보지 않는 것 — 참조 무결성은 S1-2.** 형태 오류(잘못된 enum, 비 button의 action,
+  빠진 target, 추가 필드, null)만 기존 `schema` 코드로 보고한다. target 페이지의 존재, openModal
+  대상이 modal인지, navigate 대상이 page인지, page 자체 button의 close, `pageOrder[0]`의 kind는
+  S1-2 프로젝트 검증이 새 IssueCode로 잡는다. 이 PR은 IssueCode를 추가하지 않으므로 S1-2 전에는
+  없는 target도 구조 검증을 통과한다. 화면 문서(`VisualSpec`)는 외부 PageId를 검사하지 않는다.
+- **Command로는 아직 쓰지 못한다(임시 가드, S1-3에서 제거).** 쓰기 경로를 스키마에서 도출하는
+  `command/editablePath.ts`가 updateScreen `kind`, updateNode `action`과 그 하위 경로를 막는다.
+  G1 `validateCommand`·`validateTransaction`은 action이 붙은 createNode를 거부한다.
+  `command.schema.json`과 Command 버전은 바꾸지 않았다. **스키마로는 허용, Command로는 아직
+  차단**이다. Command를 거치지 않는 Open·자동 저장 복원·작업공간 목록과 앱 안 복제·붙여넣기는
+  스키마대로 `kind`·`action`을 보존한다. 페이지 삭제·다른 문서 붙여넣기의 정합성은 S1-4다.
+
+기존 `examples/` 11개는 수정 없이 통과한다. 계약 fixture는 `test/fixtures/screen-relations-project.json`
+이고 테스트는 `test/screen-relations-schema.test.ts`·`test/screen-relations-command-guard.test.ts`다.
+`examples/`의 연결 예제는 S1-11에서 추가한다. GUI·캔버스·티켓·코드 생성·자연어 지원은 후속 S1 작업이다.
+
+### S1-1 생성·Export 임시 차단
+
+선택 필드를 읽을 수 있다는 사실이 관계 동작을 생성할 수 있다는 뜻은 아니다.
+`ticket/screenRelationsGuard.ts`는 현재 처리할 **화면 한 장**이 `kind: modal/widget`이거나
+버튼 `action`을 하나라도 가지면 `unsupported`로 판정한다. 숨김 버튼·없는 target도 포함하며
+참조의 유효성은 판정하지 않는다. kind 생략/명시적 `page`이며 action이 없는 화면은 기존 경로다.
+다른 페이지를 조회하거나 프로젝트 전체를 생성·검증하지 않는다.
+
+- 요청 전송 전에 차단해 작업공간 요청 파일을 쓰지 않는다. 티켓은 pending이며 이유를 표시한다.
+- 이전 요청/직접 호출의 가짜 `done`도 출력 수용 시 failed로 바꾼다. staging·generated·수용 기록은 보존한다.
+- Export는 기존 파일/수용 기록이 있어도 `unsupported`로 표시하고 current/성공 요약·ZIP을 제공하지 않는다.
+  다운로드 함수도 같은 화면 가드를 적용하므로 부분 Export로 우회할 수 없다.
+- Open·저장·자동 복원·복제·붙여넣기의 kind/action 값을 제거하지 않는다. 티켓 계획의 구조 비교도 바꾸지 않는다.
+
+이 차단은 새 관계 기능이나 새 Command/Ticket 규약이 아니다. 스키마 확장으로 아직 지원하지 않는
+생성 경로가 성공으로 보이는 것을 막는 S1-1의 최소 방어이며, 팀 스키마 리뷰 대상에 포함한다.
+**해제 조건은 S1-2 참조 검증과 S1-8/9 생성·수용·Export 지원**(프로젝트 문맥,
+action을 반영한 반복 비교, 도달 가능한 화면의 전이적 입력 지문 및 #281 공동 결정)이다.
+Command 가드의 S1-3 해제와 별개이며, S1-2만 완료해도 이 가드를 해제하지 않는다.
+회귀는 `test/ticket-output-acceptance.test.ts`·`test/export-generated-code.test.ts`와
+`scripts/browser/screen-relations-guard.mjs`의 수동 응답 fixture로 확인한다. 실제 모델 검증은 아니다.

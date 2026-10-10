@@ -228,8 +228,10 @@ woff2 25/30개, 폰트 실패 0, 텍스트는 양쪽 모두 `Pretendard`·`Prete
 
 ### 최신 develop 통합 시 검증 범위
 
-#357(protocol v3·생성 소유권)과 #361(범위 정정)을 포함한 develop을 #358에 일반 merge한다.
+#357(protocol v3·생성 소유권)·#361(범위 정정)·#355(화면 관계 선택 필드와 임시 차단)를 포함한 develop을 #358에 일반 merge한다.
 필수 묶음은 기존 8개와 `generation-ownership.mjs`를 합친 9개다. 응답 fixture는 요청의 protocol과
 outputPath/responsePath를 따르며 원자적 응답 쓰기를 유지한다. fake CLI도 v3 요청에는 v3 응답을 쓴다.
+CI는 이 묶음 뒤에 `screen-relations-guard.mjs`를 별도 실행한다. fake CLI의 개별 사례는 브라우저 프로필을
+분리하되 작업공간·요청 잠금은 유지한다. 세션 복원은 필수 문서 전환·초안 복구 여정에서 검사한다.
 기존 실제 모델·독립 앱·0px 기록은 그때 기록한 과거 HEAD의 결과이며, 이 통합 HEAD에서 실제 모델을
 다시 실행했다는 근거가 아니다. 최신 통합 검증의 실행 SHA·CI·실패/재시도 이력은 PR #358에 별도 기록한다.

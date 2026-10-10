@@ -91,6 +91,7 @@ docs: 기여 규칙과 라이선스 파일 추가
   이름 없는 초안 복구·저장 상태·낡은 티켓·다중 탭 요청·수동 변경 보호·생성 출력 소유권의 Node 여정 9개를 순차 실행한다. 각 여정은 120초 제한이며
   실패/timeout은 browser 잡과 필수 build 체크를 실패시킨다. 제품 의존성·권한·secrets는 늘리지 않는다.
   이는 fixture의 DOM/레이아웃과 지정 사용자 경로 검사이며 실제 AI 실행이나 #292 전체 완료 검증은 아니다.
+  이어서 `screen-relations-guard.mjs`를 별도 120초 제한으로 실행해 화면 관계의 생성·Export 임시 차단을 검사한다(#355).
 - Windows 잡은 새 hosted runner에서 checkout **전에** `core.autocrlf=true`를 설정한다.
   checkout 뒤 설정값과 CRLF/mixed 파일 부재를 검사해 #262의 `.gitattributes` 회귀를 확인한다.
   기존 Windows 작업 트리의 줄바꿈 문제와 안전한 새 checkout 방법은

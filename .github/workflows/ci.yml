@@ -150,6 +150,11 @@ jobs:
           FORCE_COLOR: '1'
         run: bash scripts/browser/run-journeys.sh
 
+      - name: 화면 관계 생성·Export 임시 차단 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/screen-relations-guard.mjs
+
   # 브랜치 보호의 기존 required check 이름을 유지한다.
   # Linux·Windows·브라우저 잡의 실패/취소/skip도 build 실패로 전파한다.
   build:

@@ -62,6 +62,14 @@ import {
   runOneTicket,
 } from "@/features/editor/ui/ticketRunner";
 
+import type { Action, ScreenSpec } from "@/features/editor/schema";
+import { validateVisualSpec } from "@/features/editor/schema";
+import { parseSpecJson } from "@/features/editor/store/loadSpec";
+import { compileTickets } from "@/features/editor/ticket/compileTickets";
+import { ticketFilePath } from "@/features/editor/export/generatedPaths";
+import { contentHash, inputFingerprint } from "@/features/editor/export/contentHash";
+import { planTicketOutputs, commitTicketOutputs } from "@/features/editor/ui/ticketOutputAcceptance";
+
 /**
  * 이 시나리오들은 저장하지 않은 문서(파일 이름 없음)로 돈다. 처음 전달할 때 GUI가 이 문서에 세션 프로젝트를
  * 정하고 그 자리(`generated/unsaved/page1/`)에 확정한다(#281). 경로는 `generated/` 기준이다.
@@ -467,3 +475,101 @@ describe("승격 중 재진입 회귀", () => {
     expect(status("Content")).toBe("pending");
   });
 });
+
+// S1-1 stores relation shapes, but generation is not supported until S1-2/S1-8/9.
+
+
+function relationPage(action?: Action): ScreenSpec {
+  const page = structuredClone(seedSpec.screen);
+  const title = page.nodes.headerTitle;
+  if (title.type !== "text") throw new Error("fixture");
+  page.nodes.headerTitle = { ...title, type: "button", ...(action ? { action } : {}) };
+  return page;
+}
+
+const unsupportedPages: [string, ScreenSpec][] = [
+  ["navigate dangling target", relationPage({ type: "navigate", target: "missing" })],
+  ["openModal", relationPage({ type: "openModal", target: "missing" })],
+  ["close on page", relationPage({ type: "close" })],
+  ["modal without actions", { ...relationPage(), kind: "modal" }],
+  ["widget without actions", { ...relationPage(), kind: "widget" }],
+  ["hidden action", (() => {
+    const page = relationPage({ type: "navigate", target: "missing" });
+    page.nodes.headerTitle.visible = false;
+    return page;
+  })()],
+];
+
+describe("S1-1 relation generation boundary", () => {
+  it.each(unsupportedPages)("preserves raw import but refuses transmission: %s", async (_name, page) => {
+    const spec = { version: "0.3" as const, screen: page };
+    expect(validateVisualSpec(spec).valid).toBe(true);
+    expect(parseSpecJson(JSON.stringify(spec))).toEqual({ ok: true, spec });
+    useEditorStore.getState().loadSpec(spec);
+    compileCurrent();
+    const run = runAllTickets();
+    await tick();
+    expect(workspace.files.has(TICKET_REQUEST_PATH)).toBe(false);
+    await run;
+    expect(useTicketStore.getState().runError).toContain("아직 지원하지 않습니다");
+    expect(useTicketStore.getState().runErrorRetryable).toBe(false);
+    expect(useTicketStore.getState().tickets.every(ticket => ticket.status === "pending")).toBe(true);
+    expect(useEditorStore.getState().spec.pages[useEditorStore.getState().activePageId]).toEqual(page);
+  });
+
+  it.each(unsupportedPages)("rejects inert done outputs, including old requests: %s", async (_name, page) => {
+    const tickets = compileTickets(page);
+    for (const ticket of tickets) agentWrites("old", `relations/home/${ticketFilePath(ticket)}`, `export function ${ticket.componentName}() { return null; }`);
+    const before = new Map(workspace.files);
+    const plan = await planTicketOutputs({ requestId: "old", pageId: "home", page,
+      target: { projectId: "relations", outputDir: "relations", root: "relations/home" }, waveTickets: tickets,
+      results: tickets.map(ticket => doneResultForRelation(ticket.id)) });
+    workspace.owner = "old";
+    const accepted = await commitTicketOutputs(plan, {}, { renew: async () => workspace.owner === "old" });
+    expect(accepted.results.every(result => result.status === "failed" && result.message?.includes("아직 지원하지 않습니다"))).toBe(true);
+    expect(plan.targets).toEqual([]);
+    expect(workspace.files).toEqual(before);
+  });
+
+  it.each(unsupportedPages)("never reports old inert files as ready/current: %s", async (_name, page) => {
+    const tickets = compileTickets(page);
+    const entries = Object.fromEntries(tickets.map(ticket => {
+      const path = ticketFilePath(ticket);
+      const content = `export function ${ticket.componentName}() { return null; }`;
+      workspace.files.set(`generated/${path}`, content);
+      return [path, { requestId: "old", pageId: "home", ticketId: ticket.id,
+        inputFingerprint: inputFingerprint("home", page), contentHash: contentHash(content),
+        acceptedAt: "2026-10-10T00:00:00Z" }];
+    }));
+    workspace.files.set(GENERATION_MANIFEST_PATH, JSON.stringify({ protocol: 1, entries }));
+    const scan = await scanGeneratedCode(page, "home");
+    expect(scan).toMatchObject({ kind: "unsupported" });
+    expect(await scanGeneratedCode(page)).toMatchObject({ kind: "unsupported" });
+  });
+
+  it.each([undefined, "page"] as const)("ordinary page (%s) still completes real runner → acceptance → Export", async kind => {
+    const page = relationPage();
+    if (kind) page.kind = kind;
+    useEditorStore.getState().loadSpec({ version: "0.3", screen: page });
+    compileCurrent();
+    const run = runAllTickets();
+    await tick();
+    for (let wave = 0; useTicketStore.getState().running && wave < 10; wave++) {
+      const request = currentRequest();
+      expect(request.protocol).toBe(3);
+      expect(request.generatedRoot).toBe(ROOT);
+      expect(request.tickets.every(ticket => ticket.filePath.startsWith(`${ROOT}/`))).toBe(true);
+      for (const ticket of request.tickets) agentWrites(request.id, ticket.filePath, `export function ${ticket.componentName}() { return null; }`);
+      agentResponds(request.id, request.tickets.map(ticket => doneResultForRelation(ticket.id)));
+      await tick();
+    }
+    await run;
+    expect(useTicketStore.getState().tickets.every(ticket => ticket.status === "done")).toBe(true);
+    const { scan, freshness } = await exportScan();
+    expect(scan.report.errorCount).toBe(0);
+    expect(scan.report.coveredCount).toBe(scan.report.coverage.length);
+    expect(freshness.overall).toBe("current");
+  });
+});
+
+function doneResultForRelation(ticketId: string) { return { ticketId, status: "done" as const }; }

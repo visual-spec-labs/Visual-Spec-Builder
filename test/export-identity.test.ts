@@ -152,7 +152,7 @@ describe("Save As 뒤 Export 결과와 다운로드", () => {
     expect(files.some((file) => file.content.includes("A-bytes"))).toBe(true);
 
     // 대조: 바뀐 것이 없으면 내려받는다(ZIP은 압축 없음이라 바이트가 그대로 보인다)
-    const control = await downloadGeneratedBundle("Shop", files, report!, compileTickets(target!.page), false, () => isExportTargetCurrent(target!));
+    const control = await downloadGeneratedBundle("Shop", files, report!, compileTickets(target!.page), target!.page, false, () => isExportTargetCurrent(target!));
     expect(control.kind).toBe("downloaded");
     expect(await zipText(created[0])).toContain("A-bytes");
     created.length = 0;
@@ -161,7 +161,7 @@ describe("Save As 뒤 Export 결과와 다운로드", () => {
     expect(useExportStore.getState()).toMatchObject({ status: "idle", files: [], target: null });
 
     // 화면에 남아 있던 버튼·이미 시작한 클릭이 옛 결과로 내려받으려 해도 막는다
-    const stale = await downloadGeneratedBundle("Shop", files, report!, compileTickets(target!.page), false, () => isExportTargetCurrent(target!));
+    const stale = await downloadGeneratedBundle("Shop", files, report!, compileTickets(target!.page), target!.page, false, () => isExportTargetCurrent(target!));
     expect(stale).toEqual({ kind: "stale" });
     expect(created).toEqual([]);
 
@@ -184,7 +184,7 @@ describe("Save As 뒤 Export 결과와 다운로드", () => {
       if (path.endsWith("assets/hero.png")) useDocumentStore.getState().setFileName("shop-copy.json", null);
       return null;
     };
-    const result = await downloadGeneratedBundle("Shop", files, report!, compileTickets(target!.page), false, () => isExportTargetCurrent(target!));
+    const result = await downloadGeneratedBundle("Shop", files, report!, compileTickets(target!.page), target!.page, false, () => isExportTargetCurrent(target!));
     expect(result).toEqual({ kind: "stale" });
     expect(created).toEqual([]);
   });
@@ -208,7 +208,7 @@ async function scanZip(fileName: string): Promise<string> {
   vi.spyOn(URL, "createObjectURL").mockImplementation((value) => { blob = value as Blob; return "blob:audit"; });
   vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
   vi.stubGlobal("document", { createElement: () => ({ click: () => {} }) });
-  const result = await downloadGeneratedBundle("audit", scan.files, scan.report, compileTickets(seedSpec.screen));
+  const result = await downloadGeneratedBundle("audit", scan.files, scan.report, compileTickets(seedSpec.screen), seedSpec.screen);
   expect(result.kind).toBe("downloaded");
   expect(blob).toBeDefined();
   return blob!.text();

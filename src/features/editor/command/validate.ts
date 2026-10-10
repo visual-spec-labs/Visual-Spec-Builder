@@ -104,12 +104,42 @@ function runValidator(
   }
 }
 
+/**
+ * #265 S1-1 임시 가드 — **S1-3에서 제거한다.**
+ *
+ * createNode의 node는 정본 Node를 그대로 $ref하므로, 스키마에 `ButtonNode.action`이
+ * 들어오면 action이 붙은 button을 받는다. editablePath의 updateNode·updateScreen 가드와
+ * 같은 이유로, 바깥에서 들어오는 Command(자연어·에이전트 편집의 G1)가 참조 무결성
+ * 검증(S1-2)과 Command 계약(S1-3) 전에 action을 들여오지 못하게 막는다.
+ * GUI 복제(buildDuplicateCommands)처럼 앱 안에서 만든 createNode는 이 입구를 거치지
+ * 않으므로, 불러온 문서에 이미 있는 action은 그대로 보존된다.
+ */
+function relationFieldIssues(commands: readonly unknown[], basePath: string): CommandValidationIssue[] {
+  return commands.flatMap((command, index) => {
+    const path = basePath === "" ? "" : `${basePath}/${index}`;
+    const { type, node } = command as { type?: unknown; node?: unknown };
+    if (type !== "createNode" || typeof node !== "object" || node === null) return [];
+    if (!Object.prototype.hasOwnProperty.call(node, "action")) return [];
+    return [{
+      code: "schema" as const,
+      path: `${path}/node/action`,
+      message: "action은 아직 Command로 만들 수 없습니다(#265 S1-3 전).",
+    }];
+  });
+}
+
 /** Command 하나의 JSON 형태를 검사한다. 절대 예외를 던지지 않는다. */
 export function validateCommand(input: unknown): CommandValidationResult {
-  return runValidator(input, getCommandValidator());
+  const result = runValidator(input, getCommandValidator());
+  if (!result.valid) return result;
+  const issues = relationFieldIssues([input], "");
+  return issues.length === 0 ? result : { valid: false, issues };
 }
 
 /** 자연어 출력의 Transaction 형태와 명령 수(1–100)를 검사한다. */
 export function validateTransaction(input: unknown): CommandValidationResult {
-  return runValidator(input, getTransactionValidator());
+  const result = runValidator(input, getTransactionValidator());
+  if (!result.valid) return result;
+  const issues = relationFieldIssues((input as { commands: unknown[] }).commands, "/commands");
+  return issues.length === 0 ? result : { valid: false, issues };
 }
