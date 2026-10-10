@@ -19,7 +19,12 @@ import { runTransactionGates } from "@/features/editor/command/transactionGate";
 import { changedBackgroundNodes } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
 import { buildNlAgentInstruction } from "@/features/editor/ui/agentHandoff";
-import { CopyButton } from "@/features/editor/ui/CopyButton";
+import {
+  createAgentRequestWait,
+  type AgentRequestWait,
+  type AgentWaitProgress,
+} from "@/features/editor/ui/agentRequestWait";
+import { AgentWaitStatus } from "@/features/editor/ui/AgentWaitStatus";
 import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 
 /**
@@ -54,10 +59,11 @@ type Feedback =
       kind: "error";
       message: string;
       /**
-       * timeout일 때만 true다(#283 리뷰 대응) — 그때만 "위쪽 요청을 다시 눌러
-       * 새 요청을 만든 뒤 전달하라"는 안내가 맞다. 다른 실패(작업공간 연결
-       * 끊김·다른 탭 잠금·Command 검증 실패 등)는 폴링이 아예 없었거나 이미
-       * 정상 종료된 뒤라 같은 안내가 엉뚱한 해결책을 가리킨다.
+       * 요청 파일을 쓴 뒤 아무도 응답을 기다리지 않게 된 경우(timeout·lockLost·
+       * 기한까지 이어진 연결 끊김 #284)만 true다(#283 리뷰 대응) — 그때만 "위쪽 요청을
+       * 다시 눌러 새 요청을 만든 뒤 전달하라"는 안내가 맞다. 다른 실패(처음부터 작업공간
+       * 없음·다른 탭 잠금·Command 검증 실패 등)는 폴링이 아예 없었거나 이미 정상 종료된
+       * 뒤라 같은 안내가 엉뚱한 해결책을 가리킨다.
        */
       retryable?: boolean;
     }
@@ -114,6 +120,9 @@ export function NaturalLanguageBar() {
 
   // 진행 중인 요청의 취소 토큰. 값이 있으면 "기다리는 중"이다.
   const cancelRef = useRef<NlCancelToken | null>(null);
+  // 진행 중인 요청의 대기(#284). "대기 연장"은 같은 요청의 기한만 미룬다 — 새 요청은 "요청"을 다시 누를 때만.
+  const waitRef = useRef<AgentRequestWait | null>(null);
+  const [waitProgress, setWaitProgress] = useState<AgentWaitProgress | null>(null);
 
   // 선택이나 페이지가 바뀌면 사용자가 고른 범위를 버리고 기본값으로 돌아간다 —
   // 다른 노드를 고른 뒤에도 "현재 화면"이 남아 있으면 적용 대상이 조용히 어긋난다.
@@ -144,16 +153,26 @@ export function NaturalLanguageBar() {
     const requestRevision = revisionRef.current;
     const token: NlCancelToken = { cancelled: false };
     cancelRef.current = token;
+    // 진행 보고는 이 요청이 아직 현재일 때만 화면에 쓴다 — 취소 뒤 끝나지 않은 마지막 회차가
+    // 다음 요청의 표시를 덮지 않게 한다.
+    const wait = createAgentRequestWait((progress) => {
+      if (waitRef.current === wait) setWaitProgress(progress);
+    });
+    waitRef.current = wait;
+    setWaitProgress({ phase: "saving", deadline: null });
     setFeedback({ kind: "pending" });
 
     const outcome = await requestNlEdit(
       { id: createNlRequestId(), instruction: text, scope, pageId, page },
       token,
+      wait,
     );
 
     // 취소됐거나 그 사이 다른 요청이 시작됐으면 이 결과는 버린다.
     if (token.cancelled || cancelRef.current !== token) return;
     cancelRef.current = null;
+    waitRef.current = null;
+    setWaitProgress(null);
 
     if (outcome.kind === "cancelled") {
       setFeedback({ kind: "none" });
@@ -164,10 +183,11 @@ export function NaturalLanguageBar() {
       // 썼는데 더 이상 누구도 응답을 기다리지 않는 상태다. unavailable·
       // busy(요청 전 잠금 충돌)·writeFailed는 애초에 요청이 안 쓰였거나 다른
       // 탭이 잠금을 쥐고 있어, 같은 문구가 실제 원인과 안 맞는다(#283 리뷰 대응).
+      // connectionLost(#284)도 요청은 이미 썼다 — 서버를 되살린 뒤 새 요청이 다음 행동이다.
       setFeedback({
         kind: "error",
         message: outcome.message,
-        retryable: outcome.kind === "timeout" || outcome.kind === "lockLost",
+        retryable: outcome.kind === "timeout" || outcome.kind === "lockLost" || outcome.kind === "connectionLost",
       });
       return;
     }
@@ -243,6 +263,8 @@ export function NaturalLanguageBar() {
   function cancelPending() {
     if (cancelRef.current !== null) cancelRef.current.cancelled = true;
     cancelRef.current = null;
+    waitRef.current = null;
+    setWaitProgress(null);
     setFeedback({ kind: "none" });
   }
 
@@ -312,14 +334,13 @@ export function NaturalLanguageBar() {
           (HTML이 <p> 안의 블록 요소를 만나면 <p>를 조기에 닫아 버린다). */}
       <div role="status" aria-live="polite" className="min-h-4 text-xs">
         {shown.kind === "pending" && (
-          <div className="flex flex-col gap-1 text-content-muted">
-            <span className="flex flex-wrap items-center gap-2">
-              에이전트 응답 대기 중 — 아직 전달하지 않았다면 지시를 복사해 에이전트에
-              붙여 넣으세요.
-              <CopyButton text={buildNlAgentInstruction()} />
-            </span>
-            <HandoffDetails requestPath={NL_REQUEST_PATH} responsePath={NL_RESPONSE_PATH} />
-          </div>
+          <AgentWaitStatus
+            progress={waitProgress}
+            instruction={buildNlAgentInstruction()}
+            requestPath={NL_REQUEST_PATH}
+            responsePath={NL_RESPONSE_PATH}
+            onExtend={() => waitRef.current?.extend()}
+          />
         )}
         {shown.kind === "confirmation" && (
           <span className="text-content">
@@ -343,7 +364,8 @@ export function NaturalLanguageBar() {
             {shown.retryable && (
               <span className="text-content-muted">
                 다시 보내려면 위쪽 "요청"을 다시 눌러 새 요청을 만든 뒤 그 지시를
-                에이전트에 전달하세요.
+                에이전트에 전달하세요. 새 요청은 새 ID로 나가며, 이전 요청의 늦은
+                응답은 반영하지 않습니다.
               </span>
             )}
             {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, nlAgentClient.ts) —

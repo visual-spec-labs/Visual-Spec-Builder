@@ -1,0 +1,131 @@
+{
+  "method": "실제 Chromium DOM fixture 회귀. 실제 AI 출력이나 모델 실행이 아님.",
+  "before": {
+    "baseline": "b592e6b",
+    "chromium": "151.0.7922.173",
+    "nested": {
+      "lines": null,
+      "renderedFonts": {}
+    },
+    "fontFailure": "page.evaluate: NetworkError: A network error occurred."
+  },
+  "after": {
+    "chromium": "151.0.7922.173",
+    "nestedLines": 2,
+    "nestedFonts": [
+      {
+        "familyName": "Liberation Serif",
+        "isCustomFont": false
+      }
+    ],
+    "fontLoadErrors": [
+      "NetworkError: A network error occurred."
+    ],
+    "images": {
+      "root": {
+        "loaded": true,
+        "naturalWidth": 1200,
+        "naturalHeight": 600
+      },
+      "root::background:1": {
+        "loaded": false,
+        "naturalWidth": 0,
+        "naturalHeight": 0
+      }
+    },
+    "intrinsicErrors": [
+      "image root.naturalWidth: 1200 != 600",
+      "image root.naturalHeight: 600 != 1200"
+    ],
+    "missingShellDetected": true,
+    "passed": true
+  },
+  "comparator": {
+    "baseline": "b592e6bcef6d108829fc292826f205683c5a9c43",
+    "method": "Original comparator source versus repaired comparator using actual Chromium fixture measurements, then intentionally removing/corrupting evidence. No model execution.",
+    "results": [
+      {
+        "name": "missing shell",
+        "before": {
+          "exit": 0
+        },
+        "after": {
+          "exit": 1
+        }
+      },
+      {
+        "name": "missing font evidence",
+        "before": {
+          "exit": 0
+        },
+        "after": {
+          "exit": 3
+        }
+      },
+      {
+        "name": "missing lines",
+        "before": {
+          "exit": 0
+        },
+        "after": {
+          "exit": 1
+        }
+      },
+      {
+        "name": "missing image map",
+        "before": {
+          "exit": 0
+        },
+        "after": {
+          "exit": 3
+        }
+      },
+      {
+        "name": "swapped image intrinsic dimensions",
+        "before": {
+          "exit": 0
+        },
+        "after": {
+          "exit": 1
+        }
+      },
+      {
+        "name": "malformed font metadata",
+        "before": {
+          "error": "TypeError",
+          "message": "Cannot read properties of null (reading 'filter')"
+        },
+        "after": {
+          "error": "Error",
+          "message": "generated: renderedFonts.title 측정값이 잘못되었습니다."
+        }
+      },
+      {
+        "name": "responsive visibility at 768px",
+        "before": {
+          "baseIds": [
+            "elevatedCard",
+            "elevatedTitle",
+            "fadedCard",
+            "fadedTitle",
+            "outlinedCard",
+            "outlinedTitle",
+            "root"
+          ],
+          "guiIds": [
+            "elevatedCard",
+            "elevatedTitle",
+            "outlinedCard",
+            "outlinedTitle",
+            "root"
+          ],
+          "result": "base ID check rejects the matching GUI"
+        },
+        "after": {
+          "verdict": "pass",
+          "nodesCompared": 5
+        }
+      }
+    ]
+  }
+}

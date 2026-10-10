@@ -82,7 +82,7 @@ it("노드 bounds 차이가 1 CSS px를 넘으면 실패한다", () => {
 it("viewport/font 조건과 노드 ID가 다르면 실패한다", () => {
   const generated = measurement();
   generated.viewport.width = 412;
-  generated.viewport.fontFaces = ["Arial/normal/400/loaded"];
+  generated.viewport.fontFaces = ["Pretendard/normal/700/loaded"];
   generated.nodes.subtitle = { x: 20, y: 40, width: 350, height: 20 };
 
   const result = compare(measurement(), generated);
@@ -147,4 +147,150 @@ it("같은 viewport에서도 셸이 root를 viewport 높이까지 늘리면 실�
   expect(report.rows).toContainEqual({
     id: "root", passed: false, delta: { x: 0, y: 0, width: 0, height: 156 },
   });
+});
+
+type Report = { errors: string[]; loadErrors: string[] };
+
+it("폰트 face 상태만 다르면 같은 선언으로 보고 통과한다", () => {
+  const gui = measurement();
+  gui.viewport.fontFaces = ["Pretendard/normal/400/loaded", "Pretendard/normal/400/unloaded"];
+
+  const result = compare(gui, measurement());
+  expect(result.status).toBe(0);
+});
+
+it("노드가 Pretendard 대신 폴백 폰트로 그려지면 레이아웃과 따로 로딩 실패(3)로 보고한다", () => {
+  const gui = { ...measurement(), renderedFonts: { title: [{ familyName: "Pretendard SemiBold", isCustomFont: true }] } };
+  const generated = { ...measurement(), renderedFonts: { title: [{ familyName: "Malgun Gothic", isCustomFont: false }] } };
+
+  const result = compare(gui, generated);
+  const report = JSON.parse(result.stdout) as Report;
+  expect(result.status).toBe(3);
+  expect(report.loadErrors).toEqual([expect.stringContaining("generated title is not rendered with Pretendard web font")]);
+  expect(report.errors).toEqual([]);
+});
+
+it("Pretendard Variable만 loaded면 Pretendard 로딩으로 인정하지 않는다", () => {
+  const gui = measurement();
+  gui.viewport.fontFaces = ["Pretendard Variable/normal/45 920/loaded"];
+  const generated = structuredClone(gui);
+
+  const result = compare(gui, generated);
+  const report = JSON.parse(result.stdout) as Report;
+  expect(result.status).toBe(3);
+  expect(report.loadErrors).toContain("GUI Pretendard is not confirmed loaded");
+});
+
+it("이미지를 읽지 못한 측정은 로딩 실패(3)다", () => {
+  const generated = { ...measurement(), images: { hero: { loaded: false, naturalWidth: 0, naturalHeight: 0 } } };
+
+  const result = compare(measurement(), generated);
+  expect(result.status).toBe(3);
+  expect((JSON.parse(result.stdout) as Report).loadErrors).toContain("generated image hero did not load");
+});
+
+it("bounds가 같아도 줄 수와 placeholder 스타일이 다르면 실패한다", () => {
+  const renderedFonts = { title: [{ familyName: "Pretendard", isCustomFont: true }], "email::placeholder": [{ familyName: "Pretendard", isCustomFont: true }] };
+  const gui = { ...measurement(), renderedFonts, placeholders: { email: {
+    text: "이메일", color: "rgb(17, 24, 39)", opacity: "0.6", fontFamily: "Pretendard", fontSize: "14px", fontWeight: "400", lines: 2,
+  } } };
+  gui.nodes.title = { ...gui.nodes.title, lines: 1 } as Bounds;
+  const generated = { ...measurement(), renderedFonts, placeholders: { email: {
+    text: "이메일", color: "rgb(17, 24, 39)", opacity: "1", fontFamily: "Pretendard", fontSize: "14px", fontWeight: "400",
+  } } };
+  generated.nodes.title = { ...generated.nodes.title, lines: 2 } as Bounds;
+
+  const result = compare(gui, generated);
+  const report = JSON.parse(result.stdout) as Report;
+  expect(result.status).toBe(1);
+  expect(report.errors).toEqual(expect.arrayContaining([
+    "title: line count 1 != 2",
+    'placeholder email.opacity: "0.6" != "1"',
+    "placeholder email: GUI wraps to 2 lines",
+  ]));
+});
+
+it("셸 높이와 문서 scrollHeight가 계약과 다르면 실패한다", () => {
+  const gui = { ...measurement(), shell: { width: 390, height: 900 } };
+  const generated = { ...measurement(), shell: { width: 390, height: 844, documentScrollHeight: 800 } };
+
+  const result = compare(gui, generated);
+  const report = JSON.parse(result.stdout) as Report;
+  expect(result.status).toBe(1);
+  expect(report.errors).toEqual(expect.arrayContaining([
+    "shell.height: 900 != 844",
+    "generated document scrollHeight 800 != max(viewport, shell) 844",
+  ]));
+});
+
+it("같은 root 크기여도 생성 셸 누락은 실패한다", () => {
+  const gui = { ...measurement(), shell: { width: 390, height: 844 } };
+  const result = compare(gui, measurement());
+  expect(result.status).toBe(1);
+  expect(JSON.parse(result.stdout).errors).toContain("shell measurement missing on one side");
+});
+
+it.each([{}, { renderedFontsUnavailable: ["title"] }])("필요한 렌더 폰트 증거 누락은 무효다: %j", (extra) => {
+  const gui = { ...measurement(), expectedFontIds: ["title"], renderedFonts: { title: [{ familyName: "Pretendard", isCustomFont: true }] } };
+  const result = compare(gui, { ...measurement(), renderedFonts: {}, ...extra });
+  expect(result.status).toBe(3);
+  expect(JSON.parse(result.stdout).loadErrors).toContain("generated rendered font evidence missing: title");
+});
+
+it("양쪽 폰트 메타데이터를 지워도 줄 수에서 필요한 증거를 찾는다", () => {
+  const gui = measurement();
+  gui.nodes.title = { ...gui.nodes.title, lines: 1 } as Bounds;
+  expect(compare(gui, gui).status).toBe(3);
+});
+
+it("중첩 텍스트의 줄 수를 생략해도 통과하지 않는다", () => {
+  const renderedFonts = { title: [{ familyName: "Pretendard", isCustomFont: true }] };
+  const gui = { ...measurement(), renderedFonts };
+  gui.nodes.title = { ...gui.nodes.title, lines: 2 } as Bounds;
+  const result = compare(gui, { ...measurement(), renderedFonts });
+  expect(result.status).toBe(1);
+  expect(JSON.parse(result.stdout).errors).toContain("title: line count 2 != undefined");
+});
+
+it("폰트 네트워크 실패는 좌표가 같아도 무효다", () => {
+  const result = compare(measurement(), { ...measurement(), fontLoadErrors: ["NetworkError: woff2 failed"] });
+  expect(result.status).toBe(3);
+  expect(JSON.parse(result.stdout).loadErrors).toContain("generated font load failed: NetworkError: woff2 failed");
+});
+
+it("이미지 intrinsic dimensions가 바뀌면 같은 CSS 박스여도 실패한다", () => {
+  const gui = { ...measurement(), images: { hero: { loaded: true, naturalWidth: 1200, naturalHeight: 600 } } };
+  const generated = { ...measurement(), images: { hero: { loaded: true, naturalWidth: 600, naturalHeight: 1200 } } };
+  const result = compare(gui, generated);
+  expect(result.status).toBe(1);
+  expect(JSON.parse(result.stdout).errors).toContain("image hero.naturalWidth: 1200 != 600");
+});
+
+it("이미지 메타데이터를 지우면 측정 무효다", () => {
+  const gui = { ...measurement(), images: { hero: { loaded: true, naturalWidth: 1200, naturalHeight: 600 } } };
+  const result = compare(gui, measurement());
+  expect(result.status).toBe(3);
+  expect(JSON.parse(result.stdout).loadErrors).toContain("image hero: generated measurement missing");
+});
+
+it.each([
+  { renderedFonts: { title: null } },
+  { renderedFonts: { title: [{ familyName: "Pretendard", isCustomFont: "true" }] } },
+  { placeholders: { email: null } },
+  { placeholders: { email: { text: "email", lines: -1 } } },
+  { images: { hero: null } },
+  { images: { hero: { loaded: true, naturalWidth: -1, naturalHeight: 600 } } },
+  { images: { hero: { loaded: "true", naturalWidth: 1200, naturalHeight: 600 } } },
+  { renderedFontsUnavailable: {} },
+  { expectedFontIds: [null] },
+  { fontLoadErrors: [1] },
+  { shell: { width: 390, height: 844, documentScrollHeight: "844" } },
+  { shell: { width: -1, height: 844 } },
+  { documentScrollHeight: null },
+])("잘못된 nested metadata는 stack trace 없이 입력 오류(2)다: %j", (extra) => {
+  const result = compare(measurement(), { ...measurement(), ...extra });
+  expect(result.status).toBe(2);
+  expect(result.stderr).toContain("측정값이 잘못되었습니다");
+  expect(result.stderr).not.toContain("TypeError");
+  expect(result.stdout).toBe("");
 });

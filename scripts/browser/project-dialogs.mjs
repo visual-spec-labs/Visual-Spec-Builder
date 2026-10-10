@@ -114,8 +114,28 @@ try {
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
   assert.equal(await snapshot(), before);
   await menu("Open");
+  // picker 닫힘은 비동기 읽기/파싱 완료가 아니다. 응답을 보류해 그 간격을 재현한다.
+  const noticesBeforeCorruptOpen = notices.length;
+  let releaseCorruptRead;
+  const corruptGate = new Promise(resolve => { releaseCorruptRead = resolve; });
+  await page.route("**/file/specs/broken.json", async route => {
+    const response = await route.fetch();
+    await corruptGate;
+    await route.fulfill({ response });
+  });
   await dialog.getByRole("button", { name: "broken.json", exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('[role="alertdialog"]'));
+  assert.equal(await snapshot(), before);
+  assert.equal(notices.length, noticesBeforeCorruptOpen, "보류된 읽기가 끝나기 전에 알림이 발생했습니다");
+  // 응답 해제 전에 구독한다. alert가 없거나 다른 실패라면 10초 내 명시적으로 실패한다.
+  const corruptNotice = page.waitForEvent("dialog", {
+    predicate: notice => notice.type() === "alert" && notice.message().includes("broken.json")
+      && notice.message().includes("검증 실패"),
+    timeout: 10000,
+  });
+  releaseCorruptRead();
+  await corruptNotice;
+  await page.unroute("**/file/specs/broken.json");
   assert.equal(await snapshot(), before);
   assert.ok(notices.some(message => message.includes("broken.json")));
   console.log("PASS repeated Open/Save as cancellation, Delete/Undo isolation, corrupt selection, document/history preservation");

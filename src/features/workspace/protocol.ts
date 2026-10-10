@@ -94,6 +94,15 @@ export const WORKSPACE_MARKER_HEADER = "x-visual-spec-workspace";
  *                 목록에 편집 요청 찌꺼기가 섞여 나온다. 폴더를 나누면 목록 라우트가
  *                 폴더별로 갈라져 있어 그 일이 생기지 않는다
  *                 (`workspaceServer.handleList`).
+ * - `staging`   — 티켓 요청별 임시 출력(이슈 #284). 에이전트가 `staging/<requestId>/pages/…`에
+ *                 쓰고, GUI가 현재 요청의 출력만 읽어 `generated/`로 확정한다. 취소·만료된
+ *                 요청이 늦게 쓴 파일은 여기 남아 `generated/`에 닿지 않는다
+ *                 (docs/26 "왜 staging인가"). 확장자 규칙은 `generated`와 같다 — 같은 파일이
+ *                 확정 전에 머무는 자리라서다. GUI는 여기를 읽기만 한다
+ * - `backups`   — 재생성 직전 백업(이슈 #282). GUI가 `generated/`의 기존 파일을 바꾸기 전에
+ *                 `backups/<runId>/files/<경로>`에 원본 바이트를, `backups/<runId>/run.json`에
+ *                 되돌리기 기록을 **새 파일로만** 쓴다(기대 버전 `missing` 필수). 백업이 덮이면
+ *                 백업이 아니기 때문이다. 확장자 규칙은 `generated`와 같다(docs/26 "#282")
  *
  * **넓힌 범위**(#155): `runtime`은 `.json` 하나뿐이라 이미 열려 있는 `generated`
  * (`.ts`·`.tsx`·`.js`…)보다 좁다. 경로 검증(`workspacePath.resolveWorkspaceFile`)·
@@ -108,6 +117,8 @@ export const WORKSPACE_DIR_RULES = {
   assets: [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".bmp", ".ico"],
   generated: [".tsx", ".ts", ".jsx", ".js", ".css", ".json", ".md"],
   runtime: [".json"],
+  staging: [".tsx", ".ts", ".jsx", ".js", ".css", ".json", ".md"],
+  backups: [".tsx", ".ts", ".jsx", ".js", ".css", ".json", ".md"],
 } as const;
 
 export type WorkspaceDir = keyof typeof WORKSPACE_DIR_RULES;
@@ -123,6 +134,23 @@ export const RUNTIME_DIR: WorkspaceDir = "runtime";
 
 /** 외부 에이전트가 생성한 React 코드가 놓이는 폴더. Export가 여기를 읽는다(이슈 #157). */
 export const GENERATED_DIR: WorkspaceDir = "generated";
+
+/** 티켓 요청별 임시 출력 폴더(#284). `ticket/ticketProtocol.ts`가 요청마다 하위 경로를 정한다. */
+export const STAGING_DIR: WorkspaceDir = "staging";
+
+/** 재생성 직전 백업과 되돌리기 기록 폴더(#282). `ui/ticketOutputAcceptance.ts`가 실행마다 하위 경로를 정한다. */
+export const BACKUP_DIR: WorkspaceDir = "backups";
+
+/**
+ * 읽을 때 내용 버전(`WORKSPACE_REVISION_HEADER`)을 함께 주고, 쓸 때 기대 버전을 비교할 수 있는
+ * 폴더(#282). `specs`는 기대 버전이 **필수**이고(#227), `generated`는 보내면 비교하고(opt-in —
+ * 외부 에이전트·구버전 클라이언트는 HTTP를 거치지 않거나 보내지 않는다), `backups`는 필수다.
+ * 버전은 디스크 바이트의 SHA-256(16진수 64자)이다.
+ */
+export const WORKSPACE_REVISION_DIRS: readonly WorkspaceDir[] = ["specs", "generated", "backups"];
+export function tracksRevision(relativePath: string): boolean {
+  return WORKSPACE_REVISION_DIRS.some((dir) => relativePath.startsWith(`${dir}/`));
+}
 
 /** 화이트리스트에 있는 폴더 이름들. 미들웨어가 서버 시작 때 만들어 둔다. */
 export const WORKSPACE_ACCESSIBLE_DIRS = Object.keys(WORKSPACE_DIR_RULES) as WorkspaceDir[];

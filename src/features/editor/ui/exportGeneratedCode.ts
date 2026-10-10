@@ -21,8 +21,14 @@
  *   통합한다고 못박아 둔 것과도 맞는다
  */
 
-import type { ScreenSpec } from "@/features/editor/schema";
+import type { PageId, ScreenSpec } from "@/features/editor/schema";
 import { buildBundleEntries, bundleFileName, type BundleAsset } from "@/features/editor/export/bundle";
+import {
+  classifyOutputFreshness,
+  GENERATION_MANIFEST_PATH,
+  parseGenerationManifest,
+  type FreshnessReport,
+} from "@/features/editor/export/generationManifest";
 import {
   verifyGenerated,
   type GeneratedFile,
@@ -47,9 +53,19 @@ import { ASSET_DIR, GENERATED_DIR } from "@/features/workspace/protocol";
  */
 export type GeneratedScan =
   | { kind: "no-workspace" }
-  | { kind: "ready"; files: GeneratedFile[]; report: VerifyReport };
+  | {
+      kind: "ready";
+      files: GeneratedFile[];
+      report: VerifyReport;
+      /**
+       * 생성 세대 확인(#284). 파일·참조 검사(`report`)와 따로 둔다 — 4/4·오류 0이어도 취소된 요청의
+       * 늦은 출력이거나 입력이 바뀐 뒤의 출력일 수 있다. `pageId`를 주지 않은 호출(성능 측정
+       * 스크립트 등)에서는 계산하지 않는다.
+       */
+      freshness: FreshnessReport | null;
+    };
 
-export async function scanGeneratedCode(page: ScreenSpec): Promise<GeneratedScan> {
+export async function scanGeneratedCode(page: ScreenSpec, pageId?: PageId): Promise<GeneratedScan> {
   const paths = await listWorkspaceFiles(GENERATED_DIR, { recursive: true });
   if (paths === null) return { kind: "no-workspace" };
 
@@ -62,11 +78,23 @@ export async function scanGeneratedCode(page: ScreenSpec): Promise<GeneratedScan
   }
 
   const assetNames = (await listWorkspaceFiles(ASSET_DIR)) ?? [];
+  const tickets = compileTickets(page);
+  // 기록이 없거나 읽히지 않으면 빈 기록으로 판정한다 — 파일이 있으면 "확인 불가"로 기운다.
+  const freshness = pageId === undefined
+    ? null
+    : classifyOutputFreshness({
+        tickets,
+        files,
+        manifest: parseGenerationManifest(await readWorkspaceTextFile(GENERATION_MANIFEST_PATH)),
+        pageId,
+        page,
+      });
 
   return {
     kind: "ready",
     files,
-    report: verifyGenerated({ files, tickets: compileTickets(page), assetNames }),
+    report: verifyGenerated({ files, tickets, assetNames }),
+    freshness,
   };
 }
 

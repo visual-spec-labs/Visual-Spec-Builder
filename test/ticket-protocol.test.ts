@@ -6,7 +6,9 @@ import {
   TICKET_PROTOCOL_VERSION,
   TICKET_REQUEST_PATH,
   TICKET_RESPONSE_PATH,
+  ticketOutputPath,
 } from "@/features/editor/ticket/ticketProtocol";
+import { GENERATION_MANIFEST_PATH } from "@/features/editor/export/generationManifest";
 import { ticketFilePath } from "@/features/editor/export/generatedPaths";
 import type { Ticket } from "@/features/editor/ticket/types";
 import { resolveWorkspaceFile } from "@/features/workspace/workspacePath";
@@ -76,8 +78,11 @@ describe("buildTicketRequest", () => {
         kind: "page",
         instances: ["root"],
         filePath: ticketFilePath(pageTicket),
+        // 에이전트는 확정될 자리가 아니라 요청 전용 임시 출력에 쓴다(#284).
+        outputPath: `staging/wave-1/${ticketFilePath(pageTicket)}`,
       },
     ]);
+    expect(request.outputRoot).toBe("staging/wave-1");
   });
 });
 
@@ -85,6 +90,15 @@ describe("요청·응답 경로는 미들웨어 화이트리스트를 통과한�
   const ROOT = "/tmp/proj/.visual-spec";
 
   it.each([TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH])("%s", (path) => {
+    expect(resolveWorkspaceFile(ROOT, path).ok).toBe(true);
+  });
+
+  // GUI가 확정할 때 읽는 임시 출력과 쓰는 수용 기록도 같은 방어를 지난다(#284).
+  it.each([
+    ticketOutputPath("8f14e45f-ceea-467f-a0e6-7b7f5f3a1c2d", "pages/Home.tsx"),
+    ticketOutputPath("ticket-1700000000000-abc123", "components/Card.tsx"),
+    GENERATION_MANIFEST_PATH,
+  ])("%s", (path) => {
     expect(resolveWorkspaceFile(ROOT, path).ok).toBe(true);
   });
 });

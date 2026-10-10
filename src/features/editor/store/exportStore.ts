@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import type { PageId, ScreenSpec } from "@/features/editor/schema";
+import type { FreshnessReport } from "@/features/editor/export/generationManifest";
 import type { GeneratedFile, VerifyReport } from "@/features/editor/export/verifyGenerated";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
@@ -25,6 +26,8 @@ interface ExportState {
   status: ExportStatus;
   files: GeneratedFile[];
   report: VerifyReport | null;
+  /** 생성 세대 확인(#284). 파일·참조 검사(`report`)와 별개의 판정이다. */
+  freshness: FreshnessReport | null;
   target: ExportTarget | null;
   /** 패널을 열고 곧바로 훑는다. */
   open: (target: ExportTarget) => Promise<void>;
@@ -41,21 +44,21 @@ interface ExportState {
  */
 let generation = 0;
 
-function clearResult(): Pick<ExportState, "status" | "files" | "report" | "target"> {
-  return { status: "idle", files: [], report: null, target: null };
+function clearResult(): Pick<ExportState, "status" | "files" | "report" | "freshness" | "target"> {
+  return { status: "idle", files: [], report: null, freshness: null, target: null };
 }
 
 export const useExportStore = create<ExportState>((set) => {
   async function run(target: ExportTarget): Promise<void> {
     const runGeneration = ++generation;
-    set({ status: "scanning", files: [], report: null, target });
-    const scan = await scanGeneratedCode(target.page);
+    set({ status: "scanning", files: [], report: null, freshness: null, target });
+    const scan = await scanGeneratedCode(target.page, target.pageId);
     if (runGeneration !== generation) return;
     if (scan.kind === "no-workspace") {
-      set({ status: "no-workspace", files: [], report: null, target });
+      set({ status: "no-workspace", files: [], report: null, freshness: null, target });
       return;
     }
-    set({ status: "ready", files: scan.files, report: scan.report, target });
+    set({ status: "ready", files: scan.files, report: scan.report, freshness: scan.freshness, target });
   }
 
   return {
@@ -63,6 +66,7 @@ export const useExportStore = create<ExportState>((set) => {
     status: "idle",
     files: [],
     report: null,
+    freshness: null,
     target: null,
     open: async (target) => {
       set({ isOpen: true });

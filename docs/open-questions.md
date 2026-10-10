@@ -16,6 +16,15 @@
 - [ ] **Shape 도구의 기본 도형 처리 방식** — 기본 도형 제공 도구인지, 공용 컴포넌트로 처리할지 (§8)
 - [ ] **캔버스 드래그 생성 시 root 트리 자동 추가 로직** (§8)
 
+## 사용자 화면의 디자인 시스템 — [27-user-design-system-scope.md §6](27-user-design-system-scope.md#6-승인-대기-질문)
+
+- [ ] **스타일 정본 형태** — 노드 리터럴 사본 + 연결 / 참조만 (Q1), 색·글자 스타일 묶음 (Q2), 생성 코드의 CSS 변수 여부 (Q3), override의 스타일 연결 (Q4)
+- [ ] **프로젝트 폰트 추가와 공급원** — 고정 CSS URL / 작업공간 폰트 파일, 허용 형식·라이선스 안내 (Q5)
+- [ ] **상태 스타일 범위** — button/input × hover·pressed·focus, 바꿀 수 있는 속성 (Q6)
+- [ ] **스키마 버전** — 0.3 선택 확장 / #265 instance와 함께 0.4 (Q7)
+
+- [ ] **구현 전 세부 게이트 G1~G6** — 직접 GUI/NL 편집의 atomic unlink/update·Typography 묶음, standalone 변환·카탈로그 손실, CSS ID/충돌, Ticket 폰트 snapshot, URL/경로·직렬화·원격 로딩, 상태 배경 교체·shadow 테두리·동시 우선순위. [27 §6](27-user-design-system-scope.md#6-승인-대기-질문)의 추천은 모두 승인 대기다.
+
 ## 해결된 항목
 
 | 항목 | 결정 | 시점 |
