@@ -26,6 +26,8 @@ import { buildBundleEntries, bundleFileName, type BundleAsset } from "@/features
 import {
   classifyOutputFreshness,
   GENERATION_MANIFEST_PATH,
+  GENERATION_MANIFEST_PROTOCOL,
+  isNewerGenerationManifest,
   parseGenerationManifest,
   type FreshnessReport,
   type GenerationManifest,
@@ -44,6 +46,7 @@ import {
   listWorkspaceFiles,
   readWorkspaceBinaryFile,
   readWorkspaceTextFile,
+  readWorkspaceTextFileStrict,
 } from "@/features/editor/ui/workspaceClient";
 import { ASSET_DIR, GENERATED_DIR } from "@/features/workspace/protocol";
 
@@ -70,6 +73,10 @@ export interface GeneratedScanOwner {
 /**
  * 이 문서·페이지의 생성 자리를 찾는다(읽기만). 기록된 프로젝트의 자리, 없으면 아직 기록되지 않은 후보
  * 폴더. 그 자리가 비어 있고 이전 배치 파일이 있으면 이전 배치를 본다.
+ *
+ * `manifest`는 **확인된** 기록 상태여야 한다 — 읽은 기록이거나 확정된 404(기록 없음)다. 읽기 실패를 빈
+ * 기록으로 넣으면 다른 등록 프로젝트가 쓰는 폴더를 후보로 잘못 고른다(이름 변경 뒤·같은 slug의 `-2` 폴더,
+ * #281 리뷰). 그래서 `scanGeneratedCode`가 읽기 실패를 먼저 걸러 "검사 불가"로 멈춘다.
  */
 function locateGenerated(
   manifest: GenerationManifest,
@@ -104,6 +111,12 @@ function inLocation(location: GeneratedLocation, path: string): boolean {
  */
 export type GeneratedScan =
   | { kind: "no-workspace" }
+  /**
+   * 생성 기록을 확인하지 못해 이 문서의 생성 자리를 정할 수 없다(#281 리뷰) — 읽기 실패(HTTP 오류·네트워크),
+   * 이 앱보다 새 형식, 손상된 기록. 기록이 없는 것(확정된 404)과 다르다: 그때는 후보 폴더를 볼 수 있지만,
+   * 여기서는 어느 폴더가 이 프로젝트의 것인지 모르므로 파일을 고르지도 ZIP을 만들지도 않는다.
+   */
+  | { kind: "unavailable"; message: string }
   | {
       kind: "ready";
       files: GeneratedFile[];
@@ -130,10 +143,22 @@ export async function scanGeneratedCode(
   const paths = await listWorkspaceFiles(GENERATED_DIR, { recursive: true });
   if (paths === null) return { kind: "no-workspace" };
 
-  // 기록이 없거나 읽히지 않으면 빈 기록으로 판정한다 — 파일이 있으면 "확인 불가"로 기운다.
-  const manifest = pageId === undefined
-    ? null
-    : parseGenerationManifest(await readWorkspaceTextFile(GENERATION_MANIFEST_PATH));
+  // 기록 없음(확정된 404)은 빈 기록으로 판정한다 — 파일이 있으면 "확인 불가"로 기운다. 읽기 실패는 빈 기록과
+  // 다르다: 다른 프로젝트가 쓰는 폴더를 모르는 채 파일 이름으로 자리를 추측하게 되므로 여기서 멈춘다(#281 리뷰).
+  let manifest: GenerationManifest | null = null;
+  if (pageId !== undefined) {
+    const read = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
+    if (!read.ok) {
+      return {
+        kind: "unavailable",
+        message: "생성 기록(runtime/generation-manifest.json)을 읽지 못해 이 프로젝트의 생성 위치를 확인할 수 없습니다. " +
+          "작업공간 연결(개발 서버)을 확인한 뒤 다시 검사하세요. 확인되지 않은 위치의 파일은 검사하거나 내려받지 않습니다.",
+      };
+    }
+    const unreadable = unreadableManifestReason(read.text);
+    if (unreadable !== null) return { kind: "unavailable", message: unreadable };
+    manifest = parseGenerationManifest(read.text);
+  }
   const location: GeneratedLocation = manifest === null || pageId === undefined
     ? { layout: "all", root: "", projectId: null }
     : locateGenerated(manifest, paths, owner, pageId);
@@ -168,6 +193,26 @@ export async function scanGeneratedCode(
     freshness,
     location,
   };
+}
+
+/**
+ * 읽은 기록 본문을 이 앱이 해석할 수 없으면 그 이유. 없음(null, 확정된 404)은 해석할 수 있는 상태다.
+ * 손상·새 형식 기록을 빈 기록으로 읽으면 읽기 실패와 같은 이유로 자리를 잘못 추측한다.
+ */
+function unreadableManifestReason(text: string | null): string | null {
+  if (text === null) return null;
+  if (isNewerGenerationManifest(text)) {
+    return "생성 기록이 이 앱보다 새 형식이라 이 프로젝트의 생성 위치를 확인할 수 없습니다. 앱을 업데이트한 뒤 다시 검사하세요.";
+  }
+  try {
+    const body: unknown = JSON.parse(text);
+    if (typeof body === "object" && body !== null && !Array.isArray(body) && "protocol" in body &&
+      (body.protocol === 1 || body.protocol === GENERATION_MANIFEST_PROTOCOL)) return null;
+  } catch {
+    // 아래 문구로 알린다
+  }
+  return "생성 기록(runtime/generation-manifest.json)이 손상돼 이 프로젝트의 생성 위치를 확인할 수 없습니다. " +
+    "파일을 고치거나(백업 후) 구현 티켓을 다시 전달한 뒤 다시 검사하세요.";
 }
 
 /** 최종 ZIP에 넣을 바이트를 읽고, 하나라도 실패하면 이름을 결과에 남긴다. */
@@ -211,7 +256,18 @@ export async function downloadGeneratedBundle(
   report: VerifyReport,
   tickets: Ticket[],
   allowPartial = false,
-): Promise<{ kind: "downloaded"; missing: string[] } | { kind: "missing-assets"; missing: string[] }> {
+  /**
+   * 검사한 문서·프로젝트가 아직 지금 문서인가(#281 리뷰). 자산을 읽기 전과 ZIP을 내려받기 직전에 본다 —
+   * 그 사이 다른 이름으로 저장·편집·문서 전환이 있었으면 검사 때 고른 파일(다른 프로젝트의 것일 수 있다)을
+   * 내려받지 않는다.
+   */
+  isCurrent: () => boolean = () => true,
+): Promise<
+  | { kind: "downloaded"; missing: string[] }
+  | { kind: "missing-assets"; missing: string[] }
+  | { kind: "stale" }
+> {
+  if (!isCurrent()) return { kind: "stale" };
   const requiredAssets = [...new Set([...report.requiredAssets, ...report.usedAssets])]
     .sort((left, right) => left.localeCompare(right));
   const { assets, missing } = await loadBundleAssets(requiredAssets);
@@ -234,6 +290,7 @@ export async function downloadGeneratedBundle(
       : issue),
   };
   const zip = createZip(buildBundleEntries({ projectName, files, assets, report: bundleReport }));
+  if (!isCurrent()) return { kind: "stale" };
   downloadBlob(bundleFileName(projectName), new Blob([zip], { type: "application/zip" }));
   return { kind: "downloaded", missing };
 }

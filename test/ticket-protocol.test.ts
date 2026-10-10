@@ -139,6 +139,19 @@ describe("parseTicketResponse — 기다림을 끝낼지 판정한다", () => {
     if (result.kind === "malformed") expect(result.message).toContain("99");
   });
 
+  it("구버전 스킬의 v2 응답은 받지 않고 스킬 갱신을, 더 새 응답은 앱 업데이트를 안내한다 (#281 리뷰)", () => {
+    const older = parseTicketResponse(responseText({ protocol: 2, requestId: "wave-1", results: [] }), "wave-1");
+    expect(older.kind).toBe("malformed");
+    if (older.kind === "malformed") {
+      expect(older.message).toContain("에이전트의 티켓 응답 스킬이 구버전입니다(티켓 요청 규약 v2 응답, 이 GUI는 v3)");
+      expect(older.message).toContain("`visual-spec skills`");
+    }
+    const newer = parseTicketResponse(responseText({ protocol: TICKET_PROTOCOL_VERSION + 1, requestId: "wave-1", results: [] }), "wave-1");
+    expect(newer.kind === "malformed" && newer.message).toContain("Visual Spec Builder를 업데이트");
+    const odd = parseTicketResponse(responseText({ protocol: "3", requestId: "wave-1", results: [] }), "wave-1");
+    expect(odd.kind === "malformed" && odd.message).toContain("응답 형식 버전이 다릅니다");
+  });
+
   it("results가 배열이 아니면 malformed", () => {
     const text = responseText({ protocol: TICKET_PROTOCOL_VERSION, requestId: "wave-1" });
 

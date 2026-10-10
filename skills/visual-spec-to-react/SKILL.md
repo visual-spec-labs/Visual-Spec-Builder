@@ -33,12 +33,14 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
    - **pageId**: 프로젝트 파일(`pages`가 있는 v0.3)이면 그 페이지의 키, 화면 하나짜리 JSON(`screen`)이면 `page1`.
      같은 프로젝트에 대소문자만 다른 페이지 키(`Login`·`login`)가 있으면 그 페이지들은 쓰지 말고 멈춘 뒤, 한쪽
      키를 바꾸라고 안내한다 — Windows·macOS 기본 파일 시스템에서 두 자리가 같은 폴더라 서로의 출력을 덮는다.
-     GUI 전달도 같은 이유로 거부한다.
+     GUI 전달도 같은 이유로 거부한다. 페이지 키나 컴포넌트 이름(`<이름>.tsx`)이 Windows 장치 이름(`con`·`prn`·
+     `aux`·`nul`·`com0`~`com9`·`lpt0`~`lpt9`, 대소문자·확장자와 상관없이 — 예: `Con.tsx`)이어도 쓰지 말고 멈춘 뒤
+     이름을 바꾸라고 안내한다 — Windows에서 그 폴더·파일은 탐색기·git·편집기가 열거나 지우지 못한다. GUI 전달도 거부한다.
    - **프로젝트 폴더**: `.visual-spec/runtime/generation-manifest.json`의 `projects`에서 `fileName`이 대상 스펙
      파일 이름(`.visual-spec/specs/<이름>.json`이면 `<이름>.json`)과 같은 항목의 `outputDir`다. GUI가 처음
      전달할 때 정하고, 앱 안에서 이름을 바꿔도 그대로다. 항목이 없으면 파일 이름에서 `.json`을 빼고
      소문자로 바꾼 뒤 글자·숫자·`_`·`-` 밖의 문자를 `-`로 바꾼 값이다(양 끝 `-`는 빼고, 비면 `project`,
-     `pages`·`components`면 뒤에 `-project`). 그 값을 `projects`의 **다른** 항목이 `outputDir`로 이미 쓰고
+     `pages`·`components`·Windows 장치 이름이면 뒤에 `-project`). 그 값을 `projects`의 **다른** 항목이 `outputDir`로 이미 쓰고
      있으면 쓰지 말고 멈춘 뒤, GUI에서 구현 티켓을 한 번 전달해 자리를 정하라고 안내한다.
    - `.visual-spec/specs/` 밖의 JSON(예: `examples/login-screen.json`)도 그 파일 이름으로 같은 규칙을 쓴다.
    - 이전 배치(`generated/pages/`·`generated/components/` 바로 아래)에는 새로 쓰지 않는다. 그 파일은 어느

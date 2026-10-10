@@ -9,7 +9,7 @@ import type {
 import type { VerifyIssue, VerifyReport } from "@/features/editor/export/verifyGenerated";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { useExportStore } from "@/features/editor/store/exportStore";
+import { isExportTargetCurrent, useExportStore } from "@/features/editor/store/exportStore";
 import { downloadGeneratedBundle, type GeneratedLocation } from "@/features/editor/ui/exportGeneratedCode";
 import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
 import { openTicketPanel } from "@/features/editor/ui/openTicketPanel";
@@ -131,6 +131,7 @@ export function ExportPanel() {
   const freshness = useExportStore((state) => state.freshness);
   const location = useExportStore((state) => state.location);
   const target = useExportStore((state) => state.target);
+  const unavailableMessage = useExportStore((state) => state.unavailableMessage);
   const rescan = useExportStore((state) => state.rescan);
   const close = useExportStore((state) => state.close);
 
@@ -163,7 +164,10 @@ export function ExportPanel() {
         report,
         compileTickets(page),
         allowPartial,
+        () => isExportTargetCurrent(target),
       );
+      // 검사 뒤 문서·프로젝트가 바뀌었으면 내려받지 않았다 — 구독이 결과를 지워 다시 검사 안내가 보인다.
+      if (result.kind === "stale") return;
       setAssetFailure(result.missing.length === 0 ? null : { report, target, names: result.missing });
     } finally {
       setIsDownloading(false);
@@ -221,8 +225,14 @@ export function ExportPanel() {
 
         {status === "idle" && (
           <p className="text-sm text-content-muted">
-            스펙이 수정되거나 문서·페이지가 바뀌어 이전 검사 결과를 지웠습니다. 현재 페이지를 다시
-            검사해 주세요.
+            스펙이 수정되거나 문서·페이지가 바뀌었거나 다른 이름으로 저장해 이전 검사 결과를 지웠습니다.
+            현재 페이지를 다시 검사해 주세요.
+          </p>
+        )}
+
+        {status === "unavailable" && (
+          <p role="alert" className="text-sm text-error">
+            검사 불가 — {unavailableMessage}
           </p>
         )}
 

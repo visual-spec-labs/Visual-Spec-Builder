@@ -29,6 +29,12 @@
  * **생성 자리(#281).** 요청을 쓰기 전에 이 문서의 주인 프로젝트와 페이지 생성 자리
  * (`generated/<프로젝트 폴더>/<PageId>/`)를 정한다(`ui/generationTarget.ts`). 요청의 `filePath`와 확정
  * 경로가 모두 그 아래라 다른 프로젝트·페이지의 같은 이름이 같은 파일을 쓰지 않는다.
+ *
+ * **프로젝트가 바뀌면 이어 가지 않는다(#281 리뷰).** 요청 중 다른 이름으로 저장(복사)하면 문서 ID·페이지
+ * 객체·티켓 세대가 모두 그대로라 위 검사로는 못 가른다. 그래서 요청을 시작할 때의 프로젝트 신원
+ * (`documentStore.projectIdentity`)을 들고 있다가 확정 전·확정 중·다음 웨이브 전에 다시 본다 — 바뀌었으면
+ * 그 요청의 출력을 원본에도 복사본에도 확정하지 않고, 복사본의 티켓을 완료로 표시하지 않으며, 다음 웨이브를
+ * 보내지 않는다. 앱 안 이름 변경은 같은 프로젝트라 신원이 그대로다(`documentStore.adoptRenamedFileName`).
  */
 
 import type { OverwriteDecision, OverwriteReview } from "@/features/editor/export/overwriteGuard";
@@ -98,8 +104,34 @@ function awaitOverwriteReview(review: OverwriteReview): Promise<OverwriteAnswer>
 // 옛 "실행" 표현이 남아 있었다.
 export const STALE_TICKET_MESSAGE = "화면이 바뀌었습니다. 현재 스펙으로 티켓을 다시 생성해야 전달할 수 있습니다.";
 
+/** 계획을 만든 뒤 다른 이름으로 저장해 프로젝트가 바뀌었을 때 패널의 안내(#281 리뷰). */
+export const PROJECT_CHANGED_PLAN_MESSAGE =
+  "다른 이름으로 저장해 프로젝트가 바뀌었습니다. 이 티켓 계획은 원본 프로젝트의 것이라 이 프로젝트로 전달하지 않습니다. " +
+  "티켓을 다시 생성해 전달하세요.";
+
+/** 요청을 기다리는 사이 프로젝트가 바뀌어 그 요청을 끝낸 이유(#281 리뷰). */
+export const PROJECT_CHANGED_TICKET_MESSAGE =
+  "요청을 기다리는 사이 다른 이름으로 저장해 프로젝트가 바뀌었습니다. 이 요청의 출력은 원본·복사본 어느 프로젝트에도 " +
+  "확정하지 않았고 임시 출력 폴더(staging/<요청 id>/)에 남아 있습니다.";
+
+/** 확정 시점을 지난 뒤 프로젝트가 바뀌었을 때 — 출력은 요청한 원본 프로젝트에만 들어갔다. */
+export const PROJECT_CHANGED_AFTER_COMMIT_MESSAGE =
+  "다른 이름으로 저장하기 직전에 확정된 출력이라 원본 프로젝트에만 기록했습니다. 이 프로젝트에는 아무것도 확정하지 않았습니다.";
+
+/** 계획이 낡은 이유. 프로젝트가 바뀐 경우를 화면이 바뀐 경우와 나눠 안내한다. */
+export type TicketPlanStaleness = "project" | "screen" | null;
+
+export function ticketPlanStaleness(
+  source: { sourcePageId: string | null; sourcePage: unknown; sourceDocumentId: number | null; sourceProjectIdentity: number | null },
+  current: { activePageId: string; page: unknown; documentId: number; projectIdentity: number },
+): TicketPlanStaleness {
+  if (source.sourceDocumentId !== current.documentId || source.sourcePageId !== current.activePageId ||
+    source.sourcePage !== current.page) return "screen";
+  return source.sourceProjectIdentity !== current.projectIdentity ? "project" : null;
+}
+
 /**
- * 티켓을 만든 뒤 편집·페이지 전환·문서 전환이 있었으면 true다(이슈 #271).
+ * 티켓을 만든 뒤 편집·페이지 전환·문서 전환·다른 이름으로 저장이 있었으면 true다(이슈 #271, #281 리뷰).
  *
  * 편집은 페이지 객체를 새로 만들므로 참조로 가른다. 문서 전환은 참조만으로 못
  * 가른다 — New를 두 번 하면 같은 `blankSpec` 화면 객체를 다시 쓴다(PR #295 리뷰) —
@@ -108,10 +140,15 @@ export const STALE_TICKET_MESSAGE = "화면이 바뀌었습니다. 현재 스펙
  * 자동 이어가기, 다른 호출자)도 낡은 `sourcePage`를 요청 파일에 그대로 쓴다.
  */
 export function isTicketPlanStale(): boolean {
-  const { sourcePageId, sourcePage, sourceDocumentId } = useTicketStore.getState();
   const { activePageId, spec, documentId } = useEditorStore.getState();
-  return sourceDocumentId !== documentId || sourcePageId !== activePageId ||
-    sourcePage !== spec.pages[activePageId];
+  return ticketPlanStaleness(useTicketStore.getState(), {
+    activePageId, page: spec.pages[activePageId], documentId, projectIdentity: useDocumentStore.getState().projectIdentity,
+  }) !== null;
+}
+
+/** 요청을 시작할 때의 프로젝트가 아직 지금 문서의 프로젝트인가(#281 리뷰). */
+function isSameProject(projectIdentity: number): boolean {
+  return useDocumentStore.getState().projectIdentity === projectIdentity;
 }
 
 function revertToPending(waveTickets: Ticket[]): void {
@@ -141,7 +178,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   const { sourcePageId, sourcePage, sourceDocumentId, generation } = useTicketStore.getState();
   // 요청 때의 프로젝트(#282·#281). 생성 자리와 확정 기록의 주인이 되고, 기존 파일이 이 프로젝트의 마지막
   // 생성인지 가른다.
-  const fileName = useDocumentStore.getState().fileName;
+  const { fileName, projectIdentity } = useDocumentStore.getState();
   if (sourcePageId === null || sourcePage === null || waveTickets.length === 0) return;
   // 첫 웨이브와 자동으로 이어지는 다음 웨이브 모두 여기서 막는다(#271). 응답을 기다리는
   // 동안 편집했다면 이미 받은 결과는 그 요청(이전 스펙)의 사실이라 반영하지만, 바뀐
@@ -186,12 +223,13 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     documentId: sourceDocumentId ?? useEditorStore.getState().documentId,
     pageId: sourcePageId,
     projectPageIds: Object.keys(useEditorStore.getState().spec.pages),
+    componentNames: useTicketStore.getState().tickets.map((ticket) => ticket.componentName),
   });
   if (useTicketStore.getState().generation !== generation) {
     wait.settle();
     return;
   }
-  if (!located.ok || cancelToken.cancelled) {
+  if (!located.ok || cancelToken.cancelled || !isSameProject(projectIdentity)) {
     if (activeWait === wait) activeWait = null;
     activeCancel = null;
     wait.settle();
@@ -199,7 +237,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     useTicketStore.setState({
       running: false,
       wait: null,
-      runError: located.ok ? null : located.error,
+      runError: located.ok ? (isSameProject(projectIdentity) ? null : PROJECT_CHANGED_TICKET_MESSAGE) : located.error,
       runErrorRetryable: !located.ok && located.retryable !== false,
     });
     return;
@@ -248,6 +286,17 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     return;
   }
 
+  // 응답을 기다리는 사이 다른 이름으로 저장했으면(#281 리뷰) 이 출력은 원본 프로젝트의 요청이지만 사용자는
+  // 이미 복사본을 편집 중이다 — 원본에 확정하면 복사본의 티켓이 완료로 보이고, 복사본에 확정하면 남의 출력이다.
+  // 어느 쪽에도 확정하지 않고 임시 출력에 남긴다(취소와 같은 수용 경계).
+  if (!isSameProject(projectIdentity)) {
+    if (outcome.kind === "response") outcome.lock?.release();
+    revertToPending(waveTickets);
+    useTicketStore.setState({ running: false, runError: PROJECT_CHANGED_TICKET_MESSAGE, runErrorRetryable: false });
+    activeCancel = null;
+    return;
+  }
+
   if (outcome.result.kind !== "results") {
     outcome.lock?.release();
     revertToPending(waveTickets);
@@ -276,9 +325,12 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     results: outcome.result.results,
   });
   if (useTicketStore.getState().generation !== generation) return;
-  if (cancelToken.cancelled) {
+  if (cancelToken.cancelled || !isSameProject(projectIdentity)) {
     revertToPending(waveTickets);
-    useTicketStore.setState({ running: false, runError: OVERWRITE_CANCELLED_MESSAGE });
+    useTicketStore.setState({
+      running: false,
+      runError: isSameProject(projectIdentity) ? OVERWRITE_CANCELLED_MESSAGE : PROJECT_CHANGED_TICKET_MESSAGE,
+    });
     return;
   }
   const leaseCurrent = outcome.lock === undefined || await outcome.lock.renew(true);
@@ -293,9 +345,13 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
     const answer = await awaitOverwriteReview(plan.review);
     // 확인을 기다리는 사이 재컴파일됐으면 아무것도 쓰지 않는다 — 새 계획의 화면을 건드리지 않는다.
     if (useTicketStore.getState().generation !== generation) return;
-    if (answer === "cancel" || cancelToken.cancelled) {
+    if (answer === "cancel" || cancelToken.cancelled || !isSameProject(projectIdentity)) {
       revertToPending(waveTickets);
-      useTicketStore.setState({ running: false, runError: OVERWRITE_CANCELLED_MESSAGE, runErrorRetryable: false });
+      useTicketStore.setState({
+        running: false,
+        runError: isSameProject(projectIdentity) ? OVERWRITE_CANCELLED_MESSAGE : PROJECT_CHANGED_TICKET_MESSAGE,
+        runErrorRetryable: false,
+      });
       activeCancel = null;
       return;
     }
@@ -308,7 +364,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   }
   const acceptance = await commitTicketOutputs(plan, decisions, {
     isCurrent: () => !cancelToken.cancelled && activeCancel === cancelToken &&
-      useTicketStore.getState().generation === generation,
+      useTicketStore.getState().generation === generation && isSameProject(projectIdentity),
     renew: () => outcome.lock?.renew(true) ?? Promise.resolve(false),
     release: promotion.release,
     onSettled: (settled) => {
@@ -317,7 +373,8 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
         ...(warning ? { acceptanceWarning: warning } : {}),
         ...(settled.run === null ? {} : {
           lastRun: settled.run,
-          restoreMessage: settled.committed && (cancelToken.cancelled || useTicketStore.getState().generation !== generation)
+          restoreMessage: settled.committed && (cancelToken.cancelled || useTicketStore.getState().generation !== generation ||
+            !isSameProject(projectIdentity))
             ? "이전 출력 적용은 이미 확정되었습니다. 중지는 후속 전달을 막으며 이 적용의 백업과 되돌리기는 유지합니다." : null,
         }),
       });
@@ -326,6 +383,19 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   // 확정 시점 전 취소는 중단/보상한다. 그 이후 scope 저장 중 전환은 확정 결과와 handle을
   // 보존하되 새 세대의 티켓 상태는 건드리지 않는다.
   if (useTicketStore.getState().generation !== generation) return;
+  // 확정 중 다른 이름으로 저장했으면(#281 리뷰) 복사본의 티켓을 완료로 표시하지 않고 다음 웨이브도 보내지
+  // 않는다. 확정 시점 전이면 위 `isCurrent`가 확정을 멈췄고, 지난 뒤면 출력은 요청한 원본 프로젝트의 자리·기록에
+  // 들어갔다 — 그 소유권은 맞다. 어느 쪽이든 복사본에는 아무것도 확정되지 않았다.
+  if (!isSameProject(projectIdentity)) {
+    revertToPending(waveTickets);
+    useTicketStore.setState({
+      running: false,
+      runError: acceptance.committed ? PROJECT_CHANGED_AFTER_COMMIT_MESSAGE : PROJECT_CHANGED_TICKET_MESSAGE,
+      runErrorRetryable: false,
+    });
+    activeCancel = null;
+    return;
+  }
 
   const results = acceptance.results;
   useTicketStore.setState((state) => ({

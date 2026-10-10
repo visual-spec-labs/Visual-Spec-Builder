@@ -8,7 +8,7 @@
  *
  * | 일 | 결과 |
  * |---|---|
- * | 앱 안 이름 변경(`renameProject`) | `recordProjectRename`이 기록의 파일 이름만 바꾼다 — 같은 ID·같은 폴더 |
+ * | 앱 안 이름 변경(`renameProject`) | `recordProjectRename`이 기록의 파일 이름만 바꾼다 — 같은 ID·같은 폴더. 기록하지 못하면(잠금 사용 중·기록 오류) 이 탭이 "기록 대기"로 들고 있다가 다음 전달·Export에서 이어받고, 다음 전달 때 다시 기록한다 |
  * | 다른 이름으로 저장(복사) | 새 파일 이름이라 기록이 없다 — 처음 전달할 때 새 ID·새 폴더 |
  * | 앱 밖에서 이름 변경·복사 | 앱이 알 수 없다 — 새 프로젝트로 본다. 옛 폴더의 파일은 건드리지 않는다 |
  * | 저장하지 않은 문서 | 이 탭의 문서(`editorStore.documentId`)에 세션 동안 프로젝트를 정해 두고, 처음 저장한 뒤 전달하면 그 파일 이름을 이어받는다 |
@@ -27,7 +27,13 @@ import {
   withProjectRenamed,
   type GenerationManifest,
 } from "@/features/editor/export/generationManifest";
-import { chooseOutputDir, pageIdCaseConflicts, pageOutputRoot, projectOutputDirName } from "@/features/editor/export/generationIdentity";
+import {
+  chooseOutputDir,
+  isWindowsDeviceName,
+  pageIdCaseConflicts,
+  pageOutputRoot,
+  projectOutputDirName,
+} from "@/features/editor/export/generationIdentity";
 import type { PageId } from "@/features/editor/schema";
 
 import { holdRequestLock } from "./agentRequestLock";
@@ -42,6 +48,8 @@ export interface GenerationOwnerInput {
   pageId: PageId;
   /** 이 프로젝트의 모든 PageId. 대소문자만 다른 PageId가 있는지 보는 데만 쓴다. */
   projectPageIds: readonly PageId[];
+  /** 이 페이지 티켓 계획의 컴포넌트 이름들(파일 이름 `<이름>.tsx`). Windows 장치 이름인지 보는 데만 쓴다. */
+  componentNames?: readonly string[];
 }
 
 /** 정해진 생성 자리. */
@@ -58,6 +66,39 @@ export interface GenerationTarget {
  */
 const unsavedProjects = new Map<number, string>();
 
+/**
+ * 기록하지 못한 앱 안 이름 변경(새 파일 이름 → 옛 파일 이름). 이름 변경은 이미 끝났는데 기록이 옛 이름을
+ * 들고 있으면, 다음 전달이 새 프로젝트(새 폴더)로 시작해 이 프로젝트의 출력과 이어지지 않는다. 그래서 이
+ * 탭이 들고 있다가 기록을 찾을 때 옛 이름으로 이어받고(`findGenerationProject`), 다음 전달 때 잠금 안에서
+ * 다시 기록한다(`ensureGenerationTarget`). 새로고침하면 잊는다 — 그 전에 전달하지 않았다면 다음 전달은 새
+ * 프로젝트로 시작한다(남의 출력을 덮는 쪽으로는 틀리지 않는다, docs/26 "#281 남은 한계").
+ */
+const pendingRenames = new Map<string, string>();
+
+/** 새 이름에서 기록 대기 중인 이름 변경을 거슬러 가장 처음 이름까지 따라간다(A→B→C 연속 변경). */
+function renamedFrom(fileName: string): string | null {
+  const seen = new Set([fileName]);
+  let current = pendingRenames.get(fileName);
+  if (current === undefined) return null;
+  while (!seen.has(current)) {
+    seen.add(current);
+    const earlier = pendingRenames.get(current);
+    if (earlier === undefined) break;
+    current = earlier;
+  }
+  return current;
+}
+
+/** 기록한 이름 변경을 대기 목록에서 지운다(그 이름에 이르는 앞 단계까지). */
+function forgetPendingRename(fileName: string): void {
+  let current: string | undefined = fileName;
+  while (current !== undefined && pendingRenames.has(current)) {
+    const earlier: string | undefined = pendingRenames.get(current);
+    pendingRenames.delete(current);
+    current = earlier;
+  }
+}
+
 function createProjectId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `project-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -70,10 +111,16 @@ function createProjectId(): string {
 export function findGenerationProject(
   manifest: GenerationManifest,
   { fileName, documentId }: Pick<GenerationOwnerInput, "fileName" | "documentId">,
-): { projectId: string; outputDir: string; adoptFileName: boolean } | null {
+): { projectId: string; outputDir: string; adoptFileName: boolean; renameFrom?: string } | null {
   if (fileName !== null) {
     const found = findProjectByFileName(manifest, fileName);
     if (found !== null) return { projectId: found.projectId, outputDir: found.project.outputDir, adoptFileName: false };
+    // 이 탭에서 이름을 바꿨는데 기록하지 못했다 — 옛 이름의 기록이 이 프로젝트다.
+    const from = renamedFrom(fileName);
+    const renamed = from === null ? null : findProjectByFileName(manifest, from);
+    if (from !== null && renamed !== null) {
+      return { projectId: renamed.projectId, outputDir: renamed.project.outputDir, adoptFileName: false, renameFrom: from };
+    }
   }
   const sessionId = unsavedProjects.get(documentId);
   const session = sessionId === undefined ? undefined : manifest.projects[sessionId];
@@ -152,6 +199,8 @@ export async function ensureGenerationTarget(
   owner: GenerationOwnerInput,
   { now = () => new Date(), createId = createProjectId }: { now?: () => Date; createId?: () => string } = {},
 ): Promise<GenerationTargetResult> {
+  const deviceNameIssue = windowsDeviceNameIssue(owner);
+  if (deviceNameIssue !== null) return { ok: false, retryable: false, error: deviceNameIssue };
   const conflicts = pageIdCaseConflicts(owner.pageId, owner.projectPageIds);
   if (conflicts.length > 0) {
     return {
@@ -165,7 +214,7 @@ export async function ensureGenerationTarget(
   const read = await readManifest();
   if (!read.ok) return read;
   const known = findGenerationProject(read.manifest, owner);
-  if (known !== null && !known.adoptFileName) {
+  if (known !== null && !known.adoptFileName && known.renameFrom === undefined) {
     return { ok: true, target: targetOf(known.projectId, known.outputDir, owner.pageId) };
   }
 
@@ -173,6 +222,13 @@ export async function ensureGenerationTarget(
     // 잠금 안에서 다시 판정한다 — 그 사이 다른 탭이 같은 파일 이름을 기록했을 수 있다.
     const found = findGenerationProject(manifest, owner);
     if (found !== null) {
+      // 기록하지 못했던 이름 변경을 지금 기록한다 — 같은 ID·같은 폴더가 새 이름을 이어받는다.
+      if (found.renameFrom !== undefined && owner.fileName !== null) {
+        return {
+          next: withProjectRenamed(manifest, found.renameFrom, owner.fileName),
+          result: { target: targetOf(found.projectId, found.outputDir, owner.pageId), created: false },
+        };
+      }
       if (!found.adoptFileName || owner.fileName === null) {
         return { next: null, result: { target: targetOf(found.projectId, found.outputDir, owner.pageId), created: false } };
       }
@@ -193,33 +249,73 @@ export async function ensureGenerationTarget(
   if (!updated.ok) return { ok: false, error: `출력 위치를 정하지 못했습니다 — ${updated.error}` };
   const { target, created } = updated.result;
   if (owner.fileName === null && created) unsavedProjects.set(owner.documentId, target.projectId);
-  if (owner.fileName !== null) unsavedProjects.delete(owner.documentId);
+  if (owner.fileName !== null) {
+    unsavedProjects.delete(owner.documentId);
+    forgetPendingRename(owner.fileName);
+  }
   return { ok: true, target };
 }
 
+const WINDOWS_DEVICE_HINT = "Windows 장치 이름(CON·PRN·AUX·NUL·COM0~9·LPT0~9 — 대소문자·확장자와 상관없음)";
+
+/**
+ * 생성 자리의 폴더(PageId)나 파일(`<컴포넌트 이름>.tsx`)이 Windows 장치 이름이면 이유 문구, 아니면 null.
+ * 그런 폴더·파일은 Windows에서 일반 프로그램이 열거나 지우지 못한다(`isWindowsDeviceName`). 대소문자 충돌과
+ * 같이 **전달 전에 거부**한다 — 이름을 몰래 바꾸면 스킬·Export·수용 기록의 경로 규칙이 갈라진다. 프로젝트
+ * 폴더는 파일 이름에서 만들 때 이미 피한다(`projectOutputDirName`).
+ */
+function windowsDeviceNameIssue(owner: GenerationOwnerInput): string | null {
+  if (isWindowsDeviceName(owner.pageId)) {
+    return `페이지 ID "${owner.pageId}"는 ${WINDOWS_DEVICE_HINT}이라 생성 폴더를 만들 수 없어 전달하지 않았습니다. ` +
+      "Windows에서는 이 이름의 폴더를 탐색기·git·편집기가 열거나 지우지 못합니다. 프로젝트 JSON에서 페이지 ID를 바꾼 뒤 다시 전달하세요.";
+  }
+  const names = [...new Set((owner.componentNames ?? []).filter(isWindowsDeviceName))].sort();
+  if (names.length === 0) return null;
+  return `티켓 이름 ${names.map((name) => `"${name}"`).join(", ")}은 ${WINDOWS_DEVICE_HINT}이라 생성 파일` +
+    `(${names.map((name) => `${name}.tsx`).join(", ")})을 만들 수 없어 전달하지 않았습니다. ` +
+    "해당 화면·레이어 이름을 바꾼 뒤 티켓을 다시 생성해 전달하세요.";
+}
+
+/** 이름 변경을 기록하지 못했을 때 사용자가 알아야 할 복구 경로. 이름 변경 자체는 이미 끝났다. */
+const RENAME_RECORD_RECOVERY =
+  "이름 변경은 완료됐습니다. 이 탭에서 이 프로젝트의 구현 티켓을 다음에 전달할 때 기록을 다시 시도해 같은 생성 폴더를 " +
+  "이어받습니다. 그 전에 새로고침하거나 다른 탭에서 전달하면 새 프로젝트(새 생성 폴더)로 시작하고, 이전 생성 파일은 옛 폴더에 그대로 남습니다.";
+
 /**
  * 앱 안 이름 변경을 기록에 옮긴다 — 같은 프로젝트 ID·같은 출력 폴더가 새 이름을 이어받는다. 기록에 없는
- * 프로젝트(한 번도 전달하지 않음)면 할 일이 없다. 실패하면 안내 문구를 돌려준다: 이름 변경 자체는 이미
- * 끝났고, 다음 전달에서 이 프로젝트는 새 프로젝트(새 폴더)로 보인다 — 남의 출력을 덮는 쪽으로는 틀리지 않는다.
- * 다른 탭의 티켓 요청이 진행 중(잠금 사용 중)이어도 기록하지 못한다(docs/26 "#281 남은 한계").
+ * 프로젝트(한 번도 전달하지 않음)면 할 일이 없다(null). 기록하지 못하면(다른 탭·이 탭의 티켓 요청이 잠금을
+ * 쥐고 있음, 기록을 읽거나 쓰지 못함, 새 형식 기록) 이유와 복구 경로를 담은 안내를 돌려주고, 이 탭에 "기록
+ * 대기"로 남겨 다음 전달 때 다시 기록한다(`pendingRenames`). 남의 출력을 덮는 쪽으로는 틀리지 않는다.
  */
 export async function recordProjectRename(from: string, to: string): Promise<string | null> {
   // 이름 변경은 이미 끝난 뒤라 여기서 무엇이 실패해도(예외 포함) 그 결과를 뒤집지 않는다.
+  let reason: string;
   try {
     const read = await readManifest();
-    if (!read.ok) return read.error;
-    if (findProjectByFileName(read.manifest, from) === null) return null;
-    const updated = await updateManifestLocked((manifest) => {
-      const next = withProjectRenamed(manifest, from, to);
-      return { next: next === manifest ? null : next, result: null };
-    });
-    return updated.ok ? null : `이름 변경을 생성 기록에 남기지 못했습니다 — ${updated.error}`;
+    if (!read.ok) reason = read.error;
+    else {
+      // 앞서 기록하지 못한 변경(A→B)이 있으면 처음 이름(A)의 기록을 이번 이름(C)으로 옮긴다.
+      const origin = findProjectByFileName(read.manifest, from) !== null ? from : renamedFrom(from);
+      if (origin === null || findProjectByFileName(read.manifest, origin) === null) return null;
+      const updated = await updateManifestLocked((manifest) => {
+        const next = withProjectRenamed(manifest, origin, to);
+        return { next: next === manifest ? null : next, result: null };
+      });
+      if (updated.ok) {
+        forgetPendingRename(from);
+        return null;
+      }
+      reason = updated.error;
+    }
   } catch {
-    return "생성 기록에 이름 변경을 남기지 못했습니다.";
+    reason = "생성 기록을 읽거나 쓰는 중 오류가 났습니다.";
   }
+  pendingRenames.set(to, from);
+  return `이름 변경을 생성 기록에 남기지 못했습니다 — ${reason} ${RENAME_RECORD_RECOVERY}`;
 }
 
 /** 테스트 전용: 세션 프로젝트를 잊는다(새로고침 흉내). */
 export function forgetUnsavedGenerationProjects(): void {
   unsavedProjects.clear();
+  pendingRenames.clear();
 }

@@ -23,6 +23,8 @@ export interface MemoryWorkspace {
   /** 쓰기·지우기 순서 기록. */
   log: string[];
   beforeRead?: (path: string) => void | Promise<void>;
+  /** true를 돌려주면 그 읽기를 HTTP 오류처럼 실패시킨다(엄격한 읽기는 `{ ok: false }`, 관대한 읽기는 null). */
+  failRead?: (path: string) => boolean;
   afterWrite?: (path: string) => string | null | void | Promise<string | null | void>;
 }
 
@@ -39,6 +41,7 @@ export function resetMemoryWorkspace(workspace: MemoryWorkspace): void {
   workspace.failWrite = null;
   workspace.log.length = 0;
   workspace.beforeRead = undefined;
+  workspace.failRead = undefined;
   workspace.afterWrite = undefined;
 }
 
@@ -81,10 +84,13 @@ export function memoryWorkspaceClient(workspace: MemoryWorkspace) {
   return {
     isWorkspaceAvailable: async () => !workspace.offline,
     listWorkspaceFiles: async (dir: string, options?: { recursive?: boolean }) => list(dir, options),
-    readWorkspaceTextFile: async (path: string) => (workspace.offline ? null : textOf(workspace, path) ?? null),
+    readWorkspaceTextFile: async (path: string) =>
+      (workspace.offline || workspace.failRead?.(path) === true ? null : textOf(workspace, path) ?? null),
     readWorkspaceTextFileStrict: async (path: string) => {
       await workspace.beforeRead?.(path);
-      return workspace.offline ? { ok: false } : { ok: true, text: textOf(workspace, path) ?? null };
+      return workspace.offline || workspace.failRead?.(path) === true
+        ? { ok: false }
+        : { ok: true, text: textOf(workspace, path) ?? null };
     },
     readWorkspaceBinaryFile: async () => null,
     readWorkspaceFileSnapshot: async (path: string) => {

@@ -36,7 +36,22 @@ export function ticketComponentKey(ticket: Ticket): string {
 
 /** 프로젝트 폴더가 될 수 없는 이름 — 이전 배치의 최상위 폴더와 겹치면 둘을 가를 수 없다. */
 const RESERVED_DIR_NAMES = new Set([PAGES_DIR, COMPONENTS_DIR]);
-const WINDOWS_DEVICE_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
+
+/**
+ * Windows 장치 이름(Microsoft "Naming Files" 문서의 예약 이름). 대소문자를 가리지 않고, 확장자가 붙어도
+ * (`con.tsx`·`NUL.txt`) 장치로 해석된다. 끝의 점·공백은 Windows가 떼어 내므로 떼고 본다.
+ */
+const WINDOWS_DEVICE_NAME = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\.|$)/i;
+
+/**
+ * 경로 한 단계(폴더 또는 파일 이름)가 Windows 장치 이름인가. 그런 이름의 폴더·파일은 Windows에서 일반
+ * 프로그램(탐색기·git·편집기·ZIP 도구)이 열거나 지우지 못한다 — Node는 `\?\` 경로로 만들어 버릴 수 있어
+ * 쓰기가 성공해도 사용자는 그 출력을 쓸 수 없다(`test/generation-device-name.test.ts`). 플랫폼과 상관없이
+ * 같은 규칙으로 막는다 — 생성 결과는 다른 기기로 옮겨진다.
+ */
+export function isWindowsDeviceName(segment: string): boolean {
+  return WINDOWS_DEVICE_NAME.test(segment.replace(/[. ]+$/, ""));
+}
 
 /**
  * 프로젝트 파일 이름에서 프로젝트 폴더 이름의 **후보**를 만든다. 소문자로 줄인다 — 대소문자를 가리지
@@ -48,7 +63,7 @@ export function projectOutputDirName(fileName: string | null): string {
   const stem = (fileName ?? "").replace(/\.json$/i, "");
   const slug = stem.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/^-+|-+$/g, "");
   if (slug === "") return "project";
-  return RESERVED_DIR_NAMES.has(slug) || WINDOWS_DEVICE_NAME.test(slug) ? `${slug}-project` : slug;
+  return RESERVED_DIR_NAMES.has(slug) || isWindowsDeviceName(slug) ? `${slug}-project` : slug;
 }
 
 /** 후보가 이미 다른 프로젝트의 폴더면 `-2`, `-3`…을 붙인다. */

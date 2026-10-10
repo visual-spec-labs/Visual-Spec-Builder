@@ -20,6 +20,8 @@ const workspace = vi.hoisted(() => ({
   log: [] as string[],
   /** 다른 탭이 티켓 요청 잠금을 쥐고 있다. */
   lockBusy: false,
+  failRead: undefined as ((path: string) => boolean) | undefined,
+  afterWrite: undefined as ((path: string) => void) | undefined,
 }));
 
 vi.mock("@/features/editor/ui/workspaceClient", async () =>
@@ -63,7 +65,13 @@ import { compileTickets } from "@/features/editor/ticket/compileTickets";
 import { TICKET_PROTOCOL_VERSION, TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH, type TicketRequest } from "@/features/editor/ticket/ticketProtocol";
 import { scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
 import { forgetUnsavedGenerationProjects, recordProjectRename } from "@/features/editor/ui/generationTarget";
-import { cancelTicketRun, runAllTickets, runOneTicket } from "@/features/editor/ui/ticketRunner";
+import {
+  cancelTicketRun,
+  isTicketPlanStale,
+  PROJECT_CHANGED_TICKET_MESSAGE,
+  runAllTickets,
+  runOneTicket,
+} from "@/features/editor/ui/ticketRunner";
 
 import { resetMemoryWorkspace, textOf } from "./fixtures/memoryWorkspace";
 
@@ -558,5 +566,223 @@ describe("요청 중 기록이 새 형식이 되면", () => {
     // 보상은 기록으로 이 요청의 출력임을 증명할 때만 되돌린다(#282) — 남은 파일을 실행 기록으로 알린다
     expect(lastRun?.paths.length).toBe(written.length);
     for (const path of lastRun?.paths ?? []) expect(workspace.files.has(`generated/${path}`)).toBe(true);
+  });
+});
+
+describe("요청 중 다른 이름으로 저장 (#281 리뷰)", () => {
+  /** 실행이 끝날 때까지 시간을 보낸다(에이전트는 더 응답하지 않는다). */
+  async function settle(run: Promise<void>): Promise<void> {
+    for (let round = 0; round < 10 && useTicketStore.getState().running; round++) await tick();
+    await run;
+  }
+
+  it("A 요청 → 다른 이름으로 저장 B → 늦은 A 응답: 어느 프로젝트에도 확정하지 않고, B의 티켓을 완료로 표시하지 않으며, 다음 웨이브를 B로 보내지 않는다", async () => {
+    const run = runAllTickets();
+    await tick();
+    const requestA = currentRequest()!;
+    expect(requestA.generatedRoot).toBe("shop/page1");
+    const shopId = findProjectByFileName(manifest(), "shop.json")!.projectId;
+
+    useDocumentStore.getState().setFileName("shop-copy.json", null); // 다른 이름으로 저장
+    expect(isTicketPlanStale()).toBe(true);
+    agentCompletes(requestA, "A");
+    await settle(run);
+
+    // 파일: generated/ 어디에도 쓰지 않았다. A의 출력은 A 요청의 임시 출력에 남는다
+    expect(generatedWrites()).toEqual([]);
+    expect(textOf(workspace, requestA.tickets[0].outputPath)).toContain("// A");
+    // 티켓: 복사본의 계획에서 완료로 보이지 않는다
+    expect(useTicketStore.getState().tickets.every((ticket) => ticket.status === "pending")).toBe(true);
+    expect(useTicketStore.getState().runError).toBe(PROJECT_CHANGED_TICKET_MESSAGE);
+    // 기록: 확정 기록이 없고, 복사본은 아직 프로젝트가 아니다
+    expect(manifest().entries).toEqual({});
+    expect(Object.keys(manifest().projects)).toEqual([shopId]);
+    // 후속 웨이브: 요청이 없고, 낡은 계획으로 다시 눌러도 전달하지 않는다
+    expect(currentRequest()).toBeNull();
+    await runAllTickets();
+    expect(currentRequest()).toBeNull();
+
+    // 복사본에서 티켓을 다시 생성해 전달하면 복사본의 새 자리에 처음부터 만든다 — 원본 자리는 비어 있다
+    compileCurrent();
+    workspace.log.length = 0;
+    const handled = await deliver("B");
+    expect(handled.length).toBeGreaterThan(1);
+    expect(handled.every((request) => request.generatedRoot === "shop-copy/page1")).toBe(true);
+    expect(generatedWrites().every((entry) => entry.includes(" generated/shop-copy/page1/"))).toBe(true);
+    expect([...workspace.files.keys()].some((path) => path.startsWith("generated/shop/"))).toBe(false);
+    const copy = findProjectByFileName(manifest(), "shop-copy.json")!;
+    expect(copy.projectId).not.toBe(shopId);
+    expect(Object.values(manifest().entries).every((entry) => entry.projectId === copy.projectId)).toBe(true);
+    expect((await exportScan()).freshness.overall).toBe("current");
+  });
+
+  it("확정 중(생성 기록을 쓰는 순간) 다른 이름으로 저장해도 복사본의 티켓을 완료로 표시하지 않고 다음 웨이브를 보내지 않는다", async () => {
+    workspace.afterWrite = (path) => {
+      if (path === GENERATION_MANIFEST_PATH && Object.keys(manifest().entries).length > 0) {
+        useDocumentStore.getState().setFileName("shop-copy.json", null);
+      }
+    };
+    const run = runAllTickets();
+    await tick();
+    const requestA = currentRequest()!;
+    agentCompletes(requestA, "A");
+    await settle(run);
+
+    expect(useDocumentStore.getState().fileName).toBe("shop-copy.json");
+    expect(useTicketStore.getState().tickets.every((ticket) => ticket.status === "pending")).toBe(true);
+    expect(useTicketStore.getState().runError).toBe(PROJECT_CHANGED_TICKET_MESSAGE);
+    expect(currentRequest()).toBeNull();
+    // 확정 시점 전이라 보상했다 — 원본 자리에도 이 요청의 기록이 남지 않고, 복사본 자리는 없다
+    expect(Object.values(manifest().entries).some((entry) => entry.requestId === requestA.id)).toBe(false);
+    expect([...workspace.files.keys()].some((path) => path.startsWith("generated/shop-copy/"))).toBe(false);
+  });
+
+  it("앱 안 이름 변경은 같은 프로젝트라 요청 중이어도 같은 자리에 확정하고 다음 웨이브도 같은 자리로 이어 간다 — 잠금 때문에 못 남긴 이름 변경 기록은 그 다음 전달에서 고친다", async () => {
+    const run = runAllTickets();
+    await tick();
+    const requestA = currentRequest()!;
+    const shopId = findProjectByFileName(manifest(), "shop.json")!.projectId;
+
+    // 요청이 티켓 잠금을 쥐고 있어 이름 변경을 기록하지 못한다 — 이름 변경 자체는 끝난다
+    workspace.lockBusy = true;
+    const warning = await recordProjectRename("shop.json", "store.json");
+    workspace.lockBusy = false;
+    expect(warning).toContain("이름 변경을 생성 기록에 남기지 못했습니다");
+    expect(warning).toContain("다음에 전달할 때 기록을 다시 시도");
+    useDocumentStore.getState().adoptRenamedFileName("store.json", null);
+    expect(isTicketPlanStale()).toBe(false);
+
+    agentCompletes(requestA, "A");
+    const handled = [requestA];
+    for (let round = 0; round < 20 && useTicketStore.getState().running; round++) {
+      await tick();
+      const request = currentRequest();
+      if (request === null || handled.some((done) => done.id === request.id)) continue;
+      handled.push(request);
+      agentCompletes(request, "A");
+    }
+    await run;
+
+    expect(handled.length).toBeGreaterThan(1);
+    expect(handled.every((request) => request.generatedRoot === "shop/page1")).toBe(true);
+    expect(useTicketStore.getState().tickets.every((ticket) => ticket.status === "done")).toBe(true);
+    // 두 번째 웨이브의 자리 결정이 대기 중이던 이름 변경을 기록했다 — 같은 ID·같은 폴더
+    expect(Object.keys(manifest().projects)).toEqual([shopId]);
+    expect(findProjectByFileName(manifest(), "store.json")).toMatchObject({ projectId: shopId, project: { outputDir: "shop" } });
+    expect((await exportScan()).freshness.overall).toBe("current");
+  });
+});
+
+describe("이름 변경 기록 실패 (#281 리뷰)", () => {
+  it("기록하지 못하면 이유와 복구 경로를 돌려주고, Export는 그 사이에도 같은 자리를 보며, 이 탭의 다음 전달이 같은 ID·같은 폴더로 기록을 고친다", async () => {
+    await deliver("A");
+    const shopId = findProjectByFileName(manifest(), "shop.json")!.projectId;
+
+    workspace.lockBusy = true; // 다른 탭의 티켓 요청이 진행 중
+    const warning = await recordProjectRename("shop.json", "store.json");
+    workspace.lockBusy = false;
+    expect(warning).toContain("다른 탭(창)의 티켓 요청이 진행 중");
+    expect(warning).toContain("새로고침하거나 다른 탭에서 전달하면 새 프로젝트");
+    expect(findProjectByFileName(manifest(), "shop.json")?.projectId).toBe(shopId); // 기록은 아직 옛 이름
+    useDocumentStore.getState().adoptRenamedFileName("store.json", null);
+
+    // 그 사이 Export: 옛 이름의 기록을 이 프로젝트로 이어받아 같은 자리를 "현재"로 본다
+    const { scan, freshness } = await exportScan();
+    expect(scan.location).toEqual({ layout: "project", root: "shop/page1", projectId: shopId });
+    expect(freshness.overall).toBe("current");
+
+    // 다음 전달: 같은 자리에 쓰고, 기록의 이름을 고친다 — 새 프로젝트를 만들지 않는다
+    useEditorStore.getState().setNodeField("headerTitle", "content", "B");
+    compileCurrent();
+    const handled = await deliver("B", () => runOneTicket("Header"));
+    expect(handled.map((request) => request.generatedRoot)).toEqual(["shop/page1"]);
+    expect(Object.keys(manifest().projects)).toEqual([shopId]);
+    expect(findProjectByFileName(manifest(), "store.json")?.projectId).toBe(shopId);
+    expect(findProjectByFileName(manifest(), "shop.json")).toBeNull();
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// B");
+  });
+
+  it("기록을 읽지 못해도 안내하고, 새로고침(대기 잊음) 뒤 전달은 새 프로젝트로 시작해 옛 출력을 덮지 않는다", async () => {
+    await deliver("A");
+    workspace.failRead = (path) => path === GENERATION_MANIFEST_PATH;
+    const warning = await recordProjectRename("shop.json", "store.json");
+    workspace.failRead = undefined;
+    expect(warning).toContain("생성 기록을 읽지 못해");
+    expect(warning).toContain("이름 변경은 완료됐습니다");
+
+    useDocumentStore.getState().adoptRenamedFileName("store.json", null);
+    forgetUnsavedGenerationProjects(); // 새로고침 흉내 — 이 탭의 기록 대기를 잊는다
+    compileCurrent();
+    workspace.log.length = 0;
+    await deliver("new");
+    expect(generatedWrites().every((entry) => entry.includes(" generated/store/page1/"))).toBe(true);
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A");
+    expect(findProjectByFileName(manifest(), "store.json")?.projectId)
+      .not.toBe(findProjectByFileName(manifest(), "shop.json")?.projectId);
+  });
+});
+
+describe("Export 검사 불가 — 기록 없음과 읽기 실패를 가른다 (#281 리뷰)", () => {
+  /** 이 문서·페이지를 훑는다(판정 전 결과 그대로). */
+  async function scanAs(fileName: string) {
+    const { activePageId, spec, documentId } = useEditorStore.getState();
+    return scanGeneratedCode(spec.pages[activePageId], activePageId, { fileName, documentId });
+  }
+
+  it("기록 없음(확정된 404)이면 파일 이름 후보 폴더(직접 실행한 to-react 출력)를 '기록 없음'으로 보인다", async () => {
+    workspace.files.set("generated/shop/page1/pages/Home.tsx", "export default function Home() { return null; } // direct\n");
+    const scan = await scanAs("shop.json");
+    expect(scan).toMatchObject({ kind: "ready", location: { layout: "project", root: "shop/page1", projectId: null } });
+    if (scan.kind === "ready") {
+      expect(scan.files.map((file) => file.path)).toEqual(["pages/Home.tsx"]);
+      expect(scan.freshness?.overall).toBe("unverifiable");
+    }
+  });
+
+  it("이름 변경 뒤 옛 이름을 다시 쓴 다른 프로젝트: 기록이 읽히면 남의 폴더를 고르지 않고, 읽기 실패면 추측하지 않고 검사 불가로 멈춘다", async () => {
+    await deliver("store");
+    expect(await recordProjectRename("shop.json", "store.json")).toBeNull(); // shop 폴더의 주인은 이제 store.json
+
+    // 같은 이름(shop.json)으로 새로 만든 다른 프로젝트 — 기록에 없다. 후보 "shop"은 store.json이 쓰는 폴더다
+    const fresh = await scanAs("shop.json");
+    expect(fresh).toMatchObject({ kind: "ready", location: { layout: "unassigned" } });
+    if (fresh.kind === "ready") expect(fresh.files).toEqual([]);
+
+    workspace.failRead = (path) => path === GENERATION_MANIFEST_PATH; // HTTP 500·네트워크 오류
+    const failed = await scanAs("shop.json");
+    expect(failed.kind).toBe("unavailable");
+    if (failed.kind === "unavailable") expect(failed.message).toContain("생성 기록(runtime/generation-manifest.json)을 읽지 못해");
+    // 주인 쪽도 같다 — 기록 없이 자리를 정하지 않는다
+    expect((await scanAs("store.json")).kind).toBe("unavailable");
+  });
+
+  it("같은 slug의 두 프로젝트(my shop·my-shop → my-shop·my-shop-2)는 기록이 읽힐 때만 각자의 폴더를 보고, 읽기 실패면 둘 다 검사 불가다", async () => {
+    openDocument(seedSpec, "my shop.json");
+    await deliver("space");
+    openDocument(seedSpec, "my-shop.json");
+    await deliver("dash");
+    expect(Object.values(manifest().projects).map((project) => project.outputDir).sort()).toEqual(["my-shop", "my-shop-2"]);
+
+    const space = await scanAs("my shop.json");
+    const dash = await scanAs("my-shop.json");
+    expect(space).toMatchObject({ kind: "ready", location: { root: "my-shop/page1" } });
+    expect(dash).toMatchObject({ kind: "ready", location: { root: "my-shop-2/page1" } });
+    if (dash.kind === "ready") expect(dash.files.every((file) => file.content.includes("// dash"))).toBe(true);
+
+    workspace.failRead = (path) => path === GENERATION_MANIFEST_PATH;
+    expect((await scanAs("my shop.json")).kind).toBe("unavailable");
+    expect((await scanAs("my-shop.json")).kind).toBe("unavailable"); // 예전에는 "my-shop"(남의 폴더)을 골랐다
+  });
+
+  it.each([
+    { name: "이 앱보다 새 형식", text: JSON.stringify({ protocol: GENERATION_MANIFEST_PROTOCOL + 1, projects: {}, entries: {} }), message: "새 형식" },
+    { name: "손상(JSON 아님)", text: "{ 깨진 기록", message: "손상" },
+    { name: "손상(모르는 모양)", text: JSON.stringify([1, 2]), message: "손상" },
+  ])("기록이 $name이면 빈 기록으로 읽지 않고 검사 불가로 멈춘다", async ({ text, message }) => {
+    workspace.files.set("generated/shop/page1/pages/Home.tsx", "export default function Home() { return null; }\n");
+    workspace.files.set(GENERATION_MANIFEST_PATH, text);
+    const scan = await scanAs("shop.json");
+    expect(scan.kind).toBe("unavailable");
+    if (scan.kind === "unavailable") expect(scan.message).toContain(message);
   });
 });
