@@ -2,7 +2,7 @@ import { usePersistenceStatusStore, type DraftObservation } from "@/features/edi
 import { beginDocumentTransition } from "./documentTransition";
 import { promptConfirm } from "@/features/editor/store/promptDialogStore";
 import { claimDraft } from "./draftOwnership";
-import { isRecoverableUnnamed, listUnnamedDrafts, notifyUnnamedDrafts, removeUnnamedDraft, useUnnamedDraftStore, type DraftResult, type UnnamedDraft } from "@/features/editor/store/unnamedDraftStore";
+import { isRecoverableUnnamed, listUnnamedDrafts, notifyUnnamedDrafts, recordUnnamedDraftSaved, removeUnnamedDraft, useUnnamedDraftStore, type DraftResult, type UnnamedDraft } from "@/features/editor/store/unnamedDraftStore";
 import { migrateV01 } from "@/features/editor/schema";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { seedSpec } from "@/features/editor/store/seedSpec";
@@ -132,6 +132,8 @@ export function startSpecAutosave() {
       try {
         localStorage.setItem(key, raw);
         baseline = raw;
+        // 마지막 보관 시각은 원문 밖 보조 키에 둔다 — 원문 CAS와 baseline은 그대로다(#351).
+        if (isRecoverableUnnamed(document)) recordUnnamedDraftSaved(key);
         saveSpecToStorage(document.spec, document.fileName, document.diskRevision, key);
         notifyUnnamedDrafts();
         preserve();

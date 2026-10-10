@@ -26,6 +26,32 @@
   `<UUID>:deleted`에는 삭제 장벽만 남으며 spec은 없다. 오래된 sessionStorage나 시작 캐시가
   이전 UUID를 재생성하지 않도록 한다. 브라우저 데이터 삭제·용량/권한 제한은 별도 한계다.
 
+## 마지막 보관 시각·정렬·일괄 삭제 (#351)
+
+- **시각 저장 방식: 원문 밖 보조 키 `<draft key>:meta`** = `{"savedAt": <epoch ms>}`.
+  autosave가 같은 `<draft key>` Web Lock 안에서 원문을 쓴 직후에 기록한다(편집해 복구 대상이 된
+  이름 없는 문서만, 수정 없는 New·데모는 기록하지 않는다).
+  원문(`serializeStoredDocument` 봉투)에 넣지 않은 이유: Resume/Delete의 원문 CAS
+  (`read(key) !== draft.raw`, `serializeStoredDocument(document) !== draft.raw`), autosave `baseline`
+  비교, sessionStorage 복구가 모두 원문 문자열을 그대로 비교한다. 시각이 원문에 들어가면 같은 내용도
+  다른 원문이 되어 충돌 오판·재개 거부가 생기고, `StoredDocument` 저장 형식도 바뀐다. 보조 키는
+  원문·IR·디스크 형식을 바꾸지 않는다.
+- 보조 키는 표시용이다. 기록 실패는 원문 쓰기를 되돌리지 않으며 그 초안은 시각 없는 초안으로 남는다.
+  `listUnnamedDrafts()`는 기존대로 UUID 뒤에 `:`이 붙은 키(`:deleted`, `:owner`, `:meta`)를 초안으로
+  보지 않는다. `removeUnnamedDraft()`(명시적 삭제·Save 은퇴 공통)는 `:deleted` 장벽을 세우고 원문과
+  `:meta`를 함께 지운다.
+- 정렬은 마지막 보관 시각 최근순이고 같으면 키 순이다(결정적). 시각이 없는 기존 초안이나 깨진
+  `:meta`는 **시각 정보 없음**으로 목록 끝에 둔다. Home은 이 탭의 초안을 맨 위에 두고 나머지를 이 순서로
+  보여 준다. 각 항목에 마지막 보관 시각, 페이지 수, 첫 페이지 이름·화면 크기, 첫 페이지 레이어(노드) 수를
+  표시하고 UUID는 보조 정보로 계속 보여 준다. 보관 대기 중인 이 탭의 초안은 시각·요약 대신 기존 대기 안내를 둔다.
+- **모두 삭제…**(초안이 2개 이상일 때)는 이 탭의 현재 초안과 다른 탭이 `:owner` 잠금으로 사용 중인 초안을
+  제외한다. 확인창(취소에 초기 포커스)이 삭제 대상·제외 개수를 먼저 보여 주며, 취소는 아무것도 바꾸지 않는다.
+  확인 뒤에는 개별 삭제와 같은 `remove()`를 초안마다 순차 호출한다 — 잠금·원문 CAS·`:deleted` 장벽을
+  그대로 거치고 별도 삭제 경로는 없다. 확인 뒤 원문이 바뀌었거나 사용 중이 된 초안은 그 항목만 건너뛴다.
+  끝나면 삭제/건너뜀/실패/제외 개수를 `role="status"`로 알린다. 진행 중에는 다른 초안 동작과 함께 비활성화된다.
+  잠금 조회(`navigator.locks.query`)를 못 쓰면 사용 중 초안은 미리 제외되지 않고 `remove()`가 거부해 건너뜀으로 센다.
+- 자동 만료는 여전히 없다. 일괄 삭제도 사용자가 확인한 명시적 삭제다.
+
 ## 탭 경합과 전환 경계
 
 - 활성 이름 없는 문서는 `<draft key>:owner` Web Lock을 수명 동안 보유한다. Home에서도
@@ -58,12 +84,16 @@
   보관 대기 중 현재 탭 재개, edit→Undo 이후 오래된 Resume 승인 거부와 Redo 보존,
   Back 복귀 탭의 실패한 소유권 거부/재획득과 storage 이벤트 전 최신 원문 보호,
   Resume 없는 Delete 재획득 및 삭제 잠금 대기 중 CAS 변경 보호.
+  #351: `:meta` 시각 기록(원문 무변경)과 최근순·시각 없는 초안 끝 정렬, 요약 값, 시각 기록 뒤 Resume/Delete
+  CAS 유지와 `:meta` 정리, 일괄 삭제의 이 탭/다른 탭 소유 제외(잠금 조회 미지원 시 `remove()` 거부),
+  확인 취소 무변경, 확인 뒤 원문이 바뀐 항목만 건너뜀.
 - Chromium: `scripts/browser/unnamed-drafts.mjs` — 임시 workspace와 일반 fixture만 사용한다.
   빈/기존 파일 workspace, Home/Resume/reload/Back/Forward, 실제 opener의 독립 UUID,
   다른 활성 탭 Resume/삭제 거부, 동시 Resume의 단일 소유자, 소유 탭 종료 후 인계,
   Save as 취소/507 실패/실제 저장/재열기, 삭제 취소/확인/reload 비재생성,
   첫 데모/빈 문서/미연결 대조군, Web Locks 미지원의 메모리 초안 재개와 전환 차단,
-  에이전트 요청 미전송을 검증한다.
+  에이전트 요청 미전송을 검증한다. #351: 초안 3개의 최근순 표시와 시각·요약 문구, 다른 탭이 사용 중인
+  초안을 제외한 모두 삭제의 확인창 개수·취소 무변경·확인 후 목록과 `:meta`/`:deleted` 상태, 새로고침 결과.
   UUID와 구조적 내용 일치를 검사하고 초기 fixture의 SHA-256을 출력한다.
 - 공통 확인창 회귀: `scripts/browser/document-transitions.mjs`와
   `scripts/browser/project-dialogs.mjs`를 실제 Chromium으로 실행한다.

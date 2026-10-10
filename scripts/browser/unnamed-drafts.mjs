@@ -97,7 +97,7 @@ try {
   console.log("PASS browser Back/Forward UUID/content");
 
   // Deletion is separately confirmed and cancellation retains bytes and UUID.
-  await drafts.getByRole("button", { name: "삭제…" }).click();
+  await drafts.getByRole("button", { name: "삭제…", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "취소", exact: true }).click();
   assert.deepEqual(await state(), original);
   await drafts.getByRole("button", { name: "이어서 열기" }).click();
@@ -157,7 +157,7 @@ try {
   await page.getByRole("button", {name: "File", exact: true}).waitFor();
   assert.deepEqual(await state(), second);
   await page.getByRole("button", {name: "홈으로"}).click();
-  await drafts.getByRole("button", {name: "삭제…"}).click();
+  await drafts.getByRole("button", {name: "삭제…", exact: true}).click();
   assert.equal(await page.evaluate(() => document.activeElement.textContent), "취소");
   await page.getByRole("alertdialog").getByRole("button", {name: "초안 삭제", exact: true}).click();
   await page.waitForFunction(key => localStorage.getItem(key) === null, second.key);
@@ -309,6 +309,67 @@ try {
   assert.deepEqual(await state(memory), memoryState);
   await withoutLocks.close();
   console.log("PASS unavailable Web Locks: Home resumes memory-only draft; failed preservation cannot replace it");
+
+  // #351: 최근 보관순·요약 표시와 "모두 삭제…"(이 탭 초안·다른 탭 사용 중 제외, 취소 무변경).
+  const bulk = await newContext();
+  const tab = await bulk.newPage();
+  tab.on("pageerror", error => errors.push(error.message));
+  await tab.goto(url);
+  await tab.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
+  await tab.getByRole("button", {name: "File", exact: true}).waitFor();
+  const bulkKeys = [];
+  for (const name of ["Bulk draft 1", "Bulk draft 2", "Bulk draft 3"]) {
+    await edit(name, tab);
+    bulkKeys.push((await state(tab)).key);
+    await tab.getByRole("button", {name: "File", exact: true}).click();
+    await tab.getByRole("menuitem", {name: "New", exact: true}).click();
+    await tab.getByRole("alertdialog").getByRole("button", {name: "초안 보관 후 이동", exact: true}).click();
+    await tab.waitForFunction(key => JSON.parse(sessionStorage.getItem("visual-spec:tab-recovery")).key !== key, bulkKeys.at(-1));
+  }
+  await tab.waitForTimeout(650); // pristine blank이 다음 탭의 시작 스냅샷이 된다
+  await tab.getByRole("button", {name: "홈으로"}).click();
+  const bulkRegion = tab.getByRole("region", {name: "보관한 초안"});
+  const uuidOrder = async (target, count = 3) => {
+    const items = target.getByRole("region", {name: "보관한 초안"}).getByRole("listitem");
+    await target.waitForFunction(([selector, count]) => document.querySelectorAll(selector).length === count,
+      ['section[aria-label="보관한 초안"] li', count]);
+    return (await items.allInnerTexts())
+      .map(text => bulkKeys.findIndex(key => text.includes(key.split(":").pop())));
+  };
+  assert.deepEqual(await uuidOrder(tab), [2, 1, 0]);
+  for (const text of await bulkRegion.getByRole("listitem").allInnerTexts()) {
+    assert.match(text, /마지막 보관 .+ · 페이지 1개 · 첫 페이지 Bulk draft \d 1440×900 · 레이어 1개/);
+  }
+  assert.deepEqual(await tab.evaluate(keys => keys.map(key => typeof JSON.parse(localStorage.getItem(`${key}:meta`)).savedAt), bulkKeys),
+    ["number", "number", "number"]);
+  const holder = await bulk.newPage();
+  holder.on("pageerror", error => errors.push(error.message));
+  await holder.goto(url);
+  assert.deepEqual(await uuidOrder(holder), [2, 1, 0]);
+  await holder.getByRole("listitem").filter({hasText: bulkKeys[0].split(":").pop()}).getByRole("button", {name: "이어서 열기"}).click();
+  await holder.getByRole("button", {name: "File", exact: true}).waitFor();
+  const held = await state(holder);
+  assert.equal(held.key, bulkKeys[0]);
+  await bulkRegion.getByRole("button", {name: "모두 삭제…", exact: true}).click();
+  const bulkDialog = tab.getByRole("alertdialog");
+  await bulkDialog.getByText(/초안 2개를 삭제합니다\. 제외 1개/).waitFor();
+  assert.equal(await tab.evaluate(() => document.activeElement.textContent), "취소");
+  await bulkDialog.getByRole("button", {name: "취소", exact: true}).click();
+  assert.deepEqual(await uuidOrder(tab), [2, 1, 0]);
+  assert.deepEqual(await tab.evaluate(keys => keys.map(key => localStorage.getItem(key) !== null), bulkKeys), [true, true, true]);
+  await bulkRegion.getByRole("button", {name: "모두 삭제…", exact: true}).click();
+  await bulkDialog.getByRole("button", {name: "초안 2개 삭제", exact: true}).click();
+  await bulkRegion.getByRole("status").filter({hasText: "초안 2개를 삭제했습니다. 건너뜀 0개(사용 중이거나 변경됨), 실패 0개, 제외 1개"}).waitFor();
+  assert.deepEqual(await uuidOrder(tab, 1), [0]);
+  assert.equal(await bulkRegion.getByRole("button", {name: "모두 삭제…", exact: true}).count(), 0);
+  assert.deepEqual(await tab.evaluate(keys => keys.map(key => [localStorage.getItem(key) !== null, localStorage.getItem(`${key}:meta`) !== null, localStorage.getItem(`${key}:deleted`)]), bulkKeys),
+    [[true, true, null], [false, false, "1"], [false, false, "1"]]);
+  assert.deepEqual(await state(holder), held);
+  await tab.reload();
+  await bulkRegion.waitFor();
+  assert.deepEqual(await uuidOrder(tab, 1), [0]);
+  await bulk.close();
+  console.log("PASS recent-first drafts with time/summary; bulk delete excludes the other-tab owner, Cancel keeps all, reload stays deleted");
   assert.deepEqual(errors, []);
   console.log("PASS no page errors");
 } finally {
