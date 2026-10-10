@@ -41,7 +41,22 @@ FORCE_COLOR=1 bash scripts/browser/run-journeys.sh   # 마지막 줄: PASS all 8
 컴포넌트 단위 지문에서는 **현재**로 남을 수 있어 전체 판정은 `stale`/`partial` 둘 다 허용한다.
 
 넣지 않은 스크립트: `recovery-provenance.mjs`(Windows에서 저장 충돌 대화상자에 막혀 실패, 5절),
-`editing-context.py`·`property-guidance.py`(외부에서 띄운 서버 계약), `layout-parity*.mjs`(폰트 CDN 필요).
+`editing-context.py`·`property-guidance.py`(외부에서 띄운 서버 계약), `layout-parity*.mjs`(폰트 CDN 필요),
+`real-model-journey-fake.mjs`(아래, 수동).
+
+### 실제 모델 도구 자체의 무비용 회귀 (PR #358 리뷰)
+
+3절의 도구가 실패를 성공으로 덮지 않는지 모델 없이 확인한다. 모두 가짜 CLI이며 **실제 모델 결과가 아니다**.
+
+| 검사 | 실행 | 확인하는 것 |
+|---|---|---|
+| `test/real-model-agent.test.ts` | `pnpm test`(필수 CI의 Linux·Windows 잡) | 셸 없는 실행 계획(POSIX는 argv 그대로, Windows는 `.exe` 직접·`.cmd`만 `cmd.exe /d /s /c`), `Bash(node:*)`·공백 경로·따옴표·메타문자·한글·`%PATH%`·끝 역슬래시 인자와 stdin의 원문 보존(Windows는 공백 경로의 npm식 `.cmd`, POSIX는 실행 스크립트를 각 OS 잡에서 실측), 시작 실패·종료 코드·signal 실패와 stderr 기록, 자연어·티켓 성공 판정 |
+| `test/layout-parity-names.test.ts` | `pnpm test` | 공백·한글·자식과 같은 이름·일반 이름에서 Export와 같은 `pages/<componentName>.tsx`를 실제로 고르는지 |
+| `real-model-journey-fake.mjs` | 수동 Chromium(폰트 CDN 불필요) | `real-model-journey.mjs`를 실제 명령으로 실행해 exit 1·응답 없음·이전 requestId·오류 응답·GUI 적용 거부·미완료 티켓은 **종료 코드 1**, 정상 완료는 0. `Design (v2`·`A.B`·`A*B`와 유사 이름 카드(`Design (v2)`·`AxB`·`AAAB`, 같은 이름 `Twin` 2개) 중 요청한 문서만 바뀌는지 |
+
+```bash
+node scripts/browser/real-model-journey-fake.mjs   # 마지막 줄: PASS argv·stdin 원문 보존 …
+```
 
 ## 3. 실제 모델 실행 절차 (수동, 비용 있음)
 
@@ -76,6 +91,20 @@ $J export $R --page Landing
 ```
 
 `--agent codex`는 `codex exec --sandbox workspace-write`로 같은 지시문을 넘긴다. `--model`로 모델을 고정할 수 있다.
+PATH 밖의 실행 파일은 `--agent-bin <경로>`로 지정한다(인자 형식은 `--agent`가 정한다). 어느 OS에서도 셸을 거치지 않는다 —
+POSIX는 실행 파일과 argv를 그대로, Windows는 PATH×PATHEXT로 찾은 `.exe`를 그대로, npm 실행기(`.cmd`)만 인자를 escape해
+`cmd.exe /d /s /c`로 실행한다. 지시문은 항상 stdin이다. `--card`(없으면 `--doc`)는 프로젝트 이름과 **글자 그대로 같은**
+홈 카드 하나만 연다. 없거나 여러 개면 실패한다.
+
+**단계 실패와 종료 코드.** 아래 중 하나면 그 단계는 `log.jsonl`에 `error`·`details`(실패 단계, 종료 코드, signal, stderr 끝)를
+남기고 **종료 코드 1**로 끝난다. 다음 단계로 넘어가기 전에 확인한다.
+
+- 에이전트 시작 실패, 0이 아닌 종료 코드, signal 종료, Claude 결과의 `is_error`.
+- `draft`·`nl`: 에이전트가 끝났는데 `nl-response.json`이 없거나 깨졌거나 이번 requestId가 아님, 오류(`error`) 응답,
+  GUI가 60초 안에 적용(되돌리기 표시)하지 않음·거부·배경 변경 확인 대기(자동 승인하지 않는다). GUI가 아직 응답을
+  기다리고 있으면 **취소**를 눌러 요청 잠금을 풀고 끝낸다(다음 단계가 30초 잠금 만료에 막히지 않는다).
+- `tickets`: 모든 웨이브가 끝나지 않음(`running`), `runError`, 대상 티켓 중 `done`이 아닌 것, 다음 웨이브 요청 대기(30초)·
+  응답 수용 대기(120초)·웨이브 수(8) 상한 도달. `--overwrite cancel`로 덮어쓰기를 취소해도 티켓이 끝나지 않으므로 실패로 남는다.
 Claude Code는 `--permission-mode acceptEdits --allowedTools "Bash(node:*)" --setting-sources project`로 실행한다.
 사용자 전역 플러그인·훅을 싣지 않고, 작업공간 밖 쓰기와 셸 명령 대부분은 권한 거부로 남는다(4절 거부 수).
 
@@ -87,7 +116,9 @@ ZIP 이후는 셸에서 직접 한다.
 3. `tsc -b --noEmit`(생성 TSX가 `include`에 들어가는지 `--listFiles`로 확인), `tsc -b && vite build`, `vite preview`.
 4. preview를 Chromium으로 열어 페이지마다 런타임 오류·이미지 로딩·root 크기·반응형 폭을 확인하고 화면을 남긴다.
 5. GUI 대비 실측: 저장한 스펙과 ZIP을 푼 폴더로 잰다. 고정 폭은 `screen.size`, 반응형은 모든 분기점 직전·경계·직후와
-   360px·기준 폭이다. 판정·무효 기준은 [25](25-layout-parity-contract.md) 2절이다.
+   360px·기준 폭이다. 판정·무효 기준은 [25](25-layout-parity-contract.md) 2절이다. `--case`와 보고서 `case`는 스펙의
+   page 이름(표시 이름)이고, 생성 파일은 Export와 같은 page 티켓 `componentName`(`pages/<이름>.tsx`, 보고서 `pageFile`)으로
+   고른다. `--generated-url`의 `{page}`에도 이 `componentName`이 들어간다([25](25-layout-parity-contract.md) 3절).
 
 ```bash
 node scripts/browser/layout-parity.mjs --spec $ROOT/ws/.visual-spec/specs/real-flow.json \
@@ -105,6 +136,9 @@ node scripts/browser/layout-parity.mjs --spec $ROOT/ws/.visual-spec/specs/real-f
 (#280 PR #350·#284 PR #349·#282 PR #353·#290 PR #354 병합 상태) + #281 `24743d9a2739109aa49549d7a25bb6b67b7780fd`
 병합 커밋 `6c993672d82ea158b3d545fed4f6a42528f5c708`. 제품 소스는 이 커밋 그대로이고, QA 스크립트
 (`real-model-journey.mjs`, `layout-parity.mjs`의 `--spec`)만 이 PR 브랜치의 것을 복사해 실행했다.
+**이 절의 실제 모델·독립 앱·0px 실측은 모두 이 통합 커밋의 결과이며 PR #358 HEAD를 재실행한 결과가 아니다.** 실행에 쓴 QA
+스크립트도 리뷰 반영(실패 전파·셸 없는 실행·파일명·카드 이름) 전 판이다. 리뷰 반영 뒤에는 실제 모델을 다시 실행하지 않았고,
+도구 변경은 2절의 무비용 회귀(가짜 CLI)로만 확인했다.
 
 **환경**: Windows 11 Home(ko-KR), Node 24.12.0, pnpm 10.33.0, Playwright 1.62.0의 Chromium 151.0.7922.34(headless shell),
 **Claude Code 2.1.288, 모델 `claude-opus-5-5`(CLI 기본값)**, 기존 구독 로그인. 에이전트 14회 실행, 합계 약 25분.

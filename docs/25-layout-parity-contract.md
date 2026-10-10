@@ -116,14 +116,16 @@ localhost는 우회한다. 결과의 `measurements.gui`/`measurements.generated`
 필요한 폰트 ID, 로딩 오류, 이미지 치수, 줄 수를 포함한 전체 비교 입력을 보존한다.
 
 **실제 AI 생성 결과 측정.** GUI에서 Export한 ZIP을 풀고 그 프로젝트 폴더(`pages/`·`components/`·
-`assets/`가 있는 곳)를 넘긴다. 페이지 파일 이름은 스펙의 page 이름이어야 한다(예: `pages/Login.tsx`).
+`assets/`가 있는 곳)를 넘긴다. 페이지 파일은 Export와 같은 `compileTickets` 결과의 page 티켓 `componentName`으로
+고른다(`pages/<componentName>.tsx`). 스펙의 page 이름과 다를 수 있다 — `checkout page` → `CheckoutPage`,
+`로그인` → `Screen`, root 자식과 이름이 같은 `Header` → `Header2`. page 이름은 보고서 `case`와 `--case`에만 쓴다.
 
 ```bash
 node scripts/browser/layout-parity.mjs --generated-dir ./export/login --case login-screen --out real-login.json
 ```
 
-이미 실행 중인 대상 앱은 `--generated-url "http://127.0.0.1:5173/?page={page}"`로 잰다(`{page}`에
-page 이름이 들어간다). 두 모드에서는 fixture 전용 대조군(`login-legacy`)을 건너뛴다. 결과 기록에는
+이미 실행 중인 대상 앱은 `--generated-url "http://127.0.0.1:5173/?page={page}"`로 잰다. `{page}`에는 위의
+page 티켓 `componentName`이 URL 인코딩되어 들어간다(보고서의 `pageFile`). 대상 앱은 이 이름으로 `pages/<이름>`을 그려야 한다. 두 모드에서는 fixture 전용 대조군(`login-legacy`)을 건너뛴다. 결과 기록에는
 모델/요청 ID와 ZIP 해시를 함께 남겨 fixture 결과와 구분한다.
 
 ## 4. 실측 결과 (2026-10-10)
