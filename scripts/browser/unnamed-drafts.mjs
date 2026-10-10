@@ -8,6 +8,7 @@ import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { checkBulkRegression } from "./unnamed-drafts-bulk.mjs";
 import { startBrowserWorkspace } from "./harness.mjs";
 const workspace = await mkdtemp(join(tmpdir(), "vs-unnamed-"));
 const specs = join(workspace, "specs");
@@ -48,20 +49,20 @@ try {
   }
   const drafts = page.getByRole("region", { name: "보관한 초안" });
   await page.getByRole("button", { name: "빈 캔버스에서 시작" }).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   await edit("Fixture draft A");
   const original = await state();
   await waitStatus(page, "파일 미저장 · 브라우저 초안 보관됨");
   await page.getByRole("button", { name: "홈으로" }).click();
   await drafts.getByRole("button", { name: "이어서 열기" }).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(), original);
   await page.getByRole("button", { name: "홈으로" }).click();
   await page.reload();
   await drafts.getByRole("button", { name: "이어서 열기" }).waitFor();
   assert.deepEqual(await state(), original);
   await drafts.getByRole("button", { name: "이어서 열기" }).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(), original);
   await waitStatus(page, "파일 미저장 · 브라우저 초안 보관됨");
   console.log("PASS empty workspace Home/Resume/reload", original.key, createHash("sha256").update(JSON.stringify(original.spec)).digest("hex"));
@@ -97,11 +98,11 @@ try {
   console.log("PASS browser Back/Forward UUID/content");
 
   // Deletion is separately confirmed and cancellation retains bytes and UUID.
-  await drafts.getByRole("button", { name: "삭제…" }).click();
+  await drafts.getByRole("button", { name: "삭제…", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "취소", exact: true }).click();
   assert.deepEqual(await state(), original);
   await drafts.getByRole("button", { name: "이어서 열기" }).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   await page.evaluate(async () => {
     const { saveSpecAs } = await import("/src/features/editor/ui/exportSpecAsJson.ts");
     const { useEditorStore } = await import("/src/features/editor/store/editorStore.ts");
@@ -139,8 +140,8 @@ try {
   assert.deepEqual((await state()).spec, original.spec);
   console.log("PASS Save as cancel/failure retain draft; successful real Save retires UUID and reopens exact content");
   async function newFromEditor() {
-    await page.getByRole("button", {name: "File", exact: true}).click();
-    await page.getByRole("menuitem", {name: "New", exact: true}).click();
+    await page.getByRole("button", {name: "파일", exact: true}).click();
+    await page.getByRole("menuitem", {name: "새로 만들기", exact: true}).click();
   }
   await newFromEditor(); // named, unedited control: no transition warning
   await edit("Fixture draft B");
@@ -154,10 +155,10 @@ try {
   assert.notEqual((await state()).key, second.key);
   await page.getByRole("button", {name: "홈으로"}).click();
   await drafts.getByRole("button", {name: "이어서 열기"}).click();
-  await page.getByRole("button", {name: "File", exact: true}).waitFor();
+  await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(), second);
   await page.getByRole("button", {name: "홈으로"}).click();
-  await drafts.getByRole("button", {name: "삭제…"}).click();
+  await drafts.getByRole("button", {name: "삭제…", exact: true}).click();
   assert.equal(await page.evaluate(() => document.activeElement.textContent), "취소");
   await page.getByRole("alertdialog").getByRole("button", {name: "초안 삭제", exact: true}).click();
   await page.waitForFunction(key => localStorage.getItem(key) === null, second.key);
@@ -190,7 +191,7 @@ try {
   assert.deepEqual(await state(winner), race);
   await winner.close();
   await loser.getByRole("region", {name: "보관한 초안"}).getByRole("button", {name: "이어서 열기"}).click();
-  await loser.getByRole("button", {name: "File", exact: true}).waitFor();
+  await loser.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(loser), race);
   await edit("After ownership transfer", loser);
   const afterTransfer = await state(loser);
@@ -210,7 +211,7 @@ try {
   tabA.on("dialog", d => d.accept());
   await tabA.goto(url);
   await tabA.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
-  await tabA.getByRole("button", {name: "File", exact: true}).waitFor();
+  await tabA.getByRole("button", {name: "파일", exact: true}).waitFor();
   await edit("Return ownership fixture", tabA);
   const returningDraft = await state(tabA);
   await tabA.goto("about:blank");
@@ -220,7 +221,7 @@ try {
   await row(tabB).getByRole("button", {name: "이어서 열기"}).click();
   const tabBPrompt = tabB.getByRole("alertdialog").getByRole("button", {name: "초안 보관 후 이동", exact: true});
   await tabBPrompt.click();
-  await tabB.getByRole("button", {name: "File", exact: true}).waitFor();
+  await tabB.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(tabB), returningDraft);
   const tryOwnedAction = async () => {
     if (returningAction === "delete") {
@@ -255,7 +256,7 @@ try {
     continue;
   }
   await row(tabA).getByRole("button", {name: "이어서 열기"}).click();
-  await tabA.getByRole("button", {name: "File", exact: true}).waitFor();
+  await tabA.getByRole("button", {name: "파일", exact: true}).waitFor();
   await edit("Reacquired after owner closed", tabA);
   const reacquired = await state(tabA);
   assert.equal(reacquired.key, returningDraft.key);
@@ -292,23 +293,85 @@ try {
   await memory.goto(url);
   await memory.getByText("프로젝트 2개", {exact: true}).waitFor();
   await memory.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
-  await memory.getByRole("button", {name: "File", exact: true}).waitFor();
+  await memory.getByRole("button", {name: "파일", exact: true}).waitFor();
   await edit("Memory-only fixture", memory);
   const memoryState = await state(memory);
   await waitStatus(memory, "파일 미저장 · 현재 탭에만 보관");
   await memory.getByRole("button", {name: "홈으로"}).click();
   await memory.getByText("브라우저 보관 대기 — 이 탭을 닫지 마세요.", {exact: true}).waitFor();
   await memory.getByRole("region", {name: "보관한 초안"}).getByRole("button", {name: "이어서 열기"}).click();
-  await memory.getByRole("button", {name: "File", exact: true}).waitFor();
+  await memory.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(memory), memoryState);
-  await memory.getByRole("button", {name: "File", exact: true}).click();
-  await memory.getByRole("menuitem", {name: "New", exact: true}).click();
+  await memory.getByRole("button", {name: "파일", exact: true}).click();
+  await memory.getByRole("menuitem", {name: "새로 만들기", exact: true}).click();
   await memory.getByRole("alertdialog").getByText("초안을 보관할 수 없습니다", {exact: true}).waitFor();
   await memory.getByRole("alertdialog").getByRole("button", {name: "현재 작업 유지", exact: true}).click();
-  await memory.getByRole("button", {name: "File", exact: true}).waitFor();
+  await memory.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(memory), memoryState);
   await withoutLocks.close();
   console.log("PASS unavailable Web Locks: Home resumes memory-only draft; failed preservation cannot replace it");
+
+  // #351: 최근 보관순·요약 표시와 "모두 삭제…"(이 탭 초안·다른 탭 사용 중 제외, 취소 무변경).
+  const bulk = await newContext();
+  const tab = await bulk.newPage();
+  tab.on("pageerror", error => errors.push(error.message));
+  await tab.goto(url);
+  await tab.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
+  await tab.getByRole("button", {name: "파일", exact: true}).waitFor();
+  const bulkKeys = [];
+  for (const name of ["Bulk draft 1", "Bulk draft 2", "Bulk draft 3"]) {
+    await edit(name, tab);
+    bulkKeys.push((await state(tab)).key);
+    await tab.getByRole("button", {name: "파일", exact: true}).click();
+    await tab.getByRole("menuitem", {name: "새로 만들기", exact: true}).click();
+    await tab.getByRole("alertdialog").getByRole("button", {name: "초안 보관 후 이동", exact: true}).click();
+    await tab.waitForFunction(key => JSON.parse(sessionStorage.getItem("visual-spec:tab-recovery")).key !== key, bulkKeys.at(-1));
+  }
+  await tab.waitForTimeout(650); // pristine blank이 다음 탭의 시작 스냅샷이 된다
+  await tab.getByRole("button", {name: "홈으로"}).click();
+  const bulkRegion = tab.getByRole("region", {name: "보관한 초안"});
+  const uuidOrder = async (target, count = 3) => {
+    const items = target.getByRole("region", {name: "보관한 초안"}).getByRole("listitem");
+    await target.waitForFunction(([selector, count]) => document.querySelectorAll(selector).length === count,
+      ['section[aria-label="보관한 초안"] li', count]);
+    return (await items.allInnerTexts())
+      .map(text => bulkKeys.findIndex(key => text.includes(key.split(":").pop())));
+  };
+  assert.deepEqual(await uuidOrder(tab), [2, 1, 0]);
+  for (const text of await bulkRegion.getByRole("listitem").allInnerTexts()) {
+    assert.match(text, /마지막 보관 .+ · 페이지 1개 · 첫 페이지 Bulk draft \d 1440×900 · 레이어 1개/);
+  }
+  assert.deepEqual(await tab.evaluate(keys => keys.map(key => typeof JSON.parse(localStorage.getItem(`${key}:meta`)).savedAt), bulkKeys),
+    ["number", "number", "number"]);
+  const holder = await bulk.newPage();
+  holder.on("pageerror", error => errors.push(error.message));
+  await holder.goto(url);
+  assert.deepEqual(await uuidOrder(holder), [2, 1, 0]);
+  await holder.getByRole("listitem").filter({hasText: bulkKeys[0].split(":").pop()}).getByRole("button", {name: "이어서 열기"}).click();
+  await holder.getByRole("button", {name: "파일", exact: true}).waitFor();
+  const held = await state(holder);
+  assert.equal(held.key, bulkKeys[0]);
+  await bulkRegion.getByRole("button", {name: "모두 삭제…", exact: true}).click();
+  const bulkDialog = tab.getByRole("alertdialog");
+  await bulkDialog.getByText(/초안 2개를 삭제합니다\. 제외 1개/).waitFor();
+  assert.equal(await tab.evaluate(() => document.activeElement.textContent), "취소");
+  await bulkDialog.getByRole("button", {name: "취소", exact: true}).click();
+  assert.deepEqual(await uuidOrder(tab), [2, 1, 0]);
+  assert.deepEqual(await tab.evaluate(keys => keys.map(key => localStorage.getItem(key) !== null), bulkKeys), [true, true, true]);
+  await bulkRegion.getByRole("button", {name: "모두 삭제…", exact: true}).click();
+  await bulkDialog.getByRole("button", {name: "초안 2개 삭제", exact: true}).click();
+  await bulkRegion.getByRole("status").filter({hasText: "초안 2개를 삭제했습니다. 건너뜀 0개(사용 중이거나 변경됨), 실패 0개, 제외 1개"}).waitFor();
+  assert.deepEqual(await uuidOrder(tab, 1), [0]);
+  assert.equal(await bulkRegion.getByRole("button", {name: "모두 삭제…", exact: true}).count(), 0);
+  assert.deepEqual(await tab.evaluate(keys => keys.map(key => [localStorage.getItem(key) !== null, localStorage.getItem(`${key}:meta`) !== null, localStorage.getItem(`${key}:deleted`)]), bulkKeys),
+    [[true, true, null], [false, false, "1"], [false, false, "1"]]);
+  assert.deepEqual(await state(holder), held);
+  await tab.reload();
+  await bulkRegion.waitFor();
+  assert.deepEqual(await uuidOrder(tab, 1), [0]);
+  await bulk.close();
+  console.log("PASS recent-first drafts with time/summary; bulk delete excludes the other-tab owner, Cancel keeps all, reload stays deleted");
+  for (const scenario of ["date", "pending", "query", "lock", "query-open", "lock-open", "cas", "failure"]) await checkBulkRegression(runner, scenario);
   assert.deepEqual(errors, []);
   console.log("PASS no page errors");
 } finally {

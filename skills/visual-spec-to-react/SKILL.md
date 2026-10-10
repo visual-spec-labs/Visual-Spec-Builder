@@ -564,7 +564,7 @@ import heroImageUrl from "../assets/hero.png";
 이 파일과 `assets/`를 같은 소스 디렉터리 아래 둔다(예: `src/visual-spec/pages/`와
 `src/visual-spec/assets/`). Vite는 개발 중 자산을 제공하고 production build에서 출력 URL로
 바꾸며 `base` 설정을 반영한다. 정적 import 경로는 URL이 아니라 파일 시스템 기준 모듈 경로이므로
-`encodeURIComponent`로 인코딩하지 않는다. 현재 Import는 공백을 하이픈으로 바꾸고 `#`를
+`encodeURIComponent`로 인코딩하지 않는다. 현재 파일 → 이미지 가져오기는 공백을 하이픈으로 바꾸고 `#`를
 하이픈으로 정규화한다. `%`도 URL escape로 오해되지 않도록 하이픈으로 바꾼다. 한글·괄호·`+`는
 실제 파일명 그대로 쓸 수 있다.
 

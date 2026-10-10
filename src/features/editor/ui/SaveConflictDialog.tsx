@@ -7,7 +7,7 @@ export function SaveConflictDialog() {
   const { paused, reason, unavailable, loadLatest } = useSaveConflictStore();
   const [message, setMessage] = useState("");
   if (!paused) return unavailable ? <div role="status" className="fixed bottom-2 left-2 bg-surface-raised p-3">
-    이 브라우저에서는 탭 간 자동저장을 사용할 수 없습니다. File → Export로 별도 파일을 보관하세요.
+    이 브라우저에서는 탭 간 자동저장을 사용할 수 없습니다. 파일 → JSON 내보내기로 별도 파일을 보관하세요.
   </div> : null;
   if (reason === "draft") return <DraftDialog message={message} setMessage={setMessage} />;
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-surface-sunken/80">
