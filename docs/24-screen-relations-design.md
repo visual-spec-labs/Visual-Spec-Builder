@@ -245,7 +245,9 @@ PageId/name/effective kind 카탈로그 전달을 S1-10에서 NL 요청 규약(n
 형태 오류(추가 필드·잘못된 enum·비button action·IR null)는 기존 `schema` 코드로 보고한다.
 프로젝트 오류 경로는 `/pages/<id>/nodes/<id>/action/target`, `/.../ref`,
 `/.../overrides/<sourceNode>`처럼 원인 필드를 가리킨다. 첫 화면 오류는 `/pageOrder/0`이다.
-위 코드는 아직 공개 IssueCode에 추가되지 않았으며 S1-2/S2-2 계약 테스트에서 확정한다.
+위 표의 S1 다섯 코드(action-target-missing~first-page-kind)는 S1-2에서 이름 그대로 공개 IssueCode에 추가됐다
+([06](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)). instance 코드는 아직 추가되지 않았으며 S2-2 계약 테스트에서 확정한다.
+S1-4 전에는 GUI 페이지 삭제가 유입 action을 정리하지 않아 자동 저장 복원만 관계 코드를 예외로 받는다. Save·NL G3가 막히는 이 제약은 S1-4가 해소해야 한다.
 
 **IR 버전:** 이슈의 단계 계획은 S1 kind/action 선택 확장에 0.3 유지, S2 instance에 0.4다.
 기존 0.3 파일은 새 validator에서 그대로 유효해야 한다. 확장 전 0.3 validator는 추가 속성
@@ -339,7 +341,7 @@ S1-11/S2-9 실제 AI 실행 기록은 그와 구분한다.
 | S0-1 현재 | 결정표 논의·팀 1명 이상 승인 후 병합 | 이 문서와 README 목차만 |
 | S0-2 | S0-1 승인·병합 | 02부터 범위 정정, 이어 03, 정정 이력. open-questions의 실제 관련 항목만 처리 |
 | S1-1 | S0-1 팀 승인·병합 → S0-2 범위 정정 완료. **#290 2-1/2-3의 선행** | **스키마 + Command 임시 차단(kind/action 경로, G1 createNode; S1-3에서 해제) + 계약 번들 재생성.** schema/visual-spec.schema.json·types.ts(generate-types)·계약 번들(bin/lib/schema.mjs), command/{editablePath,validate}의 임시 차단, 05/06, 기존/신규 예제·테스트 |
-| S1-2~4 | S1-1 → S1-2 프로젝트 검증(**#290 2-1/2-3의 선행**) → S1-3 Command → S1-4 참조 조작. 팀 단계 합의 필요 | schema/validate.ts, command/{editablePath,applyCommand,transactionGate,groupCommands}, store/editorStore, ui/clipboard, 09·스토어 계약 |
+| S1-2~4 | S1-1 → S1-2 프로젝트 검증(**#290 2-1/2-3의 선행**) → S1-3 Command → S1-4 참조 조작. 팀 단계 합의 필요. **S1-4는 S1-2의 자동 저장 복원 예외·Save/NL G3 막힘을 해소해야 한다**([06](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)) | schema/validate.ts, command/{editablePath,applyCommand,transactionGate,groupCommands}, store/editorStore, ui/clipboard, 09·스토어 계약 |
 | S1-5~7/10 | 정본·프로젝트 검증·관계 편집 계약 완료 | PageProperties·LayerTree·HomeScreen/homePreview·InteractionSection·Canvas/CanvasNode·nlScope/nlProtocol·NL 스킬, 08/10 |
 | S1-8/9 | S1-1·S1-2 및 D11·#281 경계 합의 후. action을 반영한 structuralKey 비교 포함. **#281 공동 결정 게이트:** 프로젝트 compile의 입력 지문은 호스트 + 도달 가능한 modal·포함 widget(전이 집합), 자리 간 상대 import 허용 규칙·여러 PageId 자리를 묶는 ZIP 범위(#281 경로 위)(§6) | ticket 컴파일/types/schema/티켓 요청 규약·TicketPanel/ticketRunner·Export/generatedPaths(#281 PR #357 병합 시 PageId 자리 기준 갱신)/importScan·contentHash/generationManifest·생성/응답 스킬·사람용 docs/skills, 11·26 |
 | S1-11 | S1-5~10 완료 | examples, 07/14/15, README. 실제 AI 검증과 fixture 구별 |
