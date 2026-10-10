@@ -317,13 +317,13 @@ try {
   tab.on("pageerror", error => errors.push(error.message));
   await tab.goto(url);
   await tab.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
-  await tab.getByRole("button", {name: "File", exact: true}).waitFor();
+  await tab.getByRole("button", {name: "파일", exact: true}).waitFor();
   const bulkKeys = [];
   for (const name of ["Bulk draft 1", "Bulk draft 2", "Bulk draft 3"]) {
     await edit(name, tab);
     bulkKeys.push((await state(tab)).key);
-    await tab.getByRole("button", {name: "File", exact: true}).click();
-    await tab.getByRole("menuitem", {name: "New", exact: true}).click();
+    await tab.getByRole("button", {name: "파일", exact: true}).click();
+    await tab.getByRole("menuitem", {name: "새로 만들기", exact: true}).click();
     await tab.getByRole("alertdialog").getByRole("button", {name: "초안 보관 후 이동", exact: true}).click();
     await tab.waitForFunction(key => JSON.parse(sessionStorage.getItem("visual-spec:tab-recovery")).key !== key, bulkKeys.at(-1));
   }
@@ -348,7 +348,7 @@ try {
   await holder.goto(url);
   assert.deepEqual(await uuidOrder(holder), [2, 1, 0]);
   await holder.getByRole("listitem").filter({hasText: bulkKeys[0].split(":").pop()}).getByRole("button", {name: "이어서 열기"}).click();
-  await holder.getByRole("button", {name: "File", exact: true}).waitFor();
+  await holder.getByRole("button", {name: "파일", exact: true}).waitFor();
   const held = await state(holder);
   assert.equal(held.key, bulkKeys[0]);
   await bulkRegion.getByRole("button", {name: "모두 삭제…", exact: true}).click();

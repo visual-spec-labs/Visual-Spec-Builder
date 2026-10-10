@@ -10,7 +10,7 @@ export async function checkBulkRegression(runner, scenario) {
   try {
     await page.goto(runner.url);
     await page.getByRole("button", { name: /^(빈 캔버스에서 시작|\+ 새 프로젝트)$/ }).click();
-    await page.getByRole("button", { name: "File", exact: true }).waitFor();
+    await page.getByRole("button", { name: "파일", exact: true }).waitFor();
     if (scenario.endsWith("open")) await page.route("**/__vs/list/specs", route => route.fulfill({
       json: { files: ["review-fixture.json"] }, headers: { "x-visual-spec-workspace": "1" },
     }));
