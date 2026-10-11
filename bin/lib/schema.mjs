@@ -37,7 +37,7 @@ function merge(base, patch) {
 	for (const [key, value] of Object.entries(patch)) entries.set(key, merge(entries.get(key), value));
 	return Object.fromEntries(entries);
 }
-function pointer(value) {
+function pointer$1(value) {
 	return value.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 /** 스키마 통과 뒤 호출한다. GUI에서 렌더하는 함수가 아니라 폭별 계약 검증이다. */
@@ -51,21 +51,21 @@ function validateResponsive(screen, basePath) {
 	for (const [id, breakpoint] of breakpoints) {
 		if (widths.has(breakpoint.minWidthPx)) issues.push({
 			code: "responsive-duplicate-width",
-			path: `${path}/breakpoints/${pointer(id)}/minWidthPx`,
+			path: `${path}/breakpoints/${pointer$1(id)}/minWidthPx`,
 			message: "같은 페이지의 breakpoint 폭은 서로 달라야 합니다."
 		});
 		widths.add(breakpoint.minWidthPx);
 	}
 	for (const id of Object.keys(responsive.overrides)) if (!breakpoints.has(id)) issues.push({
 		code: "responsive-breakpoint-missing",
-		path: `${path}/overrides/${pointer(id)}`,
+		path: `${path}/overrides/${pointer$1(id)}`,
 		message: `breakpoint "${id}"가 선언되지 않았습니다.`
 	});
 	const effective = new Map(Object.entries(screen.nodes));
 	for (const [id] of [...breakpoints].sort((a, b) => a[1].minWidthPx - b[1].minWidthPx)) {
 		const overrides = Object.prototype.hasOwnProperty.call(responsive.overrides, id) ? responsive.overrides[id] : {};
 		for (const [nodeId, patch] of Object.entries(overrides)) {
-			const patchPath = `${path}/overrides/${pointer(id)}/${pointer(nodeId)}`;
+			const patchPath = `${path}/overrides/${pointer$1(id)}/${pointer$1(nodeId)}`;
 			if (!Object.prototype.hasOwnProperty.call(screen.nodes, nodeId)) {
 				issues.push({
 					code: "responsive-node-missing",
@@ -107,7 +107,83 @@ function validateResponsive(screen, basePath) {
 	return issues;
 }
 //#endregion
+//#region src/features/editor/schema/validateScreenRelations.ts
+function pointer(value) {
+	return value.replace(/~/g, "~0").replace(/\//g, "~1");
+}
+/** kind 생략은 page다(docs/24 §3). */
+function kindOf(screen) {
+	return screen.kind ?? "page";
+}
+/**
+* 화면 관계(kind·action)의 참조 무결성을 본다(#265 S1-2, docs/24 §5).
+*
+* 스키마 통과 뒤 프로젝트 문서에서만 부른다. 화면 문서(VisualSpec)는 외부 PageId를
+* 알 수 없으므로 검사하지 않는다(docs/06 "화면 종류·연결 선택 확장"). 반응형 override는
+* kind·action을 바꿀 수 없으므로(스키마) 기본값만 본다. 숨김 버튼과 루트에서 도달할 수
+* 없는 노드의 action도 저장된 값이므로 똑같이 검사한다.
+*/
+function validateScreenRelations(project) {
+	const issues = [];
+	const pageOf = (id) => Object.prototype.hasOwnProperty.call(project.pages, id) ? project.pages[id] : void 0;
+	const first = pageOf(project.pageOrder[0]);
+	if (first !== void 0 && kindOf(first) !== "page") issues.push({
+		code: "first-page-kind",
+		path: "/pageOrder/0",
+		message: `첫 화면 "${project.pageOrder[0]}"의 kind는 "page"여야 합니다 (현재 "${kindOf(first)}").`
+	});
+	for (const [pageId, page] of Object.entries(project.pages)) for (const [nodeId, node] of Object.entries(page.nodes)) {
+		if (node.type !== "button" || node.action === void 0) continue;
+		const { action } = node;
+		const actionPath = `/pages/${pointer(pageId)}/nodes/${pointer(nodeId)}/action`;
+		if (action.type === "close") {
+			if (kindOf(page) === "page") issues.push({
+				code: "action-source-invalid",
+				path: actionPath,
+				message: `page "${pageId}"의 버튼 "${nodeId}"에는 close를 둘 수 없습니다 — 닫을 모달이 없습니다.`
+			});
+			continue;
+		}
+		const targetPath = `${actionPath}/target`;
+		const target = pageOf(action.target);
+		if (target === void 0) issues.push({
+			code: "action-target-missing",
+			path: targetPath,
+			message: `버튼 "${nodeId}"의 ${action.type} 대상 "${action.target}"가 pages에 없습니다.`
+		});
+		else if (action.type === "openModal" && kindOf(target) !== "modal") issues.push({
+			code: "action-target-kind",
+			path: targetPath,
+			message: `openModal 대상 "${action.target}"의 kind는 "modal"이어야 합니다 (현재 "${kindOf(target)}").`
+		});
+		else if (action.type === "navigate" && kindOf(target) !== "page") issues.push({
+			code: "navigate-to-non-page",
+			path: targetPath,
+			message: `navigate 대상 "${action.target}"의 kind는 "page"여야 합니다 (현재 "${kindOf(target)}").`
+		});
+	}
+	return issues;
+}
+//#endregion
 //#region src/features/editor/schema/validate.ts
+/**
+* 화면 관계(kind·action) 참조 무결성 코드(#265 S1-2). 프로젝트 문서에서만 나온다.
+*
+* 구조(스키마·그래프)는 멀쩡하고 관계만 어긋난 문서를 가려낼 때 쓴다. 페이지 삭제가
+* 아직 유입 action을 정리하지 못해(S1-4 전) 이런 문서가 자동 저장에 남을 수 있으므로,
+* 자동 저장 복원은 이 코드만 남은 문서를 버리지 않는다(store/specStorage.ts). Open·Save·
+* Command 관문은 이 코드도 그대로 무효로 다룬다.
+*/
+var SCREEN_RELATION_ISSUE_CODES = /* @__PURE__ */ new Set([
+	"action-target-missing",
+	"action-target-kind",
+	"navigate-to-non-page",
+	"action-source-invalid",
+	"first-page-kind"
+]);
+function isScreenRelationIssue(issue) {
+	return SCREEN_RELATION_ISSUE_CODES.has(issue.code);
+}
 var schemaValidator;
 var projectSchemaValidator;
 function getSchemaValidator() {
@@ -339,7 +415,8 @@ function validatePageOrder(project) {
 /**
 * 프로젝트 문서를 검증한다. 절대 던지지 않는다.
 * 페이지마다 화면 문서와 같은 그래프·stop 정렬 검사를 돌리고, 에러 경로는
-* `/pages/<id>/...`가 된다.
+* `/pages/<id>/...`가 된다. 이어서 페이지 사이의 화면 관계(action 대상·첫 화면 kind)를
+* 본다(validateScreenRelations.ts).
 *
 * 0.1·0.2 문서는 여기서 무효다 — 옛 문서를 받는 입구는 `migrateToV03`로 먼저
 * 바꾼 뒤 검증한다(store/loadSpec.ts·store/specStorage.ts).
@@ -369,6 +446,7 @@ function validateProjectSpec(input) {
 			const pagePath = `/pages/${escapeJsonPointer(pageId)}`;
 			issues.push(...validateScreenReferences(page, pagePath), ...validateGradientStops(page, pagePath), ...validateResponsive(page, pagePath));
 		}
+		issues.push(...validateScreenRelations(project));
 		return {
 			valid: issues.length === 0,
 			issues
@@ -496,4 +574,4 @@ function mapValues(record, map) {
 	return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, map(value)]));
 }
 //#endregion
-export { VisualSpecValidationError, assertVisualSpec, migrateToV03, migrateV01, toVisualSpec, validateProjectSpec, validateVisualSpec, visual_spec_schema_default as visualSpecJsonSchema };
+export { VisualSpecValidationError, assertVisualSpec, isScreenRelationIssue, migrateToV03, migrateV01, toVisualSpec, validateProjectSpec, validateVisualSpec, visual_spec_schema_default as visualSpecJsonSchema };

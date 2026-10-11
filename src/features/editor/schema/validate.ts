@@ -1,4 +1,5 @@
 import { validateResponsive } from "./validateResponsive";
+import { validateScreenRelations } from "./validateScreenRelations";
 
 import Ajv2020 from "ajv/dist/2020";
 import type { ErrorObject } from "ajv/dist/2020";
@@ -20,12 +21,37 @@ export type IssueCode =
   | "responsive-node-missing"
   | "responsive-duplicate-width"
   | "responsive-node-property"
-  | "responsive-effective-node";
+  | "responsive-effective-node"
+  | "action-target-missing"
+  | "action-target-kind"
+  | "navigate-to-non-page"
+  | "action-source-invalid"
+  | "first-page-kind";
 
 export interface ValidationIssue {
   code: IssueCode;
   path: string;
   message: string;
+}
+
+/**
+ * 화면 관계(kind·action) 참조 무결성 코드(#265 S1-2). 프로젝트 문서에서만 나온다.
+ *
+ * 구조(스키마·그래프)는 멀쩡하고 관계만 어긋난 문서를 가려낼 때 쓴다. 페이지 삭제가
+ * 아직 유입 action을 정리하지 못해(S1-4 전) 이런 문서가 자동 저장에 남을 수 있으므로,
+ * 자동 저장 복원은 이 코드만 남은 문서를 버리지 않는다(store/specStorage.ts). Open·Save·
+ * Command 관문은 이 코드도 그대로 무효로 다룬다.
+ */
+const SCREEN_RELATION_ISSUE_CODES: ReadonlySet<IssueCode> = new Set<IssueCode>([
+  "action-target-missing",
+  "action-target-kind",
+  "navigate-to-non-page",
+  "action-source-invalid",
+  "first-page-kind",
+]);
+
+export function isScreenRelationIssue(issue: ValidationIssue): boolean {
+  return SCREEN_RELATION_ISSUE_CODES.has(issue.code);
 }
 
 export interface ValidationResult {
@@ -379,7 +405,8 @@ function validatePageOrder(project: ProjectSpec): ValidationIssue[] {
 /**
  * 프로젝트 문서를 검증한다. 절대 던지지 않는다.
  * 페이지마다 화면 문서와 같은 그래프·stop 정렬 검사를 돌리고, 에러 경로는
- * `/pages/<id>/...`가 된다.
+ * `/pages/<id>/...`가 된다. 이어서 페이지 사이의 화면 관계(action 대상·첫 화면 kind)를
+ * 본다(validateScreenRelations.ts).
  *
  * 0.1·0.2 문서는 여기서 무효다 — 옛 문서를 받는 입구는 `migrateToV03`로 먼저
  * 바꾼 뒤 검증한다(store/loadSpec.ts·store/specStorage.ts).
@@ -419,6 +446,7 @@ export function validateProjectSpec(input: unknown): ValidationResult {
         ...validateResponsive(page, pagePath),
       );
     }
+    issues.push(...validateScreenRelations(project));
 
     return { valid: issues.length === 0, issues };
   } catch {

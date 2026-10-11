@@ -79,7 +79,7 @@ import type {
 } from "@/features/editor/schema";
 ```
 
-값으로 내보내는 것은 일곱이다. 셋은 v0.1부터 있었고,
+값으로 내보내는 것은 여덟이다. 셋은 v0.1부터 있었고,
 
 ```ts
 import {
@@ -104,6 +104,14 @@ import {
 ```ts
 import {
   migrateToV03,            // (input: unknown) => unknown — 0.1·0.2 문서를 0.3으로. 검증 전에 부른다
+} from "@/features/editor/schema";
+```
+
+하나는 #265 S1-2에서 늘었다. 아래 "화면 관계 참조 무결성" 절 참고.
+
+```ts
+import {
+  isScreenRelationIssue,   // (issue: ValidationIssue) => boolean — 화면 관계 IssueCode 다섯 개인가
 } from "@/features/editor/schema";
 ```
 
@@ -498,6 +506,7 @@ D1~D4·§3·§5 권고안이며, 그 문서(#339)의 팀 승인·병합 전에�
   대상이 modal인지, navigate 대상이 page인지, page 자체 button의 close, `pageOrder[0]`의 kind는
   S1-2 프로젝트 검증이 새 IssueCode로 잡는다. 이 PR은 IssueCode를 추가하지 않으므로 S1-2 전에는
   없는 target도 구조 검증을 통과한다. 화면 문서(`VisualSpec`)는 외부 PageId를 검사하지 않는다.
+  (S1-2에서 추가 — 아래 "화면 관계 참조 무결성" 절.)
 - **Command로는 아직 쓰지 못한다(임시 가드, S1-3에서 제거).** 쓰기 경로를 스키마에서 도출하는
   `command/editablePath.ts`가 updateScreen `kind`, updateNode `action`과 그 하위 경로를 막는다.
   G1 `validateCommand`·`validateTransaction`은 action이 붙은 createNode를 거부한다.
@@ -530,3 +539,64 @@ action을 반영한 반복 비교, 도달 가능한 화면의 전이적 입력 �
 Command 가드의 S1-3 해제와 별개이며, S1-2만 완료해도 이 가드를 해제하지 않는다.
 회귀는 `test/ticket-output-acceptance.test.ts`·`test/export-generated-code.test.ts`와
 `scripts/browser/screen-relations-guard.mjs`의 수동 응답 fixture로 확인한다. 실제 모델 검증은 아니다.
+
+
+## 화면 관계 참조 무결성 — #265 S1-2
+
+현재 상태: #265 S1-2 PR 제안이다. 설계 근거는 [24](24-screen-relations-design.md) §3·§5의 IssueCode
+후보 표이며, 이름은 그 표 그대로 확정한다. 정본·생성 타입·IR 버전(0.3)은 바꾸지 않는다.
+
+- **`IssueCode` 14종 → 19종.** `validateProjectSpec`이 스키마·페이지별 그래프 검사 뒤에
+  `schema/validateScreenRelations.ts`로 페이지 사이의 관계를 본다.
+
+| IssueCode | 조건 | 경로 |
+|---|---|---|
+| `action-target-missing` | navigate·openModal의 target이 `pages`에 없다 | `/pages/<id>/nodes/<id>/action/target` |
+| `action-target-kind` | openModal의 target이 `kind: "modal"`이 아니다 | 같음 |
+| `navigate-to-non-page` | navigate의 target이 page가 아니다(kind 생략은 page) | 같음 |
+| `action-source-invalid` | page(kind 생략 포함) 화면의 버튼에 close가 있다 | `/pages/<id>/nodes/<id>/action` |
+| `first-page-kind` | `pageOrder[0]`의 화면이 page가 아니다 | `/pageOrder/0` |
+
+- **검사 경계.** 화면 문서(`VisualSpec`)는 외부 PageId를 모르므로 검사하지 않는다(`validateVisualSpec`
+  결과는 그대로다). 반응형 override는 `kind`·`action`을 바꿀 수 없으므로(스키마) 기본값만 본다.
+  숨김 버튼이나 루트에서 닿지 않는 노드의 action도 저장된 값이라 똑같이 검사한다. 형태 오류는
+  스키마 단계에서 끝나므로 관계 코드와 섞이지 않는다.
+- **허용하는 것.** 자기 자신을 가리키는 navigate(page)·openModal(modal), modal에서 다른 modal을 여는
+  교체, modal에서 page로 가는 navigate, modal·widget 버튼의 close. 24 §3이 widget의 close를 허용하고
+  "활성 모달 문맥이 없으면 no-op"인지는 팀 검토로 남겼으므로 오류로 만들지 않는다.
+  `action-source-invalid`는 24 §5 표의 "page 자체 button의 close"만 잡는다. 표의 "등"에 해당하는
+  다른 금지 문맥은 정의되지 않아 넓히지 않았다.
+- **중복 보고 순서.** `pageOrder[0]`이 `pages`에 없으면 `page-order-mismatch`가 같은 `/pageOrder/0`을
+  이미 보고하므로 `first-page-kind`를 내지 않는다. `pageOrder[0]`이 있으면 다른 순서 불일치와
+  관계없이 그 화면의 kind를 본다. 이슈 순서는 `page-order-mismatch` → 페이지별 구조 → `first-page-kind`
+  → `pages` 순서의 action 검사다.
+- **자동 저장 복원 예외(S1-4 전).** GUI 페이지 삭제(`removePage`)는 Command 밖이라 아직 유입 action을
+  정리하지 않고 첫 page를 다시 고르지도 않는다. 그대로 두면 대상 페이지를 지운 문서의 자동 저장본이
+  복원 단계(`store/specStorage.ts`의 `parseStoredDocument` — 첫 로드·탭 복구·자동 저장 충돌·이름 없는
+  초안 목록이 공유)에서 버려져 새로고침 한 번에 작업이 seedSpec으로 바뀐다. 그래서 **관계 코드만 남은
+  문서는 복원한다.** 구조 오류가 하나라도 섞이면 전처럼 버린다. 이 예외는 복원에만 있다.
+- **엄격한 경로.** Open(`parseSpecJson`)·Save(`buildExportPayload`)·NL G3(`transactionGate.ts`)·작업공간
+  이름 변경·CLI `visual-spec validate`(재생성한 `bin/lib/schema.mjs`)는 관계 코드도 무효로 다룬다.
+  무효 참조를 경고만으로 저장하지 않는다(24 D5).
+- **진단과 보존.** 복원한 관계 오류 문서는 에디터 안내에서 코드·경로·원인을 모두 보여 준다.
+  Open·Save·Save as 실패와 홈의 손상 파일 상세도 진단을 표시한다. Open 검증 실패는 문서 전환에
+  들어가지 않는다. Save·Save as 실패는 원본 파일·현재 문서·초안을 바꾸지 않으며 정상 저장으로 표시하지 않는다.
+- **제한된 복구 경로.** 안내의 “미검증 복구 사본 다운로드”는 현재 프로젝트 JSON을 별도
+  `unvalidated-recovery-<UUID>.json`으로 다운로드한다. 오류도 그대로 보존하며 정상 Save/Export/생성
+  성공이 아니다. 파일명·저장 상태·브라우저 초안을 바꾸지 않는다. 원본과 미검증 사본을 보관하고,
+  텍스트 편집기에서 오류를 수정한 **별도 사본**을 기존 파일과 다른 이름으로 작업공간
+  `.visual-spec/specs/`에 넣고 **파일 → 열기 목록**에서 선택해 다시 검증한다. 작업공간이 없으면
+  파일 → 열기의 파일 선택 창에서 수정 사본을 직접 선택한다. 수정하지 않은 사본은 Open이 거부한다.
+  관계 편집 UI·Command·페이지 삭제의 자동 정리를 추가하지 않는다.
+- **알려진 제약.** 복원·새로고침은 이전 Undo 기록을 비운다. Undo는 삭제 전 기록이 남은 세션에서만
+  도움이 되며 모든 복원을 해결하지 않는다. 버튼 삭제도 해당 action 오류만 없앨 수 있고
+  `first-page-kind`는 해결하지 못한다. 관계 오류가 남은 동안 NL G3는 무관한 편집도 거부한다.
+  S1-3/4/6 전의 복구 사본 경로는 데이터 보존과 외부 수정 수단이지 앱 내 자동 복구나 팀 설계 승인이 아니다.
+- 생성·Export 임시 차단(위 S1-1 절)은 S1-2만으로 해제하지 않는다.
+
+기존 `examples/` 11개와 기존 0.3 문서는 그대로 통과한다. 테스트는 `test/screen-relations-validate.test.ts`
+(코드별 정상·위반·경계, 오류 경로, CLI)와 `test/screen-relations-restore.test.ts`(대상 페이지 삭제·첫 page
+삭제 뒤 자동 저장 복원·초안 목록·Save·Open·Undo·G3)다.
+`scripts/browser/screen-relations-recovery.mjs`는 Chromium에서 다섯 관계 코드의 복원·빈 Undo·실패 안내·
+복구 사본 다운로드·파일이 있는 작업공간의 실제 파일 → 열기 메뉴를 통한 사본 거부/재열기·원본/초안 보존과 구조 오류 혼합·정상 대조군을 검사한다.
+실제 모델 호출 없이 fixture로 검사하며, CI browser 잡에서 실행한다.
