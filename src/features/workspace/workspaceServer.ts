@@ -411,7 +411,7 @@ function handleDelete(req: IncomingMessage, res: ServerResponse, workspaceRoot: 
   }).catch((error: unknown) => sendError(res, 500, String(error)));
 }
 
-function handleRead(res: ServerResponse, absolutePath: string, withRevision: boolean): void {
+function handleRead(res: ServerResponse, absolutePath: string, withRevision: boolean, closeBeforeResponse = false): void {
   let stats;
   try {
     stats = statSync(absolutePath);
@@ -430,11 +430,13 @@ function handleRead(res: ServerResponse, absolutePath: string, withRevision: boo
   res.setHeader("content-length", stats.size);
   // SVG는 같은 오리진의 문서로 열릴 수 있다 — 스크립트·외부 요청을 원천 차단한다.
   res.setHeader("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'");
-  if (withRevision) {
-    // Hash and send the same snapshot; streaming a later file could mismatch its token.
+  if (withRevision || closeBeforeResponse) {
+    // Close the descriptor before replying: a manifest read is immediately followed
+    // by atomic replacement, which Windows can reject while a stream is still open.
+    // Revision reads also hash and send the same snapshot.
     try {
       const body = readFileSync(absolutePath);
-      res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
+      if (withRevision) res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
       res.setHeader("content-length", body.length);
       res.end(body);
     } catch (error) {
@@ -783,7 +785,8 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
         sendError(res, 403, "거부: canonical scope"); return;
       }
       if (method === "GET") {
-        handleRead(res, resolved.absolutePath, tracksRevision(resolved.relativePath));
+        handleRead(res, resolved.absolutePath, tracksRevision(resolved.relativePath),
+          resolved.relativePath === "runtime/generation-manifest.json");
       } else if (method === "DELETE") {
         handleDelete(req, res, root, resolved.absolutePath, resolved.relativePath);
       } else {
