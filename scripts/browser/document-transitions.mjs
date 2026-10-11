@@ -52,11 +52,11 @@ try {
     selected: editor.getState().selectedId, history: editor.getState().history, file: documentStore.getState().fileName }));
   const before = await snapshot();
   async function menu(name) {
-    await page.getByRole("button", { name: "File", exact: true }).click();
+    await page.getByRole("button", { name: "파일", exact: true }).click();
     await page.getByRole("menuitem", { name, exact: true }).click();
   }
   for (let i = 0; i < 2; i++) {
-    await menu("New");
+    await menu("새로 만들기");
     await dialog.getByText("현재 문서를 떠나시겠습니까?").waitFor();
     assert.equal(await page.evaluate(() => document.activeElement?.textContent), "취소");
     await cycle();
@@ -68,7 +68,7 @@ try {
     await page.keyboard.press("Escape");
     assert.equal(await snapshot(), before);
   }
-  await menu("Open");
+  await menu("열기");
   await dialog.getByRole("button", {name: "Alpha.json", exact: true}).click();
   await dialog.getByText("현재 문서를 떠나시겠습니까?").waitFor();
   await dialog.getByRole("button", {name: "취소", exact: true}).click();
@@ -120,7 +120,7 @@ try {
   accepted.on("dialog", async d => { notices.push(d.message()); await d.dismiss(); });
   await accepted.goto(url);
   await accepted.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
-  await accepted.getByRole("button", {name: "File", exact: true}).waitFor();
+  await accepted.getByRole("button", {name: "파일", exact: true}).waitFor();
   await accepted.evaluate(async () => {
     const {useEditorStore: e} = await import("/src/features/editor/store/editorStore.ts");
     e.getState().setPageField(e.getState().activePageId, "name", "Accept draft");
@@ -130,8 +130,8 @@ try {
   await accepted.getByRole("button", {name: "초안 보관 후 이동", exact: true}).click();
   assert.equal(await accepted.evaluate(() => window.result), true);
   assert.equal(await accepted.getByRole("alertdialog").count(), 0);
-  await accepted.getByRole("button", {name: "File", exact: true}).click();
-  await accepted.getByRole("menuitem", {name: "Open", exact: true}).click();
+  await accepted.getByRole("button", {name: "파일", exact: true}).click();
+  await accepted.getByRole("menuitem", {name: "열기", exact: true}).click();
   await accepted.getByRole("alertdialog").getByRole("button", {name: "Alpha.json", exact: true}).click();
   await accepted.waitForFunction(async () =>
     (await import("/src/features/editor/store/documentStore.ts")).useDocumentStore.getState().fileName === "Alpha.json");

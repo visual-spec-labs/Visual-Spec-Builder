@@ -16,7 +16,7 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(sys.argv[1])
     page.get_by_role('button',name=re.compile('빈 캔버스에서 시작|\\+ 새 프로젝트')).click()
-    page.get_by_role('button',name='File',exact=True).wait_for()
+    page.get_by_role('button',name='파일',exact=True).wait_for()
     page.evaluate('''async () => {
       const {useEditorStore:s}=await import('/src/features/editor/store/editorStore.ts');
       const {createNode}=await import('/src/features/editor/store/createNode.ts');

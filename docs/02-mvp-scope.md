@@ -74,7 +74,7 @@ CLI로 띄운 GUI는 React production 빌드로 돈다(#314, `VISUAL_SPEC_REACT_
 | 코드 생성 | 사용자가 실행한 Claude Code·Codex에 파일로 요청·응답 전달, 실행 방법 안내 |
 | 출력 | 기능 폴더 Export |
 
-노드 직접 생성은 Frame/Text 도구, **Insert → Button / Input** 메뉴, File → Import 이미지로 제공한다(#226).
+노드 직접 생성은 Frame/Text 도구, **삽입 → 버튼 / 입력 필드** 메뉴, 파일 → 이미지 가져오기로 제공한다(#226).
 Insert는 선택한 프레임 안에, 비프레임 선택이면 가장 가까운 부모 프레임에, 선택이 없으면 root에 추가한다.
 생성한 노드를 선택하며 Undo/Redo 한 단계로 처리한다.
 

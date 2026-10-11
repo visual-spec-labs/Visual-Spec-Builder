@@ -30,7 +30,7 @@ try {
   page.on("download", download => downloads.push(download));
   await page.goto(runner.url);
   await page.getByRole("button").filter({ hasText: /RelationGuard.*페이지/s }).click();
-  await page.getByRole("button", { name: "File", exact: true }).waitFor();
+  await page.getByRole("button", { name: "파일", exact: true }).waitFor();
   await page.evaluate(async () => {
     window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
     window.ticketStore = (await import("/src/features/editor/store/ticketStore.ts")).useTicketStore;
@@ -46,8 +46,8 @@ try {
     assert.equal(await page.evaluate(() => ticketStore.getState().running), false);
     assert.ok(await page.evaluate(() => ticketStore.getState().tickets.every(ticket => ticket.status === "pending")));
     assert.ok(!(await readdir(join(workspace, "runtime"))).includes("ticket-request.json"));
-    await page.getByRole("button", { name: "File", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Export Code", exact: true }).click();
+    await page.getByRole("button", { name: "파일", exact: true }).click();
+    await page.getByRole("menuitem", { name: "코드 내보내기", exact: true }).click();
     await page.waitForFunction(() => exportStore.getState().status === "unsupported");
     await page.getByRole("alert").getByText(/아직 지원하지 않습니다/).waitFor();
     assert.equal(await page.getByRole("button", { name: "결과 폴더 ZIP 내려받기", exact: true }).count(), 0);

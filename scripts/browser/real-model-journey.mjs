@@ -124,7 +124,7 @@ const pageErrors = [];
 page.on("pageerror", (error) => pageErrors.push(error.message));
 const button = (name) => page.getByRole("button", { name, exact: true });
 async function menu(name) {
-  await button("File").click();
+  await button("파일").click();
   await page.getByRole("menuitem", { name, exact: true }).click();
 }
 // 앞 단계가 실패해 저장하지 않은 자동저장 초안이 남았으면 저장된 파일로 시작한다(기록에 남긴다).
@@ -139,7 +139,7 @@ async function openDocument() {
   await discardDraft();
   // 홈 카드는 파일 이름이 아니라 프로젝트 이름(spec.name)을 보인다. 이름이 정확히 같은 카드 하나만 연다.
   await openProjectCard(page, args.card ?? args.doc);
-  await button("File").waitFor();
+  await button("파일").waitFor();
   await discardDraft();
   if (args.page) await selectPage(args.page);
 }
@@ -156,7 +156,7 @@ const alerts = [];
 page.on("dialog", async (dialog) => { alerts.push(dialog.message()); await dialog.accept(); });
 async function save() {
   const count = alerts.length;
-  await menu("Save");
+  await menu("저장");
   for (let i = 0; i < 100 && alerts.length === count; i++) await sleep(100);
   if (!alerts.slice(count).some((message) => message.startsWith("저장했습니다"))) throw new Error(`Save 실패: ${alerts.slice(count)}`);
   // 저장 리비전을 자동저장 기록에 반영하는 0.5초 디바운스가 끝난 뒤 닫는다(사람이 바로 탭을 닫지 않는 경우).
@@ -219,9 +219,9 @@ try {
     await page.getByText("자연어로 초안 만들기").first().click();
     await page.getByLabel("자연어 초안 설명", { exact: true }).fill(args.instruction);
     await button("초안 만들기").click();
-    await button("File").waitFor();
+    await button("파일").waitFor();
     const result = await nlRequest(label);
-    await menu("Save as");
+    await menu("다른 이름으로 저장");
     await page.getByRole("alertdialog").getByRole("textbox").fill(args.doc);
     await page.keyboard.press("Enter");
     await sleep(1500);
@@ -324,7 +324,7 @@ try {
   } else if (phase === "export") {
     await openDocument();
     await page.evaluate(async () => { window.exports = (await import("/src/features/editor/store/exportStore.ts")).useExportStore; });
-    await menu("Export Code");
+    await menu("코드 내보내기");
     await page.waitForFunction(() => exports.getState().status === "ready", null, { timeout: 60000 });
     const state = await page.evaluate(() => {
       const { report, freshness, target } = exports.getState();

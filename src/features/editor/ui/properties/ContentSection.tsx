@@ -84,7 +84,7 @@ function ImageFields() {
           </FieldLabel>
         </Field>
       )}
-      {!src && <p className="text-xs text-content-muted">이미지가 비어 있습니다. 경로를 입력하세요. File → Import는 새 이미지 노드를 추가합니다.</p>}
+      {!src && <p className="text-xs text-content-muted">이미지가 비어 있습니다. 경로를 입력하세요. 파일 → 이미지 가져오기는 새 이미지 노드를 추가합니다.</p>}
       <SegmentedControl
         label="채우기 방식 (fit)"
         value={fit}

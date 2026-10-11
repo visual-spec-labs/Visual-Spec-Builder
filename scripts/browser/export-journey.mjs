@@ -28,7 +28,7 @@ try {
   page.on("download", download => downloads.push(download));
   await page.goto(runner.url);
   await page.getByRole("button").filter({ hasText: /Journey.*페이지/s }).click();
-  await page.getByRole("button", { name: "File", exact: true }).waitFor();
+  await page.getByRole("button", { name: "파일", exact: true }).waitFor();
   // 문서 신원 단언을 위해 상태를 읽는다. 아래 사용자 조작은 GUI로 실행한다.
   await page.evaluate(async () => {
     window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
@@ -40,8 +40,8 @@ try {
     history: editor.getState().history }));
   const before = await snapshot();
   assert.equal(before.fileName, "customer-copy.json");
-  await page.getByRole("button", { name: "File", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Export Code", exact: true }).click();
+  await page.getByRole("button", { name: "파일", exact: true }).click();
+  await page.getByRole("menuitem", { name: "코드 내보내기", exact: true }).click();
   await page.waitForFunction(() => exports.getState().status === "ready");
   assert.equal(await page.evaluate(() => exports.getState().target.pageId), "alpha");
   await page.getByRole("button", { name: "Beta", exact: true }).click();

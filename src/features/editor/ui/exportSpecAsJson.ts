@@ -80,7 +80,7 @@ async function saveToWorkspace(filename: string, json: string, isCurrent: () => 
   const document = useDocumentStore.getState();
   const expectedRevision = filename === document.fileName ? document.diskRevision : WORKSPACE_MISSING_REVISION;
   if (expectedRevision === null) {
-    window.alert("저장 기준을 확인할 수 없습니다. 초안을 Export로 보존한 뒤 작업공간 파일을 다시 열거나 새 파일명으로 저장하세요.");
+    window.alert("저장 기준을 확인할 수 없습니다. 초안을 파일 → JSON 내보내기로 보존한 뒤 작업공간 파일을 다시 열거나 새 파일명으로 저장하세요.");
     return null;
   }
   let revision: string | null = null;
