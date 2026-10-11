@@ -1,3 +1,4 @@
+import { REPAIRED_COPY_OPEN_GUIDANCE } from "@/features/editor/store/validationGuidance";
 import { UnnamedDrafts } from "./UnnamedDrafts";
 import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -435,7 +436,7 @@ function CorruptedFilesSection({ failures, onRetry }: { failures: HomeProjectFai
                 <ul className="max-h-48 overflow-auto break-words">
                   {failure.issues.map((issue, index) => <li key={index}>[{issue.code}] {issue.path}: {issue.message}</li>)}
                 </ul>
-                <p>원본을 다운로드해 보관하고 별도 사본을 수정한 뒤 다시 여세요.</p>
+                <p>{REPAIRED_COPY_OPEN_GUIDANCE}</p>
               </details>}
             </div>
             <div className="flex shrink-0 gap-2">

@@ -247,7 +247,7 @@ PageId/name/effective kind 카탈로그 전달을 S1-10에서 NL 요청 규약(n
 `/.../overrides/<sourceNode>`처럼 원인 필드를 가리킨다. 첫 화면 오류는 `/pageOrder/0`이다.
 위 표의 S1 다섯 코드(action-target-missing~first-page-kind)는 S1-2에서 이름 그대로 공개 IssueCode에 추가됐다
 ([06](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)). instance 코드는 아직 추가되지 않았으며 S2-2 계약 테스트에서 확정한다.
-S1-4 전에는 GUI 페이지 삭제가 유입 action을 정리하지 않아 자동 저장 복원만 관계 코드를 예외로 받는다. Save·NL G3는 계속 엄격하다. 복원 후 Undo 기록은 없으며 first-page-kind는 버튼 삭제로 해결되지 않는다. 오류 상세와 미검증 복구 사본 다운로드 → 별도 사본 외부 수정 → 엄격한 Open 경로는 [06](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)을 따른다. 이는 자동 관계 복구나 팀 설계 승인이 아니다.
+S1-4 전에는 GUI 페이지 삭제가 유입 action을 정리하지 않아 자동 저장 복원만 관계 코드를 예외로 받는다. Save·NL G3는 계속 엄격하다. 복원 후 Undo 기록은 없으며 first-page-kind는 버튼 삭제로 해결되지 않는다. 오류 상세와 미검증 복구 사본 다운로드 → 별도 사본 외부 수정 → 다른 이름으로 작업공간 specs에 배치 → 실제 파일/열기 목록에서 엄격한 Open 경로는 [06](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)을 따른다. 이는 자동 관계 복구나 팀 설계 승인이 아니다.
 
 **IR 버전:** 이슈의 단계 계획은 S1 kind/action 선택 확장에 0.3 유지, S2 instance에 0.4다.
 기존 0.3 파일은 새 validator에서 그대로 유효해야 한다. 확장 전 0.3 validator는 추가 속성

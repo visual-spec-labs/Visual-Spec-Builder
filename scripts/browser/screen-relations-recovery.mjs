@@ -82,11 +82,15 @@ try {
     const downloaded = await readFile(await download.path(), "utf8");
     assert.deepEqual(JSON.parse(downloaded), spec);
     assert.deepEqual(await state(), failed);
-    // Open the unmodified recovery copy through the actual file picker: strict rejection.
-    const fileChooser = page.waitForEvent("filechooser");
-    await page.evaluate(async () => (await import("/src/features/editor/ui/openSpecFromFile.ts")).openSpecFromFileDialog());
+    // Follow the visible guidance: place a differently named COPY in the nonempty
+    // workspace specs folder, then select it through File → Open (no internal picker).
+    await notice.getByText(/기존 파일과 다른 이름으로 작업공간 \.visual-spec\/specs\/에 넣은 뒤/).waitFor();
+    const recoveryName = download.suggestedFilename();
+    await writeFile(join(workspace, "specs", recoveryName), downloaded, { flag: "wx" });
+    await page.getByRole("button", { name: "파일", exact: true }).click();
+    await page.getByRole("menuitem", { name: "열기", exact: true }).click();
     const openFailure = page.waitForEvent("dialog");
-    await (await fileChooser).setFiles({ name: download.suggestedFilename(), mimeType: "application/json", buffer: Buffer.from(downloaded) });
+    await page.getByRole("alertdialog").getByRole("button", { name: recoveryName, exact: true }).click();
     await openFailure;
     assert.match(alerts.at(-1), /열 수 없습니다/); assert.match(alerts.at(-1), new RegExp(code));
     assert.deepEqual((await state()).spec, spec);
@@ -110,12 +114,16 @@ try {
     } else {
       repaired.pages.login.nodes.loginButton.action = { type: "navigate", target: "login" };
     }
-    const repairedChooser = page.waitForEvent("filechooser");
-    await page.evaluate(async () => (await import("/src/features/editor/ui/openSpecFromFile.ts")).openSpecFromFileDialog());
-    await (await repairedChooser).setFiles({ name: "repaired-copy.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(repaired)) });
+    const repairedName = `repaired-${code}.json`;
+    await writeFile(join(workspace, "specs", repairedName), JSON.stringify(repaired), { flag: "wx" });
+    await page.getByRole("button", { name: "파일", exact: true }).click();
+    await page.getByRole("menuitem", { name: "열기", exact: true }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: repairedName, exact: true }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "초안 보관 후 이동" }).click();
     await notice.waitFor({ state: "detached" });
     assert.deepEqual((await state()).spec, repaired);
+    assert.equal((await state()).fileName, repairedName);
+    assert.equal(await readFile(join(workspace, "specs", recoveryName), "utf8"), downloaded);
     assert.equal(await page.evaluate(async () => {
       const { parseSpecJson } = await import("/src/features/editor/store/loadSpec.ts");
       const { useEditorStore } = await import("/src/features/editor/store/editorStore.ts");
@@ -124,8 +132,10 @@ try {
     assert.deepEqual(JSON.parse((await state()).draft).spec, spec);
     assert.equal(await readFile(join(workspace, "specs/original.json"), "utf8"), original);
     assert.deepEqual(writes, []);
-    console.log(`PASS ${code}: restore/empty Undo, detailed Save/Save as/Open failures, exact recovery download, repaired COPY reopens; draft/original preserved`);
+    console.log(`PASS ${code}: restore/empty Undo, detailed Save/Save as/Open failures, exact recovery download, repaired COPY opens through File menu in nonempty workspace; draft/original preserved`);
     await context.close();
+    await rm(join(workspace, "specs", recoveryName));
+    await rm(join(workspace, "specs", repairedName));
   }
   // Structure errors are still rejected by restoration; raw source remains available.
   const context = await runner.newContext(); const page = await context.newPage();

@@ -180,6 +180,9 @@ describe("관계 오류 안내와 저장 실패의 보존 계약", () => {
     expect(save).toContain("이전 Undo 기록을 복원하지 않습니다");
     expect(save).toContain("first-page-kind는 해결하지 못합니다");
     expect(save).toContain("미검증 복구 사본");
+    expect(save).toContain("기존 파일과 다른 이름으로 작업공간 .visual-spec/specs/에 넣은 뒤");
+    expect(save).toContain("파일 → 열기 목록에서 그 사본을 선택");
+    expect(save).toContain("작업공간이 없으면 파일 → 열기에서 수정 사본을 직접 선택");
     expect(validationFailureMessage("열 수 없습니다", issues, "open")).toContain("선택한 원본 파일과 현재 작업은 변경하지 않았습니다");
   });
 
