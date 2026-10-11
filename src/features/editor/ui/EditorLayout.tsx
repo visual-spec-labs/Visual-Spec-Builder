@@ -1,3 +1,4 @@
+import { ScreenRelationNotice } from "./ScreenRelationNotice";
 import { useEffect, type CSSProperties, type MouseEvent } from "react";
 
 import { useExportStore } from "@/features/editor/store/exportStore";
@@ -86,9 +87,10 @@ export function EditorLayout() {
     <div
       onContextMenu={handleContextMenu}
       style={gridStyle}
-      className="relative grid h-screen w-screen overflow-hidden grid-rows-[var(--layout-menubar-height)_1fr_auto] [grid-template-areas:'menu_menu_menu'_'tree_canvas_props'_'ai_ai_ai'] bg-surface-sunken text-content"
+      className="relative grid h-screen w-screen overflow-hidden grid-rows-[var(--layout-menubar-height)_auto_1fr_auto] [grid-template-areas:'menu_menu_menu'_'notice_notice_notice'_'tree_canvas_props'_'ai_ai_ai'] bg-surface-sunken text-content"
     >
       <MenuBar />
+      <ScreenRelationNotice />
       {showPanels && <LayerTree />}
       <Canvas />
       {showPanels &&

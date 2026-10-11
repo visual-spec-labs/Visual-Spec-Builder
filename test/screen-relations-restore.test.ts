@@ -52,6 +52,10 @@ function afterRemovingPages(...pageIds: string[]): ProjectSpec {
 async function reloadEditor(): Promise<ProjectSpec> {
   vi.resetModules();
   const fresh = await import("@/features/editor/store/editorStore");
+  expect(fresh.useEditorStore.getState().history.past).toEqual([]);
+  const beforeUndo = fresh.useEditorStore.getState().spec;
+  fresh.useEditorStore.getState().undo();
+  expect(fresh.useEditorStore.getState().spec).toBe(beforeUndo);
   return fresh.useEditorStore.getState().spec;
 }
 
@@ -130,7 +134,7 @@ describe("관계 오류가 생긴 문서의 엄격한 경로 (#265 S1-2)", () =>
 
   it("Open은 관계 오류가 있는 파일을 거부한다(파일 자체는 건드리지 않는다)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(parseSpecJson(JSON.stringify(afterRemovingPages("dashboard")))).toEqual({ ok: false, issueCount: 1 });
+    expect(parseSpecJson(JSON.stringify(afterRemovingPages("dashboard")))).toMatchObject({ ok: false, issueCount: 1, issues: [DANGLING] });
     warn.mockRestore();
   });
 
@@ -143,12 +147,71 @@ describe("관계 오류가 생긴 문서의 엄격한 경로 (#265 S1-2)", () =>
   });
 
   // 알려진 제약(S1-4에서 해소): 관계 오류가 남은 동안 NL G3는 관계와 무관한 편집도 거부한다.
-  // 지금 사용자가 고칠 수 있는 길은 Undo 또는 해당 버튼 삭제뿐이다.
+  // 복원 후에는 이전 Undo 기록이 없고 first-page-kind는 버튼 삭제로 해결되지 않는다.
   it("관계 오류가 남은 문서에서는 NL G3가 다른 페이지의 무관한 편집도 거부한다", () => {
     const spec = afterRemovingPages("dashboard");
     const result = runTransactionGates(spec, "resetPassword", [
       { type: "updateNode", id: "title", path: "content", value: "새 제목" },
     ]);
     expect(result).toMatchObject({ ok: false, failure: { kind: "invalid", issues: [DANGLING] } });
+  });
+});
+
+
+describe("관계 오류 안내와 저장 실패의 보존 계약", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it("first-page-kind는 남은 버튼을 모두 삭제해도 해결되지 않는다", () => {
+    afterRemovingPages("login", "dashboard");
+    for (const pageId of useEditorStore.getState().spec.pageOrder) {
+      useEditorStore.getState().selectPage(pageId);
+      for (const [nodeId, node] of Object.entries(useEditorStore.getState().spec.pages[pageId].nodes)) {
+        if (node.type === "button") useEditorStore.getState().removeNode(nodeId);
+      }
+    }
+    expect(validateProjectSpec(useEditorStore.getState().spec).issues).toMatchObject([MODAL_FIRST]);
+  });
+
+  it("안내는 모든 오류의 코드·경로·원인과 복구 한계를 담는다", async () => {
+    const { formatValidationIssues, validationFailureMessage } = await import("@/features/editor/store/validationGuidance");
+    const issues = validateProjectSpec(afterRemovingPages("dashboard")).issues;
+    expect(formatValidationIssues(issues)).toContain(`[${DANGLING.code}] ${DANGLING.path}: ${issues[0].message}`);
+    const save = validationFailureMessage("저장할 수 없습니다", issues, "save");
+    expect(save).toContain("이전 Undo 기록을 복원하지 않습니다");
+    expect(save).toContain("first-page-kind는 해결하지 못합니다");
+    expect(save).toContain("미검증 복구 사본");
+    expect(validationFailureMessage("열 수 없습니다", issues, "open")).toContain("선택한 원본 파일과 현재 작업은 변경하지 않았습니다");
+  });
+
+  it.each(["saveSpec", "saveSpecAs"] as const)("%s 실패는 쓰기·다운로드·파일명 변경 없이 작업과 초안을 유지한다", async (method) => {
+    // resetModules를 쓴 복원 검사와 같은 최신 모듈 인스턴스로 비교한다.
+    const { useEditorStore: editor } = await import("@/features/editor/store/editorStore");
+    const { useDocumentStore: document } = await import("@/features/editor/store/documentStore");
+    const { useSaveConflictStore: conflict } = await import("@/features/editor/store/saveConflictStore");
+    const { usePersistenceStatusStore: persistence } = await import("@/features/editor/store/persistenceStatusStore");
+    const exports = await import("@/features/editor/ui/exportSpecAsJson");
+    vi.stubGlobal("localStorage", memoryStorage());
+    vi.stubGlobal("sessionStorage", memoryStorage());
+    const alert = vi.fn(); const fetch = vi.fn();
+    vi.stubGlobal("window", { alert }); vi.stubGlobal("fetch", fetch);
+    vi.spyOn(conflict.getState(), "check").mockReturnValue(false);
+    conflict.setState({ paused: false });
+    editor.getState().loadSpec(project());
+    document.getState().setFileName("original.json", "original-revision");
+    editor.getState().removePage("dashboard");
+    const spec = editor.getState().spec;
+    saveSpecToStorage(spec, "original.json");
+    const raw = localStorage.getItem("visual-spec:project");
+    const history = editor.getState().history;
+    const result = await exports[method](spec);
+    expect(result).toMatchObject({ ok: false, issues: [DANGLING] });
+    expect(alert).toHaveBeenCalledWith(expect.stringContaining(DANGLING.path));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(editor.getState().spec).toBe(spec);
+    expect(editor.getState().history).toBe(history);
+    expect(document.getState().fileName).toBe("original.json");
+    expect(document.getState().diskRevision).toBe("original-revision");
+    expect(localStorage.getItem("visual-spec:project")).toBe(raw);
+    expect(persistence.getState().attempt?.phase).toBe("failed");
   });
 });

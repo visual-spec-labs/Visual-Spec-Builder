@@ -578,12 +578,23 @@ Command 가드의 S1-3 해제와 별개이며, S1-2만 완료해도 이 가드�
 - **엄격한 경로.** Open(`parseSpecJson`)·Save(`buildExportPayload`)·NL G3(`transactionGate.ts`)·작업공간
   이름 변경·CLI `visual-spec validate`(재생성한 `bin/lib/schema.mjs`)는 관계 코드도 무효로 다룬다.
   무효 참조를 경고만으로 저장하지 않는다(24 D5).
-- **알려진 제약(S1-4에서 해소).** 관계 오류가 남은 동안 Save는 이슈를 보여 주며 실패하고, NL G3는 관계와
-  무관한 다른 페이지 편집도 거부한다. S1-6 전이라 action을 고칠 GUI가 없고 Command도 S1-1 가드로
-  막혀 있어 사용자가 고칠 수 있는 길은 **Undo 또는 해당 버튼 삭제**뿐이다. S1-1 병합 뒤 이런 상태로
-  저장된 파일은 이제 Open이 거부한다(파일은 그대로 남는다).
+- **진단과 보존.** 복원한 관계 오류 문서는 에디터 안내에서 코드·경로·원인을 모두 보여 준다.
+  Open·Save·Save as 실패와 홈의 손상 파일 상세도 진단을 표시한다. Open 검증 실패는 문서 전환에
+  들어가지 않는다. Save·Save as 실패는 원본 파일·현재 문서·초안을 바꾸지 않으며 정상 저장으로 표시하지 않는다.
+- **제한된 복구 경로.** 안내의 “미검증 복구 사본 다운로드”는 현재 프로젝트 JSON을 별도
+  `unvalidated-recovery-<UUID>.json`으로 다운로드한다. 오류도 그대로 보존하며 정상 Save/Export/생성
+  성공이 아니다. 파일명·저장 상태·브라우저 초안을 바꾸지 않는다. 원본과 미검증 사본을 보관하고,
+  텍스트 편집기에서 오류를 수정한 **별도 사본**을 Open으로 다시 검증한다. 수정하지 않은 사본은 Open이 거부한다.
+  관계 편집 UI·Command·페이지 삭제의 자동 정리를 추가하지 않는다.
+- **알려진 제약.** 복원·새로고침은 이전 Undo 기록을 비운다. Undo는 삭제 전 기록이 남은 세션에서만
+  도움이 되며 모든 복원을 해결하지 않는다. 버튼 삭제도 해당 action 오류만 없앨 수 있고
+  `first-page-kind`는 해결하지 못한다. 관계 오류가 남은 동안 NL G3는 무관한 편집도 거부한다.
+  S1-3/4/6 전의 복구 사본 경로는 데이터 보존과 외부 수정 수단이지 앱 내 자동 복구나 팀 설계 승인이 아니다.
 - 생성·Export 임시 차단(위 S1-1 절)은 S1-2만으로 해제하지 않는다.
 
 기존 `examples/` 11개와 기존 0.3 문서는 그대로 통과한다. 테스트는 `test/screen-relations-validate.test.ts`
 (코드별 정상·위반·경계, 오류 경로, CLI)와 `test/screen-relations-restore.test.ts`(대상 페이지 삭제·첫 page
-삭제 뒤 자동 저장 복원·초안 목록·Save·Open·Undo·G3)다. 회귀는 단위 테스트와 fixture이며 브라우저 실측이 아니다.
+삭제 뒤 자동 저장 복원·초안 목록·Save·Open·Undo·G3)다.
+`scripts/browser/screen-relations-recovery.mjs`는 Chromium에서 다섯 관계 코드의 복원·빈 Undo·실패 안내·
+복구 사본 다운로드·수정 사본 재열기·원본/초안 보존과 구조 오류 혼합·정상 대조군을 검사한다.
+실제 모델 호출 없이 fixture로 검사하며, CI browser 잡에서 실행한다.
