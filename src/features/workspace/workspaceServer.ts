@@ -73,7 +73,8 @@ import {
   requestLockKindForPath,
   tracksRevision,
 } from "./protocol";
-import { migrateToV03 } from "../editor/schema/migrate";
+import { migrateToV03, migrateV01 } from "../editor/schema/migrate";
+import type { VisualSpec } from "../editor/schema/types";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
 import { projectFileName } from "./projectName";
 import { checkRequestOrigin } from "./requestOrigin";
@@ -336,11 +337,19 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
         if (!validation.valid || typeof spec !== "object" || spec === null) {
           sendError(res, 400, "유효한 프로젝트 파일이 아닙니다."); return;
         }
-        // Preserve the source document version and all fields. A legacy single-screen
-        // document derives its project display name from screen.name.
-        const renamed = JSON.stringify(isProject ? { ...spec, name: input.name,
-          ...(existingProjectId === undefined && typeof input.projectId === "string" ? { projectId: input.projectId } : {}) } :
-          { ...spec, screen: { ...(spec as { screen: object }).screen, name: input.name } }, null, 2);
+        const requestedName = input.name;
+        if (typeof requestedName !== "string") { sendError(res, 400, "잘못된 이름 변경 요청입니다."); return; }
+        const requestedProjectId = typeof input.projectId === "string" ? input.projectId : undefined;
+        if (!isProject && requestedProjectId === undefined) {
+          sendError(res, 400, "화면 문서 이름 변경에는 프로젝트 신원이 필요합니다."); return;
+        }
+        // 이름 변경은 저장 경계다. 화면 문서는 프로젝트 형태로 승격해 ID와
+        // 새 이름을 함께 기록해야 다음 브라우저 문맥에서도 같은 프로젝트다.
+        const renamed = JSON.stringify(isProject ? { ...spec, name: requestedName,
+          ...(existingProjectId === undefined && typeof input.projectId === "string" ? { projectId: input.projectId } : {}) } : {
+          ...migrateV01({ ...(migrated as VisualSpec), screen: { ...(migrated as VisualSpec).screen, name: requestedName } }),
+          projectId: requestedProjectId!,
+        }, null, 2);
         if (from.absolutePath === to.absolutePath) {
           writeFileAtomic(from.absolutePath, Buffer.from(renamed));
         } else {

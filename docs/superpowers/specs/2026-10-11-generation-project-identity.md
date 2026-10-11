@@ -21,7 +21,7 @@ When the ID is absent, the editor assigns an ID in memory. Saving persists it; i
 - Save As/copy: generate a new ID and output directory.
 - Delete and recreate at the same filename: the new document receives a new ID and cannot adopt old outputs.
 - Legacy spec without an ID: treat prior same-name output as unowned/needs confirmation; never silently overwrite it or report it as current.
-- Legacy VisualSpec input: define how its migration into ProjectSpec obtains and persists the ID before implementation.
+- Legacy VisualSpec input: Open migrates it to ProjectSpec in memory and assigns an ID; Home rename writes the ProjectSpec form and that ID to disk. Reopening the renamed file in a new browser context retains the same ID.
 
 ## Compatibility and scope
 

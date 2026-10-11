@@ -133,12 +133,16 @@ try {
   await page.waitForTimeout(650);
   assert.equal((await state()).file, "Fixture saved.json");
   await waitStatus(page, "파일 저장됨");
-  assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), original.spec);
+  const saved = JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8"));
+  const { projectId: savedProjectId, ...savedContent } = saved;
+  const { projectId: draftProjectId, ...draftContent } = original.spec;
+  assert.deepEqual(savedContent, draftContent, "Save As preserves document content");
+  assert.notEqual(savedProjectId, draftProjectId, "Save As assigns a new project identity");
   assert.equal(await page.evaluate(key => localStorage.getItem(key), original.key), null);
   await page.getByRole("button", { name: "홈으로" }).click();
   await page.getByRole("button").filter({ hasText: /Untitled.*페이지/s }).click();
-  assert.deepEqual((await state()).spec, original.spec);
-  console.log("PASS Save as cancel/failure retain draft; successful real Save retires UUID and reopens exact content");
+  assert.deepEqual((await state()).spec, saved, "reopen retains the Save As project identity");
+  console.log("PASS Save as cancel/failure retain draft; successful Save As preserves content, changes identity, and reopens that identity");
   async function newFromEditor() {
     await page.getByRole("button", {name: "파일", exact: true}).click();
     await page.getByRole("menuitem", {name: "새로 만들기", exact: true}).click();
