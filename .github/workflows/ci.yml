@@ -160,6 +160,18 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/screen-relations-recovery.mjs
 
+      - name: 복구 provenance (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/recovery-provenance.mjs
+
+      - name: 실제 경과 대기 — 전체 및 생략 상태 회귀 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: |
+          # 180초 대기 + 준비/연결 복구/늦은 출력/재시도. 기존 120초 묶음과 분리한다.
+          timeout --signal=TERM --kill-after=10s 300s node scripts/browser/request-wait-real-time-check.mjs
+
   # 브랜치 보호의 기존 required check 이름을 유지한다.
   # Linux·Windows·브라우저 잡의 실패/취소/skip도 build 실패로 전파한다.
   build:

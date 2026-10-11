@@ -29,10 +29,19 @@ try {
       editor.getState().loadSpec((await import('/src/features/editor/store/seedSpec.ts')).seedSpec);
       (await import('/src/features/editor/store/documentStore.ts')).useDocumentStore.setState({ fileName: 'shop.json' });
       (await import('/src/features/editor/store/navigationStore.ts')).useNavigationStore.getState().openEditor();
+      window.saveConflict = (await import('/src/features/editor/store/saveConflictStore.ts')).useSaveConflictStore;
+      window.persistence = (await import('/src/features/editor/store/persistenceStatusStore.ts')).usePersistenceStatusStore;
     });
+    // 두 탭이 같은 shop.json 자동저장 키를 쓴다. 앞 탭의 첫 자동저장(500ms 디바운스)이 끝나기 전에 뒤 탭이
+    // 기준을 읽으면 뒤 탭은 같은 내용이어도 "다른 탭에서 이 프로젝트를 변경했습니다"로 멈추고 그 대화상자가
+    // 덮어쓰기 확인 라디오를 가린다(#359, docs/28 5절 4번). 뒤 탭 준비가 앞 탭 준비 뒤 500ms 안에 끝나면
+    // 생기는 순서라 실행 속도에 달렸고 OS와 무관하다. 이 탭의 내용이 공용 자동저장에 반영된 뒤 다음 탭을 연다.
+    await page.waitForFunction(() => persistence.getState().draft?.shared === true);
     return page;
   }
   const a = await tab(), b = await tab();
+  // 준비 순서가 바뀌어 충돌 대화상자가 떠 있으면 라디오 timeout 대신 원인을 바로 보인다.
+  for (const page of [a, b]) assert.equal(await page.evaluate(() => saveConflict.getState().paused), false, 'fixture: save conflict dialog');
   async function start(page, text) {
     await page.evaluate(() => {
       const { activePageId, spec } = editor.getState();

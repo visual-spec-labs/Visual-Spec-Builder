@@ -175,11 +175,23 @@ try {
   await newFromEditor();
   await page.getByRole("alertdialog").getByRole("button", {name: "초안 보관 후 이동", exact: true}).click();
   await page.getByRole("button", {name: "홈으로"}).click();
-  await page.waitForTimeout(650); // pristine blank is the independent startup snapshot
+  // A new tab reads the shared startup snapshot, not this tab's recovery state.
+  // A fixed debounce sleep can leave the previous edited draft there, so the
+  // handoff then legitimately asks to preserve that unexpected document.
+  const startup = await state();
+  await page.waitForFunction(expected => {
+    const saved = JSON.parse(localStorage.getItem("visual-spec:project") ?? "null");
+    return saved?.draftKey === expected.key && saved.fileName === expected.file &&
+      JSON.stringify(saved.spec) === JSON.stringify(expected.spec);
+  }, startup);
   const contender = await context.newPage();
   contender.on("pageerror", error => errors.push(error.message));
   await contender.goto(url);
   await contender.getByRole("region", {name: "보관한 초안"}).waitFor();
+  const contenderStartup = await state(contender);
+  assert.deepEqual(contenderStartup.spec, startup.spec);
+  assert.equal(contenderStartup.file, startup.file);
+  assert.notEqual(contenderStartup.key, startup.key);
   const resume = target => target.evaluate(async key => {
     const { listUnnamedDrafts, useUnnamedDraftStore } = await import("/src/features/editor/store/unnamedDraftStore.ts");
     return useUnnamedDraftStore.getState().resume(listUnnamedDrafts().find(item => item.key === key));

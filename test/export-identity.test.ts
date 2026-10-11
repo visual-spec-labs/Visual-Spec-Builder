@@ -25,6 +25,7 @@ import { compileTickets } from "@/features/editor/ticket/compileTickets";
 import { downloadGeneratedBundle, scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
 import { ensureGenerationTarget, forgetUnsavedGenerationProjects, recordProjectRename } from "@/features/editor/ui/generationTarget";
 import { holdRequestLock } from "@/features/editor/ui/agentRequestLock";
+import { WORKSPACE_REQUEST_LOCK_ROUTE } from "@/features/workspace/protocol";
 import { createWorkspaceMiddleware, ensureWorkspaceDirs } from "@/features/workspace/workspaceServer";
 
 let root: string;
@@ -32,6 +33,18 @@ let server: Server;
 const nativeFetch = globalThis.fetch;
 /** 이 경로(작업공간 기준)의 요청을 가로챈다. 응답을 돌려주거나 던지면 서버에 보내지 않는다. */
 let intercept: ((path: string) => Response | null) | null = null;
+let releaseRequests: Promise<Response>[] = [];
+let releaseDelayMs = 0;
+
+/** HeldRequestLock.release()는 void다. 해제 후 동작의 전제는 실제 서버 응답으로 확인한다. */
+async function releaseAndWaitForServer(lock: { release: () => void }, delayMs = 0): Promise<void> {
+  const start = releaseRequests.length;
+  releaseDelayMs = delayMs;
+  try { lock.release(); } finally { releaseDelayMs = 0; }
+  const responses = await Promise.all(releaseRequests.slice(start));
+  expect(responses).toHaveLength(1);
+  expect(responses[0].status).toBe(200);
+}
 
 beforeEach(async () => {
   root = fs.mkdtempSync(join(tmpdir(), "vsb-export-identity-"));
@@ -41,10 +54,18 @@ beforeEach(async () => {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   intercept = null;
+  releaseRequests = [];
+  releaseDelayMs = 0;
   vi.stubGlobal("fetch", (input: string, init?: RequestInit) => {
     const url = new URL(input, base);
     const intercepted = intercept?.(decodeURIComponent(url.pathname));
-    return intercepted ? Promise.resolve(intercepted) : nativeFetch(url, init);
+    const isRelease = init?.method === "DELETE" && url.pathname.startsWith(WORKSPACE_REQUEST_LOCK_ROUTE);
+    const response = intercepted ? Promise.resolve(intercepted)
+      : isRelease && releaseDelayMs > 0
+        ? new Promise(resolve => setTimeout(resolve, releaseDelayMs)).then(() => nativeFetch(url, init))
+        : nativeFetch(url, init);
+    if (isRelease) releaseRequests.push(response);
+    return response;
   });
   forgetUnsavedGenerationProjects();
 });
@@ -271,7 +292,7 @@ describe("잠금 중 앱 내부 rename은 낡은 destination보다 출발 신원
       expect(await scanZip("b.json")).toContain("A_KNOWN");
       expect(await scanZip("b.json")).not.toContain("B_STALE");
       if (mode === "연속 rename 후 전달") expect(await recordProjectRename("b.json", "c.json")).toContain("이름 변경은 완료");
-    } finally { lock.release(); }
+    } finally { await releaseAndWaitForServer(lock); }
     if (mode === "잠금 해제 후 연속 rename") expect(await recordProjectRename("b.json", "c.json")).toBeNull();
     const fileName = mode === "다음 전달" ? "b.json" : "c.json";
     expect(await scanZip(fileName)).toContain("A_KNOWN");
@@ -314,7 +335,11 @@ describe("미기록 rename의 이름 재방문", () => {
       // 전달 복구도 잠금이 해제되기 전에는 실패하며 원래 신원을 잊지 않는다.
       expect(await ensureGenerationTarget(owner)).toMatchObject({ ok: false });
       expect(await scanZip(last)).toContain("OWNER_a");
-    } finally { lock.release(); }
+    } finally {
+      // 2초 해제 지연은 holdRequestLock의 1.5초 재획득 재시도보다 길다.
+      // 해제 완료를 기다리지 않던 Windows CI 실패를 같은 단언에서 재현하는 대조 조건이다.
+      await releaseAndWaitForServer(lock, _label === "중간 이름 재방문" ? 2000 : 0);
+    }
     expect(await ensureGenerationTarget(owner)).toMatchObject({ ok: true, target: { projectId: "original", root: "a/page1" } });
     expect(await ensureGenerationTarget(owner)).toMatchObject({ ok: true, target: { projectId: "original", root: "a/page1" } });
     const manifest = JSON.parse(fs.readFileSync(join(root, GENERATION_MANIFEST_PATH), "utf8"));

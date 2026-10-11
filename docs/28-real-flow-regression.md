@@ -41,7 +41,12 @@ FORCE_COLOR=1 bash scripts/browser/run-journeys.sh   # 마지막 줄: PASS all 9
 필수 묶음에 연결했다. 페이지 티켓은 화면 전체가 입력이라 편집 뒤 반드시 **오래됨**이다. 컴포넌트 티켓은 #281의
 컴포넌트 단위 지문에서는 **현재**로 남을 수 있어 전체 판정은 `stale`/`partial` 둘 다 허용한다.
 
-넣지 않은 스크립트: `recovery-provenance.mjs`(Windows에서 저장 충돌 대화상자에 막혀 실패, 5절),
+묶음 뒤 별도 필수 CI 단계: `recovery-provenance.mjs`(120초),
+`request-wait-real-time-check.mjs`(300초, 생략 모드의 PARTIAL 보고와 전체 180초 timeout·늦은 출력·재시도 실측).
+recovery의 저장 충돌은 두 탭 준비 순서 경쟁으로 확인해 fixture를 수정했고 Linux에서도 통과했다.
+환경·명령·기록은 [#359 통합 QA](qa/2026-10-10-integration-359.md#7-2026-10-11-linux-리뷰-후속-검증)를 따른다.
+
+넣지 않은 스크립트:
 `editing-context.py`·`property-guidance.py`(외부에서 띄운 서버 계약), `layout-parity*.mjs`(폰트 CDN 필요),
 `real-model-journey-fake.mjs`(아래, 수동).
 
@@ -209,10 +214,11 @@ woff2 25/30개, 폰트 실패 0, 텍스트는 양쪽 모두 `Pretendard`·`Prete
    → 알림을 닫자마자 탭 닫기 → 다시 열기. 자동저장 기록의 `diskRevision`이 500ms 디바운스 전의 이전 리비전으로 남아,
    내용이 바이트 단위로 같아도 복구 대화상자가 뜬다(실제 탭 닫기에서는 beforeunload 경고도 뜬다). 드라이버는 저장 후
    1.5초를 기다리도록 했다.
-4. **`scripts/browser/recovery-provenance.mjs`가 Windows에서 실패한다.** 재현: develop·통합 빌드에서
-   `node scripts/browser/recovery-provenance.mjs` → 두 탭이 같은 문서를 `loadSpec`해 탭 A에 "다른 탭에서 이 프로젝트를
-   변경했습니다" 대화상자가 떠 덮어쓰기 확인의 라디오 클릭을 가린다(15초 timeout). 스크립트 fixture 설정 문제로 보이며 필수
-   묶음에 넣지 않았다. Linux 결과는 확인하지 못했다.
+4. **recovery-provenance의 두 탭 준비 순서 경쟁(수정됨).** 과거 Windows 실행에서 앞 탭의 첫 자동저장 전에
+   뒤 탭이 같은 이름을 받아 저장 충돌 대화상자가 라디오 클릭을 가렸다(15초 timeout). OS 원인으로 단정하지 않는다.
+   #359에서 각 탭의 공용 자동저장 완료를 기다리고 시작 전 충돌 부재를 확인하도록 fixture를 수정했다.
+   수정 후 Windows 반복 실행과 Linux 실행이 통과했고, PR #368은 Linux CI에 별도 필수 단계로 연결한다.
+   실제 UI에서 같은 내용을 동시에 여는 경우의 제품 충돌 정책까지 해결한 것은 아니다. 대조군·제한은 위 통합 QA 4·5절.
 5. (경미) #281 통합 빌드에서 편집 뒤 Export 전체 판정이 "부분 — … 나머지 티켓을 전달하세요"로 보인다. 실제로는 컴포넌트는
    현재, 페이지 티켓만 오래됨이라 안내 문구가 다음 행동(다시 생성)과 어긋난다.
 
