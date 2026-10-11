@@ -193,6 +193,15 @@ export function startDiskWatch(): () => void {
       if (spec === null) return;
       const currentJson = toJson(useEditorStore.getState().spec);
       if (toJson(spec) === currentJson) {
+        const currentProjectId = useEditorStore.getState().spec.projectId;
+        // Identity is deliberately excluded from the content comparison above, but an external
+        // ID-only replacement is a different document owner. Adopt it before advancing the CAS
+        // revision so subsequent Save/Export cannot keep using the former project's identity.
+        if (typeof spec.projectId === "string" && spec.projectId !== currentProjectId) {
+          adopt(fileName, spec, snapshot.revision);
+          useAgentEditStore.setState({ diskNotice: { kind: "diskImported", fileName, spec: useEditorStore.getState().spec } });
+          return;
+        }
         baselineJson = currentJson;
         baselineRevision = snapshot.revision;
         useDocumentStore.getState().setFileName(fileName, snapshot.revision); // 내가 방금 저장한 내용

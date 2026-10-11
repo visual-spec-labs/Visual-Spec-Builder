@@ -59,7 +59,7 @@ async function renameLocked(fileName: string, name: string, nextFileName: string
   try {
     const response = await fetch(WORKSPACE_RENAME_ROUTE, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ fileName, name, expectedText }),
+      body: JSON.stringify({ fileName, name, expectedText, projectId }),
     });
     const payload: unknown = await response.json();
     if (response.headers.get(WORKSPACE_MARKER_HEADER) !== "1" || !response.ok ||

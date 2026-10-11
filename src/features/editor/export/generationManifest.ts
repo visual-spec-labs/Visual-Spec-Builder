@@ -237,9 +237,9 @@ export function withProject(manifest: GenerationManifest, projectId: string, pro
  */
 export function withProjectRenamed(manifest: GenerationManifest, from: string, to: string, projectId?: string): GenerationManifest {
   const exact = projectId ? manifest.projects[projectId] : undefined;
-  const found = exact === undefined
+  const found = projectId === undefined
     ? findProjectByFileName(manifest, from)
-    : { projectId: projectId!, project: exact };
+    : exact !== undefined && exact.fileName === from ? { projectId, project: exact } : null;
   if (found === null || from === to) return manifest;
   const projects: Record<string, ProjectRecord> = {};
   for (const [id, project] of Object.entries(manifest.projects)) {

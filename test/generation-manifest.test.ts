@@ -9,6 +9,8 @@ import {
   GENERATION_MANIFEST_PROTOCOL,
   parseGenerationManifest,
   withManifestEntries,
+  withProject,
+  withProjectRenamed,
   type GenerationManifest,
   type ManifestEntry,
 } from "@/features/editor/export/generationManifest";
@@ -65,6 +67,16 @@ function entry(content: string, overrides: Partial<ManifestEntry> = {}): Manifes
     ...overrides,
   };
 }
+
+it("does not transfer a project's output ownership when a copied file is renamed in Home", () => {
+  const original = withProject(emptyManifest(), "project-a", {
+    fileName: "shop.json", outputDir: "shop", createdAt: "2026-10-11T00:00:00.000Z",
+  });
+
+  expect(withProjectRenamed(original, "copy.json", "copy2.json", "project-a")).toBe(original);
+  expect(withProjectRenamed(original, "shop.json", "store.json", "project-a").projects["project-a"])
+    .toMatchObject({ fileName: "store.json", outputDir: "shop" });
+});
 
 describe("contentHash — 순수 TS SHA-256", () => {
   it.each([

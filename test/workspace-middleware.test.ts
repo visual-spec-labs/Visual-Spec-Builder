@@ -788,6 +788,12 @@ describe("project rename (#227)", () => {
     expect(existsSync(join(workspaceRoot, "specs/old.json"))).toBe(false);
     expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"))).toEqual({ ...JSON.parse(oldText), name: "New" });
   });
+  it("persists the assigned project ID when renaming an older project file", async () => {
+    const projectId = "stable-project-id";
+    expect((await fetch(`${baseUrl}/__vs/rename`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fileName: "old.json", name: "New", expectedText: oldText, projectId }) })).status).toBe(200);
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8")).projectId).toBe(projectId);
+  });
   it("preserves legacy screen shape/version while changing its display name", async () => {
     const legacy = JSON.stringify(blankSpec);
     writeFileSync(join(workspaceRoot, "specs/old.json"), legacy);

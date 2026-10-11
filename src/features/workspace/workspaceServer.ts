@@ -300,7 +300,7 @@ function readBody(req: IncomingMessage, onDone: (body: Buffer | null) => void): 
 function handleRename(req: IncomingMessage, res: ServerResponse, root: string): void {
   readBody(req, (body) => {
     if (body === null) { sendError(res, 413, "본문이 너무 큽니다."); return; }
-    let input: { fileName?: unknown; name?: unknown; expectedText?: unknown };
+    let input: { fileName?: unknown; name?: unknown; expectedText?: unknown; projectId?: unknown };
     try { input = JSON.parse(body.toString()) as typeof input; }
     catch { sendError(res, 400, "잘못된 요청입니다."); return; }
     if (!input || typeof input.fileName !== "string" || /[\\/]/.test(input.fileName) ||
@@ -324,13 +324,22 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
         const spec: unknown = JSON.parse(original);
         const migrated = migrateToV03(spec);
         const isProject = typeof spec === "object" && spec !== null && "pages" in spec;
+        const existingProjectId = isProject && typeof spec === "object" && spec !== null &&
+          "projectId" in spec && typeof spec.projectId === "string" ? spec.projectId : undefined;
+        if (input.projectId !== undefined && (typeof input.projectId !== "string" || input.projectId.length === 0 || input.projectId.length > 128)) {
+          sendError(res, 400, "잘못된 프로젝트 신원입니다."); return;
+        }
+        if (existingProjectId !== undefined && input.projectId !== undefined && existingProjectId !== input.projectId) {
+          sendError(res, 409, "프로젝트 신원이 변경되었습니다. 목록을 새로 불러온 뒤 다시 시도하세요."); return;
+        }
         const validation = isProject ? validateProjectSpec(migrated) : validateVisualSpec(migrated);
         if (!validation.valid || typeof spec !== "object" || spec === null) {
           sendError(res, 400, "유효한 프로젝트 파일이 아닙니다."); return;
         }
         // Preserve the source document version and all fields. A legacy single-screen
         // document derives its project display name from screen.name.
-        const renamed = JSON.stringify(isProject ? { ...spec, name: input.name } :
+        const renamed = JSON.stringify(isProject ? { ...spec, name: input.name,
+          ...(existingProjectId === undefined && typeof input.projectId === "string" ? { projectId: input.projectId } : {}) } :
           { ...spec, screen: { ...(spec as { screen: object }).screen, name: input.name } }, null, 2);
         if (from.absolutePath === to.absolutePath) {
           writeFileAtomic(from.absolutePath, Buffer.from(renamed));
