@@ -1,4 +1,5 @@
 import { migrateV01 } from "@/features/editor/schema";
+import { createProjectIdentity } from "@/features/editor/store/projectIdentity";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { projectStorageKey, prepareProjectRename, publishProjectRename } from "@/features/editor/store/specStorage";
@@ -6,7 +7,7 @@ import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { projectFileName } from "@/features/workspace/projectName";
 import { WORKSPACE_MARKER_HEADER, WORKSPACE_RENAME_ROUTE, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
-import { recordProjectRename } from "./generationTarget";
+import { findRecordedProjectId, recordProjectRename } from "./generationTarget";
 import { readWorkspaceSpecSnapshot, type WriteResult } from "./workspaceClient";
 
 /**
@@ -46,9 +47,12 @@ async function renameLocked(fileName: string, name: string, nextFileName: string
   const expectedText = snapshot.text;
   const parsed = parseSpecJson(expectedText);
   if (!parsed.ok) return { ok: false, error: "유효한 프로젝트 파일이 아닙니다." };
+  const parsedProjectId = "screen" in parsed.spec ? undefined : parsed.spec.projectId;
+  const activeProjectId = currentDocument.fileName === fileName ? useEditorStore.getState().spec.projectId : undefined;
+  const projectId = parsedProjectId ?? activeProjectId ?? await findRecordedProjectId(fileName) ?? createProjectIdentity();
   const renamedDiskSpec = "screen" in parsed.spec
-    ? migrateV01({ ...parsed.spec, screen: { ...parsed.spec.screen, name } })
-    : { ...parsed.spec, name };
+    ? { ...migrateV01({ ...parsed.spec, screen: { ...parsed.spec.screen, name } }), projectId }
+    : { ...parsed.spec, name, projectId };
   let rollback: () => void;
   try { rollback = prepareProjectRename(fileName, renamedDiskSpec, nextFileName); }
   catch { return { ok: false, error: "탭 간 이름 변경 알림을 저장할 공간이 없습니다. 원본과 메모리 작업은 보존했습니다." }; }
@@ -74,7 +78,7 @@ async function renameLocked(fileName: string, name: string, nextFileName: string
     publishProjectRename(fileName, renamedDiskSpec, nextFileName, revision);
     // 생성 출력의 주인(#281): 같은 프로젝트 ID·출력 폴더가 새 이름을 이어받는다. 기록하지 못해도 이름 변경은
     // 이미 끝났다 — 결과를 뒤집지 않고 이유와 복구 경로(다음 전달 때 다시 기록)를 사용자에게 알린다(#281 리뷰).
-    const recordWarning = await recordProjectRename(fileName, nextFileName);
+    const recordWarning = await recordProjectRename(fileName, nextFileName, projectId);
     if (useDocumentStore.getState().fileName === fileName) {
       useSaveConflictStore.getState().adoptRename(() => {
         useEditorStore.getState().renameProject(name);

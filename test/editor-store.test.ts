@@ -339,7 +339,8 @@ describe("editorStore", () => {
       useEditorStore.getState().loadSpec(project);
 
       const { spec, activePageId } = useEditorStore.getState();
-      expect(spec).toBe(project);
+      expect(spec).toMatchObject(project);
+      expect(spec.projectId).toBeDefined();
       expect(activePageId).toBe(project.pageOrder[0]);
     });
   });

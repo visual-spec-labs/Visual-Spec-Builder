@@ -3,6 +3,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { usePersistenceStatusStore, type SaveAttempt } from "@/features/editor/store/persistenceStatusStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import type { ProjectSpec } from "@/features/editor/schema";
+import { createProjectIdentity, ensureProjectIdentity } from "@/features/editor/store/projectIdentity";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import {
   buildExportPayload,
@@ -101,19 +102,21 @@ async function saveToWorkspace(filename: string, json: string, isCurrent: () => 
 }
 
 /** 기존 저장 판단은 유지하고 현재 문서의 최신 요청 결과만 표시한다. */
-async function saveAndObserve(spec: ProjectSpec, filename: string, json: string, isCurrent: () => boolean) {
-  if (!isCurrent()) return;
+async function saveAndObserve(spec: ProjectSpec, filename: string, json: string, isCurrent: () => boolean): Promise<boolean> {
+  if (!isCurrent()) return false;
   const attempt: SaveAttempt = { documentId: useEditorStore.getState().documentId, spec, phase: "saving" };
   usePersistenceStatusStore.setState({ attempt });
   let phase: SaveAttempt["phase"] | null = "failed";
   try {
     const saved = await saveToWorkspace(filename, json, isCurrent);
-    if (!isCurrent()) { phase = null; return; }
+    if (!isCurrent()) { phase = null; return false; }
     if (saved) {
       // 디스크 성공은 여기서 "저장됨"으로 확정하지 않는다. diskWatch의 실제 내용 확인을 기다린다.
       useDocumentStore.getState().setFileName(filename, saved.revision);
       phase = saved.downloaded ? "downloaded" : null;
+      return true;
     }
+    return false;
   } finally {
     if (usePersistenceStatusStore.getState().attempt === attempt) {
       usePersistenceStatusStore.setState({ attempt: useEditorStore.getState().documentId === attempt.documentId && phase
@@ -140,7 +143,8 @@ async function saveAndObserve(spec: ProjectSpec, filename: string, json: string,
 export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> {
   if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return null;
   const isCurrent = useSaveConflictStore.getState().captureDocument();
-  const result = buildExportPayload(spec);
+  const identified = ensureProjectIdentity(spec);
+  const result = buildExportPayload(identified);
   if (!result.ok) {
     usePersistenceStatusStore.setState({ attempt: { documentId: useEditorStore.getState().documentId, spec, phase: "failed" } });
     window.alert(validationFailureMessage("저장할 수 없습니다", result.issues, "save"));
@@ -148,7 +152,9 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
   }
 
   const filename = useDocumentStore.getState().fileName ?? result.filename;
-  await saveAndObserve(spec, filename, result.json, isCurrent);
+  if (await saveAndObserve(identified, filename, result.json, isCurrent)) {
+    useEditorStore.getState().setProjectId(identified.projectId!);
+  }
   return { ...result, filename };
 }
 
@@ -162,21 +168,33 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
 export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null> {
   if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return null;
   const isCurrent = useSaveConflictStore.getState().captureDocument();
-  const result = buildExportPayload(spec);
-  if (!result.ok) {
+  const currentFileName = useDocumentStore.getState().fileName;
+  const identified = ensureProjectIdentity(spec);
+  const validation = buildExportPayload(identified);
+  if (!validation.ok) {
     usePersistenceStatusStore.setState({ attempt: { documentId: useEditorStore.getState().documentId, spec, phase: "failed" } });
-    window.alert(validationFailureMessage("저장할 수 없습니다", result.issues, "save"));
-    return result;
+    window.alert(validationFailureMessage("저장할 수 없습니다", validation.issues, "save"));
+    return validation;
   }
-
-  const current = useDocumentStore.getState().fileName ?? result.filename;
+  const current = currentFileName ?? validation.filename;
   const chosenName = await promptText({ title: "다른 이름으로 저장", initialValue: current, confirmLabel: "저장" });
   if (chosenName === null) {
     return null;
   }
 
   const filename = resolveFilename(chosenName, current);
-  await saveAndObserve(spec, filename, result.json, isCurrent);
+  const projectId = currentFileName !== null && filename === currentFileName
+    ? identified.projectId!
+    : createProjectIdentity();
+  const copied = { ...identified, projectId };
+  const result = buildExportPayload(copied);
+  if (!result.ok) return result;
+  if (await saveAndObserve(copied, filename, result.json, isCurrent)) {
+    if (currentFileName === null) {
+      useDocumentStore.getState().advanceProjectIdentity();
+    }
+    useEditorStore.getState().setProjectId(projectId);
+  }
   return { ...result, filename };
 }
 

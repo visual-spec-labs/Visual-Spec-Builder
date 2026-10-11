@@ -399,6 +399,10 @@ export interface InputOverride {
 export interface ProjectSpec {
   version: "0.3";
   name: string;
+  /**
+   * GUI가 지정하는 프로젝트의 안정 신원. 편집·앱 안 이름 변경에서는 유지하고 Save As 복사에서는 새 값으로 바꾼다. 생략된 기존 문서는 앱이 열 때 ID를 부여한다.
+   */
+  projectId?: string;
   pages: {
     [k: string]: ScreenSpec;
   };
