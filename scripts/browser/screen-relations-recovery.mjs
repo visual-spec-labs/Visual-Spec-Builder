@@ -156,15 +156,26 @@ try {
   assert.equal(await page.getByRole("listitem").filter({ hasText: "초안 mixed" }).count(), 0);
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("visual-spec:autosave:draft:mixed")).spec), mixed);
   // A valid project still opens/saves and does not show the recovery notice.
-  page.on("dialog", dialog => dialog.accept());
   await page.getByRole("button").filter({ hasText: new RegExp(`${fixture.name}.*페이지`, "s") }).click();
   await page.getByRole("button", { name: "파일", exact: true }).waitFor();
   assert.equal(await page.getByRole("region", { name: "화면 관계 오류" }).count(), 0);
+  // A successful HTTP response precedes the Save alert. Await its acceptance before
+  // closing the context; otherwise dialog.accept races teardown on CI.
+  const saveNoticeHandled = new Promise((resolve, reject) => {
+    page.once("dialog", async dialog => {
+      try {
+        assert.match(dialog.message(), /저장했습니다/);
+        await dialog.accept();
+        resolve();
+      } catch (error) { reject(error); }
+    });
+  });
   const saved = page.waitForResponse(response => response.request().method() === "PUT" && response.url().includes("specs/original.json"));
   await page.getByRole("button", { name: "파일", exact: true }).click();
   await page.getByRole("menuitem", { name: "저장", exact: true }).click();
   // Product stores a normalized JSON representation; validate the resulting data.
-  await saved;
+  assert.equal((await saved).ok(), true);
+  await saveNoticeHandled;
   assert.deepEqual(JSON.parse(await readFile(join(workspace, "specs/original.json"), "utf8")), fixture);
   console.log("PASS mixed structural errors rejected/raw retained; valid Open/Save control without warning");
   await context.close();
