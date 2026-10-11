@@ -22,6 +22,8 @@ export interface ExportTarget {
   projectName: string;
   /** 작업공간 파일 이름(#281). 생성 자리(`generated/<프로젝트 폴더>/<PageId>/`)를 찾는 데 쓴다. */
   fileName: string | null;
+  /** Stable project identity stored in ProjectSpec (#367). */
+  projectId?: string;
 }
 
 interface ExportState {
@@ -61,6 +63,7 @@ export const useExportStore = create<ExportState>((set) => {
     set({ status: "scanning", files: [], report: null, freshness: null, location: null, target, unavailableMessage: null });
     const scan = await scanGeneratedCode(target.page, target.pageId, {
       fileName: target.fileName,
+      projectId: target.projectId,
       documentId: target.documentId,
     });
     if (runGeneration !== generation) return;
@@ -134,5 +137,6 @@ export function isExportTargetCurrent(target: ExportTarget): boolean {
   const { documentId, activePageId, spec } = useEditorStore.getState();
   return status === "ready" && scanned === target && target.documentId === documentId &&
     target.pageId === activePageId && target.page === spec.pages[activePageId] &&
-    target.fileName === useDocumentStore.getState().fileName;
+    target.fileName === useDocumentStore.getState().fileName &&
+    (target.projectId === undefined || target.projectId === spec.projectId);
 }

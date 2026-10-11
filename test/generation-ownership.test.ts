@@ -139,6 +139,7 @@ async function exportScan() {
   const scan = await scanGeneratedCode(spec.pages[activePageId], activePageId, {
     fileName: useDocumentStore.getState().fileName,
     documentId,
+    projectId: spec.projectId,
   });
   if (scan.kind !== "ready" || scan.freshness === null) throw new Error("Export 훑기 실패");
   const byTicket = Object.fromEntries(scan.freshness.tickets.map((entry) => [entry.ticketId, entry.freshness]));
@@ -242,6 +243,7 @@ describe("같은 이름이 서로 덮지 않는다", () => {
 
     // 원래 프로젝트로 돌아가도 자기 출력이 현재다
     openDocument(seedSpec, "shop.json");
+    useEditorStore.getState().setProjectId(shop.projectId);
     const { freshness, scan } = await exportScan();
     expect(freshness.overall).toBe("current");
     expect(scan.location).toEqual({ layout: "project", root: "shop/page1", projectId: shop.projectId });
@@ -583,6 +585,7 @@ describe("요청 중 다른 이름으로 저장 (#281 리뷰)", () => {
     expect(requestA.generatedRoot).toBe("shop/page1");
     const shopId = findProjectByFileName(manifest(), "shop.json")!.projectId;
 
+    useEditorStore.getState().setProjectId("shop-copy-project");
     useDocumentStore.getState().setFileName("shop-copy.json", null); // 다른 이름으로 저장
     expect(isTicketPlanStale()).toBe(true);
     agentCompletes(requestA, "A");
@@ -619,6 +622,7 @@ describe("요청 중 다른 이름으로 저장 (#281 리뷰)", () => {
   it("확정 중(생성 기록을 쓰는 순간) 다른 이름으로 저장해도 복사본의 티켓을 완료로 표시하지 않고 다음 웨이브를 보내지 않는다", async () => {
     workspace.afterWrite = (path) => {
       if (path === GENERATION_MANIFEST_PATH && Object.keys(manifest().entries).length > 0) {
+        useEditorStore.getState().setProjectId("shop-copy-project");
         useDocumentStore.getState().setFileName("shop-copy.json", null);
       }
     };

@@ -1,10 +1,9 @@
 /**
  * 생성 출력의 주인 프로젝트와 페이지 생성 자리를 정한다 — 작업공간 부수효과 (이슈 #281).
  *
- * 스키마에는 프로젝트 ID가 없다(`ProjectSpec`은 name·pages·pageOrder뿐이고 `additionalProperties: false`).
- * 스키마를 바꾸지 않고 안정 신원을 두려고, GUI가 **처음 전달할 때** 프로젝트 ID(UUID)와 출력 폴더를 만들어
- * 수용 기록(`runtime/generation-manifest.json`의 `projects`)에 남긴다. 이후 같은 작업공간 파일은 같은 ID·
- * 같은 폴더를 쓴다.
+ * `ProjectSpec.projectId`가 프로젝트의 안정 신원이다(#367). 생성 기록은 이 ID를 키로 사용하므로 파일명을
+ * 재사용해도 새 프로젝트가 이전 프로젝트의 자리·출력 기록을 이어받지 않는다. ID 없는 기존 문서는 편집기가
+ * 메모리에서 새 ID를 부여하며, Save 후 생성하면 새 생성 자리로 등록된다.
  *
  * | 일 | 결과 |
  * |---|---|
@@ -13,9 +12,8 @@
  * | 앱 밖에서 이름 변경·복사 | 앱이 알 수 없다 — 새 프로젝트로 본다. 옛 폴더의 파일은 건드리지 않는다 |
  * | 저장하지 않은 문서 | 이 탭의 문서(`editorStore.documentId`)에 세션 동안 프로젝트를 정해 두고, 처음 저장한 뒤 전달하면 그 파일 이름을 이어받는다 |
  *
- * 틀리는 쪽은 언제나 "새 프로젝트"다 — 새 폴더에 새로 만들 뿐 남의 출력을 덮지 않는다. 반대 방향(남의
- * 출력을 내 것으로 보는 것)은 낡은 기록이 같은 파일 이름을 들고 있을 때만 생기고, 그때도 #282의 바이트
- * 비교와 백업을 거친다(docs/26 "#281 남은 한계").
+ * ID가 다른 동명 문서는 항상 새 프로젝트로 등록한다. 기존 생성 파일은 새 자리에 복사하지 않으며 옛 ID의
+ * 수용 기록도 새 프로젝트에 귀속시키지 않는다.
  */
 
 import {
@@ -42,6 +40,8 @@ import { readWorkspaceTextFileStrict, writeWorkspaceFile } from "./workspaceClie
 
 /** 생성하는 쪽의 신원. 파일 이름은 바뀔 수 있고, 문서 ID는 이 탭에서만 뜻이 있다. */
 export interface GenerationOwnerInput {
+  /** `ProjectSpec.projectId`. 없으면 기존 호출자와의 호환을 위해 파일명 기준 경로를 쓴다. */
+  projectId?: string | null;
   /** `documentStore.fileName`. 저장하지 않은 문서면 null. */
   fileName: string | null;
   /** `editorStore.documentId`. 저장하지 않은 문서의 세션 프로젝트를 찾는 데만 쓴다. */
@@ -95,8 +95,20 @@ function createProjectId(): string {
  */
 export function findGenerationProject(
   manifest: GenerationManifest,
-  { fileName, documentId }: Pick<GenerationOwnerInput, "fileName" | "documentId">,
+  { fileName, documentId, projectId }: Pick<GenerationOwnerInput, "fileName" | "documentId" | "projectId">,
 ): { projectId: string; outputDir: string; adoptFileName: boolean; renameFrom?: string } | null {
+  if (projectId) {
+    const project = manifest.projects[projectId];
+    if (project === undefined) return null;
+    if (project.fileName === fileName) return { projectId, outputDir: project.outputDir, adoptFileName: false };
+    if (project.fileName === null && fileName !== null) return { projectId, outputDir: project.outputDir, adoptFileName: true };
+    const from = fileName === null ? null : renamedFrom(fileName);
+    if (from !== null && project.fileName === from) {
+      return { projectId, outputDir: project.outputDir, adoptFileName: false, renameFrom: from };
+    }
+    // The same serialized ID at another filename is a copied project. Never adopt or rename its old output.
+    return null;
+  }
   if (fileName !== null) {
     // 이 탭이 아는 rename 출발점이 낡은 destination 파일명 기록보다 우선한다.
     // 잠금 때문에 A→B를 기록하지 못했을 때 과거 B의 신원을 이어받으면 안 된다.
@@ -114,6 +126,13 @@ export function findGenerationProject(
   const session = sessionId === undefined ? undefined : manifest.projects[sessionId];
   if (sessionId === undefined || session === undefined || session.fileName !== null) return null;
   return { projectId: sessionId, outputDir: session.outputDir, adoptFileName: fileName !== null };
+}
+
+/** Resolve a legacy file's recorded project ID for Home-screen rename before the JSON has an ID. */
+export async function findRecordedProjectId(fileName: string): Promise<string | null> {
+  const read = await readManifest();
+  if (!read.ok) return null;
+  return findProjectByFileName(read.manifest, fileName)?.projectId ?? null;
 }
 
 /**
@@ -209,7 +228,7 @@ export async function ensureGenerationTarget(
     return { ok: true, target: targetOf(known.projectId, known.outputDir, owner.pageId) };
   }
 
-  const updated = await updateManifestLocked((manifest) => {
+  const updated = await updateManifestLocked<{ target: GenerationTarget; created: boolean } | { error: string }>((manifest) => {
     // 잠금 안에서 다시 판정한다 — 그 사이 다른 탭이 같은 파일 이름을 기록했을 수 있다.
     const found = findGenerationProject(manifest, owner);
     if (found !== null) {
@@ -229,15 +248,28 @@ export async function ensureGenerationTarget(
         result: { target: targetOf(found.projectId, found.outputDir, owner.pageId), created: false },
       };
     }
-    const projectId = createId();
+    const projectId = owner.projectId || createId();
+    if (manifest.projects[projectId] !== undefined) {
+      return {
+        next: null,
+        result: { error: "이 프로젝트 ID는 다른 파일에 이미 연결돼 있습니다. 복사본은 File → Save as로 저장해 새 신원을 만든 뒤 다시 전달하세요." },
+      };
+    }
     const used = new Set(Object.values(manifest.projects).map((project) => project.outputDir));
     const outputDir = chooseOutputDir(owner.fileName === null ? "unsaved" : projectOutputDirName(owner.fileName), used);
+    const projects = { ...manifest.projects };
+    if (owner.fileName !== null) {
+      for (const [id, project] of Object.entries(projects)) {
+        if (project.fileName === owner.fileName) projects[id] = { ...project, fileName: null };
+      }
+    }
     return {
-      next: withProject(manifest, projectId, { fileName: owner.fileName, outputDir, createdAt: now().toISOString() }),
+      next: withProject({ ...manifest, projects }, projectId, { fileName: owner.fileName, outputDir, createdAt: now().toISOString() }),
       result: { target: targetOf(projectId, outputDir, owner.pageId), created: true },
     };
   });
   if (!updated.ok) return { ok: false, error: `출력 위치를 정하지 못했습니다 — ${updated.error}` };
+  if ("error" in updated.result) return { ok: false, retryable: false, error: updated.result.error };
   const { target, created } = updated.result;
   if (owner.fileName === null && created) unsavedProjects.set(owner.documentId, target.projectId);
   if (owner.fileName !== null) {
@@ -279,7 +311,7 @@ const RENAME_RECORD_RECOVERY =
  * 쥐고 있음, 기록을 읽거나 쓰지 못함, 새 형식 기록) 이유와 복구 경로를 담은 안내를 돌려주고, 이 탭에 "기록
  * 대기"로 남겨 다음 전달 때 다시 기록한다(`pendingRenames`). 남의 출력을 덮는 쪽으로는 틀리지 않는다.
  */
-export async function recordProjectRename(from: string, to: string): Promise<string | null> {
+export async function recordProjectRename(from: string, to: string, projectId?: string): Promise<string | null> {
   // 이름 변경은 이미 끝난 뒤라 여기서 무엇이 실패해도(예외 포함) 그 결과를 뒤집지 않는다.
   // 실패해도 직전 이름이 아니라 최초 출발점을 보존한다. 원래 이름 복귀(A→B→A)도 A→A로 유지한다.
   const pendingOrigin = renamedFrom(from);
@@ -290,12 +322,12 @@ export async function recordProjectRename(from: string, to: string): Promise<str
     if (!read.ok) reason = read.error;
     else {
       // 앞서 기록하지 못한 변경(A→B)이 있으면 처음 이름(A)의 기록을 이번 이름(C)으로 옮긴다.
-      if (findProjectByFileName(read.manifest, origin) === null) {
+      if ((projectId ? read.manifest.projects[projectId] === undefined : findProjectByFileName(read.manifest, origin) === null)) {
         if (pendingOrigin === null) return null; // 원래부터 생성 기록이 없는 문서
         reason = "이름 변경의 출발 프로젝트 기록을 찾지 못했습니다.";
       } else {
         const updated = await updateManifestLocked((manifest) => {
-          const next = withProjectRenamed(manifest, origin, to);
+          const next = withProjectRenamed(manifest, origin, to, projectId);
           return { next: next === manifest ? null : next, result: null };
         });
         if (updated.ok) {

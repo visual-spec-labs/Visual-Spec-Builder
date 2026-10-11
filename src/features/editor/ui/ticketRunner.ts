@@ -179,6 +179,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   // 요청 때의 프로젝트(#282·#281). 생성 자리와 확정 기록의 주인이 되고, 기존 파일이 이 프로젝트의 마지막
   // 생성인지 가른다.
   const { fileName, projectIdentity } = useDocumentStore.getState();
+  const projectId = useEditorStore.getState().spec.projectId;
   if (sourcePageId === null || sourcePage === null || waveTickets.length === 0) return;
   // 첫 웨이브와 자동으로 이어지는 다음 웨이브 모두 여기서 막는다(#271). 응답을 기다리는
   // 동안 편집했다면 이미 받은 결과는 그 요청(이전 스펙)의 사실이라 반영하지만, 바뀐
@@ -219,6 +220,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
   // 남기지 못한 채 만든 출력은 나중에 누구의 것인지 가를 수 없다. 이 사이의 편집은 응답 대기 중 편집과
   // 같다(#271) — 요청은 티켓을 만들 때의 입력(sourcePage)을 싣는다.
   const located = await ensureGenerationTarget({
+    projectId,
     fileName,
     documentId: sourceDocumentId ?? useEditorStore.getState().documentId,
     pageId: sourcePageId,

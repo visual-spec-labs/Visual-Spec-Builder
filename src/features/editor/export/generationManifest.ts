@@ -235,8 +235,11 @@ export function withProject(manifest: GenerationManifest, projectId: string, pro
  * 폴더는 그대로다. `to`라는 이름을 들고 있던 다른(낡은) 프로젝트 기록은 이름을 비운다 — 같은 이름이
  * 두 프로젝트를 가리키면 어느 쪽 출력인지 가를 수 없다. `from` 기록이 없으면 그대로 돌려준다.
  */
-export function withProjectRenamed(manifest: GenerationManifest, from: string, to: string): GenerationManifest {
-  const found = findProjectByFileName(manifest, from);
+export function withProjectRenamed(manifest: GenerationManifest, from: string, to: string, projectId?: string): GenerationManifest {
+  const exact = projectId ? manifest.projects[projectId] : undefined;
+  const found = exact === undefined
+    ? findProjectByFileName(manifest, from)
+    : { projectId: projectId!, project: exact };
   if (found === null || from === to) return manifest;
   const projects: Record<string, ProjectRecord> = {};
   for (const [id, project] of Object.entries(manifest.projects)) {
