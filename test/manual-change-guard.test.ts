@@ -1143,49 +1143,43 @@ describe("통합 검증 — 다른 프로젝트의 출력·백업 (#359)", () =>
     compileCurrent();
   }
 
-  // 남은 한계 재현(#357 "동일 파일명 ID 승계"). 원하는 동작을 단언하므로 지금은 실패해야 통과한다(it.fails).
-  // 한계를 고치면 이 테스트가 실패로 바뀌니 그때 it으로 바꾼다. 스펙 파일에 프로젝트 신원이 없어 앱은 앱 밖에서
-  // 지우고 다시 만든 파일을 같은 이름의 옛 파일과 구분할 근거가 없다.
-  it.fails("[남은 한계] 지우고 같은 이름으로 다시 만든 프로젝트는 옛 프로젝트의 ID·생성 자리를 이어받지 않아야 한다 — 지금은 이어받는다", async () => {
+  it("지우고 같은 이름으로 다시 만든 프로젝트는 옛 프로젝트의 ID·생성 자리를 이어받지 않는다", async () => {
     await seedLastGoodAndManualEdit();
     const oldProjectId = findProjectByFileName(manifest(), "shop.json")!.projectId;
     recreateSameName();
-    const { run, request } = await secondRoundToReview();
-    try {
-      expect(request.generatedRoot).not.toBe(ROOT);
-      expect(findProjectByFileName(manifest(), "shop.json")?.projectId).not.toBe(oldProjectId);
-    } finally {
-      answerOverwriteReview("cancel");
-      await finish(run);
-    }
+    const { run, request } = await secondRoundToReview({
+      ["shop-2/page1/components/Header.tsx"]: N_HEADER,
+      ["shop-2/page1/components/Card.tsx"]: N_CARD,
+    });
+    expect(request.generatedRoot).not.toBe(ROOT);
+    await finish(run);
+    expect(findProjectByFileName(manifest(), "shop.json")?.projectId).not.toBe(oldProjectId);
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(textOf(workspace, "generated/shop-2/page1/components/Header.tsx")).toBe(N_HEADER);
   });
 
-  it("그 한계 안에서도 옛 프로젝트의 수동 수정은 묻고 보존하며, 바뀐 옛 출력은 원본 바이트 백업과 되돌리기로 돌아온다", async () => {
+  it("같은 파일명 재생성은 옛 프로젝트의 수동 수정 출력도 새 자리에서 분리해 보존한다", async () => {
     await seedLastGoodAndManualEdit();
     const before = manifest();
     recreateSameName();
-    const { run } = await secondRoundToReview();
-    // 사람이 고친 Header는 묻지 않고 바뀌는 대상(owned)이 아니다
-    expect(reviewByPath()[HEADER]?.ownership).not.toBe("owned");
-    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
-    answerOverwriteReview({}); // 고르지 않으면 보존이다
+    const { run, request } = await secondRoundToReview({
+      ["shop-2/page1/components/Header.tsx"]: N_HEADER,
+      ["shop-2/page1/components/Card.tsx"]: N_CARD,
+    });
+    expect(request.generatedRoot).not.toBe(ROOT);
     await finish(run);
     expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
     expect(textOf(workspace, EXTRA)).toBe(EXTRA_BYTES);
-    // 옛 마지막 생성 Card가 바뀌었다면(지금 동작: owned로 묻지 않음) 원본 L 바이트가 백업에 있어야 한다
-    const lastRun = useTicketStore.getState().lastRun;
-    if (textOf(workspace, G_CARD) !== L_CARD) {
-      expect(textOf(workspace, `${lastRun!.backupRoot}/files/${CARD}`)).toBe(L_CARD);
-    }
-    await restoreLastRun();
     expect(textOf(workspace, G_CARD)).toBe(L_CARD);
-    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
-    expect(manifest().entries).toEqual(before.entries);
+    expect(textOf(workspace, "generated/shop-2/page1/components/Header.tsx")).toBe(N_HEADER);
+    expect(manifest().entries[HEADER]).toEqual(before.entries[HEADER]);
   });
 
   it("기존 복사본으로 전환해 옛 Undo를 호출해도 복사본 바이트·manifest·백업은 그대로다", async () => {
     const copyHeader = "shop-copy/page1/components/Header.tsx";
     const copyCard = "shop-copy/page1/components/Card.tsx";
+    const shopProjectId = useEditorStore.getState().spec.projectId!;
+    useEditorStore.getState().setProjectId("shop-copy-project");
     useDocumentStore.setState({ fileName: "shop-copy.json" });
     compileCurrent();
     const copy = await secondRoundToReview({ [copyHeader]: N_HEADER, [copyCard]: N_CARD });
@@ -1195,6 +1189,7 @@ describe("통합 검증 — 다른 프로젝트의 출력·백업 (#359)", () =>
     const copyBackups = new Map([...workspace.files].filter(([path]) => path.startsWith(`${copyRun.backupRoot}/`)));
     expect(copyBackups.size).toBeGreaterThan(0);
 
+    useEditorStore.getState().setProjectId(shopProjectId);
     useDocumentStore.setState({ fileName: "shop.json" });
     compileCurrent();
     await seedLastGoodAndManualEdit();
@@ -1203,6 +1198,7 @@ describe("통합 검증 — 다른 프로젝트의 출력·백업 (#359)", () =>
     answerOverwriteReview({ [HEADER]: "overwrite" });
     await finish(shop.run);
     const shopRun = useTicketStore.getState().lastRun!;
+    useEditorStore.getState().setProjectId("shop-copy-project");
     useDocumentStore.setState({ fileName: "shop-copy.json" });
     compileCurrent();
     expect(useTicketStore.getState().lastRun).toBe(shopRun);
@@ -1234,6 +1230,7 @@ describe("통합 검증 — 다른 프로젝트의 출력·백업 (#359)", () =>
     // 다른 이름으로 저장(복사본) → 복사본 생성
     const COPY_HEADER = "shop-copy/page1/components/Header.tsx";
     const COPY_CARD = "shop-copy/page1/components/Card.tsx";
+    useEditorStore.getState().setProjectId("shop-copy-project");
     useDocumentStore.setState({ fileName: "shop-copy.json" });
     compileCurrent();
     // copyRun으로 lastRun을 바꾸기 전에 실제 옛 Undo를 호출한다.
