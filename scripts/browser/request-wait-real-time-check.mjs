@@ -13,7 +13,7 @@ async function run(mode) {
   child.stderr.on("data", chunk => process.stderr.write(chunk));
   const status = await new Promise((resolve, reject) => {
     child.once("error", reject);
-    child.once("exit", (code, signal) => resolve({ code, signal }));
+    child.once("close", (code, signal) => resolve({ code, signal }));
   });
   assert.deepEqual(status, { code: 0, signal: null }, `VSB_REAL_TIMEOUT=${mode} failed`);
   return stdout.trim().split(/\r?\n/);
