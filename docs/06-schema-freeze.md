@@ -386,6 +386,14 @@ import {
 4. `visual-spec.schema.json`을 고쳤으면 `pnpm run generate:types`를 돌려 `types.ts`를 함께 커밋한다.
 5. 예제와 테스트를 같이 갱신한다. `pnpm run typecheck`와 `pnpm test`가 통과해야 한다.
 
+### `ProjectSpec.projectId` — 안정 프로젝트 신원 (#367, 2026-10-11 제안)
+
+프로젝트 파일을 지운 뒤 같은 파일명으로 새 프로젝트를 만들면 파일명만으로는 이전 생성 기록과 새 프로젝트를 구별할 수 없다. 선택 필드 `projectId`를 추가해 앱이 프로젝트를 만들거나 기존 문서를 열 때 ID를 부여한다. 편집과 앱 안 이름 변경은 유지하고, Save As 복사본은 새 ID를 받는다. 생성 기록과 Export는 이 ID가 일치할 때만 출력을 해당 프로젝트 소유로 판정한다.
+
+기존 JSON은 필드 없이도 계속 검증된다. ID 없는 문서는 편집기에서 새 ID를 부여받고, 처음 생성할 때 기존 같은 이름 프로젝트를 이어받지 않는다. 생성 기록의 기존 파일은 보존되며 새 ID는 비어 있는 새 출력 폴더를 받는다. 필드는 기존 JSON을 무효화하지 않지만 `additionalProperties: false` 계약에 추가되므로 이 변경은 별도 PR과 최소 1명의 팀 승인을 요구한다. #367 전용 PR로 올리며 승인 전에는 병합하지 않는다.
+
+정본 변경, 생성 타입 갱신, 회귀 테스트, 생성 기록/Export 동작 변경은 [#367 설계 기록](superpowers/specs/2026-10-11-generation-project-identity.md)에 남긴다.
+
 **선택 필드를 추가할 때 (2026-09-04 명문화)**
 
 v0.1은 선택 필드가 `visible` 하나뿐이었고, "선택 필드는 `visible`만"이 암묵적 관행처럼 인용돼 왔다. 실제로 이 문서에 그런 문장이 있던 적은 없다. #75(`layout.columns`)와 #78(`shadow`·`opacity`·`blur`·`border.align`)이 잇따라 선택 필드를 늘리면서, 매번 "예외"라고 적는 대신 조건을 명시한다.
