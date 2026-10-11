@@ -340,6 +340,46 @@ describe("이름 변경·복사", () => {
       .not.toBe(findProjectByFileName(manifest(), "shop.json")?.projectId);
   });
 
+  it("ID만 교체된 디스크 문서는 기존 출력에 쓰지 않고 새 자리에서 생성한다", async () => {
+    await deliver("A");
+    const oldProjectId = useEditorStore.getState().spec.projectId;
+    const replacement = { ...useEditorStore.getState().spec, projectId: "external-replacement-id" };
+    openDocument(replacement, "shop.json");
+
+    const beforeGeneration = await exportScan();
+    expect(beforeGeneration.freshness.overall).toBe("missing");
+    workspace.log.length = 0;
+    await deliver("B");
+
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A");
+    expect(generatedWrites().every((entry) => entry.includes("generated/shop-2/page1/"))).toBe(true);
+    expect(findProjectByFileName(manifest(), "shop.json")?.projectId).toBe("external-replacement-id");
+    expect(findProjectByFileName(manifest(), "shop.json")?.projectId).not.toBe(oldProjectId);
+    expect((await exportScan()).freshness.overall).toBe("current");
+  });
+
+  it("외부 복사본의 Home 이름 변경은 원본 폴더를 넘기지 않고 원본 출력은 계속 Export·재생성 가능하다", async () => {
+    await deliver("A");
+    const originalSpec = structuredClone(useEditorStore.getState().spec);
+    const originalProjectId = originalSpec.projectId!;
+    openDocument({ ...originalSpec, name: "Copy" }, "copy.json"); // 파일 복사로 ID도 복제된 상태
+
+    expect(await recordProjectRename("copy.json", "copy2.json", originalProjectId)).toBeNull();
+    useDocumentStore.setState({ fileName: "copy2.json" });
+    expect(findProjectByFileName(manifest(), "shop.json")?.projectId).toBe(originalProjectId);
+    expect(findProjectByFileName(manifest(), "copy2.json")).toBeNull();
+    expect((await exportScan()).freshness.overall).toBe("missing");
+    workspace.log.length = 0;
+    await deliver("copy");
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A");
+    expect(workspace.log.some((line) => line.includes(" generated/"))).toBe(false);
+
+    openDocument(originalSpec, "shop.json");
+    expect((await exportScan()).freshness.overall).toBe("current");
+    await deliver("A2");
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A2");
+  });
+
   it("컴포넌트 이름을 바꾸면 같은 신원의 이전 이름 출력을 알아보고, 재생성 뒤에도 옛 파일은 지우지 않고 '이전 출력'으로 알린다", async () => {
     await deliver("A");
     useEditorStore.getState().setNodeField("header", "name", "TopBar");
