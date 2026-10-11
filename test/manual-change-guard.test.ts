@@ -1111,8 +1111,47 @@ describe("통합 검증 — 다른 프로젝트의 출력·백업 (#359)", () =>
     expect(manifest().entries).toEqual(before.entries);
   });
 
+  it("기존 복사본으로 전환해 옛 Undo를 호출해도 복사본 바이트·manifest·백업은 그대로다", async () => {
+    const copyHeader = "shop-copy/page1/components/Header.tsx";
+    const copyCard = "shop-copy/page1/components/Card.tsx";
+    useDocumentStore.setState({ fileName: "shop-copy.json" });
+    compileCurrent();
+    const copy = await secondRoundToReview({ [copyHeader]: N_HEADER, [copyCard]: N_CARD });
+    await finish(copy.run);
+    const copyRun = useTicketStore.getState().lastRun!;
+    const copyEntries = { [copyHeader]: manifest().entries[copyHeader], [copyCard]: manifest().entries[copyCard] };
+    const copyBackups = new Map([...workspace.files].filter(([path]) => path.startsWith(`${copyRun.backupRoot}/`)));
+    expect(copyBackups.size).toBeGreaterThan(0);
+
+    useDocumentStore.setState({ fileName: "shop.json" });
+    compileCurrent();
+    await seedLastGoodAndManualEdit();
+    const beforeShopApply = manifest();
+    const shop = await secondRoundToReview();
+    answerOverwriteReview({ [HEADER]: "overwrite" });
+    await finish(shop.run);
+    const shopRun = useTicketStore.getState().lastRun!;
+    useDocumentStore.setState({ fileName: "shop-copy.json" });
+    compileCurrent();
+    expect(useTicketStore.getState().lastRun).toBe(shopRun);
+    workspace.log.length = 0;
+    await restoreLastRun();
+    expect(generatedWrites().length).toBeGreaterThan(0);
+    expect(generatedWrites().every(entry => entry.includes(" generated/shop/page1/"))).toBe(true);
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+    expect(textOf(workspace, `generated/${copyHeader}`)).toBe(N_HEADER);
+    expect(textOf(workspace, `generated/${copyCard}`)).toBe(N_CARD);
+    expect(manifest()).toEqual(beforeShopApply);
+    expect({ [copyHeader]: manifest().entries[copyHeader], [copyCard]: manifest().entries[copyCard] }).toEqual(copyEntries);
+    for (const [path, bytes] of copyBackups) expect(workspace.files.get(path)).toEqual(bytes);
+    expect(useTicketStore.getState().lastRun).toBeNull();
+    expect(useTicketStore.getState().restoreMessage).toBe("2개 파일을 되돌렸습니다.");
+  });
+
   it("복사본으로 바꾼 뒤 옛 프로젝트의 되돌리기와 복사본의 적용·되돌리기는 서로의 파일·백업·기록을 건드리지 않는다", async () => {
     await seedLastGoodAndManualEdit();
+    const beforeShopApply = manifest();
     const first = await secondRoundToReview();
     answerOverwriteReview({ [HEADER]: "overwrite" });
     await finish(first.run);
@@ -1125,6 +1164,17 @@ describe("통합 검증 — 다른 프로젝트의 출력·백업 (#359)", () =>
     const COPY_CARD = "shop-copy/page1/components/Card.tsx";
     useDocumentStore.setState({ fileName: "shop-copy.json" });
     compileCurrent();
+    // copyRun으로 lastRun을 바꾸기 전에 실제 옛 Undo를 호출한다.
+    expect(useTicketStore.getState().lastRun).toBe(shopRun);
+    const beforeOldUndo = manifest();
+    await restoreLastRun();
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+    expect(manifest().projects).toEqual(beforeOldUndo.projects);
+    expect(manifest().entries).toEqual(beforeShopApply.entries);
+    expect(useTicketStore.getState().lastRun).toBeNull();
+    expect(useTicketStore.getState().restoreMessage).toBe("2개 파일을 되돌렸습니다.");
+    for (const [path, bytes] of shopBackups) expect(workspace.files.get(path)).toEqual(bytes);
     workspace.log.length = 0;
     const copy = await secondRoundToReview({ [COPY_HEADER]: N_HEADER, [COPY_CARD]: N_CARD });
     expect(copy.request.generatedRoot).toBe("shop-copy/page1");
@@ -1141,8 +1191,8 @@ describe("통합 검증 — 다른 프로젝트의 출력·백업 (#359)", () =>
     await restoreLastRun();
     expect(workspace.files.has(`generated/${COPY_HEADER}`)).toBe(false);
     expect(workspace.files.has(`generated/${COPY_CARD}`)).toBe(false);
-    expect(textOf(workspace, G_HEADER)).toBe(N_HEADER);
-    expect(textOf(workspace, G_CARD)).toBe(N_CARD);
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(textOf(workspace, G_CARD)).toBe(L_CARD);
     expect({ [HEADER]: manifest().entries[HEADER], [CARD]: manifest().entries[CARD] }).toEqual(shopEntries);
     for (const [path, bytes] of shopBackups) expect(workspace.files.get(path)).toEqual(bytes);
     expect(manifest().entries[HEADER]?.projectId).not.toBe(copyId);

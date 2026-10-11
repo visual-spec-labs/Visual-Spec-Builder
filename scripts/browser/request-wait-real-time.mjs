@@ -1,18 +1,29 @@
 // 실제 경과 시간 + 실제 Chromium·Vite HTTP: 티켓 요청의 연결 끊김→복구, 대기 연장, 180초 timeout 상태 전이(#359).
 // 모델 응답은 결정적 파일 fixture다. 가상 시간 회귀(test/agent-request-wait.test.ts 등)와 달리 브라우저 타이머와
 // 벽시계로 진행하므로 실행에 약 3분 30초가 걸린다. 필수 여정 묶음(120초 상한)에는 넣지 않는다.
-// VSB_REAL_TIMEOUT=0이면 180초 timeout 단계만 건너뛰고 그 사실을 출력한다(skip을 PASS로 세지 않는다).
+// VSB_REAL_TIMEOUT=0이면 180초 timeout·늦은 출력·재시도 단계를 건너뛰고 그 사실을 출력한다(skip을 PASS로 세지 않는다).
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startBrowserWorkspace, writeFileAtomic } from "./harness.mjs";
 
+const skipTimeout = process.env.VSB_REAL_TIMEOUT === "0";
 const WAIT_WINDOW_MS = 180_000; // ui/agentRequestWait.ts AGENT_WAIT_WINDOW_MS
 const workspace = await mkdtemp(join(tmpdir(), "vs-request-wait-real-time-"));
 const exists = path => access(path).then(() => true, () => false);
 let runner;
 const errors = [];
+// running=false와 비동기 잠금 해제/요청 파일 삭제는 같은 순간이 아니다.
+// 다음 요청 전에 실제 디스크 정리를 확인한다. 기한 내 지워지지 않으면 실패한다.
+async function waitForRequestRemoved() {
+  const path = join(workspace, "runtime/ticket-request.json");
+  const deadline = Date.now() + 5000;
+  while (await exists(path) && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  assert.equal(await exists(path), false, "request file must be removed within 5s");
+}
 async function readRequest() { return JSON.parse(await readFile(join(workspace, "runtime/ticket-request.json"), "utf8")); }
 async function stage(request, text) {
   const path = join(workspace, request.tickets[0].outputPath);
@@ -73,6 +84,8 @@ try {
   assert.equal((await manifest()).entries[first.tickets[0].filePath].requestId, first.id);
   console.log(`PASS real elapsed: staged evidence -> connectionLost after ${lostAfter}ms -> held 3s -> waiting after ${restoredAfter}ms -> same request accepted`);
 
+  await waitForRequestRemoved();
+
   // 2. 대기 연장: 같은 요청 ID, 기한 = max(기한, 지금+180초), 중복 클릭은 누적되지 않는다
   await page.evaluate(() => {
     const { activePageId, spec } = editor.getState();
@@ -91,12 +104,12 @@ try {
   assert.ok(twice.deadline - extended.deadline < 5000, "중복 클릭은 180초를 더 쌓지 않는다");
   await page.getByRole("button", { name: "중지", exact: true }).click();
   await page.waitForFunction(() => !tickets.getState().running);
-  assert.equal(await exists(join(workspace, "runtime/ticket-request.json")), false);
+  await waitForRequestRemoved();
   console.log(`PASS real elapsed: extend moved deadline +${extended.deadline - before.deadline}ms, second click +${twice.deadline - extended.deadline}ms, same request; Stop removed request`);
 
   // 3. 실제 180초 timeout → 늦은 응답·임시 출력은 수용하지 않는다 → 새 요청은 성공
-  if (process.env.VSB_REAL_TIMEOUT === "0") {
-    console.log("SKIP real 180s timeout (VSB_REAL_TIMEOUT=0) — not counted as PASS");
+  if (skipTimeout) {
+    console.log("SKIP real 180s timeout, late output rejection and retry (VSB_REAL_TIMEOUT=0)");
   } else {
     const third = await start();
     const startedAt = Date.now();
@@ -112,7 +125,7 @@ try {
     assert.ok(elapsed >= WAIT_WINDOW_MS - 2000, `실제 경과가 180초에 못 미친다(${elapsed}ms)`);
     assert.match(ended.runError ?? "", /대기 시간 안에 응답이 오지 않았습니다/);
     assert.equal(ended.retryable, true);
-    assert.equal(await exists(join(workspace, "runtime/ticket-request.json")), false);
+    await waitForRequestRemoved();
     assert.equal(Object.fromEntries(ended.statuses)[third.tickets[0].id], "pending");
     await page.getByText("대기 시간 안에 응답이 오지 않았습니다", { exact: false }).first().waitFor();
     // 만료된 요청의 늦은 임시 출력·응답
@@ -133,7 +146,9 @@ try {
     console.log(`PASS real elapsed: timeout after ${elapsed}ms, ticket pending, late staged output/response not accepted, retry accepted`);
   }
   assert.deepEqual(errors, []);
-  console.log("PASS request wait real-time journey; page errors 0");
+  console.log(skipTimeout
+    ? "PARTIAL request wait real-time journey; skipped timeout, late output rejection and retry; page errors 0"
+    : "PASS request wait real-time journey; all stages completed; page errors 0");
 } finally {
   await runner?.close();
   await rm(workspace, { recursive: true, force: true });
