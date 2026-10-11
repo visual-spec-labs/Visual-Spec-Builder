@@ -300,6 +300,7 @@ describe("감시 실패와 비동기 응답 회귀", () => {
     useEditorStore.getState().undo();
     expect(useEditorStore.getState().spec).toEqual(previous);
     useEditorStore.getState().redo();
-    expect(useEditorStore.getState().spec).toEqual(replacement);
+    expect(useEditorStore.getState().spec).toMatchObject(replacement);
+    expect(useEditorStore.getState().spec.projectId).toBe(previous.projectId);
   });
 });

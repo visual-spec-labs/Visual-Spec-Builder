@@ -23,6 +23,7 @@ import type { ProjectSpec } from "@/features/editor/schema";
 import { useAgentEditStore } from "@/features/editor/store/agentEditStore";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { withoutProjectIdentity } from "@/features/editor/store/projectIdentity";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
@@ -82,7 +83,9 @@ export function startDiskWatch(): () => void {
     }
   }
 
-  const toJson = (spec: ProjectSpec) => JSON.stringify(spec);
+  // The persisted ID is identity metadata, not editable canvas content. Older on-disk documents
+  // may omit it, so exclude it when comparing disk snapshots with the open document.
+  const toJson = (spec: ProjectSpec) => JSON.stringify(withoutProjectIdentity(spec));
   function parseDisk(text: string): ProjectSpec | null {
     const parsed = parseSpecJson(text);
     if (!parsed.ok) return null;

@@ -58,6 +58,7 @@ import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { seedSpec } from "@/features/editor/store/seedSpec";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
+import { scanGeneratedCode } from "@/features/editor/ui/exportGeneratedCode";
 import { TICKET_PROTOCOL_VERSION, TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH, type TicketRequest } from "@/features/editor/ticket/ticketProtocol";
 import {
   answerOverwriteReview,
@@ -251,6 +252,7 @@ describe("쓰기 전 감지와 영향 목록", () => {
     workspace.files.set(G_HEADER, L_HEADER);
     workspace.log.length = 0;
     // #282는 이 경우를 같은 경로의 foreign으로 물었다. #281부터 복사본은 자기 자리를 쓰므로 물을 것이 없다.
+    useEditorStore.getState().setProjectId("shop-copy-project");
     useDocumentStore.setState({ fileName: "shop-copy.json" });
     const { run, request } = await secondRoundToReview({
       ["shop-copy/page1/components/Header.tsx"]: N_HEADER,
@@ -269,6 +271,75 @@ describe("쓰기 전 감지와 영향 목록", () => {
     expect(copy).not.toBe(original);
     expect(manifest().entries["shop-copy/page1/components/Header.tsx"]?.projectId).toBe(copy);
     expect(manifest().entries[HEADER]?.projectId).toBe(original);
+  });
+
+  it("같은 파일명을 지우고 새 프로젝트로 다시 만들면 옛 생성 자리·기록을 이어받지 않는다(#367)", async () => {
+    await seedLastGoodAndManualEdit();
+    const oldProjectId = useEditorStore.getState().spec.projectId;
+    const oldManifest = manifest();
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+
+    // 앱에서 새 문서를 만든 뒤 삭제된 파일과 같은 이름으로 저장한 상황을 재현한다.
+    useEditorStore.getState().loadSpec(seedSpec);
+    useDocumentStore.getState().setFileName("shop.json");
+    compileCurrent();
+    const newProjectId = useEditorStore.getState().spec.projectId;
+    expect(newProjectId).toBeDefined();
+    expect(newProjectId).not.toBe(oldProjectId);
+
+    const beforeGeneration = await scanGeneratedCode(
+      useEditorStore.getState().spec.pages[useEditorStore.getState().activePageId],
+      useEditorStore.getState().activePageId,
+      { fileName: "shop.json", documentId: useEditorStore.getState().documentId, projectId: newProjectId },
+    );
+    expect(beforeGeneration.kind).toBe("ready");
+    if (beforeGeneration.kind === "ready") {
+      expect(beforeGeneration.location.layout).toBe("unassigned");
+      expect(beforeGeneration.freshness?.overall).not.toBe("current");
+      expect(beforeGeneration.files).toEqual([]);
+    }
+
+    const run = runAllTickets();
+    await tick();
+    const request = currentRequest();
+    expect(request.generatedRoot).toBe("shop-2/page1");
+    respond(request.id, {
+      ["shop-2/page1/components/Header.tsx"]: N_HEADER,
+      ["shop-2/page1/components/Card.tsx"]: N_CARD,
+    });
+    await tick();
+    expect(useTicketStore.getState().overwriteReview).toBeNull();
+    await finish(run);
+
+    expect(textOf(workspace, G_HEADER)).toBe(M_HEADER);
+    expect(textOf(workspace, G_CARD)).toBe(L_CARD);
+    expect(textOf(workspace, "generated/shop-2/page1/components/Header.tsx")).toBe(N_HEADER);
+    expect(textOf(workspace, "generated/shop-2/page1/components/Card.tsx")).toBe(N_CARD);
+    const nextManifest = manifest();
+    expect(nextManifest.projects[oldProjectId!].fileName).toBeNull();
+    expect(findProjectByFileName(nextManifest, "shop.json")?.projectId).toBe(newProjectId);
+    expect(nextManifest.entries[HEADER]).toEqual(oldManifest.entries[HEADER]);
+    expect(nextManifest.entries[CARD]).toEqual(oldManifest.entries[CARD]);
+
+    const afterGeneration = await scanGeneratedCode(
+      useEditorStore.getState().spec.pages[useEditorStore.getState().activePageId],
+      useEditorStore.getState().activePageId,
+      { fileName: "shop.json", documentId: useEditorStore.getState().documentId, projectId: newProjectId },
+    );
+    expect(afterGeneration.kind).toBe("ready");
+    if (afterGeneration.kind === "ready") {
+      expect(afterGeneration.location).toMatchObject({ layout: "project", root: "shop-2/page1", projectId: newProjectId });
+      const expectedFreshness = afterGeneration.freshness?.tickets
+        .filter((ticket) => ["shop-2/page1/components/Header.tsx", "shop-2/page1/components/Card.tsx"].includes(ticket.path))
+        .map((ticket) => ticket.freshness);
+      expect(expectedFreshness).toHaveLength(2);
+      expect(expectedFreshness).toEqual(["current", "current"]);
+      expect(afterGeneration.files.map((file) => file.path).sort()).toEqual([
+        "components/Card.tsx",
+        "components/Header.tsx",
+      ]);
+    }
   });
 });
 
@@ -577,6 +648,7 @@ describe("await 경계와 불확실한 전송 결과", () => {
       ...seeded,
       projects: { ...seeded.projects, "p-other": { fileName: "other.json", outputDir: shop.project.outputDir, createdAt: "2026-10-11T00:00:00.000Z" } },
     }));
+    useEditorStore.getState().setProjectId("p-other");
     useDocumentStore.setState({ fileName: "other.json" });
     const before = textOf(workspace, GENERATION_MANIFEST_PATH);
     const { run } = await secondRoundToReview({ [HEADER]: M_HEADER, [CARD]: L_CARD });

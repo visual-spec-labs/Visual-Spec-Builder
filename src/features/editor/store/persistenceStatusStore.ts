@@ -28,6 +28,17 @@ export const usePersistenceStatusStore = create<{
   attempt: SaveAttempt | null;
 }>(() => ({ disk: null, draft: null, attempt: null }));
 
+function comparableSpecJson(json: string): string {
+  try {
+    const value: unknown = JSON.parse(json);
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      delete (value as Record<string, unknown>).projectId;
+      return JSON.stringify(value);
+    }
+  } catch { /* Preserve unreadable text as-is; it cannot falsely match a valid spec. */ }
+  return json;
+}
+
 export function persistenceLabels(input: {
   documentId: number; fileName: string | null; diskRevision: string | null;
   spec: ProjectSpec; json: string;
@@ -45,7 +56,7 @@ export function persistenceLabels(input: {
   } else if (disk?.json !== null && disk?.json !== undefined) {
     if (disk.revision !== diskRevision) {
       file = "외부 파일 변경"; fileHelp = "디스크 버전이 달라졌습니다. 불러오기 또는 충돌 해결이 필요합니다.";
-    } else if (disk.json === json) {
+    } else if (comparableSpecJson(disk.json) === comparableSpecJson(json)) {
       file = "파일 저장됨"; fileHelp = "마지막으로 확인한 작업공간 파일의 내용과 현재 문서가 같습니다.";
     } else {
       file = "수정됨 · 파일 미저장"; fileHelp = "현재 내용이 확인된 파일 내용과 다릅니다. 파일 → 저장으로 저장하세요.";
