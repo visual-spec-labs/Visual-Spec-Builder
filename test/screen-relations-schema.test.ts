@@ -128,19 +128,22 @@ describe("화면 종류·연결 선택 확장 (#265 S1-1)", () => {
     expect(schemaOnly(validateVisualSpec(spec))).toBe(true);
   });
 
-  // 참조 무결성(대상 존재·대상 kind·close 문맥·첫 화면 kind)은 S1-2 프로젝트 검증 몫이다.
-  // S1-1 스키마는 모양만 본다 — S1-2가 IssueCode를 추가하면 아래 기대를 그 코드로 바꾼다.
-  it("S1-1은 참조 무결성을 검사하지 않는다 — 모양이 맞으면 통과한다", () => {
+  // 참조 무결성(대상 존재·대상 kind·close 문맥·첫 화면 kind)은 스키마가 아니라 S1-2 프로젝트
+  // 검증이 관계 IssueCode로 잡는다 — 모양이 맞으면 `schema` 오류는 없다. 세부는
+  // test/screen-relations-validate.test.ts.
+  it("모양이 맞는 잘못된 참조는 schema가 아니라 S1-2 관계 코드로 보고한다", () => {
+    const codes = (spec: ProjectSpec) => validateProjectSpec(spec).issues.map((issue) => issue.code);
+
     const missing = project();
     loginButton(missing).action = { type: "navigate", target: "nowhere" };
-    expect(validateProjectSpec(missing).valid).toBe(true);
+    expect(codes(missing)).toEqual(["action-target-missing"]);
 
     const wrongKind = project();
     loginButton(wrongKind).action = { type: "openModal", target: "dashboard" };
-    expect(validateProjectSpec(wrongKind).valid).toBe(true);
+    expect(codes(wrongKind)).toEqual(["action-target-kind"]);
 
     const modalFirst = project();
     modalFirst.pageOrder = ["resetPassword", "login", "dashboard", "notificationWidget"];
-    expect(validateProjectSpec(modalFirst).valid).toBe(true);
+    expect(codes(modalFirst)).toEqual(["first-page-kind"]);
   });
 });

@@ -1,4 +1,4 @@
-import { migrateV01, type ProjectSpec } from "@/features/editor/schema";
+import { migrateV01, type ValidationIssue, type ProjectSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
@@ -22,7 +22,7 @@ export interface HomeProject {
  */
 export type HomeProjectFailure =
   | { fileName: string; reason: "read-failed" }
-  | { fileName: string; reason: "invalid"; issueCount: number; rawText: string };
+  | { fileName: string; reason: "invalid"; issueCount: number; issues: ValidationIssue[]; rawText: string };
 
 export type HomeProjectResult = ({ ok: true } & HomeProject) | ({ ok: false } & HomeProjectFailure);
 
@@ -31,7 +31,7 @@ function toHomeProject(fileName: string, snapshot: { text: string; revision: str
   if (snapshot === null) return { ok: false, fileName, reason: "read-failed" };
 
   const result = parseSpecJson(snapshot.text);
-  if (!result.ok) return { ok: false, fileName, reason: "invalid", issueCount: result.issueCount, rawText: snapshot.text };
+  if (!result.ok) return { ok: false, fileName, reason: "invalid", issueCount: result.issueCount, issues: result.issues, rawText: snapshot.text };
 
   const spec = "screen" in result.spec ? migrateV01(result.spec) : result.spec;
   return { ok: true, fileName, spec, diskRevision: snapshot.revision };

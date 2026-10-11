@@ -3,11 +3,11 @@ import {
   validateProjectSpec,
   validateVisualSpec,
 } from "@/features/editor/schema";
-import type { ProjectSpec, VisualSpec } from "@/features/editor/schema";
+import type { ProjectSpec, ValidationIssue, VisualSpec } from "@/features/editor/schema";
 
 export type LoadSpecResult =
   | { ok: true; spec: VisualSpec | ProjectSpec }
-  | { ok: false; issueCount: number };
+  | { ok: false; issueCount: number; issues: ValidationIssue[] };
 
 /**
  * 프로젝트 문서인지 본다. 아니면 화면 문서로 다룬다.
@@ -34,7 +34,7 @@ export function parseSpecJson(jsonText: string): LoadSpecResult {
     parsed = JSON.parse(jsonText);
   } catch {
     console.warn("Open: JSON 파싱 실패 — 올바른 JSON이 아닙니다.");
-    return { ok: false, issueCount: 1 };
+    return { ok: false, issueCount: 1, issues: [{ code: "schema", path: "/", message: "올바른 JSON이 아닙니다. JSON 구문을 확인하세요." }] };
   }
 
   const migrated = migrateToV03(parsed);
@@ -44,7 +44,7 @@ export function parseSpecJson(jsonText: string): LoadSpecResult {
 
   if (!result.valid) {
     console.warn("Open 검증 실패:", result.issues);
-    return { ok: false, issueCount: result.issues.length };
+    return { ok: false, issueCount: result.issues.length, issues: result.issues };
   }
 
   return { ok: true, spec: migrated as VisualSpec | ProjectSpec };

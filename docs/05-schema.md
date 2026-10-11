@@ -171,14 +171,26 @@ fixture/브라우저 검증은 실제 AI 성공 검증이 아니다.
 - `target`은 같은 프로젝트 `pages`의 key(PageId 형식)다. 페이지 이름으로 참조하지 않는다.
 - `navigate`는 page로 이동, `openModal`은 modal 열기, `close`는 열린 모달 닫기다. close는 target이 없다.
 - action은 통째로 하나다. 추가 필드·`null`·배열은 무효이고 반응형 override로 바꿀 수 없다.
-- **스키마는 모양만 본다.** target이 실제로 있는지, 대상의 kind가 맞는지, 첫 페이지가 page인지는
-  후속 S1-2 프로젝트 검증이 잡는다. 그 전에는 없는 target도 구조 검증을 통과한다.
+- **스키마는 모양만 본다.** 참조는 S1-2 프로젝트 검증(`validateProjectSpec`)이 아래 코드로 잡는다.
+  화면 문서(`VisualSpec`)는 다른 페이지를 모르므로 이 검사를 하지 않는다.
+
+| IssueCode | 조건 | 경로 |
+|---|---|---|
+| `action-target-missing` | navigate·openModal의 target이 `pages`에 없다 | `/pages/<id>/nodes/<id>/action/target` |
+| `action-target-kind` | openModal의 target이 `kind: "modal"`이 아니다 | 같음 |
+| `navigate-to-non-page` | navigate의 target이 page가 아니다(kind 생략은 page) | 같음 |
+| `action-source-invalid` | page(kind 생략 포함) 화면의 버튼에 close가 있다. modal·widget의 close는 허용 | `/pages/<id>/nodes/<id>/action` |
+| `first-page-kind` | `pageOrder[0]`의 화면이 page가 아니다. `pageOrder[0]`이 `pages`에 없으면 `page-order-mismatch`만 낸다 | `/pageOrder/0` |
+
+- 자기 자신을 가리키는 navigate(page)·openModal(modal), modal에서 다른 modal을 여는 교체는 유효하다.
 - 지금은 파일로만 쓸 수 있다. 자연어·Command 편집 경로는 S1-3 전까지 이 두 필드를 막는다.
 
 호환성·임시 가드·검증 경계의 전문은
 [동결 계약의 확장 절](06-schema-freeze.md#화면-종류연결-선택-확장--265-s1-1-pr-제안)을 참조한다.
 
 
-S1-1에서 `kind`·`action`은 저장 형태만 지원한다. 참조 검증은 S1-2, 관계 코드 생성은 S1-8/9다.
+S1-1에서 `kind`·`action`의 저장 형태를, S1-2에서 참조 검증을 지원한다. 관계 코드 생성은 S1-8/9다.
+S1-4 전에는 GUI 페이지 삭제가 유입 action을 정리하지 않아 위 코드가 생길 수 있다. 자동 저장 복원은 이런
+문서를 버리지 않지만 Save는 막힌다 — [06의 S1-2 절](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)을 참조한다.
 현재 modal/widget 또는 버튼 action이 있는 화면의 요청 전송·출력 수용·코드 Export는 임시 차단한다.
 JSON 가져오기·저장은 보존하며, 상세 범위와 해제 조건은 [06의 임시 차단](06-schema-freeze.md#s1-1-생성export-임시-차단)을 따른다.

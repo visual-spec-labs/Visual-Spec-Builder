@@ -1,3 +1,4 @@
+import { REPAIRED_COPY_OPEN_GUIDANCE } from "@/features/editor/store/validationGuidance";
 import { UnnamedDrafts } from "./UnnamedDrafts";
 import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -430,6 +431,13 @@ function CorruptedFilesSection({ failures, onRetry }: { failures: HomeProjectFai
                   ? "파일을 읽을 수 없습니다."
                   : `올바른 프로젝트 파일이 아닙니다 (검증 실패 ${failure.issueCount}건).`}
               </p>
+              {failure.reason === "invalid" && <details className="text-xs text-content-muted">
+                <summary>검증 오류 상세</summary>
+                <ul className="max-h-48 overflow-auto break-words">
+                  {failure.issues.map((issue, index) => <li key={index}>[{issue.code}] {issue.path}: {issue.message}</li>)}
+                </ul>
+                <p>{REPAIRED_COPY_OPEN_GUIDANCE}</p>
+              </details>}
             </div>
             <div className="flex shrink-0 gap-2">
               <button

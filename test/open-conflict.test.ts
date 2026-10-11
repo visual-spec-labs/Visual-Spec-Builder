@@ -125,3 +125,21 @@ it.each(["disk-revision", "agent-edit"])("Open intentionally cancels a picker in
   expect(useEditorStore.getState().spec.name).toBe("explicit retry");
   expect(useDocumentStore.getState().fileName).toBe("next.json");
 });
+
+it("invalid Open shows details before settling and preserves document/history/filename", async () => {
+  const before = useEditorStore.getState();
+  useDocumentStore.getState().setFileName("original.json", "original-revision");
+  const alert = vi.fn();
+  vi.stubGlobal("window", { alert });
+  vi.mocked(readWorkspaceSpecSnapshot).mockResolvedValue({ text: "{ broken", revision: "bad-revision" });
+  const settle = vi.fn(async () => true);
+  useSaveConflictStore.setState({ paused: false, check: () => false, settle });
+  const pending = openSpec();
+  await answerOpenPrompt("next.json");
+  await pending;
+  expect(settle).not.toHaveBeenCalled();
+  expect(useEditorStore.getState()).toBe(before);
+  expect(useDocumentStore.getState().fileName).toBe("original.json");
+  expect(useDocumentStore.getState().diskRevision).toBe("original-revision");
+  expect(alert).toHaveBeenCalledWith(expect.stringContaining("올바른 JSON이 아닙니다"));
+});

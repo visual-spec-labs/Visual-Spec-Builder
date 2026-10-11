@@ -1,3 +1,4 @@
+import { validationFailureMessage } from "@/features/editor/store/validationGuidance";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { usePersistenceStatusStore, type SaveAttempt } from "@/features/editor/store/persistenceStatusStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
@@ -142,7 +143,7 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
   const result = buildExportPayload(spec);
   if (!result.ok) {
     usePersistenceStatusStore.setState({ attempt: { documentId: useEditorStore.getState().documentId, spec, phase: "failed" } });
-    window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
+    window.alert(validationFailureMessage("저장할 수 없습니다", result.issues, "save"));
     return result;
   }
 
@@ -164,7 +165,7 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
   const result = buildExportPayload(spec);
   if (!result.ok) {
     usePersistenceStatusStore.setState({ attempt: { documentId: useEditorStore.getState().documentId, spec, phase: "failed" } });
-    window.alert(`저장할 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`);
+    window.alert(validationFailureMessage("저장할 수 없습니다", result.issues, "save"));
     return result;
   }
 

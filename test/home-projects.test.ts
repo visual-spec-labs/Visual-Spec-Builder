@@ -47,7 +47,7 @@ describe("손상 파일 사유(#288)", () => {
     expect(result?.projects.map(p => p.fileName)).toEqual(["keep.json"]);
     expect(result?.failures).toEqual([
       { ok: false, fileName: "gone.json", reason: "read-failed" },
-      { ok: false, fileName: "broken.json", reason: "invalid", issueCount: 1, rawText: "not json" },
+      { ok: false, fileName: "broken.json", reason: "invalid", issueCount: 1, issues: [{ code: "schema", path: "/", message: "올바른 JSON이 아닙니다. JSON 구문을 확인하세요." }], rawText: "not json" },
     ]);
   });
 });

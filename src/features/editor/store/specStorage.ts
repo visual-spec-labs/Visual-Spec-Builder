@@ -1,4 +1,4 @@
-import { migrateToV03, validateProjectSpec } from "@/features/editor/schema";
+import { isScreenRelationIssue, migrateToV03, validateProjectSpec } from "@/features/editor/schema";
 import type { ProjectSpec } from "@/features/editor/schema";
 import type { PauseReason } from "./saveConflictStore";
 
@@ -33,6 +33,7 @@ export interface StoredDocument {
  * 다음 중 하나라도 해당하면 undefined다 — 저장된 값이 없다, JSON으로 파싱이 안
  * 된다, 봉투 모양이 아니다, `fileName`이 문자열도 null도 아니다, `spec`이
  * (`migrateToV03`로 0.3으로 바꾼 뒤에도) `validateProjectSpec`을 통과하지 못한다.
+ * 단 화면 관계 오류(`isScreenRelationIssue`)만 남은 spec은 복원한다(#265 S1-2 — 아래 parseStoredDocument).
  * **#128 시절 저장된 옛 형태**(봉투 없이 `ProjectSpec`이 최상위)도 여기
  * 걸린다 — `spec` 필드가 없어 검증에 실패하고 조용히 폐기된다. 로컬 캐시일 뿐이라 한 번 seedSpec/`null`로 되돌아가는 것을
  * 감수한다 — `loadStoredSpec`이 이전부터 "스키마가 다른 값"을 같은 방식으로
@@ -72,7 +73,10 @@ export function parseStoredDocument(raw: string | null): StoredDocument | undefi
   // 조용히 버려져, 갱신 직후 첫 실행에서 작업이 사라진다.
   const spec = migrateToV03((parsed as Record<string, unknown>).spec);
   const result = validateProjectSpec(spec);
-  if (!result.valid) return undefined;
+  // 화면 관계 오류만 남은 문서는 복원한다(#265 S1-2). 대상 페이지를 지운 뒤의 자동 저장본이
+  // 여기서 버려지면 새로고침 한 번에 작업이 seedSpec으로 바뀐다 — 페이지 삭제가 유입 action을
+  // 정리하는 S1-4 전까지의 예외다. 구조 오류가 하나라도 섞이면 전처럼 버리고, Save는 여전히 막는다.
+  if (!result.valid && !result.issues.every(isScreenRelationIssue)) return undefined;
 
   const diskRevision = (parsed as Record<string, unknown>).diskRevision;
   return { fileName, spec: spec as ProjectSpec, ...(typeof diskRevision === "string" ? { diskRevision } : {}) };

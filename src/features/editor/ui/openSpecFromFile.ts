@@ -1,3 +1,4 @@
+import { validationFailureMessage } from "@/features/editor/store/validationGuidance";
 import { beginDocumentTransition } from "./documentTransition";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -18,15 +19,16 @@ import { SPEC_DIR } from "@/features/workspace/protocol";
  * **화면에 떠 있지도 않은 문서의 파일을 덮어쓴다.**
  */
 async function loadSpecText(text: string, fileName: string, diskRevision: string | null, transition: ReturnType<typeof beginDocumentTransition>): Promise<void> {
-  // 현재 문서의 대기 중 자동저장을 먼저 끝낸다(#267).
-  if (!await transition.settle(fileName) || !transition.current()) return;
+  if (!transition.current()) return;
   const result = parseSpecJson(text);
   if (!result.ok) {
     window.alert(
-      `${fileName}을(를) 열 수 없습니다 (검증 실패 ${result.issueCount}건). 콘솔을 확인하세요.`,
+      validationFailureMessage(`${fileName}을(를) 열 수 없습니다`, result.issues, "open"),
     );
     return;
   }
+  // 검증 실패는 문서 전환/초안 정리에 들어가지 않는다. 유효한 파일만 이동을 확정한다.
+  if (!await transition.settle(fileName) || !transition.current()) return;
   useEditorStore.getState().loadSpec(result.spec);
   useDocumentStore.getState().setFileName(fileName, diskRevision);
 }
