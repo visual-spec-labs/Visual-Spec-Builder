@@ -139,7 +139,9 @@ try {
       const { useEditorStore } = await import("/src/features/editor/store/editorStore.ts");
       return parseSpecJson(JSON.stringify(useEditorStore.getState().spec)).ok;
     }), true);
-    assert.deepEqual(JSON.parse((await state()).draft).spec, expected);
+    // The source draft remains byte-for-byte legacy input; the reopened editor
+    // and recovery copy above carry the generated project identity.
+    assert.deepEqual(JSON.parse((await state()).draft).spec, spec);
     assert.equal(await readFile(join(workspace, "specs/original.json"), "utf8"), original);
     assert.deepEqual(writes, []);
     console.log(`PASS ${code}: restore/empty Undo, detailed Save/Save as/Open failures, exact recovery download, repaired COPY opens through File menu in nonempty workspace; draft/original preserved`);
