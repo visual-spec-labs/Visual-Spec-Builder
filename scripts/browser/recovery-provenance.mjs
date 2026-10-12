@@ -26,7 +26,10 @@ try {
       window.editor = (await import('/src/features/editor/store/editorStore.ts')).useEditorStore;
       window.tickets = (await import('/src/features/editor/store/ticketStore.ts')).useTicketStore;
       window.runner = await import('/src/features/editor/ui/ticketRunner.ts');
-      editor.getState().loadSpec((await import('/src/features/editor/store/seedSpec.ts')).seedSpec);
+      const seed = structuredClone((await import('/src/features/editor/store/seedSpec.ts')).seedSpec);
+      // Both tabs model the same named project; identity must match as well as content.
+      seed.projectId = 'fixture-recovery-provenance';
+      editor.getState().loadSpec(seed);
       (await import('/src/features/editor/store/documentStore.ts')).useDocumentStore.setState({ fileName: 'shop.json' });
       (await import('/src/features/editor/store/navigationStore.ts')).useNavigationStore.getState().openEditor();
       window.saveConflict = (await import('/src/features/editor/store/saveConflictStore.ts')).useSaveConflictStore;
