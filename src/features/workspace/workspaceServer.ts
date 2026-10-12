@@ -46,7 +46,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { withWorkspaceMutation } from "./workspaceMutation";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { basename, dirname, extname, join, resolve } from "node:path";
@@ -339,16 +339,12 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
         }
         const requestedName = input.name;
         if (typeof requestedName !== "string") { sendError(res, 400, "잘못된 이름 변경 요청입니다."); return; }
-        const requestedProjectId = typeof input.projectId === "string" ? input.projectId : undefined;
-        if (!isProject && requestedProjectId === undefined) {
-          sendError(res, 400, "화면 문서 이름 변경에는 프로젝트 신원이 필요합니다."); return;
-        }
+        const requestedProjectId = typeof input.projectId === "string" ? input.projectId : existingProjectId ?? randomUUID();
         // 이름 변경은 저장 경계다. 화면 문서는 프로젝트 형태로 승격해 ID와
         // 새 이름을 함께 기록해야 다음 브라우저 문맥에서도 같은 프로젝트다.
-        const renamed = JSON.stringify(isProject ? { ...spec, name: requestedName,
-          ...(existingProjectId === undefined && typeof input.projectId === "string" ? { projectId: input.projectId } : {}) } : {
+        const renamed = JSON.stringify(isProject ? { ...spec, name: requestedName, projectId: requestedProjectId } : {
           ...migrateV01({ ...(migrated as VisualSpec), screen: { ...(migrated as VisualSpec).screen, name: requestedName } }),
-          projectId: requestedProjectId!,
+          projectId: requestedProjectId,
         }, null, 2);
         if (from.absolutePath === to.absolutePath) {
           writeFileAtomic(from.absolutePath, Buffer.from(renamed));

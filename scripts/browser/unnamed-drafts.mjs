@@ -170,7 +170,8 @@ try {
   await page.getByRole("button", {name: "+ 새 프로젝트", exact: true}).waitFor();
   assert.notEqual((await state()).key, second.key);
   assert.equal(await drafts.count(), 0);
-  assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), original.spec);
+  assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), saved,
+    "later unnamed-draft recovery leaves the Save As project identity intact on disk");
   console.log("PASS existing workspace Cancel/keep/New/archive Resume; confirmed deletion stays deleted after reload and preserves disk");
 
   await page.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
