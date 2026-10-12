@@ -11,6 +11,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { migrateV01 } from "@/features/editor/schema";
+import { parseSpecJson } from "@/features/editor/store/loadSpec";
+import { useEditorStore } from "@/features/editor/store/editorStore";
 import { resolveImageSrc } from "@/features/editor/ui/properties/imageSrc";
 import { WORKSPACE_MARKER_HEADER, workspaceFileUrl } from "@/features/workspace/protocol";
 import {
@@ -783,16 +785,35 @@ describe("project rename (#227)", () => {
   afterEach(() => vi.mocked(fs.unlinkSync).mockRestore());
   afterEach(() => vi.mocked(fs.openSync).mockRestore());
 
-  it("changes name and filename while preserving all other fields", async () => {
+  it("changes name and filename while preserving content and assigning a project ID", async () => {
     expect((await rename()).status).toBe(200);
     expect(existsSync(join(workspaceRoot, "specs/old.json"))).toBe(false);
-    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"))).toEqual({ ...JSON.parse(oldText), name: "New" });
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"))).toEqual({
+      ...JSON.parse(oldText), name: "New", projectId: expect.any(String),
+    });
   });
-  it("preserves legacy screen shape/version while changing its display name", async () => {
+  it("persists the assigned project ID when renaming an older project file", async () => {
+    const projectId = "stable-project-id";
+    expect((await fetch(`${baseUrl}/__vs/rename`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fileName: "old.json", name: "New", expectedText: oldText, projectId }) })).status).toBe(200);
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8")).projectId).toBe(projectId);
+  });
+  it("legacy 화면 문서 rename은 프로젝트 형식과 ID를 저장해 다시 열어도 신원을 유지한다", async () => {
     const legacy = JSON.stringify(blankSpec);
+    const projectId = "legacy-project-id";
     writeFileSync(join(workspaceRoot, "specs/old.json"), legacy);
-    expect((await rename("New", "old.json", legacy)).status).toBe(200);
-    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"))).toEqual({ ...blankSpec, screen: { ...blankSpec.screen, name: "New" } });
+    const response = await fetch(`${baseUrl}/__vs/rename`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fileName: "old.json", name: "New", expectedText: legacy, projectId }) });
+    expect(response.status).toBe(200);
+    const saved = JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"));
+    expect(saved).toEqual({ version: "0.3", name: "New", pages: { page1: { ...blankSpec.screen, name: "New" } }, pageOrder: ["page1"], projectId });
+
+    // 실제 Open과 같은 파싱·스토어 로드 경로에서 새 문맥의 ID가 보존된다.
+    const reopened = parseSpecJson(JSON.stringify(saved));
+    expect(reopened.ok).toBe(true);
+    if (!reopened.ok) return;
+    useEditorStore.getState().loadSpec(reopened.spec);
+    expect(useEditorStore.getState().spec.projectId).toBe(projectId);
   });
   it("rejects arbitrary JSON objects without changing their contents", async () => {
     const invalid = JSON.stringify({ name: "Old" });

@@ -63,6 +63,8 @@ export interface DocumentState {
   diskRevision: string | null;
   /** 프로젝트 신원 세대(위 "프로젝트 신원 세대"). 값 자체는 뜻이 없고 같은지만 본다. */
   projectIdentity: number;
+  /** Changes when Save As creates a copy from an untitled document. */
+  advanceProjectIdentity: () => void;
   setFileName: (fileName: string, diskRevision?: string | null) => void;
   /** 앱 안 이름 변경을 적는다 — 같은 프로젝트라 `projectIdentity`를 올리지 않는다. */
   adoptRenamedFileName: (fileName: string, diskRevision: string | null) => void;
@@ -73,6 +75,7 @@ export const useDocumentStore = create<DocumentState>((set) => ({
   fileName: loadStoredFileName() ?? null,
   diskRevision: loadStoredDiskRevision(),
   projectIdentity: 0,
+  advanceProjectIdentity: () => set((state) => ({ projectIdentity: state.projectIdentity + 1 })),
   setFileName: (fileName, diskRevision = null) => set((state) => ({
     fileName,
     diskRevision,

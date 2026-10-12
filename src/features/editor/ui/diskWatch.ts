@@ -23,6 +23,7 @@ import type { ProjectSpec } from "@/features/editor/schema";
 import { useAgentEditStore } from "@/features/editor/store/agentEditStore";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { withoutProjectIdentity } from "@/features/editor/store/projectIdentity";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
@@ -82,7 +83,9 @@ export function startDiskWatch(): () => void {
     }
   }
 
-  const toJson = (spec: ProjectSpec) => JSON.stringify(spec);
+  // The persisted ID is identity metadata, not editable canvas content. Older on-disk documents
+  // may omit it, so exclude it when comparing disk snapshots with the open document.
+  const toJson = (spec: ProjectSpec) => JSON.stringify(withoutProjectIdentity(spec));
   function parseDisk(text: string): ProjectSpec | null {
     const parsed = parseSpecJson(text);
     if (!parsed.ok) return null;
@@ -190,6 +193,15 @@ export function startDiskWatch(): () => void {
       if (spec === null) return;
       const currentJson = toJson(useEditorStore.getState().spec);
       if (toJson(spec) === currentJson) {
+        const currentProjectId = useEditorStore.getState().spec.projectId;
+        // Identity is deliberately excluded from the content comparison above, but an external
+        // ID-only replacement is a different document owner. Adopt it before advancing the CAS
+        // revision so subsequent Save/Export cannot keep using the former project's identity.
+        if (typeof spec.projectId === "string" && spec.projectId !== currentProjectId) {
+          adopt(fileName, spec, snapshot.revision);
+          useAgentEditStore.setState({ diskNotice: { kind: "diskImported", fileName, spec: useEditorStore.getState().spec } });
+          return;
+        }
         baselineJson = currentJson;
         baselineRevision = snapshot.revision;
         useDocumentStore.getState().setFileName(fileName, snapshot.revision); // 내가 방금 저장한 내용

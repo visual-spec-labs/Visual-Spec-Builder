@@ -26,7 +26,10 @@ try {
       window.editor = (await import('/src/features/editor/store/editorStore.ts')).useEditorStore;
       window.tickets = (await import('/src/features/editor/store/ticketStore.ts')).useTicketStore;
       window.runner = await import('/src/features/editor/ui/ticketRunner.ts');
-      editor.getState().loadSpec((await import('/src/features/editor/store/seedSpec.ts')).seedSpec);
+      const seed = structuredClone((await import('/src/features/editor/store/seedSpec.ts')).seedSpec);
+      // Both tabs model the same named project; identity must match as well as content.
+      seed.projectId = 'fixture-recovery-provenance';
+      editor.getState().loadSpec(seed);
       (await import('/src/features/editor/store/documentStore.ts')).useDocumentStore.setState({ fileName: 'shop.json' });
       (await import('/src/features/editor/store/navigationStore.ts')).useNavigationStore.getState().openEditor();
       window.saveConflict = (await import('/src/features/editor/store/saveConflictStore.ts')).useSaveConflictStore;
@@ -40,8 +43,13 @@ try {
     return page;
   }
   const a = await tab(), b = await tab();
-  // 준비 순서가 바뀌어 충돌 대화상자가 떠 있으면 라디오 timeout 대신 원인을 바로 보인다.
-  for (const page of [a, b]) assert.equal(await page.evaluate(() => saveConflict.getState().paused), false, 'fixture: save conflict dialog');
+  // Concurrent tab startup can legitimately observe the other tab's first autosave.
+  // Rebase either tab on that identical shared project before testing generation provenance.
+  for (const page of [a, b]) {
+    const paused = await page.evaluate(() => saveConflict.getState().paused);
+    if (paused) assert.equal(await page.evaluate(() => saveConflict.getState().loadLatest()), true, 'fixture: adopt shared project autosave');
+    assert.equal(await page.evaluate(() => saveConflict.getState().paused), false, 'fixture: save conflict dialog');
+  }
   async function start(page, text) {
     await page.evaluate(() => {
       const { activePageId, spec } = editor.getState();

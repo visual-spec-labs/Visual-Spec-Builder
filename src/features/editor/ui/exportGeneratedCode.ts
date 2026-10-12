@@ -70,6 +70,7 @@ export type GeneratedLocation =
 export interface GeneratedScanOwner {
   fileName: string | null;
   documentId: number;
+  projectId?: string | null;
 }
 
 /**
@@ -141,7 +142,7 @@ export type GeneratedScan =
 export async function scanGeneratedCode(
   page: ScreenSpec,
   pageId?: PageId,
-  owner: GeneratedScanOwner = { fileName: null, documentId: -1 },
+  owner: GeneratedScanOwner = { fileName: null, documentId: -1, projectId: null },
 ): Promise<GeneratedScan> {
   if (hasUnsupportedScreenRelations(page)) {
     return { kind: "unsupported", message: UNSUPPORTED_SCREEN_RELATIONS_MESSAGE };

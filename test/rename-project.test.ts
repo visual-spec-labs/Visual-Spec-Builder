@@ -4,7 +4,7 @@ import { prepareProjectRename, publishProjectRename } from "@/features/editor/st
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { recordProjectRename } from "@/features/editor/ui/generationTarget";
+import { findRecordedProjectId, recordProjectRename } from "@/features/editor/ui/generationTarget";
 import { renameProject } from "@/features/editor/ui/renameProject";
 import { readWorkspaceSpecSnapshot } from "@/features/editor/ui/workspaceClient";
 import { WORKSPACE_MARKER_HEADER, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
@@ -14,12 +14,13 @@ vi.mock("@/features/editor/store/specStorage", async (original) => ({
 }));
 vi.mock("@/features/editor/ui/workspaceClient", () => ({ readWorkspaceSpecSnapshot: vi.fn() }));
 // 생성 기록(#281)은 `generation-ownership.test.ts`가 실제 구현으로 본다. 여기서는 결과 전달만 본다.
-vi.mock("@/features/editor/ui/generationTarget", () => ({ recordProjectRename: vi.fn() }));
+vi.mock("@/features/editor/ui/generationTarget", () => ({ findRecordedProjectId: vi.fn(), recordProjectRename: vi.fn() }));
 const fetchMock = vi.fn();
 const lockMock = vi.fn(async (_key: string, action: () => Promise<unknown>) => action());
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(prepareProjectRename).mockReturnValue(vi.fn());
+  vi.mocked(findRecordedProjectId).mockResolvedValue(null);
   vi.mocked(recordProjectRename).mockResolvedValue(null);
   useSaveConflictStore.setState({ paused: false, check: () => false });
   vi.stubGlobal("fetch", fetchMock);
@@ -71,6 +72,17 @@ describe("home rename", () => {
     const before = useEditorStore.getState();
     await renameProject("old.json", "New");
     expect(useEditorStore.getState()).toBe(before);
+    expect(useDocumentStore.getState().fileName).toBe("other.json");
+  });
+  it("renames a non-active legacy project with that file's recorded ID, not the open document's ID", async () => {
+    useDocumentStore.getState().setFileName("other.json");
+    const activeProjectId = useEditorStore.getState().spec.projectId;
+    vi.mocked(findRecordedProjectId).mockResolvedValue("recorded-old-project");
+    await renameProject("old.json", "New");
+
+    expect(prepareProjectRename).toHaveBeenCalledWith("old.json", expect.objectContaining({ projectId: "recorded-old-project" }), "New.json");
+    expect(recordProjectRename).toHaveBeenCalledWith("old.json", "New.json", "recorded-old-project");
+    expect(useEditorStore.getState().spec.projectId).toBe(activeProjectId);
     expect(useDocumentStore.getState().fileName).toBe("other.json");
   });
   it.each([409, 500])("preserves draft/path on HTTP %s", async (status) => {
@@ -149,7 +161,7 @@ describe("home rename", () => {
     vi.mocked(recordProjectRename).mockResolvedValue(warning);
     const identity = useDocumentStore.getState().projectIdentity;
     expect(await renameProject("old.json", "New")).toEqual({ ok: true, path: "specs/New.json", warning });
-    expect(recordProjectRename).toHaveBeenCalledWith("old.json", "New.json");
+    expect(recordProjectRename).toHaveBeenCalledWith("old.json", "New.json", useEditorStore.getState().spec.projectId);
     expect(useDocumentStore.getState().fileName).toBe("New.json");
     expect(useDocumentStore.getState().projectIdentity).toBe(identity);
   });

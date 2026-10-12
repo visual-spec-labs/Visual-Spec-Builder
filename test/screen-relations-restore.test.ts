@@ -142,7 +142,7 @@ describe("관계 오류가 생긴 문서의 엄격한 경로 (#265 S1-2)", () =>
     afterRemovingPages("dashboard");
     useEditorStore.getState().undo();
     const spec = useEditorStore.getState().spec;
-    expect(spec).toEqual(project());
+    expect({ ...spec, projectId: undefined }).toEqual(project());
     expect(buildExportPayload(spec).ok).toBe(true);
   });
 

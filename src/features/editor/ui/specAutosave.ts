@@ -10,6 +10,7 @@ import { readWorkspaceSpecSnapshot } from "./workspaceClient";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { withoutProjectIdentity } from "@/features/editor/store/projectIdentity";
 import { useSaveConflictStore, type PauseReason } from "@/features/editor/store/saveConflictStore";
 import {
   serializeStoredDocument, parseStoredDocument, projectStorageKey, readRecovery, saveSpecToStorage, loadStoredSpec,
@@ -74,7 +75,7 @@ export function startSpecAutosave() {
   let edited = handoff !== null && handoff.serialized === serializeStoredDocument(document)
     ? handoff.edited
     : loadStoredSpec() !== undefined &&
-      (document.fileName !== null || !PRISTINE_UNTITLED.includes(JSON.stringify(document.spec)));
+    (document.fileName !== null || !PRISTINE_UNTITLED.includes(JSON.stringify(withoutProjectIdentity(document.spec))));
 
   function read(storageKey: string): string | null {
     try { return localStorage.getItem(storageKey); } catch { return null; }

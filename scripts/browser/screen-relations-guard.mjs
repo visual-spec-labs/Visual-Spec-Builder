@@ -37,6 +37,12 @@ try {
     window.exportStore = (await import("/src/features/editor/store/exportStore.ts")).useExportStore;
     window.openTickets = (await import("/src/features/editor/ui/openTicketPanel.ts")).openTicketPanel;
   });
+  const opened = await page.evaluate(() => editor.getState().spec);
+  const openedProjectId = opened.projectId;
+  const openedContent = structuredClone(opened);
+  delete openedContent.projectId;
+  assert.match(openedProjectId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  assert.deepEqual(openedContent, project, "Open preserves fixture content while assigning an identity");
   for (const id of project.pageOrder.filter(id => id !== "control")) {
     const name = project.pages[id].name;
     if (id !== project.pageOrder[0]) await page.getByRole("button", { name, exact: true }).click();
@@ -57,7 +63,11 @@ try {
   await page.getByRole("button", { name: "OrdinaryControl", exact: true }).click();
   await page.getByRole("button", { name: "다시 검사", exact: true }).click();
   await page.waitForFunction(() => exportStore.getState().status === "ready");
-  assert.deepEqual(await page.evaluate(() => editor.getState().spec), project);
+  const current = await page.evaluate(() => editor.getState().spec);
+  const currentContent = structuredClone(current);
+  delete currentContent.projectId;
+  assert.deepEqual(currentContent, project);
+  assert.equal(current.projectId, openedProjectId, "ordinary review actions retain the opened identity");
   assert.equal(await readFile(join(workspace, "generated/pages/Old.tsx"), "utf8"), inert);
   assert.deepEqual(errors, []);
   assert.equal(downloads.length, 0);

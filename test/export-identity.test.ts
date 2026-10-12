@@ -86,7 +86,11 @@ function put(path: string, content: string | Uint8Array): void {
 
 /** 이 프로젝트 파일 이름의 생성 자리를 실제 기록으로 정하고 그 자리에 출력을 둔다. */
 async function generate(fileName: string, mark: string): Promise<string> {
-  const located = await ensureGenerationTarget({ fileName, documentId: 1, pageId: "page1", projectPageIds: ["page1"] });
+  if (useDocumentStore.getState().fileName !== fileName) {
+    useEditorStore.getState().setProjectId(`export-test-${fileName}`);
+    useDocumentStore.getState().setFileName(fileName, null);
+  }
+  const located = await ensureGenerationTarget({ projectId: useEditorStore.getState().spec.projectId, fileName, documentId: 1, pageId: "page1", projectPageIds: ["page1"] });
   if (!located.ok) throw new Error(located.error);
   put(`generated/${located.target.root}/pages/Home.tsx`, `export default function Home() { return null; } // ${mark}\n`);
   return located.target.root;
@@ -158,7 +162,7 @@ describe("Save As 뒤 Export 결과와 다운로드", () => {
 
   function currentTarget(): ExportTarget {
     const { documentId, activePageId, spec } = useEditorStore.getState();
-    return { documentId, pageId: activePageId, page: spec.pages[activePageId], projectName: spec.name, fileName: useDocumentStore.getState().fileName };
+    return { documentId, pageId: activePageId, page: spec.pages[activePageId], projectName: spec.name, fileName: useDocumentStore.getState().fileName, projectId: spec.projectId };
   }
 
   async function zipText(blob: Blob): Promise<string> {
@@ -178,6 +182,7 @@ describe("Save As 뒤 Export 결과와 다운로드", () => {
     expect(await zipText(created[0])).toContain("A-bytes");
     created.length = 0;
 
+    useEditorStore.getState().setProjectId("shop-copy-project");
     useDocumentStore.getState().setFileName("shop-copy.json", null); // 다른 이름으로 저장
     expect(useExportStore.getState()).toMatchObject({ status: "idle", files: [], target: null });
 
@@ -202,7 +207,10 @@ describe("Save As 뒤 Export 결과와 다운로드", () => {
     expect(report?.requiredAssets).toEqual(["hero.png"]);
 
     intercept = (path) => {
-      if (path.endsWith("assets/hero.png")) useDocumentStore.getState().setFileName("shop-copy.json", null);
+      if (path.endsWith("assets/hero.png")) {
+        useEditorStore.getState().setProjectId("shop-copy-project");
+        useDocumentStore.getState().setFileName("shop-copy.json", null);
+      }
       return null;
     };
     const result = await downloadGeneratedBundle("Shop", files, report!, compileTickets(target!.page), target!.page, false, () => isExportTargetCurrent(target!));

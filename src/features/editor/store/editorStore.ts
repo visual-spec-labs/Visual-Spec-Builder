@@ -38,6 +38,7 @@ import { blankSpec } from "./blankSpec";
 import { generateNodeId } from "./nodeId";
 import { seedSpec } from "./seedSpec";
 import { loadStoredSpec } from "./specStorage";
+import { createProjectIdentity, ensureProjectIdentity } from "./projectIdentity";
 
 /**
  * 이슈 #128 — localStorage에 자동저장된 프로젝트가 있으면 그걸로 시작하고,
@@ -46,7 +47,7 @@ import { loadStoredSpec } from "./specStorage";
  * (이 파일에 넣지 않은 이유는 그러면 이 스토어를 import하는 모든 테스트가
  * 매번 디바운스 타이머를 만들게 되기 때문이다).
  */
-const initialSpec = loadStoredSpec() ?? migrateV01(seedSpec);
+const initialSpec = ensureProjectIdentity(loadStoredSpec() ?? migrateV01(seedSpec));
 
 /**
  * Undo/Redo 한 단계의 단위 — 프로젝트 전체와 그때 보고 있던 페이지를 함께 담는다.
@@ -219,6 +220,8 @@ export interface EditorState {
   replaceSpecFromOutside: (spec: ProjectSpec) => void;
   /** Filesystem rename metadata; preserve edits, selection and undo history. */
   renameProject: (name: string) => void;
+  /** Save As establishes a distinct project identity without adding an undo step. */
+  setProjectId: (projectId: string) => void;
   /**
    * 새 노드를 활성 페이지의 parentId(frame) 자식 목록 끝에 추가하고 선택한다(Import).
    * parentId가 없거나 frame이 아니면 아무 것도 하지 않는다 — 호출자가
@@ -548,9 +551,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     };
   }),
+  setProjectId: (projectId) => set((state) => {
+    if (state.spec.projectId === projectId) return state;
+    const reidentify = (snapshot: EditorSnapshot): EditorSnapshot => ({
+      ...snapshot,
+      spec: { ...snapshot.spec, projectId },
+    });
+    return {
+      spec: { ...state.spec, projectId },
+      history: {
+        past: state.history.past.map(reidentify),
+        present: reidentify(state.history.present),
+        future: state.history.future.map(reidentify),
+      },
+    };
+  }),
   loadSpec: (spec) => {
     useResponsiveViewStore.getState().reset();
-    const project = "screen" in spec ? migrateV01(spec) : spec;
+    const project = ensureProjectIdentity("screen" in spec ? migrateV01(spec) : spec);
     set((state) => ({
       spec: project,
       documentId: state.documentId + 1,
@@ -565,14 +583,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   replaceSpecFromOutside: (spec) =>
     set((state) => {
-      const activePageId = spec.pages[state.activePageId] ? state.activePageId : spec.pageOrder[0];
-      const page = spec.pages[activePageId];
+      // Disk-watch/agent refreshes update the currently open project. Older on-disk specs may not
+      // have the new persisted ID yet; keep the in-memory identity stable across those refreshes.
+      const project = typeof spec.projectId === "string" && spec.projectId.length > 0
+        ? spec
+        : { ...spec, projectId: state.spec.projectId ?? createProjectIdentity() };
+      const activePageId = project.pages[state.activePageId] ? state.activePageId : project.pageOrder[0];
+      const page = project.pages[activePageId];
       return {
-        spec,
+        spec: project,
+        documentId: project.projectId !== state.spec.projectId ? state.documentId + 1 : state.documentId,
         activePageId,
         selectedId: activePageId === state.activePageId && state.selectedId !== null && page.nodes[state.selectedId] ? state.selectedId : null,
         focusRootId: activePageId === state.activePageId && state.focusRootId !== null && page.nodes[state.focusRootId] ? state.focusRootId : null,
-        history: pushHistory(state.history, makeSnapshot(spec, activePageId)),
+        history: pushHistory(state.history, makeSnapshot(project, activePageId)),
       };
     }),
   insertNode: (parentId, id, node) =>

@@ -24,5 +24,6 @@ export function openExportPanel(): void {
     page: spec.pages[activePageId],
     projectName: spec.name,
     fileName: useDocumentStore.getState().fileName,
+    projectId: spec.projectId,
   });
 }

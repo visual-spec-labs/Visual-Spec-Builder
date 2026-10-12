@@ -10,6 +10,14 @@ import { join } from "node:path";
 
 import { checkBulkRegression } from "./unnamed-drafts-bulk.mjs";
 import { startBrowserWorkspace } from "./harness.mjs";
+
+function assertSaveAsIdentity(saved, source, label) {
+  const { projectId: savedProjectId, ...savedContent } = saved;
+  const { projectId: sourceProjectId, ...sourceContent } = source;
+  assert.deepEqual(savedContent, sourceContent, `${label}: content is preserved`);
+  assert.notEqual(savedProjectId, sourceProjectId, `${label}: identity is renewed`);
+}
+
 const workspace = await mkdtemp(join(tmpdir(), "vs-unnamed-"));
 const specs = join(workspace, "specs");
 await mkdir(specs);
@@ -133,12 +141,13 @@ try {
   await page.waitForTimeout(650);
   assert.equal((await state()).file, "Fixture saved.json");
   await waitStatus(page, "파일 저장됨");
-  assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), original.spec);
+  const saved = JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8"));
+  assertSaveAsIdentity(saved, original.spec, "Save As");
   assert.equal(await page.evaluate(key => localStorage.getItem(key), original.key), null);
   await page.getByRole("button", { name: "홈으로" }).click();
   await page.getByRole("button").filter({ hasText: /Untitled.*페이지/s }).click();
-  assert.deepEqual((await state()).spec, original.spec);
-  console.log("PASS Save as cancel/failure retain draft; successful real Save retires UUID and reopens exact content");
+  assert.deepEqual((await state()).spec, saved, "reopen retains the Save As project identity");
+  console.log("PASS Save as cancel/failure retain draft; successful Save As preserves content, changes identity, and reopens that identity");
   async function newFromEditor() {
     await page.getByRole("button", {name: "파일", exact: true}).click();
     await page.getByRole("menuitem", {name: "새로 만들기", exact: true}).click();
@@ -166,7 +175,8 @@ try {
   await page.getByRole("button", {name: "+ 새 프로젝트", exact: true}).waitFor();
   assert.notEqual((await state()).key, second.key);
   assert.equal(await drafts.count(), 0);
-  assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), original.spec);
+  assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), saved,
+    "later unnamed-draft recovery leaves the Save As project identity intact on disk");
   console.log("PASS existing workspace Cancel/keep/New/archive Resume; confirmed deletion stays deleted after reload and preserves disk");
 
   await page.getByRole("button", {name: "+ 새 프로젝트", exact: true}).click();
@@ -262,7 +272,7 @@ try {
     await tabA.reload();
     await tabA.getByRole("button", {name: "+ 새 프로젝트", exact: true}).waitFor();
     assert.equal(await row(tabA).count(), 0);
-    assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), original.spec);
+    assert.deepEqual(JSON.parse(await readFile(join(specs, "Fixture saved.json"), "utf8")), saved);
     await returning.close();
     console.log("PASS returning tab Delete refuses active B, preserves Cancel, and reacquires after B closes without Resume; reload stays deleted and disk is intact");
     continue;
@@ -282,7 +292,10 @@ try {
   await tabA.getByRole("alertdialog").getByRole("button", {name: "저장", exact: true}).click();
   await tabA.evaluate(() => window.pending);
   assert.equal((await state(tabA)).file, "Reacquired fixture.json");
-  assert.deepEqual(JSON.parse(await readFile(join(specs, "Reacquired fixture.json"), "utf8")), reacquired.spec);
+  const reacquiredSaved = JSON.parse(await readFile(join(specs, "Reacquired fixture.json"), "utf8"));
+  assertSaveAsIdentity(reacquiredSaved, reacquired.spec, "reacquired draft Save As");
+  assert.equal(reacquiredSaved.projectId, (await state(tabA)).spec.projectId,
+    "the active document adopts the Save As identity");
   await returning.close();
   console.log("PASS Back/reload while B owns same UUID refuses Resume; B close permits explicit reacquisition, autosave and disk Save");
 

@@ -139,6 +139,7 @@ async function exportScan() {
   const scan = await scanGeneratedCode(spec.pages[activePageId], activePageId, {
     fileName: useDocumentStore.getState().fileName,
     documentId,
+    projectId: spec.projectId,
   });
   if (scan.kind !== "ready" || scan.freshness === null) throw new Error("Export 훑기 실패");
   const byTicket = Object.fromEntries(scan.freshness.tickets.map((entry) => [entry.ticketId, entry.freshness]));
@@ -242,6 +243,7 @@ describe("같은 이름이 서로 덮지 않는다", () => {
 
     // 원래 프로젝트로 돌아가도 자기 출력이 현재다
     openDocument(seedSpec, "shop.json");
+    useEditorStore.getState().setProjectId(shop.projectId);
     const { freshness, scan } = await exportScan();
     expect(freshness.overall).toBe("current");
     expect(scan.location).toEqual({ layout: "project", root: "shop/page1", projectId: shop.projectId });
@@ -336,6 +338,46 @@ describe("이름 변경·복사", () => {
     expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A");
     expect(findProjectByFileName(manifest(), "renamed-outside.json")?.projectId)
       .not.toBe(findProjectByFileName(manifest(), "shop.json")?.projectId);
+  });
+
+  it("ID만 교체된 디스크 문서는 기존 출력에 쓰지 않고 새 자리에서 생성한다", async () => {
+    await deliver("A");
+    const oldProjectId = useEditorStore.getState().spec.projectId;
+    const replacement = { ...useEditorStore.getState().spec, projectId: "external-replacement-id" };
+    openDocument(replacement, "shop.json");
+
+    const beforeGeneration = await exportScan();
+    expect(beforeGeneration.freshness.overall).toBe("missing");
+    workspace.log.length = 0;
+    await deliver("B");
+
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A");
+    expect(generatedWrites().every((entry) => entry.includes("generated/shop-2/page1/"))).toBe(true);
+    expect(findProjectByFileName(manifest(), "shop.json")?.projectId).toBe("external-replacement-id");
+    expect(findProjectByFileName(manifest(), "shop.json")?.projectId).not.toBe(oldProjectId);
+    expect((await exportScan()).freshness.overall).toBe("current");
+  });
+
+  it("외부 복사본의 Home 이름 변경은 원본 폴더를 넘기지 않고 원본 출력은 계속 Export·재생성 가능하다", async () => {
+    await deliver("A");
+    const originalSpec = structuredClone(useEditorStore.getState().spec);
+    const originalProjectId = originalSpec.projectId!;
+    openDocument({ ...originalSpec, name: "Copy" }, "copy.json"); // 파일 복사로 ID도 복제된 상태
+
+    expect(await recordProjectRename("copy.json", "copy2.json", originalProjectId)).toBeNull();
+    useDocumentStore.setState({ fileName: "copy2.json" });
+    expect(findProjectByFileName(manifest(), "shop.json")?.projectId).toBe(originalProjectId);
+    expect(findProjectByFileName(manifest(), "copy2.json")).toBeNull();
+    expect((await exportScan()).freshness.overall).toBe("missing");
+    workspace.log.length = 0;
+    await deliver("copy");
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A");
+    expect(workspace.log.some((line) => line.includes(" generated/"))).toBe(false);
+
+    openDocument(originalSpec, "shop.json");
+    expect((await exportScan()).freshness.overall).toBe("current");
+    await deliver("A2");
+    expect(textOf(workspace, "generated/shop/page1/components/Header.tsx")).toContain("// A2");
   });
 
   it("컴포넌트 이름을 바꾸면 같은 신원의 이전 이름 출력을 알아보고, 재생성 뒤에도 옛 파일은 지우지 않고 '이전 출력'으로 알린다", async () => {
@@ -583,6 +625,7 @@ describe("요청 중 다른 이름으로 저장 (#281 리뷰)", () => {
     expect(requestA.generatedRoot).toBe("shop/page1");
     const shopId = findProjectByFileName(manifest(), "shop.json")!.projectId;
 
+    useEditorStore.getState().setProjectId("shop-copy-project");
     useDocumentStore.getState().setFileName("shop-copy.json", null); // 다른 이름으로 저장
     expect(isTicketPlanStale()).toBe(true);
     agentCompletes(requestA, "A");
@@ -619,6 +662,7 @@ describe("요청 중 다른 이름으로 저장 (#281 리뷰)", () => {
   it("확정 중(생성 기록을 쓰는 순간) 다른 이름으로 저장해도 복사본의 티켓을 완료로 표시하지 않고 다음 웨이브를 보내지 않는다", async () => {
     workspace.afterWrite = (path) => {
       if (path === GENERATION_MANIFEST_PATH && Object.keys(manifest().entries).length > 0) {
+        useEditorStore.getState().setProjectId("shop-copy-project");
         useDocumentStore.getState().setFileName("shop-copy.json", null);
       }
     };

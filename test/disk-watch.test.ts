@@ -75,6 +75,20 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
     expect(useAgentEditStore.getState().diskNotice).toBeNull();
   });
 
+  it("내용은 같고 projectId만 바뀐 외부 교체를 새 문서 신원으로 받아들인다", async () => {
+    await watch();
+    const oldId = useEditorStore.getState().spec.projectId;
+    const replacement = { ...base, projectId: "external-project-copy" };
+    setDisk(replacement, "rev-identity");
+
+    await tick();
+
+    expect(oldId).not.toBe("external-project-copy");
+    expect(useEditorStore.getState().spec.projectId).toBe("external-project-copy");
+    expect(useDocumentStore.getState().diskRevision).toBe("rev-identity");
+    expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskImported", fileName: "same.json" });
+  });
+
   it("미저장 편집이 있으면 묻고, 불러오기를 고르면 Undo로 내 편집에 돌아올 수 있다", async () => {
     await watch();
     useEditorStore.getState().setNodeField("headerTitle", "content", "내 미저장 편집");
@@ -300,6 +314,7 @@ describe("감시 실패와 비동기 응답 회귀", () => {
     useEditorStore.getState().undo();
     expect(useEditorStore.getState().spec).toEqual(previous);
     useEditorStore.getState().redo();
-    expect(useEditorStore.getState().spec).toEqual(replacement);
+    expect(useEditorStore.getState().spec).toMatchObject(replacement);
+    expect(useEditorStore.getState().spec.projectId).toBe(previous.projectId);
   });
 });

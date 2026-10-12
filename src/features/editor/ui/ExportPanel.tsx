@@ -196,6 +196,7 @@ export function ExportPanel() {
               page: spec.pages[activePageId],
               projectName: spec.name,
               fileName: useDocumentStore.getState().fileName,
+              projectId: spec.projectId,
             });
           }}
           disabled={status === "scanning"}

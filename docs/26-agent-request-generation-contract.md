@@ -490,11 +490,13 @@ Chromium 두 탭으로 A PUT 반영/응답 유실 → A lease 만료 → B 동�
 이름을 바꿔도 그대로다. 없는 것은 프로젝트 ID 하나라서, 그것만 IR 밖(GUI만 쓰는 수용 기록)에 둔다.
 스키마·생성 타입·Command·Ticket 계약은 바꾸지 않았다.
 
+**#367에서 이 결정은 수정됐다.** 같은 파일명을 지우고 다시 쓰면 manifest 파일명 연결만으로 옛 프로젝트를 새 프로젝트로 오인할 수 있다는 재현이 확인됐다. `ProjectSpec.projectId`를 선택 필드로 추가하고, 편집기 문서 ID와 manifest 프로젝트 키로 사용한다. 앱 안 이름 변경과 일반 편집은 ID를 보존하고 Save As 복사본은 새 ID를 발급한다. 새 ID가 같은 파일명으로 들어오면 기존 프로젝트의 `fileName` 연결을 해제하되 기존 파일·수용 기록은 보존하고 새 출력 폴더를 배정한다. Export는 새 ID와 맞지 않는 옛 출력을 새 프로젝트의 현재 출력으로 보지 않는다. 이 구현은 `docs/06-schema-freeze.md`의 별도 PR·팀 승인 조건을 따른다.
+
 ### 결정 요약
 
 | 항목 | 결정 | 위치 |
 |---|---|---|
-| 프로젝트 신원 | GUI가 처음 전달할 때 만든 UUID. `generation-manifest.json`의 `projects[projectId] = { fileName, outputDir, createdAt }` | `ui/generationTarget.ts` |
+| 프로젝트 신원 | `ProjectSpec.projectId`에 저장된 ID. GUI가 문서를 만들거나 열 때 부여하고 편집·앱 안 이름 변경은 보존하며 Save As 복사본은 새 ID를 받는다. manifest의 project 키도 같은 ID다 | `store/projectIdentity.ts`, `ui/generationTarget.ts` |
 | 페이지 신원 | IR `pages` 키(`PageId`) | — |
 | 컴포넌트 신원 | `<티켓 종류>:<대표 노드 ID>`(페이지는 root, 컴포넌트는 첫 인스턴스). 티켓에 필드를 더하지 않고 계산한다 | `export/generationIdentity.ts` `ticketComponentKey` |
 | 생성 자리 | `generated/<프로젝트 폴더>/<PageId>/` 아래에 기존 배치(`pages/`·`components/`) | `pageOutputRoot`, 요청 `generatedRoot` |

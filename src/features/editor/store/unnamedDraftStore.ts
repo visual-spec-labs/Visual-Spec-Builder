@@ -4,6 +4,7 @@ import { migrateV01, type ProjectSpec } from "@/features/editor/schema";
 import { blankSpec } from "./blankSpec";
 import { seedSpec } from "./seedSpec";
 import { parseStoredDocument, type StoredDocument } from "./specStorage";
+import { withoutProjectIdentity } from "./projectIdentity";
 
 export const UNNAMED_DRAFT_PREFIX = "visual-spec:autosave:draft:";
 const pristine = [blankSpec, seedSpec].map(spec => JSON.stringify(migrateV01(spec)));
@@ -11,7 +12,7 @@ export interface UnnamedDraft { key: string; raw: string; document: StoredDocume
 /** 목록용 — savedAt은 원문 밖 `<key>:meta`의 마지막 보관 시각(ms). 기록 이전 초안은 null이다(#351). */
 export interface ListedUnnamedDraft extends UnnamedDraft { savedAt: number | null }
 export function isRecoverableUnnamed(document: StoredDocument): boolean {
-  return document.fileName === null && !pristine.includes(JSON.stringify(document.spec));
+  return document.fileName === null && !pristine.includes(JSON.stringify(withoutProjectIdentity(document.spec)));
 }
 export type DraftResult = "ok" | "busy" | "changed" | "unavailable" | "cancelled";
 
