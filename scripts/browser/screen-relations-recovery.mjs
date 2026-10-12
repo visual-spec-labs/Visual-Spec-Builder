@@ -5,6 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startBrowserWorkspace } from "./harness.mjs";
 
+function withoutProjectId(spec) {
+  const content = structuredClone(spec);
+  delete content.projectId;
+  return content;
+}
+
 const workspace = await mkdtemp(join(tmpdir(), "vs-relations-recovery-"));
 const fixture = JSON.parse(await readFile(new URL("../../test/fixtures/screen-relations-project.json", import.meta.url), "utf8"));
 let runner;
@@ -44,6 +50,10 @@ try {
     const notice = page.getByRole("region", { name: "화면 관계 오류" });
     await notice.getByText(new RegExp(`\\[${code}\\]`)).waitFor();
     await notice.getByText(/이전 Undo 기록을 복원하지 않습니다/).waitFor();
+    const loaded = await page.evaluate(async () => (await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState().spec);
+    const expected = { ...spec, projectId: loaded.projectId };
+    assert.ok(loaded.projectId, "restored legacy project receives an identity");
+    assert.deepEqual(withoutProjectId(loaded), spec, "restore preserves the fixture content");
     if (process.env.VSB_QA_ARTIFACTS) {
       await mkdir(process.env.VSB_QA_ARTIFACTS, { recursive: true });
       await page.screenshot({ path: join(process.env.VSB_QA_ARTIFACTS, `${code}.png`) });
@@ -53,7 +63,7 @@ try {
       if (editor.getState().history.past.length !== 0) throw Error("unexpected restored Undo");
       editor.getState().undo();
       if (JSON.stringify(editor.getState().spec) !== JSON.stringify(expected)) throw Error("restore/Undo changed spec");
-    }, spec);
+    }, expected);
     const state = () => page.evaluate(async () => {
       const { useEditorStore: editor } = await import("/src/features/editor/store/editorStore.ts");
       const { useDocumentStore: document } = await import("/src/features/editor/store/documentStore.ts");
@@ -80,7 +90,7 @@ try {
     const download = await downloadPromise;
     assert.match(download.suggestedFilename(), /^unvalidated-recovery-.*\.json$/);
     const downloaded = await readFile(await download.path(), "utf8");
-    assert.deepEqual(JSON.parse(downloaded), spec);
+    assert.deepEqual(JSON.parse(downloaded), expected);
     assert.deepEqual(await state(), failed);
     // Follow the visible guidance: place a differently named COPY in the nonempty
     // workspace specs folder, then select it through File → Open (no internal picker).
@@ -93,7 +103,7 @@ try {
     await page.getByRole("alertdialog").getByRole("button", { name: recoveryName, exact: true }).click();
     await openFailure;
     assert.match(alerts.at(-1), /열 수 없습니다/); assert.match(alerts.at(-1), new RegExp(code));
-    assert.deepEqual((await state()).spec, spec);
+    assert.deepEqual((await state()).spec, expected);
     // Workspace Open also reports details and preserves both current draft and disk bytes.
     await page.getByRole("button", { name: "파일", exact: true }).click();
     await page.getByRole("menuitem", { name: "열기", exact: true }).click();
@@ -101,7 +111,7 @@ try {
     await page.getByRole("alertdialog").getByRole("button", { name: "invalid.json", exact: true }).click();
     await workspaceFailure;
     assert.match(alerts.at(-1), new RegExp(code));
-    assert.deepEqual((await state()).spec, spec);
+    assert.deepEqual((await state()).spec, expected);
     assert.equal(await readFile(join(workspace, "specs/original.json"), "utf8"), original);
     assert.equal(await readFile(join(workspace, "specs/invalid.json"), "utf8"), JSON.stringify(spec));
     assert.deepEqual(writes, []); assert.deepEqual(errors, []);
@@ -129,7 +139,7 @@ try {
       const { useEditorStore } = await import("/src/features/editor/store/editorStore.ts");
       return parseSpecJson(JSON.stringify(useEditorStore.getState().spec)).ok;
     }), true);
-    assert.deepEqual(JSON.parse((await state()).draft).spec, spec);
+    assert.deepEqual(JSON.parse((await state()).draft).spec, expected);
     assert.equal(await readFile(join(workspace, "specs/original.json"), "utf8"), original);
     assert.deepEqual(writes, []);
     console.log(`PASS ${code}: restore/empty Undo, detailed Save/Save as/Open failures, exact recovery download, repaired COPY opens through File menu in nonempty workspace; draft/original preserved`);
@@ -159,6 +169,8 @@ try {
   await page.getByRole("button").filter({ hasText: new RegExp(`${fixture.name}.*페이지`, "s") }).click();
   await page.getByRole("button", { name: "파일", exact: true }).waitFor();
   assert.equal(await page.getByRole("region", { name: "화면 관계 오류" }).count(), 0);
+  const opened = await page.evaluate(async () => (await import("/src/features/editor/store/editorStore.ts")).useEditorStore.getState().spec);
+  assert.deepEqual(withoutProjectId(opened), fixture);
   // A successful HTTP response precedes the Save alert. Await its acceptance before
   // closing the context; otherwise dialog.accept races teardown on CI.
   const saveNoticeHandled = new Promise((resolve, reject) => {
@@ -176,7 +188,7 @@ try {
   // Product stores a normalized JSON representation; validate the resulting data.
   assert.equal((await saved).ok(), true);
   await saveNoticeHandled;
-  assert.deepEqual(JSON.parse(await readFile(join(workspace, "specs/original.json"), "utf8")), fixture);
+  assert.deepEqual(JSON.parse(await readFile(join(workspace, "specs/original.json"), "utf8")), opened);
   console.log("PASS mixed structural errors rejected/raw retained; valid Open/Save control without warning");
   await context.close();
 } finally {
