@@ -785,10 +785,12 @@ describe("project rename (#227)", () => {
   afterEach(() => vi.mocked(fs.unlinkSync).mockRestore());
   afterEach(() => vi.mocked(fs.openSync).mockRestore());
 
-  it("changes name and filename while preserving all other fields", async () => {
+  it("changes name and filename while preserving content and assigning a project ID", async () => {
     expect((await rename()).status).toBe(200);
     expect(existsSync(join(workspaceRoot, "specs/old.json"))).toBe(false);
-    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"))).toEqual({ ...JSON.parse(oldText), name: "New" });
+    expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"))).toEqual({
+      ...JSON.parse(oldText), name: "New", projectId: expect.any(String),
+    });
   });
   it("persists the assigned project ID when renaming an older project file", async () => {
     const projectId = "stable-project-id";
