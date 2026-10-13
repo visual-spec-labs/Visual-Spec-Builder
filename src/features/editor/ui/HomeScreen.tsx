@@ -264,7 +264,17 @@ export function HomeScreen() {
 
   if (cards.length === 0 && draftMode) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
+      // min-h-screen이다, h-screen이 아니다(#369) — <UnnamedDrafts />가 보관한
+      // 초안 수만큼 늘어나는데, 고정 h-screen + justify-center에서는 뷰포트보다
+      // 커진 콘텐츠가 위아래로 균등하게 밀려나고 스크롤로 못 돌아온다(특히 위로
+      // 밀려난 절반). min-h-screen은 내용이 짧으면 h-screen과 똑같이 보이고
+      // (바닥값만 100vh), 길면 그만큼 자라서 평범한 페이지 스크롤로 전부 닿는다.
+      // w-full이다, w-screen이 아니다(같은 #369, 자체 code-review 대응) — 내용이
+      // 길어져 세로 스크롤바가 생기면 100vw는 그 스크롤바 폭을 안 빼서
+      // document.documentElement.clientWidth보다 커진다(실측: 1920 vs 1905) —
+      // 가로 스크롤/오른쪽 잘림이 생긴다. w-full은 부모(App.tsx의 폭 제약 없는
+      // div) 기준이라 이 문제가 없다.
+      <div className="flex min-h-screen w-full flex-col items-center justify-center gap-6 bg-surface-sunken px-6 py-12 text-content">
         <UnnamedDrafts />
         <div className="text-center">
           <p className="text-lg font-semibold text-content-strong">자연어로 초안 만들기</p>
@@ -337,7 +347,8 @@ export function HomeScreen() {
 
   if (cards.length === 0) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-surface-sunken px-6 text-content">
+      // min-h-screen·w-full인 이유는 위 draftMode 분기와 같다(#369).
+      <div className="flex min-h-screen w-full flex-col items-center justify-center gap-6 bg-surface-sunken px-6 py-12 text-content">
         <UnnamedDrafts />
         <div className="text-center">
           <p className="text-lg font-semibold text-content-strong">첫 프로젝트를 만들어 봅시다</p>
