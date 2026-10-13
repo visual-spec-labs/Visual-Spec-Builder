@@ -589,9 +589,9 @@ interface RecordFailure {
 async function recordAcceptance(updates: Record<string, ManifestEntry | null>, lease: MutationLease, isCurrent = () => true, onlyRequestId?: string): Promise<RecordFailure | null> {
   const fail = (message: string, newerFormat = false): RecordFailure => ({ message, newerFormat });
   const current = await readWorkspaceTextFileStrict(GENERATION_MANIFEST_PATH);
-  if (!current.ok) return fail("생성 기록을 읽지 못해 이번 변경을 기록하지 않았습니다. Export에서 이 파일들은 확인 불가로 보입니다.");
+  if (!current.ok) return fail("생성 기록을 읽지 못해 이번 변경을 기록하지 않았습니다. 코드 내보내기에서 이 파일들은 확인 불가로 보입니다.");
   if (isNewerGenerationManifest(current.text)) {
-    return fail("생성 기록이 이 앱보다 새 형식이라 이번 변경을 기록하지 않았습니다. Export에서 이 파일들은 확인 불가로 보입니다.", true);
+    return fail("생성 기록이 이 앱보다 새 형식이라 이번 변경을 기록하지 않았습니다. 코드 내보내기에서 이 파일들은 확인 불가로 보입니다.", true);
   }
   if (!isCurrent() || !await lease.renew() || !isCurrent()) return fail("취소되거나 잠금을 잃어 생성 기록을 갱신하지 않았습니다.");
   const manifest = parseGenerationManifest(current.text);
@@ -609,7 +609,7 @@ async function recordAcceptance(updates: Record<string, ManifestEntry | null>, l
   );
   return written.ok
     ? null
-    : fail(`생성 기록을 저장하지 못했습니다 — ${written.error}. Export에서 이 파일들은 확인 불가로 보입니다.`);
+    : fail(`생성 기록을 저장하지 못했습니다 — ${written.error}. 코드 내보내기에서 이 파일들은 확인 불가로 보입니다.`);
 }
 
 export interface RestoreReport {
