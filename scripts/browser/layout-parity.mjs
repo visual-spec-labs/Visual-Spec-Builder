@@ -9,6 +9,8 @@
 //   페이지마다 고정 폭은 screen.size, 반응형은 모든 분기점 직전·경계·직후와 좁은 폭을 잰다.
 //   이미지는 --assets <폴더>(기본: --generated-dir의 assets/)를 GUI 작업공간 assets/로 복사한다.
 // 에이전트·모델 프로세스는 실행하지 않는다. 외부 요청은 고정한 Pretendard CDN 경로만 허용한다.
+// --font-lock <잠금 JSON>을 주면 받은 CSS와 woff2 바이트의 SHA-256을 대조하고, 다르거나 목록에 없는 파일은
+// 브라우저에 주지 않고 측정 무효(3)로 끝낸다(#365). --write-font-lock <경로>는 이번 실행에서 받은 목록으로 잠금을 쓴다.
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -23,6 +25,7 @@ import { startBrowserWorkspace } from "./harness.mjs";
 import { openProjectCard } from "./project-card.mjs";
 
 const PRETENDARD = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/";
+const FONT_CSS = `${PRETENDARD}dist/web/static/pretendard-dynamic-subset.css`;
 const FIXTURE_PATH = "/test/fixtures/layout-parity/index.html?page={page}";
 const EDITOR_VIEWPORT = { width: 1920, height: 1080 };
 
@@ -33,6 +36,8 @@ const { values: args } = parseArgs({ options: {
   spec: { type: "string" },
   assets: { type: "string" },
   out: { type: "string" },
+  "font-lock": { type: "string" },
+  "write-font-lock": { type: "string" },
 } });
 
 const readExample = async (name) => JSON.parse(await readFile(new URL(`../../examples/${name}`, import.meta.url), "utf8"));
@@ -103,6 +108,18 @@ const selected = TARGETS.map((target) => ({ ...target, checks: target.checks.fil
   (!args.case || args.case.includes(check.generated)) && !(external && check.expectFailure)) }))
   .filter((target) => target.checks.length > 0);
 if (selected.length === 0) throw new Error(`선택한 사례가 없습니다: ${args.case}`);
+const fontLock = args["font-lock"] ? JSON.parse(await readFile(resolve(args["font-lock"]), "utf8")) : null;
+if (fontLock && (fontLock.base !== PRETENDARD || fontLock.css?.url !== FONT_CSS || typeof fontLock.files !== "object")) {
+  throw new Error(`--font-lock의 base·css.url이 고정 URL(${FONT_CSS})과 다르거나 files가 없습니다.`);
+}
+const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+/** 잠금과 다른 폰트 바이트면 사유를, 맞으면 null을 돌려준다. woff2는 base 기준 상대 경로로 찾는다. */
+function fontLockError(url, digest) {
+  const expected = url === FONT_CSS ? fontLock.css.sha256 : fontLock.files[url.slice(PRETENDARD.length)];
+  if (!expected) return `font lock: ${url} is not listed`;
+  return expected === digest ? null : `font lock: ${url} sha256 ${digest} != ${expected}`;
+}
 
 /** 지정한 ProjectSpec의 페이지마다 사례 하나를 만든다. 사례 이름(표시·--case용)은 page.name이다. */
 function specTargets(spec) {
@@ -137,7 +154,7 @@ const workspace = await mkdtemp(join(tmpdir(), "vs-layout-parity-"));
 const generatedRun = args["generated-dir"]
   ? join(fileURLToPath(new URL("../../node_modules/.vsb-layout-parity/", import.meta.url)), randomUUID()) : null;
 const fontCache = new Map();
-const fontLog = { requests: 0, failures: [] };
+const fontLog = { requests: 0, failures: [], lockErrors: [], served: { gui: new Set(), generated: new Set() } };
 let runner;
 let exitCode = 0;
 try {
@@ -160,7 +177,7 @@ try {
     : `${base}${FIXTURE_PATH}`);
   const generatedOrigin = new URL(generatedTemplate.replace("{page}", "x")).origin;
   // harness의 같은-origin 제한 뒤에 등록해 먼저 적용된다. 두 탭이 같은 폰트 바이트를 받도록 캐시한다.
-  const allowExtra = async (context) => {
+  const allowExtra = async (context, side) => {
     await context.route(`${PRETENDARD}**`, async (route) => {
       const url = route.request().url();
       try {
@@ -168,11 +185,20 @@ try {
         if (!entry) {
           const response = await route.fetch();
           if (!response.ok()) throw new Error(`HTTP ${response.status()}`);
-          entry = { status: response.status(), headers: response.headers(), body: await response.body() };
+          const body = await response.body();
+          entry = { status: response.status(), headers: response.headers(), body, sha256: sha256(body) };
+          entry.lockError = fontLock ? fontLockError(url, entry.sha256) : null;
+          if (entry.lockError) fontLog.lockErrors.push(entry.lockError);
           fontCache.set(url, entry);
         }
+        // 잠금과 다른 바이트는 어느 탭에도 주지 않는다.
+        if (entry.lockError) {
+          await route.abort();
+          return;
+        }
         fontLog.requests += 1;
-        await route.fulfill(entry);
+        fontLog.served[side].add(url);
+        await route.fulfill({ status: entry.status, headers: entry.headers, body: entry.body });
       } catch (error) {
         fontLog.failures.push(`${url}: ${error.message}`);
         await route.abort();
@@ -184,9 +210,9 @@ try {
   const proxyServer = process.env.HTTPS_PROXY ?? process.env.https_proxy;
   const proxyOptions = proxyServer ? { proxy: { server: proxyServer, bypass: "localhost,127.0.0.1" } } : {};
   const guiContext = await runner.newContext({ ...proxyOptions, viewport: EDITOR_VIEWPORT, deviceScaleFactor: 1 });
-  await allowExtra(guiContext);
+  await allowExtra(guiContext, "gui");
   const generatedContext = await runner.newContext({ ...proxyOptions, viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
-  await allowExtra(generatedContext);
+  await allowExtra(generatedContext, "generated");
   const browserVersion = guiContext.browser()?.version();
 
   const results = [];
@@ -328,8 +354,11 @@ try {
     }
   }
 
-  const fontCss = fontCache.get(`${PRETENDARD}dist/web/static/pretendard-dynamic-subset.css`)
-    ?? [...fontCache.entries()].find(([url]) => url.endsWith(".css"))?.[1];
+  const fontCss = fontCache.get(FONT_CSS) ?? [...fontCache.entries()].find(([url]) => url.endsWith(".css"))?.[1];
+  // 잠금 대조 중 CSS를 한 번도 받지 않았다면 폰트 동일성을 확인하지 못한 것이다.
+  if (fontLock && !fontCache.has(FONT_CSS)) fontLog.lockErrors.push(`font lock: ${FONT_CSS} was not fetched`);
+  const woff2Urls = [...fontCache.keys()].filter((url) => url.endsWith(".woff2"));
+  const served = { gui: [...fontLog.served.gui], generated: [...fontLog.served.generated] };
   const report = {
     method: external
       ? `실제 GUI 아트보드 DOM 대 지정한 생성 결과(${args["generated-url"] ?? args["generated-dir"]})${args.spec ? `, 스펙 ${args.spec}` : ""}`
@@ -338,17 +367,32 @@ try {
       platform: process.platform, node: process.version, chromium: browserVersion, devicePixelRatio: 1,
       editorWindow: EDITOR_VIEWPORT,
       fontCss: [...fontCache.keys()].filter((url) => url.endsWith(".css")),
-      fontCssSha256: fontCss ? createHash("sha256").update(fontCss.body).digest("hex") : null,
-      fontFilesFetched: [...fontCache.keys()].filter((url) => url.endsWith(".woff2")).length,
+      fontCssSha256: fontCss?.sha256 ?? null,
+      fontFilesFetched: woff2Urls.length,
       fontRequestsServed: fontLog.requests, fontFailures: fontLog.failures,
+      // 같은 URL은 캐시한 같은 바이트로 두 탭에 준다. GUI는 편집기 UI 글자 때문에 subset을 더 받는다.
+      fontFilesServed: { gui: served.gui.length, generated: served.generated.length,
+        shared: served.gui.filter((url) => fontLog.served.generated.has(url)).length },
+      fontSha256: Object.fromEntries([...fontCache.entries()].map(([url, entry]) => [url, entry.sha256])),
+      fontLock: fontLock ? {
+        path: args["font-lock"], errors: fontLog.lockErrors,
+        unused: Object.keys(fontLock.files).filter((path) => !fontCache.has(`${PRETENDARD}${path}`)),
+      } : null,
     },
     summary: Object.fromEntries(["pass", "expected-fail", "fail", "unexpected-pass", "invalid"].map((verdict) =>
       [verdict, results.filter((result) => result.verdict === verdict).length])),
     results,
   };
-  if (fontLog.failures.length > 0) exitCode = 3;
+  if (fontLog.failures.length > 0 || fontLog.lockErrors.length > 0) exitCode = 3;
   if (args.out) await writeFile(args.out, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-  console.log(`SUMMARY ${JSON.stringify(report.summary)} fonts ${report.environment.fontFilesFetched} files, failures ${fontLog.failures.length}`);
+  if (args["write-font-lock"]) {
+    if (exitCode === 3 || !fontCss) throw new Error("폰트 로딩이 실패한 실행으로는 잠금을 쓰지 않습니다.");
+    const lock = { base: PRETENDARD, css: { url: FONT_CSS, sha256: fontCss.sha256 },
+      files: Object.fromEntries(woff2Urls.sort().map((url) => [url.slice(PRETENDARD.length), fontCache.get(url).sha256])) };
+    await writeFile(args["write-font-lock"], `${JSON.stringify(lock, null, 2)}\n`, "utf8");
+  }
+  for (const error of fontLog.lockErrors) console.log(`INVALID ${error}`);
+  console.log(`SUMMARY ${JSON.stringify(report.summary)} fonts ${report.environment.fontFilesFetched} files, failures ${fontLog.failures.length}${fontLock ? `, lock errors ${fontLog.lockErrors.length}` : ""}`);
 } finally {
   await runner?.close();
   await rm(workspace, { recursive: true, force: true });

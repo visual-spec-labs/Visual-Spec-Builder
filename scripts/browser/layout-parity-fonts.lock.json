@@ -1,0 +1,41 @@
+{
+  "base": "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/",
+  "css": {
+    "url": "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css",
+    "sha256": "a9d3417e168d008424337e8ee2df7b54ff082a57ed61e28421db681437cd67a2"
+  },
+  "files": {
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Bold.subset.87.woff2": "e8914e0250f4818c9d638b453f8582d09a66318133267d7f3eb2ebcc70b4ab0a",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Bold.subset.90.woff2": "7c20f4d0111a555585c3170129f3c2c14a4df51d60fb21051ea62d02fb8a30f9",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Bold.subset.91.woff2": "eb04583ef826448aceed4446ee2e96d8c7a76a6b1490694e2576ac7471bb844a",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.83.woff2": "bed3fe67c9e69eaef2933f992d6d241c7da64e5ae0d7ced2dfd7e439b665e12d",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.85.woff2": "24db32fd6a2537664abb17349b19f7aa9dc6d447f4b954d3b9a8cb771878577e",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.86.woff2": "33afef6170bb0cf564a2f0e22b1dbb31c809ca7ae71bad1063ef217bd1fd2aa0",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.87.woff2": "f0dce5ffcce0744565ee5102b69f1c52773d7f927f508f2410cd119ec54c717c",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.88.woff2": "55e0a35cbd30c1001d6b7d562e01a432ef254d9a70029206f1b08d1404f369d3",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.90.woff2": "3d9f4df81d2aa8c5b8349bc09c4114e0dbfb147c939d44fcba3b1d423e0f7b79",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.91.woff2": "64b3d232bd9880e6e60c4ccecdfb5c905e82d681826641a9a847f704dee6049d",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.58.woff2": "0a19048db2f4cc1ee7b6cc8750fb5bc19910b065f888049b511830633b5f3262",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.70.woff2": "111bdca80e274d9b405dc8ea9920d40e2e4f8cfedd9a322a9ef441a3895fb3df",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.76.woff2": "a29a42fe0073417f4aeb6e70a30486d6f6c9b6fd052f1ffe7afe78bf7a48842e",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.80.woff2": "3d70d3e408eeed99e3ad5c58e44407fd97b9d314f9277a89c2a035c65ab690e6",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.81.woff2": "bf71db66d1bf8819c0c2282c77321199fbc6156498c8a2f12c40fc33004d4c68",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.82.woff2": "5cbdbd3b94066e20b7c0b7ff5b3e2717bb2be9061fc56fc5f3d8d90ca27d14e8",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.83.woff2": "3365575a5a057f54f08537deba085c511604ffe3add2d9178638d7ac7bf8f820",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.84.woff2": "72e05b2a23e68c321ce8e3562a9fceceba1f74e462d8dbbd71903285fd6db44c",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.85.woff2": "ec955254be711fc2b3e9f4ba86bfcf836a0046c5f945505895b8f1c6310c5241",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.86.woff2": "bb688932d922f92fad8d3c1a7318420d58f74b726d692768ce651651b34cc271",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.87.woff2": "a5e2300a6b7f7fbe63a4cd4b98277aa5937f7dc2e5904e1d38abe6ffa4c7411f",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.88.woff2": "70e3b386d655370b331c3d74563593b497f8cbd569a465eeedcaadf36ad4a8c7",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.89.woff2": "83a14f747ce9273567a4cf60c7d79f848477233964f1f43018b98cd41a9acede",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.90.woff2": "8644478b432791ec91667ddfbf7c2d96e890cd482b3d490073bc4e01ffaa8f5c",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.91.woff2": "231cc8c05ecc16b9904dde4291484423616610609988496a0d1a6b6ca9a42eb1",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.76.woff2": "a0d971dbfe2e31ee7112ad70d3183567b076a0ce5b8945a9a48ab16407a9595d",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.86.woff2": "838952077a4e4560ef7b915ad3abc3211ee162c3b263980bafede5baf9cc8117",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.87.woff2": "d4d00dd65be038b2464815aaec20af0aeffff4f8e871f26a7c2832685440d5dc",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.88.woff2": "ad2f2e703cb9c6245a18e46098577850cf03b6e3b49a4dfeaefa468f39e65d1e",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.89.woff2": "e52e0586866384527e11b1dcb1ca81b015efc0f856ec296f7c3aca791abc25d8",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.90.woff2": "70dae695052c82dc0c5eab663296384c7b0e0a77c42688b16d06a90d789ce5fe",
+    "packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.91.woff2": "220e6c5456d8b93c11ef3336ebe02989ef6e11803df83d52e23d9b39a94cefaa"
+  }
+}

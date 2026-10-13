@@ -24,6 +24,22 @@ it("GUI와 생성 셸은 family Pretendard를 정의하는 같은 폰트 CSS를 
   expect(guiFont).toMatch(/pretendard@v1\.3\.9\/dist\/web\/static\/pretendard-dynamic-subset\.css$/);
 });
 
+it("CI 실측의 폰트 잠금은 GUI가 불러오는 같은 CSS와 그 CSS의 woff2만 고정한다", () => {
+  const lock = JSON.parse(read("../scripts/browser/layout-parity-fonts.lock.json")) as {
+    base: string; css: { url: string; sha256: string }; files: Record<string, string>;
+  };
+  const guiFont = /@import url\("([^"]+)"\);/.exec(read("../src/styles/fonts.css"))?.[1];
+
+  expect(lock.css.url).toBe(guiFont);
+  expect(lock.css.url.startsWith(lock.base)).toBe(true);
+  expect(lock.css.sha256).toMatch(/^[0-9a-f]{64}$/);
+  expect(Object.keys(lock.files).length).toBeGreaterThan(0);
+  for (const [path, digest] of Object.entries(lock.files)) {
+    expect(path).toMatch(/^packages\/pretendard\/dist\/web\/static\/woff2-dynamic-subset\/Pretendard-\w+\.subset\.\d+\.woff2$/);
+    expect(digest).toMatch(/^[0-9a-f]{64}$/);
+  }
+});
+
 it("반응형 fixture root 클래스는 #224 매핑 fixture와 같다", () => {
   const source = read("./fixtures/layout-parity/pages/ResponsiveCardsPage.jsx");
   expect(/export const rootClasses = "([^"]+)";/.exec(source)?.[1]).toBe(responsiveCardsClasses);

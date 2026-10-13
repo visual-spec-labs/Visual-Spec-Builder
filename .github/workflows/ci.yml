@@ -172,6 +172,60 @@ jobs:
           # 180초 대기 + 준비/연결 복구/늦은 출력/재시도. 기존 120초 묶음과 분리한다.
           timeout --signal=TERM --kill-after=10s 300s node scripts/browser/request-wait-real-time-check.mjs
 
+  # 레이아웃 실측(#365). 이 잡만 고정 Pretendard CDN 요청을 허용하고, 받은 CSS·woff2 바이트의 SHA-256을
+  # scripts/browser/layout-parity-fonts.lock.json과 대조한다. 위 browser 잡의 외부 요청 차단(#346)은 그대로다.
+  # 필수 지정은 저장소 설정에서 정하므로 build의 needs에는 넣지 않는다.
+  layout-parity:
+    name: Chromium / layout parity (고정 CDN 폰트)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Node Playwright 1.62.0과 해당 Chromium 설치 (제품 의존성 제외)
+        run: |
+          qa_tools="$RUNNER_TEMP/vsb-browser-tools"
+          mkdir -p "$qa_tools"
+          pnpm --dir "$qa_tools" add playwright@1.62.0
+          pnpm --dir "$qa_tools" exec playwright install --with-deps chromium
+          echo "PLAYWRIGHT_MODULE=file://$qa_tools/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
+      - name: 캡처 회귀 (CDN 없이 중첩 텍스트·실패한 woff2·두 번째 배경 이미지)
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/layout-parity-regression.mjs
+      - name: fixture 22조건 실측 (해시 불일치·측정 무효는 exit 3으로 실패)
+        run: |
+          timeout --signal=TERM --kill-after=10s 300s node scripts/browser/layout-parity.mjs \
+            --font-lock scripts/browser/layout-parity-fonts.lock.json \
+            --out "$RUNNER_TEMP/layout-parity.json"
+      - name: 판정 개수와 폰트 대조 확인 (의도된 실패는 login-legacy 1개만)
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const report = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/layout-parity.json`, 'utf8'));
+          assert.deepEqual(report.summary, { pass: 21, 'expected-fail': 1, fail: 0, 'unexpected-pass': 0, invalid: 0 });
+          assert.deepEqual(report.results.filter((result) => result.verdict === 'expected-fail').map((result) => result.case), ['login-legacy']);
+          const { fontCssSha256, fontFailures, fontLock, fontFilesServed } = report.environment;
+          assert.deepEqual(fontFailures, []);
+          assert.deepEqual(fontLock.errors, []);
+          // 생성 앱이 받은 폰트 파일은 모두 GUI도 같은 캐시 바이트로 받았다.
+          assert.equal(fontFilesServed.shared, fontFilesServed.generated);
+          console.log(JSON.stringify({ chromium: report.environment.chromium, summary: report.summary, fontCssSha256, fontFilesServed, unusedLockFiles: fontLock.unused }));
+          JS
+      - name: 실측 결과 보관
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-parity
+          path: ${{ runner.temp }}/layout-parity.json
+          if-no-files-found: ignore
+
   # 브랜치 보호의 기존 required check 이름을 유지한다.
   # Linux·Windows·브라우저 잡의 실패/취소/skip도 build 실패로 전파한다.
   build:
