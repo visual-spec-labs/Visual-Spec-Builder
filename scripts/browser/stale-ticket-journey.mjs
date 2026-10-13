@@ -101,7 +101,7 @@ try {
       return { overall: freshness?.overall, page: freshness?.tickets.find(entry => entry.ticketId === pageTicket)?.freshness,
         errors: report?.errorCount };
     });
-    await button("코드 Export 닫기").click();
+    await button("코드 내보내기 닫기").click();
     return freshness;
   }
 

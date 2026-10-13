@@ -13,7 +13,7 @@ const STAGES: { id: HandoffStage; label: string }[] = [
   { id: "edit", label: "편집" },
   { id: "handoff", label: "에이전트 전달" },
   { id: "generate", label: "코드 생성" },
-  { id: "export", label: "Export" },
+  { id: "export", label: "코드 내보내기" },
 ];
 
 export function HandoffStageIndicator({ current }: { current: HandoffStage }) {
