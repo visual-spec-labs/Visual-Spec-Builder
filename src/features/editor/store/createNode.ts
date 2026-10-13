@@ -53,8 +53,8 @@ export type NodeOverrides<K extends NodeKind> = DeepPartial<Omit<NodeByKind[K], 
 
 /**
  * 새 프레임의 기본 스타일.
- * docs/04-gui-spec.md가 "Frame 기본 스타일 미확정"으로 남겨 둔 항목이라,
- * 시드 스펙(seedSpec)의 카드와 같은 톤에서 가장 단순한 값을 골랐다.
+ * #352에서 200×120 크기, 흰 배경, 1px #E5E7EB 테두리, 반경 8,
+ * 세로 배치·간격 8·패딩 16을 기본값으로 확정했다(docs/04-gui-spec.md §8).
  *
  * 크기를 고정값으로 두는 점만 레이어 트리의 "레이어 추가"(auto·auto)와 다르다.
  * 트리에서 만든 프레임은 목록에 줄이 하나 생겨 바로 보이지만, 캔버스에서 만든
