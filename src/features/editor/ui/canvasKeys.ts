@@ -20,6 +20,7 @@ import {
   viewCommandForKey,
   type ViewCommand,
 } from "./canvasInput";
+import { runEscapeCommand } from "./canvasEscape";
 import { readZoomAnchor, type ZoomAnchor } from "./canvasZoom";
 import { copySelection, hasClipboard, pasteClipboard } from "./clipboard";
 import { siblingId } from "./selection";
@@ -269,7 +270,7 @@ function runViewCommand(
   anchorRef: RefObject<ZoomAnchor | null>,
 ) {
   if (command === "deselect") {
-    useEditorStore.getState().select(null);
+    runEscapeCommand();
     return;
   }
 
