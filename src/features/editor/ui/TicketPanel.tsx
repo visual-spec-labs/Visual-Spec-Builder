@@ -315,7 +315,7 @@ export function TicketPanel() {
           <span className="text-content-muted">
             모든 티켓이 완료됐습니다. 다음:{" "}
             <button type="button" onClick={openExportPanel} className="underline hover:text-content">
-              Export에서 결과 확인
+              코드 내보내기에서 결과 확인
             </button>
           </span>
         ) : canExecute && readyWave.length > 0 ? (

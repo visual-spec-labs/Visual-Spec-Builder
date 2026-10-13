@@ -104,3 +104,39 @@ Command 6종과 `command.schema.json`의 형태는 바꾸지 않는다.
 
 미리보기 폭은 별도 뷰 상태다. Command·문서 크기·Undo를 바꾸지 않는다. 폭 경계는
 `minWidthPx`를 포함하고, 여러 breakpoint가 맞으면 가장 큰 폭을 편집 대상으로 삼는다.
+
+## Command v0.2 예정 — #265 D10
+
+현재 상태: **예정.** 지금 정본은 위의 v0.1 그대로다. 이 절은 2026-10-13 리더 결정
+([#265 결정 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265#issuecomment-6142842414))을
+기록할 뿐이며 `command.schema.json`·`command/types.ts`·테스트를 바꾸지 않는다. 실제 스키마 변경은 #265 S1-3 PR이
+위 "변경 절차"대로 한 PR에서 한다. 설계 배경은 [24 §5](24-screen-relations-design.md#5-command검증버전-영향)에 있다.
+
+**무엇이 바뀌나.** #265 S1-1(#355)이 버튼에 선택 필드 `action`(화면 이동·모달 열기·닫기)을 정본에 넣었다.
+값을 쓰는 명령은 지금도 있지만, JSON에는 undefined가 없고 `update*.value`는 필수라 **action을 없애는
+명령이 없다.** v0.2는 버튼 연결 제거 전용 명령 `removeNodeAction`을 더한다. 새 명령 추가는 소비자의
+exhaustive switch를 깨므로 위 "변경 절차"의 마지막 문단대로 버전을 올린다.
+
+| 항목 | 결정(2026-10-13) |
+|---|---|
+| 새 명령 | `removeNodeAction` — 노드의 action 제거 전용 |
+| action 설정 | `updateNode`의 path `action`으로 **전체 객체 교체** |
+| action 제거 | `removeNodeAction`으로만. `updateNode`의 null이나 빈 값으로 지우지 않는다 |
+| 부분 쓰기 | `action.type`·`action.target` 같은 하위 경로 쓰기는 거부 |
+| 버전 | Command 스키마 v0.1 → **v0.2** |
+| 구버전 소비자 | v0.2를 모르는 소비자는 **버전 불일치로 거부**한다(조용히 일부만 적용하지 않음) |
+
+**왜 이 방식인가.** 값 쓰기와 삭제 의도를 분리한다. `updateNode`의 null에 삭제 의미를 덧씌우면(RFC 7396
+Merge Patch식) 일반 값 쓰기의 의미가 달라지고, 범용 필드 삭제나 임의 JSON Pointer 편집은 필수 필드까지 지울 수
+있다. 대안 비교와 공식 자료 대조는 [24 §5·§9](24-screen-relations-design.md#9-공식-자료-대조와-선택-근거)를 따른다.
+
+**S1-3 계약 PR에서 정할 것(지금 미정).**
+
+- `removeNodeAction`의 필드. 24 §5의 `{ "type": "removeNodeAction", "id": "<NodeId>" }`는 설명용 후보다.
+- action이 없는 노드에서 제거할 때 no-op으로 둘지 실패로 볼지.
+- 버전 불일치를 어디에 표시하고 어떻게 판정할지. 지금 `command.schema.json`에는 버전 필드가 없다.
+- S1-1이 넣은 임시 차단(`editablePath.ts`의 kind·action 쓰기 경로, `validate.ts`의 createNode `node.action`) 해제와
+  S1-2 프로젝트 검증 코드를 Command 적용 경로(G2·G3)가 잡는지 확인.
+
+2차 instance 생성·분리 명령(#265 S2-3)은 이 결정에 포함되지 않는다. 필요하면 이 문서 절차로 따로 정한다.
+병합 조건은 리더 승인 또는 리뷰어 1명 이상 승인이다(2026-10-13 리더 결정).
