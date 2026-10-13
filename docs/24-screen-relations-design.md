@@ -1,28 +1,40 @@
 # 화면 종류·연결·재사용 위젯 설계 초안 (#265 S0-1)
 
-상태: **Draft · 제품 방향 승인(@Yumesa2025), 최소 1명 팀 설계 승인·공유 계약 합의 대기** (2026-10-09).
-제품 방향 담당 @Yumesa2025가 조사 결과를 검토하고 아래 방향을 문서에 반영하도록 승인했다(§8).
-이는 현재 지원 기능이나 팀의 동결 계약 변경 승인, 구현·병합 승인이 아니다. JSON 조각은 여전히 미구현 설계다.
+상태: **병합(#339, 2026-10-10) · 리더 사후 승인과 D10·D11 리더 결정(@Yumesa2025, 2026-10-13)** (§8).
+2026-10-09 제품 방향 담당 @Yumesa2025가 D1~D9 방향과 D10·D11 우선 추천을 문서에 반영하도록 승인했고,
+2026-10-13 팀 리더 @Yumesa2025가 [#265 결정 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265#issuecomment-6142842414)로
+이 문서(#339)를 사후 승인하고 D10·D11을 확정했다. 확정된 것은 §2·§8에 적은 범위뿐이다. 명령 필드·문맥 필드 같은
+세부는 각 계약 PR(S1-3은 [09](09-command-schema-freeze.md), S1-8/9는 [11](11-ticket-schema-freeze.md)·[26](26-agent-request-generation-contract.md))에서 정한다.
+JSON 조각은 여전히 설계이며, 현재 정본에 들어간 것은 S1-1(#355)의 kind·action과 S1-2(#366)의 검증 코드뿐이다.
 최신 소스 대조 기준: develop `2b0099c90ac82bacb5738d18239a9ddab913ebb5`(2026-10-10, #282·#284·#290 문서 병합 후),
 [#265](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265) 본문(2026-10-09 확인).
+리더 결정 반영 기준: develop `694f2d6`, #265 본문 "버전" 표(2026-10-13 갱신 확인). 본문 곳곳의 "#357 미병합" 표기는
+2026-10-09 작성 시점 기준이며 PR #357은 2026-10-10 병합됐다.
 
-이번 PR은 이 문서와 README 목차만 추가한다. S0-1의 **승인·병합 전에는 S0-2나
-S1 구현에 착수하지 않는다.** 이후에도 스키마 변경은 기능과 분리한 별도 PR과 팀 승인
-최소 1명을 요구한다. 관리자 병합은 사용하지 않는다. 이 Draft의 작성은 S0-1 완료가 아니다.
+#339는 이 문서와 README 목차만 추가했다. 이후에도 스키마 변경은 기능과 분리한 별도 PR로 올리며,
+**리더 승인 또는 리뷰어 1명 이상 승인** 없이 병합하지 않는다(2026-10-13 리더 결정으로 고친 조건). 관리자 병합은 사용하지 않는다.
 문서 번호 중복을 피하려고 이 설계만 24번으로 배치했다. 기존 QA 문서는 그대로 둔다.
-#265의 파일명·README 번호 정정과 단계 계획의 미승인 차이는 §7에 구분해 기록한다.
+#265 본문과 이 문서의 단계 계획 차이와 그 해소 여부는 §7에 기록한다.
 
-## 결정 요약 — 제품 방향 승인, 팀 계약 검토 대기
+## 결정 요약 — 리더 승인(2026-10-13)
 
 기존 pages 맵에 선택 kind를 더하고 **button에만 action 하나**를 둔다. 첫 화면과 최소
 한 장은 일반 page로 유지한다. 이동은 router 없는 onNavigate 콜백, 모달은 단일 호스트
 상태로 표현한다. 위젯은 프로젝트 widget ID로 공유하며 직접 Text/Button의 내용·글자색만
-덮어쓴다. 저장 ID와 런타임 DOM ID는 구분한다. 이 방향은 제품 방향 담당 @Yumesa2025의 승인을 받았다.
+덮어쓴다. 저장 ID와 런타임 DOM ID는 구분한다. 이 방향은 제품 방향 담당 @Yumesa2025의 승인(2026-10-09)을
+받았고, 2026-10-13 리더가 #339를 사후 승인했다. D6의 modal 크기는 여전히 #280과 합의할 항목이다(§3).
 
-명시적 action 제거 명령과 **Command v0.2를 우선 추천**하되 팀 계약 승인은 대기한다.
-프로젝트 compile 진입점을 별도로 두고 프로젝트용 Ticket v0.2와 다음 티켓 요청 규약 버전(현재 v3 다음)은
-**#281 신원·경로 합의 뒤** 확정한다. S0 팀 승인 → S0-2 범위 정정 → 별도 스키마 → 프로젝트 검증 → Command → GUI
-순서다. 이 문서의 제품 방향 승인만으로 다음 단계에 착수하거나 병합하지 않는다.
+**D10(S1-3 게이트) 확정:** 버튼 연결 제거는 전용 명령 `removeNodeAction`과 **Command 스키마 v0.2**로 한다.
+action 설정은 updateNode의 전체 객체 교체, 제거는 이 명령으로만 하며 action.type/target 부분 쓰기는 거부한다.
+구버전 소비자는 버전 불일치로 거부한다. 세부 필드와 없는 action을 제거할 때의 처리는 S1-3의 [09](09-command-schema-freeze.md) 절차 계약 PR에서 정한다.
+
+**D11(S1-8/9 게이트) 확정:** 기존 `compileTickets(screen)`는 호환 진입점으로 두고 프로젝트 단위 컴파일을 추가한다.
+**Ticket 스키마 v0.2**(티켓별 `sourcePageId`)와 **티켓 요청 규약 v4**(현재 v3)로 하며, 구 스킬(v3)은 버전 불일치로
+거부하고 업데이트를 안내한다. #281 신원·경로는 #357(PageId 생성 자리)·#371(`projectId`)로 정리된 것을 기준으로 한다.
+manifest·복구 `run.json`의 `protocol`은 바꾸지 않는다. 나머지 세부는 S1-8/9 착수 전 [11](11-ticket-schema-freeze.md)·[26](26-agent-request-generation-contract.md) 계약 PR에서 정한다.
+
+순서는 S0 → S0-2 범위 정정 → S1-1 별도 스키마 → S1-2 프로젝트 검증(여기까지 병합) → S1-3 Command → GUI다.
+이 결정을 24·09·11·26에 반영하는 문서 PR이 병합된 뒤 S1-3부터 착수한다(#265 결정 댓글).
 
 ## 1. 현재 계약과 설계 사이의 차이
 
@@ -48,25 +60,26 @@ S1 구현에 착수하지 않는다.** 이후에도 스키마 변경은 기능�
 [nl-response](../skills/visual-spec-nl-response/SKILL.md)를 대조했다.
 배포 스킬·현재 계약 문서는 이번 PR에서 수정하지 않는다.
 
-## 2. 결정표 — 제품 방향과 팀 계약 승인 구분
+## 2. 결정표 — 제품 방향과 리더 결정 구분
 
 | ID / 질문 | 대안 | 선택 방향과 이유 | 결정 / 남은 합의 | 승인자 | 근거 |
 |---|---|---|---|---|---|
-| D1. 관계 저장 위치 | 노드 action / ProjectSpec.links[] | **노드 action**. source ID 중복 없이 노드 삭제와 수명 일치. links[]는 여러 이벤트·다중 연결에 유리하나 지금은 별도 source 정리가 필요 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §3·§4, 승인 §8 |
-| D2. 종류/순서 | 별도 modal/widget 맵 / 기존 pages+kind | **ScreenSpec의 선택 필드 kind?: page/modal/widget**, 생략=page. 독립 화면 문서(VisualSpec.screen)에도 형태상 들어갈 수 있으므로 §3 "독립 화면 문서" 제약을 함께 승인 범위로 둠. pageOrder는 세 종류 모두 포함하고 첫 항목은 page. 최소 page 한 장 유지. 평상시 종류별 강제 재정렬 없이 배지 표시. 첫 page 삭제 시에만 §4의 최소 재배치 예외 적용 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §3·§4, 승인 §8 |
-| D3. action 대상 노드 | button만 / button·frame·text·image / input도 | **초기 button만**. text/image/frame은 접근성 이름·키보드·중첩 상호작용 계약 뒤 확장. input·root·instance 자체도 초기 제외 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §3·§9, 승인 §8 |
-| D4. action 형태 | 배열/여러 이벤트 / 단일 유니온 | **navigate(target page), openModal(target modal), close(대상 없음)**. 생략=동작 없음. action 전체 교체, 반응형 override 불가. 외부 URL·조건·폼 동작·이벤트 이름은 넣지 않음 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §3·§5, 승인 §8 |
-| D5. 삭제/종류 변경 | 자동 제거 / 변경 거부 / 경고만 | page/modal 삭제는 영향 목록 확인 후 유입 action과 함께 제거, Undo 한 단계. 사용 중 widget 삭제·참조를 깨는 kind 변경은 거부. 무효 참조의 저장을 경고만으로 허용하지 않음 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §4·§5, 승인 §8 |
-| D6. 모달 | 중첩 stack / 하나만 표시 | **한 번에 하나**. openModal은 현재 모달 교체, close는 모달 해제, navigate는 모달 해제 후 콜백. backdrop 클릭 시 열린 상태 유지, Escape·명시 close로 닫고 원래 트리거에 포커스 복귀. 크기는 §3의 #280 합의 대기 | 동작 방향 승인 / 크기·팀 계약 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §3·§9, 승인 §8 |
-| D7. 생성 기본값 | 특정 router / 자체 앱 셸 / 콜백 | **onNavigate(PageId) 콜백 + 페이지 소유 modal 상태**. URL·history·라우터·앱 셸은 사용자 앱 소유. 모달/위젯은 components에 named export 추천 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §6, 승인 §8 |
-| D8. 위젯 override | 임의 partial / 반응형 NodeOverride 그대로 / 제한된 내용·색 | **직접 원본 노드의 content·color만** 우선. Text/Button에 한정. NodeOverride는 content를 못 받고 layout까지 허용하므로 그대로 재사용하지 않음 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §4, 승인 §8 |
-| D9. 재사용/순환 | 이름으로 합치기 / ref 신원 | **프로젝트 widget PageId로만 공유**, 런타임 DOM ID와 저장 ID 분리. instance 포함 그래프의 자기/간접 순환 금지. navigate/openModal 이동 그래프의 순환은 허용하며 생성 dependsOn에 그대로 옮기지 않음 | 제품 방향 승인 / 팀 설계 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §4·§9, 승인 §8 |
-| D10. Command 제거 표현 | 새 unset 명령 / IR action:null / path 한정 null 삭제 | **명시적 제거 명령 + Command v0.2 우선 추천**. 값 쓰기와 삭제를 구분하고 IR에는 action을 생략. null sentinel·범용 Merge Patch는 기본안에서 제외. 정확한 명령·버전은 §5 팀 승인 대기 | 우선 추천 방향 승인 / 명령·버전 미확정 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §5·§9, 승인 §8 |
-| D11. 프로젝트 Ticket | 기존 배열+외부 문맥 / sourcePageId 추가 / 새 프로젝트 계약 | **프로젝트용 Ticket v0.2와 다음 티켓 요청 규약 버전(현재 v3 다음) 별도 설계**를 S0에서 논의하고 S1-8/9 착수 전에 합의. 여기서 버전은 ticketProtocol의 티켓 요청 규약이며 manifest·복구 run.json의 protocol이 아님. 기존 v0.1·요청 규약 v3을 조용히 재해석하지 않음. 신원·경로는 #281과 공동 결정 | 별도 진입점 방향 승인 / #281·버전 합의 대기 | @Yumesa2025(제품 방향) / 팀 승인 대기 | §6·§7, 승인 §8 |
+| D1. 관계 저장 위치 | 노드 action / ProjectSpec.links[] | **노드 action**. source ID 중복 없이 노드 삭제와 수명 일치. links[]는 여러 이벤트·다중 연결에 유리하나 지금은 별도 source 정리가 필요 | 제품 방향 승인 / 설계 리더 사후 승인(#339) | @Yumesa2025(제품 방향 2026-10-09, 리더 2026-10-13) | §3·§4, 승인 §8 |
+| D2. 종류/순서 | 별도 modal/widget 맵 / 기존 pages+kind | **ScreenSpec의 선택 필드 kind?: page/modal/widget**, 생략=page. 독립 화면 문서(VisualSpec.screen)에도 형태상 들어갈 수 있으므로 §3 "독립 화면 문서" 제약을 함께 승인 범위로 둠. pageOrder는 세 종류 모두 포함하고 첫 항목은 page. 최소 page 한 장 유지. 평상시 종류별 강제 재정렬 없이 배지 표시. 첫 page 삭제 시에만 §4의 최소 재배치 예외 적용 | 제품 방향 승인 / 설계 리더 사후 승인(#339) | @Yumesa2025(제품 방향 2026-10-09, 리더 2026-10-13) | §3·§4, 승인 §8 |
+| D3. action 대상 노드 | button만 / button·frame·text·image / input도 | **초기 button만**. text/image/frame은 접근성 이름·키보드·중첩 상호작용 계약 뒤 확장. input·root·instance 자체도 초기 제외 | 제품 방향 승인 / 설계 리더 사후 승인(#339) | @Yumesa2025(제품 방향 2026-10-09, 리더 2026-10-13) | §3·§9, 승인 §8 |
+| D4. action 형태 | 배열/여러 이벤트 / 단일 유니온 | **navigate(target page), openModal(target modal), close(대상 없음)**. 생략=동작 없음. action 전체 교체, 반응형 override 불가. 외부 URL·조건·폼 동작·이벤트 이름은 넣지 않음 | 제품 방향 승인 / 설계 리더 사후 승인(#339) | @Yumesa2025(제품 방향 2026-10-09, 리더 2026-10-13) | §3·§5, 승인 §8 |
+| D5. 삭제/종류 변경 | 자동 제거 / 변경 거부 / 경고만 | page/modal 삭제는 영향 목록 확인 후 유입 action과 함께 제거, Undo 한 단계. 사용 중 widget 삭제·참조를 깨는 kind 변경은 거부. 무효 참조의 저장을 경고만으로 허용하지 않음 | 제품 방향 승인 / 설계 리더 사후 승인(#339) | @Yumesa2025(제품 방향 2026-10-09, 리더 2026-10-13) | §4·§5, 승인 §8 |
+| D6. 모달 | 중첩 stack / 하나만 표시 | **한 번에 하나**. openModal은 현재 모달 교체, close는 모달 해제, navigate는 모달 해제 후 콜백. backdrop 클릭 시 열린 상태 유지, Escape·명시 close로 닫고 원래 트리거에 포커스 복귀. 크기는 §3의 #280 합의 대기 | 동작 방향 리더 사후 승인(#339) / 크기는 #280 합의 대기 | @Yumesa2025(제품 방향 2026-10-09, 리더 2026-10-13) | §3·§9, 승인 §8 |
+| D7. 생성 기본값 | 특정 router / 자체 앱 셸 / 콜백 | **onNavigate(PageId) 콜백 + 페이지 소유 modal 상태**. URL·history·라우터·앱 셸은 사용자 앱 소유. 모달/위젯은 components에 named export 추천 | 제품 방향 승인 / 설계 리더 사후 승인(#339) | @Yumesa2025(제품 방향 2026-10-09, 리더 2026-10-13) | §6, 승인 §8 |
+| D8. 위젯 override | 임의 partial / 반응형 NodeOverride 그대로 / 제한된 내용·색 | **직접 원본 노드의 content·color만** 우선. Text/Button에 한정. NodeOverride는 content를 못 받고 layout까지 허용하므로 그대로 재사용하지 않음 | 제품 방향 승인 / 설계 리더 사후 승인(#339) | @Yumesa2025(제품 방향 2026-10-09, 리더 2026-10-13) | §4, 승인 §8 |
+| D9. 재사용/순환 | 이름으로 합치기 / ref 신원 | **프로젝트 widget PageId로만 공유**, 런타임 DOM ID와 저장 ID 분리. instance 포함 그래프의 자기/간접 순환 금지. navigate/openModal 이동 그래프의 순환은 허용하며 생성 dependsOn에 그대로 옮기지 않음 | 제품 방향 승인 / 설계 리더 사후 승인(#339) | @Yumesa2025(제품 방향 2026-10-09, 리더 2026-10-13) | §4·§9, 승인 §8 |
+| D10. Command 제거 표현 | 새 unset 명령 / IR action:null / path 한정 null 삭제 | **전용 제거 명령 `removeNodeAction` + Command 스키마 v0.2**. 값 쓰기와 삭제를 구분하고 IR에는 action을 생략. action 설정은 updateNode 전체 객체 교체, 제거는 이 명령으로만, action.type/target 부분 쓰기 거부. 구버전 소비자는 버전 불일치로 거부. null sentinel·범용 Merge Patch는 제외 | **확정**(명령 이름·버전·위 규칙) / 세부 필드·없는 action 제거 처리는 S1-3의 09 절차 계약 PR | @Yumesa2025(제품 방향 2026-10-09, 리더 결정 2026-10-13) | §5·§9, 승인 §8 |
+| D11. 프로젝트 Ticket | 기존 배열+외부 문맥 / sourcePageId 추가 / 새 프로젝트 계약 | **`compileTickets(screen)` 호환 진입점 유지 + 프로젝트 단위 컴파일 추가, Ticket 스키마 v0.2(티켓별 sourcePageId) + 티켓 요청 규약 v4**. 여기서 요청 규약은 ticketProtocol의 `TICKET_PROTOCOL_VERSION`(현재 3)이며 manifest·복구 run.json의 protocol은 바꾸지 않음. 구 스킬(v3)은 버전 불일치로 거부·업데이트 안내. 기존 v0.1·요청 규약 v3을 조용히 재해석하지 않음. 신원·경로는 #357(PageId 생성 자리)·#371(projectId) 기준 | **확정**(진입점·버전·sourcePageId·구 스킬 거부) / 문맥 필드·경로·입력 지문 등 세부는 S1-8/9 착수 전 11·26 계약 PR | @Yumesa2025(제품 방향 2026-10-09, 리더 결정 2026-10-13) | §6·§7, 승인 §8 |
 
-제품 방향 승인과 팀의 계약 승인을 같은 칸의 한 상태로 합치지 않는다. 팀 합의가 나면
-정확한 조건·승인자·근거 리뷰/PR 링크를 추가한다. 일반 문서 리뷰와 CI 성공은 팀 설계
-승인을 대신하지 않는다. D6의 크기 및 D10/D11의 공유 계약·버전은 아직 확정되지 않았다.
+제품 방향 승인과 리더 결정을 같은 칸의 한 상태로 합치지 않는다. 근거는 §8의
+[#265 결정 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265#issuecomment-6142842414)이다.
+일반 문서 리뷰와 CI 성공은 설계 승인을 대신하지 않는다. D10/D11은 위 "확정" 범위만 정해졌고,
+그 밖의 세부와 D6의 크기는 아직 확정되지 않았다.
 
 ## 3. 표현·기본값·동작 제안
 
@@ -198,25 +211,30 @@ React useId는 그 후보이며 저장 ID·Ticket ID·목록 key 생성기로 �
 
 ## 5. Command·검증·버전 영향
 
-**D10의 공백과 우선 추천:** 현재 [applyCommand](../src/features/editor/command/applyCommand.ts)와
+**D10의 공백과 결정:** 현재 [applyCommand](../src/features/editor/command/applyCommand.ts)와
 [setByPath](../src/features/editor/store/path.ts)는 값을 쓰기만 한다. JSON에 undefined는
-없고 value는 필수라 action을 없애는 명시적 경로가 없다. **제거 전용 명령과 Command
-v0.2를 우선 추천**한다. 예를 들어 아래는 action에 한정한 후보이며 정본 명령이 아니다.
+없고 value는 필수라 action을 없애는 명시적 경로가 없다. 2026-10-13 리더 결정으로 **제거 전용 명령
+`removeNodeAction`과 Command 스키마 v0.2**를 채택했다. 아래 형태는 설명용 후보이며 정본 명령이 아니다.
 
 ```json
 { "type": "removeNodeAction", "id": "loginButton" }
 ```
 
-명령 이름·필드·없는 action 제거의 no-op/실패 처리·구 소비자의 거부 방식은 [09](09-command-schema-freeze.md)
-절차로 팀 승인 후 확정한다. 범용 필수 필드 삭제나 임의 JSON Pointer 편집을 허용하지 않는다.
-action 설정은 updateNode의 전체 객체 교체, 제거는 별도 명령으로 구분하고 action.type/target
-부분 쓰기는 거부한다. kind 복귀는 명시 page로 쓴다. kind/action의 responsive override는 없다.
+| 구분 | 내용 | 정하는 곳 |
+|---|---|---|
+| 확정(2026-10-13) | 명령 이름 `removeNodeAction`, Command 스키마 v0.2 | 리더 결정 |
+| 확정(2026-10-13) | action 설정은 updateNode의 전체 객체 교체, 제거는 `removeNodeAction`으로만. action.type/target 부분 쓰기는 거부 | 리더 결정 |
+| 확정(2026-10-13) | 구버전 소비자는 버전 불일치로 거부 | 리더 결정 |
+| 미정 | 명령의 필드(위 `id` 형태 포함), action이 없는 노드에서 제거할 때 no-op으로 둘지 실패로 볼지, 버전 불일치를 어디에 표시하고 판정할지 | S1-3의 [09](09-command-schema-freeze.md#command-v02-예정--265-d10) 절차 계약 PR |
+
+범용 필수 필드 삭제나 임의 JSON Pointer 편집을 허용하지 않는다. kind 복귀는 명시 page로 쓴다.
+kind/action의 responsive override는 없다. 2차 instance 생성 명령(S2-3)은 이 결정에 포함되지 않으며 09 절차로 따로 정한다.
 
 RFC 6902의 명시 remove와 RFC 7396의 null 삭제를 비교했다(§9). 전자는 삭제 의도를
 값 쓰기와 분리하는 근거다. 하지만 여기서 RFC 전체 프로토콜을 도입하는 것은 아니다.
 후자는 Merge Patch라는 별도 형식의 의미이며 현재 updateNode의 null에 자동 적용되지
 않는다. 따라서 이전 초안의 action 전용 null sentinel·v0.1 유지보다 명시 명령·v0.2를
-우선한다. **@Yumesa2025(제품 방향)가 이 추천 방향의 기록을 승인했으며 팀 Command 버전 승인은 대기 중이다.**
+택했다. **@Yumesa2025가 2026-10-09 제품 방향으로 이 추천의 기록을 승인했고, 2026-10-13 리더 결정으로 확정했다(§8).**
 
 관계 변경은 **모든 쓰기 경로**에서 프로젝트 후보 전체를 검증한 뒤 atomic commit한다.
 GUI appliedTransaction은 NL G3를 자동 통과하지 않으므로 kind/action 편집, 노드/페이지
@@ -227,7 +245,7 @@ Undo/Redo는 검증된 snapshot을 복원하며 추가 정리를 별도 history 
 현재 GUI 배치의 부분 적용 계약을 그대로 재사용해서는 이 원자성을 보장할 수 없다.
 
 S0 승인 → S0-2 → S1-1 별도 스키마 → S1-2 프로젝트 검증 → S1-3 Command → GUI
-순서를 제안하며 S1-3에 S1-2 선행을 추가하는 epic 정정은 팀 합의 뒤 기록한다(§7).
+순서다. S1-2는 #366으로 병합돼 S1-3의 S1-2 선행은 이미 충족됐다(§7).
 NL 요청은 현재 page 한 장만 주므로 target을 이름으로 추측하게 하지 않고, 프로젝트의
 PageId/name/effective kind 카탈로그 전달을 S1-10에서 NL 요청 규약(nlProtocol) 영향과 함께 검토한다.
 
@@ -261,7 +279,7 @@ S1-4 전에는 GUI 페이지 삭제가 유입 action을 정리하지 않아 자�
 ## 6. Ticket·생성·Export 추천 경계
 
 **D7/D11:** 기존 compileTickets(screen)를 호환 진입점으로 남기고 별도 프로젝트
-컴파일을 추가하는 안이다. 선택 범위는 프로젝트 전체를 기본으로 하며 page/modal을
+컴파일을 추가한다(D11, 2026-10-13 리더 결정). 선택 범위는 프로젝트 전체를 기본으로 하며 page/modal을
 구별하고 widget은 ref당 한 번만 생성한다. 이름/구조가 비슷하다는 이유로 서로 다른
 화면의 컴포넌트를 공유하지 않는다. 페이지 내부의 기존 반복 추출과 명시 widget 공유는
 구분한다. GUI 티켓/실행/Export가 동일한 프로젝트 snapshot과 범위를 보여야 한다.
@@ -275,17 +293,26 @@ S1-8에서는 action 없음/type/target을 정규화해 구조 비교에 포함�
 방식은 이번 기본안에서 제외한다. navigate A/B, navigate/openModal, action 있음/없음
 쌍의 분리 테스트를 S1 수용 조건에 넣는다.
 
-1차부터 `instances: NodeId[]`를 해석할 sourcePageId가 필요하다. 추천 v0.2는 티켓별
-sourcePageId와 기존 로컬 instances를 함께 보관하며 Ticket.kind는 page/component로
+1차부터 `instances: NodeId[]`를 해석할 sourcePageId가 필요하다. **Ticket 스키마 v0.2**는 티켓별
+`sourcePageId`를 더하고(D11 확정) 기존 로컬 instances를 함께 보관한다. Ticket.kind는 page/component로
 유지하는 방향이다. IR의 kind=modal/widget과 Ticket.kind를 같은 enum으로 만들지 않는다.
-프로젝트 웨이브는 다음 티켓 요청 규약 버전(현재 v3 다음)에서 프로젝트 snapshot·소스 문맥·
+프로젝트 웨이브는 **티켓 요청 규약 v4**(D11 확정)에서 프로젝트 snapshot·소스 문맥·
 전역 티켓/의존 ID를 전달하는 안이다. 현재 요청 규약 v3(#284 staging, #281 생성 자리)은 pageId+page 한 장과
 `staging/<requestId>/` 임시 출력을 쓰는 단일 화면 요청이며, 이를 프로젝트 요청으로 재해석하지 않는다.
 현재 GUI는 응답의 `protocol`이 `TICKET_PROTOCOL_VERSION`(3)과 다르면 형식 오류로 거부한다
-([ticketProtocol](../src/features/editor/ticket/ticketProtocol.ts)). **정확한 필드·버전 번호·
-구형 요청 처리·파일명 규칙은 #281 신원·경로 합의와 팀 승인 뒤 확정**한다. #265의 "Ticket은 2차에서 판단"보다
-앞당기자는 근거가 현재 단일 화면 요청 규약이다. 판단 착수는 S0, 결론 시한은 S1-8/9 착수
-전으로 제안한다. 이는 v0.2나 특정 요청 규약 번호의 채택을 뜻하지 않으며 시점 변경도 §7의 승인 대상이다.
+([ticketProtocol](../src/features/editor/ticket/ticketProtocol.ts)). v4에서도 구 스킬(v3)은 버전 불일치로 거부하고
+스킬 업데이트를 안내한다(D11 확정).
+
+| 구분 | 내용 | 정하는 곳 |
+|---|---|---|
+| 확정(2026-10-13) | `compileTickets(screen)` 호환 진입점 유지 + 프로젝트 단위 컴파일 추가 | 리더 결정 |
+| 확정(2026-10-13) | Ticket 스키마 v0.2(티켓별 `sourcePageId`), 티켓 요청 규약 v4 | 리더 결정 |
+| 확정(2026-10-13) | 구 스킬(v3)은 버전 불일치로 거부하고 업데이트 안내 | 리더 결정 |
+| 확정(2026-10-13) | #281 신원·경로는 #357(PageId 생성 자리)·#371(`projectId`) 기준. manifest·복구 `run.json`의 `protocol`은 바꾸지 않음 | 리더 결정 |
+| 미정 | v0.2의 나머지 필드·필수 여부, v4 요청의 문맥 필드와 형식, 구 스킬 거부·안내의 문구와 흐름, 아래 입력 지문 전이 집합, 자리 간 import·ZIP 범위 | S1-8/9 착수 전 [11](11-ticket-schema-freeze.md#ticket-v02--티켓-요청-규약-v4-예정--265-d11)·[26](26-agent-request-generation-contract.md#티켓-요청-규약-v4-예정--265-d11) 계약 PR |
+
+#265의 "Ticket은 2차에서 판단"보다 앞당긴 근거는 현재 단일 화면 요청 규약이다. 결론 시한은 S1-8/9 착수 전이며,
+이 시점은 #265 본문 "버전" 표에도 반영됐다(§7).
 
 **이름이 같은 세 `protocol`:** 이 문서가 말하는 버전 변경 후보는 티켓 요청 규약
 (`ticketProtocol.ts`의 `TICKET_PROTOCOL_VERSION`, 현재 3)뿐이다. 수용 기록
@@ -358,19 +385,19 @@ S1-1 Draft PR [#355](https://github.com/visual-spec-labs/Visual-Spec-Builder/pul
 
 ### #265 본문과의 차이 및 갱신 시점
 
-이 PR은 #265 본문을 수정하지 않는다. 문서 경로 정정과 미확정 단계 변경을 구분하여
-epic 담당자에게 전달한다. 아래 계획 변경의 채택 여부도 §8에서 답을 받아 기록한다.
+#339는 #265 본문을 수정하지 않고 차이를 epic 담당자에게 전달했다. 2026-10-13 확인한 #265 본문은
+아래처럼 갱신돼 있다. 이 PR도 #265 본문을 수정하지 않는다.
 
-| 항목 | 현재 #265 | 이 문서의 정정/제안 | epic에 반영할 위치와 조건 |
+| 항목 | #339 작성 당시 #265 | 이 문서의 정정/제안 | 2026-10-13 #265 본문 |
 |---|---|---|---|
-| 문서 번호 | 문서 절과 S0-1 제목의 파일명이 구 번호이며 README 목차도 17번으로 지정 | 중복을 피한 `docs/24-screen-relations-design.md`, README 24번 | 문서 절·S0-1 제목의 파일명 두 곳, S0-1 완료 항목의 목차 번호를 정정. 제품 결정 변경과는 별개 |
-| S1-1 선행 | S0-1만 명시 | S0-2 범위 정정 완료 후 별도 스키마 | 팀 합의 뒤 S1-1 선행과 의존 관계도에 S0-2 연결 |
-| S1-1 범위 | "스키마 단독 PR" | 스키마 + Command 임시 차단(S1-3에서 해제) + 계약 번들 재생성(위 "S1-1의 임시 차단") | **팀이 채택한 뒤** S1-1 작업 설명을 정정 |
-| S1-3 선행 | S1-1만 명시. 의존 관계도에서 S1-2와 병렬 | S1-1 **및 S1-2 완료** 후 S1-3 착수 | **팀이 채택한 뒤** S1-3 작업의 선행과 의존 관계도를 함께 갱신. S1-2 오류를 잡는 수용 조건과 맞춤 |
-| D11 판단 시점 | 버전 표는 Ticket을 2차에서 판단, S1-8은 스키마 영향이 있으면 11 절차를 따름 | S0에서 프로젝트 문맥 설계 논의, **S1-8/9 착수 전** Ticket/티켓 요청 규약 및 #281 경계 합의 | **팀이 채택한 뒤** 버전 표의 판단 시점, S1-8/9 선행, 의존 관계 요약·병렬 가능 구간에 공통 합의 게이트를 명시. 합의 후 두 작업은 병행 가능 |
+| 문서 번호 | 문서 절과 S0-1 제목의 파일명이 구 번호이며 README 목차도 17번으로 지정 | 중복을 피한 `docs/24-screen-relations-design.md`, README 24번 | **반영됨.** 문서 절에 `docs/24-screen-relations-design.md`(#339), S0-1 완료 항목에 README 24 행 |
+| S1-1 선행 | S0-1만 명시 | S0-2 범위 정정 완료 후 별도 스키마 | **반영됨.** S1-1 선행 S0-1·S0-2, 의존 관계도 S0-1 ─ S0-2 ─ S1-1 |
+| S1-1 범위 | "스키마 단독 PR" | 스키마 + Command 임시 차단(S1-3에서 해제) + 계약 번들 재생성(위 "S1-1의 임시 차단") | **반영됨.** S1-1이 "스키마 + Command 임시 차단 + 계약 번들 재생성"이며 #355로 병합 |
+| S1-3 선행 | S1-1만 명시. 의존 관계도에서 S1-2와 병렬 | S1-1 **및 S1-2 완료** 후 S1-3 착수 | **표기는 그대로**(선행 S1-1, 의존 관계도 병렬)지만 S1-2가 #366으로 병합돼 착수 조건의 차이는 없다. S1-3에는 "게이트 D10 확정"과 09 계약 PR 선행이 추가됐다 |
+| D11 판단 시점 | 버전 표는 Ticket을 2차에서 판단, S1-8은 스키마 영향이 있으면 11 절차를 따름 | S0에서 프로젝트 문맥 설계 논의, **S1-8/9 착수 전** Ticket/티켓 요청 규약 및 #281 경계 합의 | **반영됨.** 버전 표의 Ticket 행이 "v0.2 + 티켓 요청 규약 v4(2026-10-13 리더 결정 D11, S1-8/9 착수 전)", S1-8·S1-9에 "게이트 D11 확정"과 11·26 계약 PR 선행 |
 
-Ticket 버전 숫자와 티켓 요청 규약의 버전 번호·형식은 위 시점 변경을 승인해도 자동 확정되지 않는다.
-기존 v0.1을 유지하는 대안을 택하면 그 문맥 전달 방식과 호환성 근거를 D11에 기록한다.
+Ticket 스키마·티켓 요청 규약의 버전 번호는 2026-10-13 리더 결정으로 v0.2·v4가 됐다(§6). 두 계약의 나머지 형식은
+S1-8/9 착수 전 계약 PR에서 정한다.
 
 #280/#282/#284는 다른 담당자의 레인이므로 이 PR에서 진행하지 않는다. #281/#290 역시
 이 PR에서 이슈/브랜치/구현을 변경하지 않고 계약 경계만 기록한다.
@@ -384,33 +411,40 @@ Ticket 버전 숫자와 티켓 요청 규약의 버전 번호·형식은 위 시
 
 **2026-10-09 제품 방향 승인 기록:** 제품 방향 담당 @Yumesa2025가 조사 결과로 정리한 D1~D9
 제품 방향을 #339 문서에 반영하도록 승인했다. D10은 명시적 제거 명령·Command v0.2를
-우선 추천하는 방향, D11은 별도 compile 진입점과 #281 합의 후 버전 확정 방향의 승인이다.
-근거: #265에 승인 댓글 링크 추가 예정. [PR #339](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/339)
-설명에도 이 범위를 기록한다. GitHub 팀 리뷰 승인이나 타 담당자의 합의가 있었다고 간주하지 않는다.
+우선 추천하는 방향, D11은 별도 compile 진입점과 #281 합의 후 버전 확정 방향의 승인이었다.
+이 승인은 #265에 별도 댓글로 남지 않았고 [PR #339](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/339) 설명에 기록됐다.
 
-| ID | 제품 방향 승인(@Yumesa2025) | 남은 팀 검토 / 책임 |
+**2026-10-13 리더 결정 기록:** 팀 리더 @Yumesa2025가 이 절에서 "팀 승인 대기"였던 항목을 확정했다.
+근거: [#265 결정 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265#issuecomment-6142842414)과
+갱신된 #265 본문 "버전" 표.
+
+- 리뷰 없이 병합된 스키마·설계 PR #339(S0-1)·#355(S1-1)·#361(S0-2)·#366(S1-2)을 리더가 **사후 승인**했다.
+- epic 완료 판정 1의 승인 조건을 "리더 승인 또는 리뷰어 1명 이상 승인"으로 고쳤다. 이후 스키마·계약 PR도 이 조건을 따른다.
+- D10·D11을 아래 표의 범위로 확정했다. 이를 반영하는 문서 PR(이 절과 09·11·26의 예정 절)이 병합된 뒤 S1-3부터 착수한다.
+
+| ID | 결정(제품 방향 2026-10-09 → 리더 2026-10-13) | 후속 PR에서 정할 세부 / 책임 |
 |---|---|---|
-| D1 | 노드 action 하나 | links[]를 추가하지 않는 S1 정본 계약 리뷰 |
-| D2 | 기존 pages+선택 kind, 최소 page/첫 page, 삭제 시 최소 재배치 | 프로젝트 검증·가져오기 오류/Undo 계약 |
-| D3 | 초기 button만 | native 버튼 이름·키보드 검증. 비button은 후속 접근성/중첩 계약 뒤 |
-| D4 | 단일 navigate/openModal/close, 전체 교체, 반응형 제외 | source/target 검사와 Command 경로 |
-| D5 | 유입 정리 포함 프로젝트 후보 검증·atomic commit·Undo 한 번 | 모든 쓰기 경로의 공통 불변조건, 복제/붙여넣기·widget 삭제 세부안 |
-| D6 | 단일 모달 교체, Escape/명시 닫기, backdrop 유지, 원래 트리거 복귀 | #280 크기 합의, close 문맥·focus fallback·native dialog/portal 구현 검증 |
-| D7 | router 비의존 콜백·사용자 앱 소유 URL/history | 포함 widget·도달 modal의 navigate까지 콜백 필요성 계산 |
-| D8 | 직접 Text/Button 내용·글자색, base→responsive→instance | override 오류·원본 변경·detach 계약 |
-| D9 | 프로젝트 widget ID 공유·포함 cycle 금지·저장/DOM ID 분리 | 런타임 ID 충돌 방어와 #281 신원 경계 |
-| D10 | 명시 제거 명령·Command v0.2 우선 추천 | **팀 승인 대기:** 명령 이름/범위·없는 값 처리·버전·구 소비자 대응 |
-| D11 | 별도 프로젝트 compile, Ticket v0.2와 다음 티켓 요청 규약 버전(현재 v3 다음) 후보 | **#281 신원·경로 합의 후 확정:** 문맥 필드·버전·이름/소유권·구 요청 처리 |
+| D1 | 노드 action 하나. #339 사후 승인, S1-1(#355) 정본에 반영 | links[]를 추가하지 않는 상태 유지 |
+| D2 | 기존 pages+선택 kind, 최소 page/첫 page, 삭제 시 최소 재배치. #339 사후 승인, kind는 #355·first-page-kind는 #366에 반영 | 가져오기 오류/Undo 계약(S1-4·S1-5) |
+| D3 | 초기 button만. #339 사후 승인, #355에 반영 | native 버튼 이름·키보드 검증. 비button은 후속 접근성/중첩 계약 뒤 |
+| D4 | 단일 navigate/openModal/close, 전체 교체, 반응형 제외. #339 사후 승인, 형태는 #355·source/target 검사는 #366에 반영 | Command 경로(S1-3) |
+| D5 | 유입 정리 포함 프로젝트 후보 검증·atomic commit·Undo 한 번. #339 사후 승인 | 모든 쓰기 경로의 공통 불변조건, 복제/붙여넣기·widget 삭제 세부안(S1-4 등) |
+| D6 | 단일 모달 교체, Escape/명시 닫기, backdrop 유지, 원래 트리거 복귀. #339 사후 승인 | **#280 크기 합의 대기**, close 문맥·focus fallback·native dialog/portal 구현 검증 |
+| D7 | router 비의존 콜백·사용자 앱 소유 URL/history. #339 사후 승인 | 포함 widget·도달 modal의 navigate까지 콜백 필요성 계산(S1-9) |
+| D8 | 직접 Text/Button 내용·글자색, base→responsive→instance. #339 사후 승인 | override 오류·원본 변경·detach 계약(S2) |
+| D9 | 프로젝트 widget ID 공유·포함 cycle 금지·저장/DOM ID 분리. #339 사후 승인 | 런타임 ID 충돌 방어(S2) |
+| D10 | **확정:** 전용 제거 명령 `removeNodeAction` + Command 스키마 v0.2. action 설정은 updateNode 전체 객체 교체, 제거는 이 명령으로만, action.type/target 부분 쓰기 거부. 구버전 소비자는 버전 불일치로 거부 | **S1-3의 09 절차 계약 PR:** 명령 필드, 없는 action 제거 시 처리, 버전 불일치 표시·판정 방식(§5) |
+| D11 | **확정:** `compileTickets(screen)` 호환 진입점 유지 + 프로젝트 단위 컴파일 추가. Ticket 스키마 v0.2(티켓별 `sourcePageId`) + 티켓 요청 규약 v4. 구 스킬(v3)은 버전 불일치로 거부·업데이트 안내. #281 신원·경로는 #357·#371 기준. manifest·`run.json`의 `protocol`은 그대로 | **S1-8/9 착수 전 11·26 계약 PR:** 문맥 필드·나머지 Ticket 필드, 입력 지문 전이 집합, 자리 간 import·ZIP 범위(§6) |
 
-| 계획 변경 | 방향 | 팀 승인자 | 근거 |
+| 계획 변경 | 방향 | 승인자 | 근거 |
 |---|---|---|---|
-| S0-2 뒤 S1-1, S1-2 뒤 S1-3, 이후 GUI | @Yumesa2025(제품 방향) 요청 순서 반영 / epic 갱신 합의 대기 | 대기 | 제품 방향: #265에 승인 댓글 링크 추가 예정. 팀 리뷰 미기록 |
-| D11 논의를 S0에서 시작, S1-8/9 전 합의 | @Yumesa2025(제품 방향) 승인 / #281 합의 대기 | 대기 | 동일 |
+| S0-2 뒤 S1-1, S1-2 뒤 S1-3, 이후 GUI | S1-1 선행·범위는 #265 본문에 반영. S1-3 선행 표기는 S1-1 그대로지만 S1-2(#366) 병합으로 충족(§7) | @Yumesa2025(리더, 2026-10-13) | [#265 결정 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265#issuecomment-6142842414)·#265 본문 |
+| D11 논의를 S0에서 시작, S1-8/9 전 합의 | #265 본문 버전 표·S1-8/9 게이트에 반영. #281 기준은 #357·#371 | @Yumesa2025(리더, 2026-10-13) | 동일 |
 
-최소 1명 팀 설계 승인·병합 뒤에만 S0-2에 착수한다. 별도 스키마 PR의 승인과 계약별
-변경 절차도 유지한다. 승인자/근거는 실제 합의가 생길 때 기록하며 CI는 승인을 대신하지 않는다.
+별도 스키마 PR의 분리와 계약별 변경 절차는 유지한다. 승인 조건은 리더 승인 또는 리뷰어 1명 이상 승인이며,
+CI는 승인을 대신하지 않는다.
 
-**이 문서 PR의 검증:** 근거 파일/상대 링크 존재, README 항목, whitespace, 변경 범위가
+**#339의 검증:** 근거 파일/상대 링크 존재, README 항목, whitespace, 변경 범위가
 두 Markdown 파일인지, 정본·생성 타입·동결 계약이 그대로인지 확인한다. 실행한 기존
 회귀 검사 결과는 PR 본문에 기록한다. 미래 기능의 fixture/브라우저/실제 AI 성공을 주장하지 않는다.
 

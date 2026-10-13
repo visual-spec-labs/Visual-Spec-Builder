@@ -7,10 +7,10 @@ import { useViewStore } from "@/features/editor/store/viewStore";
 // key 는 표시용 글자다. 실제 판정은 canvasInput.TOOL_KEYS 가 event.code 로 한다
 // (한/영 전환에 죽지 않게). 둘이 어긋나면 툴팁이 거짓말을 하므로 함께 고친다.
 const TOOLS: { id: ToolId; label: string; key: string; Icon: LucideIcon }[] = [
-  { id: "select", label: "Select", key: "V", Icon: MousePointer2 },
-  { id: "frame", label: "Frame", key: "F", Icon: Frame },
-  { id: "text", label: "Text", key: "T", Icon: Type },
-  { id: "hand", label: "Hand", key: "H", Icon: Hand },
+  { id: "select", label: "선택", key: "V", Icon: MousePointer2 },
+  { id: "frame", label: "프레임", key: "F", Icon: Frame },
+  { id: "text", label: "텍스트", key: "T", Icon: Type },
+  { id: "hand", label: "손 도구", key: "H", Icon: Hand },
 ];
 
 /**

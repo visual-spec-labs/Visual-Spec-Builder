@@ -150,6 +150,8 @@ export interface ToolKeyInput {
   altKey: boolean;
   /** 보기 단축키(Shift+1)만 본다. 도구 단축키는 Shift를 따지지 않는다. */
   shiftKey?: boolean;
+  /** 같은 키를 누르고 있는 동안 반복된 keydown인가. */
+  repeat?: boolean;
   /** `event.target`의 태그 이름. 못 읽었으면 undefined. */
   tagName: string | undefined;
   contentEditable: boolean;
@@ -377,7 +379,7 @@ export function viewCommandForKey(input: ToolKeyInput): ViewCommand | null {
   if (input.shiftKey && (input.code === "Digit2" || input.code === "Numpad2")) {
     return "zoomFitSelection";
   }
-  if (!input.shiftKey && input.code === "Escape") return "deselect";
+  if (!input.shiftKey && input.code === "Escape" && !input.repeat) return "deselect";
 
   return null;
 }

@@ -78,6 +78,7 @@ export function useCanvasKeys(
         metaKey: event.metaKey,
         altKey: event.altKey,
         shiftKey: event.shiftKey,
+        repeat: event.repeat,
         tagName: target?.tagName,
         contentEditable: target?.isContentEditable ?? false,
         role: target?.getAttribute("role") ?? undefined,

@@ -207,7 +207,7 @@ export function ExportPanel() {
         <button
           type="button"
           onClick={close}
-          aria-label="코드 Export 닫기"
+          aria-label="코드 내보내기 닫기"
           className="rounded-control px-2 py-1 text-content-muted hover:bg-hover hover:text-content"
         >
           ×

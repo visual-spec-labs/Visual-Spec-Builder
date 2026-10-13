@@ -71,7 +71,7 @@ page 종류의 계약만 다룬다. 아직 승인되지 않은 modal/widget 개�
 | pan/zoom 보정 | 좌표는 root 바깥 모서리 기준(pan 무관)이고 아트보드 배율로 나눈다. 대상마다 75%에서 다시 재서 100%와 비교한다 |
 | 비교 viewport | 생성 앱의 브라우저 viewport. 고정 폭은 GUI 아트보드 폭 = `screen.size.width`, 반응형은 GUI 미리보기 폭 = viewport 폭 |
 | 폰트 대기 | 노드별 실제 글자로 `document.fonts.load()` → `document.fonts.ready` → `status === "loaded"` |
-| 폰트 동일성 | 고정 URL만 외부 요청을 허용하고 응답을 캐시해 두 탭에 같은 바이트를 준다. CSS SHA-256과 받은 woff2 수를 기록 |
+| 폰트 동일성 | 고정 URL만 외부 요청을 허용하고 응답을 캐시해 두 탭에 같은 바이트를 준다. CSS SHA-256과 받은 woff2 수를 기록. `--font-lock`이면 CSS·woff2 SHA-256을 잠금과 대조하고 불일치·미등록은 무효(7절) |
 | 실제 렌더 폰트 | CDP `CSS.getPlatformFontsForNode`로 각 텍스트·placeholder를 그린 폰트를 읽는다. 모두 웹폰트 `Pretendard*`여야 한다. 필요한 ID 누락·빈 결과·CDP unavailable은 측정 무효 |
 | 이미지 | `<img>.decode()`와 배경 이미지 `Image.decode()` 완료, 모든 배경 URL 겹을 포함해 양쪽 intrinsic width/height > 0 및 일치. 누락은 무효 |
 | bounds | root와 보이는 모든 노드의 x/y/width/height 차이 **≤ 1 CSS px** |
@@ -89,7 +89,8 @@ page 종류의 계약만 다룬다. 아직 승인되지 않은 modal/widget 개�
 
 일반 `pnpm test`는 브라우저 실측을 실행하지 않는다. 비교기 판정 규칙은
 `test/compare-layout-measurements.test.ts`, fixture와 스킬/GUI 정본의 일치(셸 CSS·폰트 URL·반응형
-클래스)는 `test/layout-parity-fixture.test.ts`가 일반 테스트에서 확인한다.
+클래스·폰트 잠금의 CSS URL)는 `test/layout-parity-fixture.test.ts`가 일반 테스트에서 확인한다.
+fixture 실측과 캡처 회귀는 CI의 별도 `Chromium / layout parity` 잡이 실행한다(7절).
 
 실측은 Node Playwright와 Chromium, 고정 Pretendard URL에 닿는 네트워크가 필요하다. 준비는
 [사용자 여정 회귀 문서](qa/user-journey-regression.md#비용-없는-독립-실행)와 같다.
@@ -100,6 +101,8 @@ export PLAYWRIGHT_MODULE=file:///tmp/vsb-browser-tools/node_modules/playwright/i
 node scripts/browser/layout-parity.mjs --out /tmp/layout-parity.json
 # CDN 없이 중첩 텍스트·실패한 woff2·두 번째 배경 이미지 실패 회귀
 node scripts/browser/layout-parity-regression.mjs
+# CI와 같은 폰트 해시 대조(7절)
+node scripts/browser/layout-parity.mjs --font-lock scripts/browser/layout-parity-fonts.lock.json --out /tmp/layout-parity.json
 ```
 
 ```powershell
@@ -202,8 +205,8 @@ Export 폴더 모양(`pages/Login.tsx` + `components/Card.tsx`, `as React.CSSPro
 - **실제 AI 출력 측정.** 사용자가 직접 Claude Code/Codex로 생성·Export한 결과에 3절의
   `--generated-dir` 명령을 실행해 기록해야 #280을 닫을 수 있다. 실제 모델 실행 QA는
   [사용자 여정 문서](qa/user-journey-regression.md) 6단계와 같은 기록 형식을 따른다.
-- **CI 연결 안 함.** 이 도구는 고정 CDN 폰트에 네트워크로 닿아야 해 #346의 필수 Chromium 잡(외부 요청
-  차단)에 넣지 않았다. 폰트 파일을 저장소나 CI 캐시에 두는 방안과 함께 후속으로 정한다.
+- **CI 연결(#365).** #346의 필수 Chromium 잡(외부 요청 차단)은 그대로 두고, 고정 CDN 폰트만 받는 별도
+  실측 잡을 만들어 바이트 해시를 대조한다. 공급 방식과 판정은 7절.
 - Linux 재측정과 반응형 숨김/재표시 사례는 아래 리뷰 수정 검증에서 완료했다.
 
 
@@ -247,3 +250,74 @@ CI의 성공과 이 도구의 22조건 실측 성공은 별개다.
 Node 사용자 여정 다섯 개도 최종 순차 실행에서 모두 통과했다(`project-dialogs` 포함).
 초기 병행 부하 중 `unnamed-drafts`의 동시 Resume 소유권 단언이 한 번 실패했고, 단독 재실행과
 전체 순차 재실행은 통과했다. 이 여정 코드는 변경하지 않았다. CI에서도 최종 커밋의 결과를 따로 확인한다.
+
+## 7. CI 연결과 폰트 해시 대조 (#365)
+
+2026-10-13 리더 결정(#365 댓글): **실측 전용 CI 잡에서만 고정 CDN URL로 폰트를 받고 CSS·woff2 바이트
+해시를 대조한다.** 저장소에 폰트 파일을 넣지 않고, `browser` 잡의 외부 요청 차단(#346)은 유지한다.
+해시 불일치는 측정 무효(3)와 같은 실패다.
+
+### 잡 구성
+
+`.github/workflows/ci.yml`의 `layout-parity` 잡(`Chromium / layout parity (고정 CDN 폰트)`)이 실행한다.
+
+1. frozen install 뒤 runner 임시 폴더에 Node Playwright 1.62.0과 그 Chromium을 설치한다(제품 의존성 제외).
+2. `layout-parity-regression.mjs` — CDN 없이 모든 요청을 막은 캡처 회귀. 120초 제한.
+3. `layout-parity.mjs --font-lock scripts/browser/layout-parity-fonts.lock.json` — fixture 22조건. 300초 제한.
+   종료 코드 0이 아니면 실패한다. 의도된 실패(`login-legacy`)는 `expected-fail`로 세어 종료 코드를 바꾸지 않고,
+   무효(3)·불일치(1)·뜻밖의 통과(1)는 실패다.
+4. 보고서로 판정 개수를 다시 단언한다: 통과 21, 의도된 실패 1(`login-legacy`만), 실패·뜻밖의 통과·무효 0,
+   폰트 요청 실패와 잠금 오류 0, 생성 앱이 받은 폰트 파일이 모두 GUI와 공유된 캐시 바이트일 것.
+   사례가 줄어 통과 수만 맞는 경우도 막는다. 보고서 JSON은 `layout-parity` artifact로 남는다.
+
+이 잡은 `build`의 `needs`에 넣지 않았다. 필수 체크 지정은 저장소 설정에서 정한다.
+브라우저 안의 외부 요청은 여전히 같은-origin과 고정 Pretendard 경로만 허용한다(`harness.mjs`, 위 `allowExtra`).
+
+### 해시 범위: CSS 1개 + 실제로 받은 woff2 전부
+
+`scripts/browser/layout-parity-fonts.lock.json`은 `base`(고정 CDN 경로), CSS URL과 SHA-256, `base` 기준
+상대 경로별 woff2 SHA-256을 담는다.
+
+- dynamic subset CSS는 weight 9종 × subset 92개의 woff2 **828개**(와 같은 수의 woff 폴백)를 가리킨다. 이 중
+  fixture 실측이 실제로 받는 것은 unicode-range에 맞는 **32개**(Regular 15, Medium 7, SemiBold 7, Bold 3)다.
+- CSS 해시만 고정하면 URL 목록은 고정되지만, 그 URL의 바이트가 바뀌어도(태그 이동·CDN 오류) 잡지 못한다.
+  리더 결정대로 woff2 바이트도 대조해야 한다.
+- 828개 전부를 잠그면 매 실행마다 쓰지 않는 파일까지 받아야 하고, 쓰지 않는 파일은 측정에 영향이 없다.
+- 그래서 **실제로 브라우저에 준 파일 전부**를 대조한다. 잠금에 없는 파일(woff 폴백 포함)과 해시가 다른 파일은
+  어느 탭에도 주지 않고(`route.abort`) 잠금 오류로 기록해 종료 코드 3으로 끝낸다. CSS를 한 번도 받지 않아도
+  오류다. 잠금에는 있으나 이번에 받지 않은 파일은 보고서 `environment.fontLock.unused`에만 남긴다
+  (`--case`로 일부만 잴 때를 허용한다).
+- 받는 subset은 화면의 글자로 정해지고 OS와 무관하다. 같은 URL은 실행 안 캐시에서 같은 바이트로 두 탭에
+  주며, 보고서 `fontSha256`·`fontFilesServed`(gui/generated/shared)로 확인한다. 로컬 실행에서 GUI 33개
+  (CSS 포함, 편집기 UI 글자 때문에 더 많다), 생성 앱 21개이고 생성 앱의 21개는 모두 GUI와 공유했다.
+
+**잠금 갱신.** fixture·편집기 UI 문구가 바뀌어 새 subset을 받으면 잡이 "is not listed"로 실패한다. 의도한
+변경이면 전체 fixture를 다시 재고 잠금을 다시 쓴 뒤 diff를 리뷰한다. CSS 해시가 바뀌었으면 CDN 쪽 변경이므로
+갱신하지 말고 원인을 먼저 확인한다.
+
+```bash
+node scripts/browser/layout-parity.mjs --write-font-lock scripts/browser/layout-parity-fonts.lock.json
+```
+
+폰트 로딩이 실패한(종료 코드 3) 실행으로는 잠금을 쓰지 않는다.
+
+### 라이선스와 저장소 크기
+
+Pretendard는 [SIL Open Font License 1.1](https://github.com/orioncactus/pretendard/blob/v1.3.9/LICENSE)이다.
+이 저장소는 폰트 바이너리를 보관·재배포하지 않고, CI가 jsDelivr에서 받아 측정에 쓰고 버린다. 저장소에는
+URL과 해시만 담은 잠금(약 5.6KB)이 늘어난다. 폰트를 저장소에 넣거나 패키지로 배포하게 되면 OFL 조건
+(저작권·라이선스 고지 동봉, 폰트 단독 판매 금지)을 따로 지켜야 한다.
+
+### 로컬 검증 (2026-10-13)
+
+Windows 11, Node 24.12.0, Playwright 1.62.0의 Chromium 151.0.7922.34, DPR 1. 생성 쪽은 fixture.
+
+- `--write-font-lock` 실행과 `--font-lock` 대조 3회: 모두 **21 통과, 의도된 실패 1, 무효 0, exit 0**,
+  CSS SHA-256 `a9d3417e…cd67a2`(4·6절과 같음), woff2 32개, 폰트 요청 실패 0, 잠금 오류 0. 약 17초.
+- `layout-parity-regression.mjs`: `passed: true`, exit 0.
+- 잠금 사본을 바꾼 대조(`--case login-screen`): CSS 해시 변조는 CSS를 주지 않아 3조건 모두 무효·exit 3,
+  Regular woff2 하나의 해시 변조와 그 항목 삭제는 각각 woff2와 woff 폴백이 잠금 오류가 되어 exit 3.
+  woff2 하나가 빠져도 측정 노드의 글자가 다른 subset이면 배치 판정은 통과할 수 있으나, 잠금 오류만으로
+  실행이 실패한다.
+
+정확한 HEAD의 CI 실행 링크와 결과는 PR에 기록한다.
