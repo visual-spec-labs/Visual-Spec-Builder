@@ -211,7 +211,16 @@ try {
   const winner = results[0] === "ok" ? page : contender;
   const loser = winner === page ? contender : page;
   assert.deepEqual(await state(winner), race);
+  const ownerLock = `${race.key}:owner`;
+  await loser.waitForFunction(async key => {
+    const locks = await navigator.locks.query();
+    return locks.held.some(lock => lock.name === key);
+  }, ownerLock);
   await winner.close();
+  await loser.waitForFunction(async key => {
+    const locks = await navigator.locks.query();
+    return !locks.held.some(lock => lock.name === key);
+  }, ownerLock);
   await loser.getByRole("region", {name: "보관한 초안"}).getByRole("button", {name: "이어서 열기"}).click();
   await loser.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(loser), race);
