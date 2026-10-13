@@ -49,3 +49,34 @@ v0.1 변경은 다음을 한 PR에서 함께 수행한다.
 
 기존 필수 필드 추가, enum 축소, 필드 제거, 의미 변경은 breaking change다. 새 선택
 필드도 스키마와 소비자 영향을 함께 검토한다.
+
+## Ticket v0.2 · 티켓 요청 규약 v4 예정 — #265 D11
+
+현재 상태: **예정.** 지금 정본은 위의 v0.1 그대로다. 이 절은 2026-10-13 리더 결정
+([#265 결정 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265#issuecomment-6142842414))을
+기록할 뿐이며 `ticket.schema.json`·`ticket/types.ts`·`compileTickets`·테스트를 바꾸지 않는다. 실제 변경은
+**#265 S1-8/9 착수 전 계약 PR**이 위 "변경 절차"대로 한다. 설계 배경은 [24 §6](24-screen-relations-design.md#6-ticket생성export-추천-경계)에 있다.
+
+**무엇이 왜 바뀌나.** #265가 화면 사이 관계(이동·모달)를 IR에 넣으면서 티켓을 프로젝트 단위로 만들어야 한다.
+지금 `compileTickets(screen)`는 `ScreenSpec` 하나만 받고, `instances`는 그 화면의 NodeId라서 여러 화면의 티켓을
+한 목록에 모으면 어느 페이지의 노드인지 알 수 없다. 그래서 티켓마다 출처 페이지를 싣는다.
+
+| 항목 | 결정(2026-10-13) |
+|---|---|
+| 컴파일 진입점 | 기존 `compileTickets(screen)`는 **호환 진입점으로 유지**하고, 프로젝트 단위 컴파일을 **추가**한다 |
+| Ticket 스키마 | v0.1 → **v0.2**. 티켓별 `sourcePageId`를 더한다 |
+| 티켓 요청 규약 | `TICKET_PROTOCOL_VERSION` 3 → **4**(요청 쪽 계약은 [26](26-agent-request-generation-contract.md#티켓-요청-규약-v4-예정--265-d11)) |
+| 구 스킬 | 티켓 요청 규약 v3 스킬은 **버전 불일치로 거부**하고 스킬 업데이트를 안내한다 |
+| 신원·경로 기준 | #281 결과인 #357(PageId 생성 자리)·#371(`ProjectSpec.projectId`) |
+
+Ticket 스키마는 `additionalProperties: false`라 v0.1 검증기는 `sourcePageId`가 있는 티켓을 거부한다.
+기존 v0.1 티켓 배열을 프로젝트 티켓으로 조용히 재해석하지 않는다.
+
+**S1-8/9 착수 전 계약 PR에서 정할 것(지금 미정).**
+
+- `sourcePageId`의 필수 여부와 호환 진입점 `compileTickets(screen)`이 내는 티켓에서의 값.
+- v0.2의 나머지 필드 변경 여부(예: 페이지를 넘는 `dependsOn` 표기). `kind`는 page/component를 유지하는 방향이며
+  IR의 `kind`(page/modal/widget)와 같은 enum으로 만들지 않는다(24 §6).
+- 위 "검증 경계"의 문맥 검사(`dependsOn`·`instances`가 실제 대상을 가리키는지)를 프로젝트 문맥으로 넓히는 방식.
+
+병합 조건은 리더 승인 또는 리뷰어 1명 이상 승인이다(2026-10-13 리더 결정).
