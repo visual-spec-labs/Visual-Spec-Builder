@@ -20,6 +20,7 @@ import {
   viewCommandForKey,
   type ViewCommand,
 } from "./canvasInput";
+import { runEscapeCommand } from "./canvasEscape";
 import { readZoomAnchor, type ZoomAnchor } from "./canvasZoom";
 import { copySelection, hasClipboard, pasteClipboard } from "./clipboard";
 import { siblingId } from "./selection";
@@ -77,6 +78,7 @@ export function useCanvasKeys(
         metaKey: event.metaKey,
         altKey: event.altKey,
         shiftKey: event.shiftKey,
+        repeat: event.repeat,
         tagName: target?.tagName,
         contentEditable: target?.isContentEditable ?? false,
         role: target?.getAttribute("role") ?? undefined,
@@ -269,7 +271,7 @@ function runViewCommand(
   anchorRef: RefObject<ZoomAnchor | null>,
 ) {
   if (command === "deselect") {
-    useEditorStore.getState().select(null);
+    runEscapeCommand();
     return;
   }
 

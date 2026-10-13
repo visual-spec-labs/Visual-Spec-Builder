@@ -396,8 +396,9 @@ describe("viewCommandForKey — 보기 단축키", () => {
     expect(view({ code: "Digit2" })).toBeNull();
   });
 
-  it("Escape 는 선택 해제다", () => {
+  it("첫 Escape만 도구 복귀 또는 선택 해제를 실행하고 반복 keydown은 선택을 유지한다", () => {
     expect(view({ code: "Escape" })).toBe("deselect");
+    expect(view({ code: "Escape", repeat: true })).toBeNull();
   });
 
   it("수식키 없는 = - 0 은 받지 않는다 — 글자 입력과 겹친다", () => {
@@ -679,4 +680,3 @@ describe("hasPassedDragThreshold — 클릭과 끌기의 경계", () => {
     expect(hasPassedDragThreshold(3, 3)).toBe(true);
   });
 });
-
