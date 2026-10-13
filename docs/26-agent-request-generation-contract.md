@@ -631,6 +631,33 @@ v2 스킬은 `filePath`가 **정확히** `pages/<이름>.tsx`·`components/<이�
 - 검증: `test/ticket-protocol-compat.test.ts`가 설치된 v2 스킬의 두 규칙(버전 관문·경로 형식)을 흉내 낸
   fixture 에이전트로 새 GUI의 실제 실행기를 돌린다 — 실제 모델 실행은 아니다.
 
+### 티켓 요청 규약 v4 예정 — #265 D11
+
+현재 상태: **예정.** 지금 티켓 요청 규약은 위의 v3 그대로다(`TICKET_PROTOCOL_VERSION = 3`). 이 절은 2026-10-13
+리더 결정([#265 결정 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265#issuecomment-6142842414))을
+기록할 뿐이며 `ticket/ticketProtocol.ts`·스킬·테스트를 바꾸지 않는다. 실제 변경은 **#265 S1-8/9 착수 전 계약 PR**이 한다.
+Ticket 형태 쪽은 [11의 예정 절](11-ticket-schema-freeze.md#ticket-v02--티켓-요청-규약-v4-예정--265-d11), 설계 배경은
+[24 §6](24-screen-relations-design.md#6-ticket생성export-추천-경계)에 있다.
+
+**왜 올리나.** v3 요청은 `pageId`와 page 한 장, `staging/<requestId>/` 임시 출력을 쓰는 단일 화면 요청이다.
+#265의 이동·모달 관계를 생성하려면 프로젝트 단위 컴파일 결과(Ticket v0.2, 티켓별 `sourcePageId`)와 그 문맥을
+에이전트에 넘겨야 한다. v3을 프로젝트 요청으로 재해석하지 않고 번호를 올린다.
+
+| 항목 | 결정(2026-10-13) |
+|---|---|
+| 번호 | 티켓 요청 규약 v3 → **v4** |
+| 구 스킬(v3) | **버전 불일치로 거부**하고 `visual-spec skills`로 스킬을 업데이트하라고 안내한다 |
+| 신원·경로 | #281의 PageId 생성 자리(#357)와 `projectId`(#371)를 기준으로 한다 |
+| manifest·`run.json` | 수용 기록 `runtime/generation-manifest.json`의 `protocol`(2)과 복구 기록 `backups/<runId>/run.json`의 `protocol`(2)은 **바꾸지 않는다** |
+
+**S1-8/9 착수 전 계약 PR에서 정할 것(지금 미정).**
+
+- v4 요청·응답에 싣는 프로젝트 문맥 필드(프로젝트 snapshot·소스 문맥·전역 티켓/의존 ID 등 24 §6의 안)와 형식.
+- 위 v3 호환 표의 각 조합(새 GUI + v3 스킬, 구 GUI + 새 스킬, v3 응답 수신 등)에서의 구체 동작과 안내 문구.
+  "구 스킬은 버전 불일치로 거부·업데이트 안내"라는 방향만 정해졌다.
+- 프로젝트 compile의 입력 지문 범위(호스트 + 도달 가능한 modal·포함 widget의 전이 집합), 자리 간 상대 import
+  허용 규칙과 여러 PageId 자리를 묶는 ZIP 범위(24 §6·§7 S1-8/9 게이트).
+
 ### 요청 중 다른 이름으로 저장
 
 다른 이름으로 저장(복사)은 `documentStore.fileName`만 바꾸고 문서 ID·스펙·티켓 세대를 그대로 둔다. 처음 구현의
@@ -778,6 +805,8 @@ PowerShell 같은 일반 Win32 프로그램은 그 경로를 열거나 지우지
   `(PageId, 종류, 대표 NodeId)`라 그 다음 Ticket 형태의 "티켓별 sourcePageId + 로컬 instances"와 그대로 맞는다.
   프로젝트 ID는 IR 밖에 있으므로 다음 Ticket 형태가 필드로 들고 다닐 필요가 없다. 번호는 docs/24가 정하지 않고
   비워 둔다 — "v0.2"·"protocol 2·3"은 이미 쓰이는 번호(Ticket 요청 규약 v2·v3, manifest·`run.json` protocol 2)와 겹친다.
+  (2026-10-13 추가) 이후 리더 결정으로 번호가 정해졌다 — Ticket 스키마([11](11-ticket-schema-freeze.md)) v0.2와 티켓 요청 규약 v4이며,
+  manifest·`run.json`의 `protocol`은 바꾸지 않는다(위 ["티켓 요청 규약 v4 예정"](#티켓-요청-규약-v4-예정--265-d11)).
 - 이동 그래프와 생성 의존 DAG: 컴포넌트 지문은 `dependsOn`(생성 DAG)만 본다. navigate·openModal 같은 이동
   관계는 아직 IR에 없고, 들어와도 생성 의존으로 옮기지 않는다는 S0 결정과 충돌하지 않는다.
 - 저장 ID와 런타임 DOM ID 구분: 신원에 쓰는 것은 저장 ID(PageId·NodeId)뿐이다.
