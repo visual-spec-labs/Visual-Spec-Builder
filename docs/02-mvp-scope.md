@@ -188,8 +188,8 @@ Codex를 직접 실행하고 인증한다. GUI는 요청 파일을 작성하고 
 | 폼 상태·입력 검증·제출, 데이터 불러오기 | `value`/`onChange`/`bindings`가 IR 제외 범위다. #265는 버튼의 이동·모달 동작만 넣고 폼 동작은 넣지 않는다(24 D4). 폼 바인딩을 그 뒤 별도로 검토하는 안은 미확정 제안이다([21](21-app-scope-a11y-design.md)) |
 | 화면 관계 밖의 인터랙션 | IR의 `events`·`props`·`bindings`는 계속 제외다. #265가 넣는 것은 위 "화면 관계 (#265)"의 버튼 action 세 갈래뿐이다. 이벤트 이름·조건·외부 URL 이동, button 밖 노드(frame·text·image·input)의 동작, 중첩 모달, 애니메이션·전환 효과, 다른 프로젝트와의 연결은 넣지 않는다(24 D3·D4·D6, #265 "범위 밖") |
 | 인증·세션·백엔드 | 현재 Export가 제공하지 않는다. 로그인 화면의 모양만 만들며 장기 지원 여부는 미정이다 |
-| hover·focus·disabled 등 상태 스타일 | IR의 `states`가 제외 범위다. 브라우저 기본 focus 표시 보존은 후속 생성 규칙으로 명시·검증할 목표이며 현재 보장이 아니다([21](21-app-scope-a11y-design.md)). 후속 지원 범위 제안은 [27](27-user-design-system-scope.md) |
-| 사용자 화면의 공용 스타일(이름 있는 색·글자·간격)·폰트 추가·아이콘 라이브러리 | 스타일 값은 노드마다 리터럴로 저장하고(`TokenSet` 제외), 글꼴은 Pretendard와 `system-ui`만 고를 수 있다. 아이콘은 SVG 이미지 Import로만 넣는다. 편집기 자체의 디자인 토큰([DESIGN-TOKEN-RULES](DESIGN-TOKEN-RULES.md))과 별개이며 지원 범위·후속 순서 제안은 [27](27-user-design-system-scope.md) |
+| hover·focus·disabled 등 상태 스타일 | IR의 `states`가 제외 범위다. 브라우저 기본 focus 표시 보존은 후속 생성 규칙으로 명시·검증할 목표이며 현재 보장이 아니다([21](21-app-scope-a11y-design.md)). 후속 지원 범위는 button/input의 hover·pressed·focus와 배경·글자색·테두리 색으로 정했고(#360, 2026-10-13 리더 결정) 미구현이다. disabled 등 다른 상태는 보류다. 단계와 선행 조건은 [27 §5](27-user-design-system-scope.md#5-후속-구현-순서) |
+| 사용자 화면의 공용 스타일(이름 있는 색·글자·간격)·폰트 추가·아이콘 라이브러리 | 스타일 값은 노드마다 리터럴로 저장하고(`TokenSet` 제외), 글꼴은 Pretendard와 `system-ui`만 고를 수 있다. 아이콘은 SVG 이미지 Import로만 넣는다. 편집기 자체의 디자인 토큰([DESIGN-TOKEN-RULES](DESIGN-TOKEN-RULES.md))과 별개다. 후속 지원 범위는 이름 있는 색·글자 스타일(노드 리터럴 사본 + 연결, 생성 코드는 리터럴 유지)로 정했고(#360, 2026-10-13 리더 결정) 미구현이다. 간격 토큰·아이콘 라이브러리는 첫 버전에 만들지 않고, 추가 폰트와 CSS 변수 출력은 보류다. 단계와 선행 조건은 [27 §5](27-user-design-system-scope.md#5-후속-구현-순서) |
 
 스키마 수준의 제외 범위는 [05-schema.md](05-schema.md)에 따로 있다. 05의 `InstanceNode`·`events` 제외는
 현재 정본 기준이다. `kind`·`action`은 S1-1(#355)이 05에 반영했고, `instance`는 S2-1 스키마 PR 범위다.
@@ -205,6 +205,11 @@ Codex를 직접 실행하고 인증한다. GUI는 요청 파일을 작성하고 
 > 05의 스키마 제외 목록은 현재 정본과 맞으므로 그대로 두고 스키마 PR에서 고친다.
 > 범위만 정정했다. 정본 IR·Command·Ticket과 제공 기능은 바뀌지 않았다.
 > 후속 검토에서 #265 원문과 24의 단계 차이·팀 채택 대기, #355 구현과 develop 미반영을 구분하고, close의 대상 없음·허용 문맥을 명시했다.
+
+> **정정 이력 (2026-10-13, #360)**
+> 상태 스타일과 사용자 화면의 공용 스타일 두 행의 "후속 지원 범위 제안"을 리더 결정([#360 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/360#issuecomment-6142841712))의
+> 결론과 보류 항목으로 바꾸고 [27 §5](27-user-design-system-scope.md#5-후속-구현-순서)의 후속 순서에 연결했다. 두 항목은 여전히 미구현이라 제외 범위에 남는다.
+> 결정은 방향과 구현 게이트의 채택이며, 각 단계의 스키마 PR 승인이나 제공 기능은 바뀌지 않았다.
 
 > **정정 이력 (2026-10-10, #290)**
 > "MVP 제외 범위"에 사용자 화면의 공용 스타일·폰트 추가·아이콘 라이브러리 행을 더하고 상태 스타일 행에 [27](27-user-design-system-scope.md)을 연결했다.
