@@ -95,6 +95,12 @@ docs: 기여 규칙과 라이선스 파일 추가
   실제 경과 대기는 `request-wait-real-time-check.mjs`를 별도 300초 제한으로 실행한다. 이 검사는
   `VSB_REAL_TIMEOUT=0`의 PARTIAL/생략 보고와 전체 실행의 실제 180초 timeout·늦은 출력 거부·재시도를 모두 확인한다.
   180초 여정을 기존 120초 묶음에 넣거나 생략 실행을 전체 통과로 세지 않는다.
+- 별도 `Chromium / layout parity (고정 CDN 폰트)` 잡은 레이아웃 실측(#365)만 실행한다. 이 잡만 고정 Pretendard
+  CDN에서 폰트를 받고, 받은 CSS·woff2 SHA-256을 `scripts/browser/layout-parity-fonts.lock.json`과 대조한다.
+  캡처 회귀(`layout-parity-regression.mjs`)와 fixture 22조건(`layout-parity.mjs --font-lock …`)을 실행하고
+  통과 21·의도된 실패 1(`login-legacy`)·무효 0을 단언한다. 해시 불일치·잠금에 없는 폰트·측정 무효(exit 3)는 실패다.
+  위 Chromium 잡의 외부 요청 차단은 그대로이며, 이 잡은 `build`의 needs에 들어 있지 않다.
+  폰트 바이너리는 커밋하지 않는다. 잠금 갱신 절차는 [레이아웃 실측 계약](docs/25-layout-parity-contract.md) 7절을 따른다.
 - Windows 잡은 새 hosted runner에서 checkout **전에** `core.autocrlf=true`를 설정한다.
   checkout 뒤 설정값과 CRLF/mixed 파일 부재를 검사해 #262의 `.gitattributes` 회귀를 확인한다.
   기존 Windows 작업 트리의 줄바꿈 문제와 안전한 새 checkout 방법은
@@ -119,6 +125,10 @@ VSB_RESPONSIVE_BROWSER=1 VSB_PAGE_SHELL_BROWSER=1 VSB_GRID_BROWSER=1 \
   CHROME_BIN=/usr/bin/chromium pnpm exec vitest run \
   test/responsive-codegen-browser.test.ts test/page-shell-browser.test.ts \
   test/grid-codegen-browser.test.ts
+
+# 셸·폰트·스킬 매핑을 바꿨다면 레이아웃 실측(고정 CDN 네트워크 필요, docs/25 3·7절)
+node scripts/browser/layout-parity-regression.mjs
+node scripts/browser/layout-parity.mjs --font-lock scripts/browser/layout-parity-fonts.lock.json
 ```
 
 ## 라벨 7종
