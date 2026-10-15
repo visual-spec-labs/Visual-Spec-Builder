@@ -28,7 +28,7 @@ try {
   const state = () => page.evaluate(() => ({ spec: editor.getState().spec, selectedId: editor.getState().selectedId,
     activePageId: editor.getState().activePageId, history: editor.getState().history }));
   const original = await state();
-  const deletion = () => page.getByRole("button", { name: "DashboardPage", exact: true }).locator("..").getByRole("button", { name: "페이지 삭제", exact: true });
+  const deletion = () => page.getByRole("button", { name: "DashboardPage, 화면 종류: page", exact: true }).locator("..").getByRole("button", { name: "페이지 삭제", exact: true });
   async function deleteWithAnswer(accept) {
     const handled = new Promise((resolve, reject) => page.once("dialog", async dialog => {
       try {
