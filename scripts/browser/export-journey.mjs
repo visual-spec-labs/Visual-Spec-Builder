@@ -44,7 +44,7 @@ try {
   await page.getByRole("menuitem", { name: "코드 내보내기", exact: true }).click();
   await page.waitForFunction(() => exports.getState().status === "ready");
   assert.equal(await page.evaluate(() => exports.getState().target.pageId), "alpha");
-  await page.getByRole("button", { name: "Beta", exact: true }).click();
+  await page.getByRole("button", { name: "Beta, 화면 종류: page", exact: true }).click();
   await page.getByText(/이전 검사 결과를 지웠습니다/).waitFor();
   assert.equal(await page.getByRole("button", { name: "결과 폴더 ZIP 내려받기", exact: true }).count(), 0);
   assert.equal(await page.evaluate(() => exports.getState().report), null);

@@ -233,7 +233,7 @@ try {
       await gui.getByRole("button", { name: "파일", exact: true }).waitFor();
       guiPages.set(target.file, gui);
     }
-    if (target.spec.pageOrder.length > 1) await gui.getByRole("button", { name: screen.name, exact: true }).click();
+    if (target.spec.pageOrder.length > 1) await gui.getByRole("button", { name: `${screen.name}, 화면 종류: ${screen.kind ?? "page"}`, exact: true }).click();
     await gui.locator(`[data-testid="responsive-artboard"] [data-node-id="${screen.root}"]`).waitFor();
     // 생성 쪽 파일 이름은 표시 이름이 아니라 Export와 같은 page 티켓 componentName이다. GUI의 Vite가 같은 TS 소스를 읽는다.
     const pageFile = external
