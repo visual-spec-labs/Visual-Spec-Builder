@@ -45,7 +45,7 @@ async function waitForGui(child: ReturnType<typeof spawn>, workspacePath: string
   try {
     const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
-      if (child.exitCode !== null) throw new Error(`GUI 프로세스가 ${child.exitCode}로 끝남:\n${output}`);
+      if (child.exitCode !== null) throw new Error(`GUI 프로세스가 ${child.exitCode}로 끝남`);
       const match = output.match(/Local:\s+(https?:\/\/\S+)/);
       if (match !== null) {
         const baseUrl = match[1].replace(/\/$/, "");
