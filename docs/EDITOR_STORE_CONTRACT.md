@@ -364,3 +364,6 @@ PageProperties의 종류 선택은 setPageField(activePageId, "kind", value)를 
 유지하며 생략된 kind도 page 배지로 표시한다. 홈 카드의 homeCoverPage는 과거 복구본에서도
 modal/widget을 표지로 쓰지 않으며 일반 page가 없으면 미리보기 없음으로 표시한다.
 종류 선택은 modal 크기·배경막·위젯 instance 렌더 계약을 추가하지 않는다.
+
+종류 변경 오류는 pageId뿐 아니라 거부 당시 spec 참조와 documentId에 묶는다. 다른 편집 성공이나
+같은 PageId의 Open/New/reload 뒤에는 지난 문서의 오류를 새 문서의 진단으로 표시하지 않는다.
