@@ -1,3 +1,6 @@
+import { canRemovePage } from "@/features/editor/store/pageRemoval";
+import { confirmPageRemoval } from "./confirmPageRemoval";
+
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import { editResponsiveNode } from "@/features/editor/responsive/editResponsive";
@@ -329,9 +332,8 @@ function PageFolderRow({
 }) {
   const page = useEditorStore((state) => state.spec.pages[pageId]);
   const isActive = useEditorStore((state) => state.activePageId === pageId);
-  const canDelete = useEditorStore((state) => state.spec.pageOrder.length > 1);
+  const canDelete = useEditorStore((state) => canRemovePage(state.spec, pageId));
   const selectPage = useEditorStore((state) => state.selectPage);
-  const removePage = useEditorStore((state) => state.removePage);
 
   return (
     <li>
@@ -357,9 +359,7 @@ function PageFolderRow({
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              if (window.confirm(`"${page.name}" 페이지를 삭제할까요?`)) {
-                removePage(pageId);
-              }
+              void confirmPageRemoval(pageId);
             }}
             aria-label="페이지 삭제"
             className="flex size-5 shrink-0 items-center justify-center opacity-0 group-hover:opacity-100"

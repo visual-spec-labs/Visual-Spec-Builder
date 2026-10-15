@@ -321,6 +321,7 @@ export function applyTransaction(screen: ScreenSpec, commands: Command[]): Scree
  * 복제·클립보드(#151)가 "붙여넣을 내용"을 들고 다니는 모양이다.
  */
 export interface NodeSubtree {
+  source?: { projectId?: string; documentId: number };
   rootId: NodeId;
   nodes: Record<NodeId, Node>;
 }

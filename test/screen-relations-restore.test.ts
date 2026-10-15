@@ -21,8 +21,8 @@ import { listUnnamedDrafts, UNNAMED_DRAFT_PREFIX } from "@/features/editor/store
 /**
  * 화면 관계 오류가 생긴 문서의 복원·저장 경계(#265 S1-2).
  *
- * S1-4 전에는 GUI 페이지 삭제(removePage)가 그 페이지를 가리키는 action을 정리하지 못하고
- * 첫 page를 다시 고르지도 않는다. 그 상태가 자동 저장된 뒤 새로고침 한 번에 작업이 seedSpec으로
+ * S1-4 이전 GUI 페이지 삭제(removePage)는 그 페이지를 가리키는 action을 정리하지 못했고
+ * 첫 page를 다시 고르지도 않았다. 지금 검사는 당시 저장본을 직접 구성한다. 그 상태가 자동 저장된 뒤 새로고침 한 번에 작업이 seedSpec으로
  * 바뀌지 않도록 자동 저장 복원은 관계 오류만 남은 문서를 받는다. Open·Save·NL G3는 엄격하다.
  */
 function memoryStorage(): Storage {
@@ -41,10 +41,12 @@ function project(): ProjectSpec {
   return structuredClone(fixture) as unknown as ProjectSpec;
 }
 
-/** Open한 fixture에서 GUI로 페이지를 지운 결과(검증을 거치지 않는 경로). */
+/** S1-4 이전에 저장된 무효 프로젝트: 새 GUI의 안전한 삭제로 재현하지 않는다. */
 function afterRemovingPages(...pageIds: string[]): ProjectSpec {
-  useEditorStore.getState().loadSpec(project());
-  for (const id of pageIds) useEditorStore.getState().removePage(id);
+  const legacy = project();
+  for (const id of pageIds) delete legacy.pages[id];
+  legacy.pageOrder = legacy.pageOrder.filter((id) => !pageIds.includes(id)) as ProjectSpec["pageOrder"];
+  useEditorStore.getState().loadSpec(legacy);
   return useEditorStore.getState().spec;
 }
 
@@ -139,14 +141,15 @@ describe("관계 오류가 생긴 문서의 엄격한 경로 (#265 S1-2)", () =>
   });
 
   it("Undo 한 번이면 지운 대상 페이지와 함께 유효한 문서로 돌아오고 Save가 다시 된다", () => {
-    afterRemovingPages("dashboard");
+    useEditorStore.getState().loadSpec(project());
+    useEditorStore.getState().removePage("dashboard");
     useEditorStore.getState().undo();
     const spec = useEditorStore.getState().spec;
     expect({ ...spec, projectId: undefined }).toEqual(project());
     expect(buildExportPayload(spec).ok).toBe(true);
   });
 
-  // 알려진 제약(S1-4에서 해소): 관계 오류가 남은 동안 NL G3는 관계와 무관한 편집도 거부한다.
+  // 과거 무효 복구본의 엄격한 G3 경계: 관계 오류가 남은 동안 NL G3는 관계와 무관한 편집도 거부한다.
   // 복원 후에는 이전 Undo 기록이 없고 first-page-kind는 버튼 삭제로 해결되지 않는다.
   it("관계 오류가 남은 문서에서는 NL G3가 다른 페이지의 무관한 편집도 거부한다", () => {
     const spec = afterRemovingPages("dashboard");
@@ -201,7 +204,10 @@ describe("관계 오류 안내와 저장 실패의 보존 계약", () => {
     conflict.setState({ paused: false });
     editor.getState().loadSpec(project());
     document.getState().setFileName("original.json", "original-revision");
-    editor.getState().removePage("dashboard");
+    const legacy = project();
+    delete legacy.pages.dashboard;
+    legacy.pageOrder = legacy.pageOrder.filter((id) => id !== "dashboard") as ProjectSpec["pageOrder"];
+    editor.getState().loadSpec(legacy);
     const spec = editor.getState().spec;
     saveSpecToStorage(spec, "original.json");
     const raw = localStorage.getItem("visual-spec:project");

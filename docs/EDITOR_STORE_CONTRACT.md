@@ -342,6 +342,20 @@ A rejected/no-op transaction invalidates that eligibility without mutating the d
 The next valid edit starts a new checkpoint, even when a controlled input has already
 advanced its local burst. This preserves Undo on a fresh document and after unrelated edits.
 
+## #265 S1-4 프로젝트 참조와 삭제 확인
+
+`removePage(id, expected?)`는 최소 실제 page를 보존하고 유입 action 정리·첫 page 최소 재배치를
+검증한 후보와 함께 한 snapshot으로 커밋한다. UI는 `confirmPageRemoval`로 영향 목록을 확인한다.
+expected의 spec/documentId는 확인한 snapshot이다. 확인 대기 중 spec 또는 문서가 한 번이라도
+바뀌면 토큰이 영구 무효화된다(Undo도 재활성화하지 않음). 거부는 현재 작업을 보존한다.
+
+`pasteNode`의 관계 보유 subtree에는 `source: {projectId?, documentId}`가 필요하다. 양쪽
+projectId가 있으면 동일해야 하고 구 문서만 documentId fallback을 쓴다. 다른/불명 출처는 거부하며
+같은 프로젝트의 대상/문맥 오류도 전체 후보 검증에서 거부한다. clipboard 원문을 정리하지 않는다.
+
+addPage와 replaceSpecFromOutside도 후보 전체 검증 후 변경한다. loadSpec은 Open에서 검증된 문서나
+자동 저장의 명시적 과거 관계 오류 복구본을 받는 기존 입구다. 복구 예외를 loadSpec의 조용한 폐기로
+바꾸지 않는다. 과거 오류는 검증 안내/미검증 사본으로 보존하며 저장 성공으로 표시하지 않는다.
 ### 이미지 비우기와 전체 후보 검증 (#265 S1-3 수정)
 
 ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 빈 경로 입력은

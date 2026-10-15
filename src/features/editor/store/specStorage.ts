@@ -74,8 +74,8 @@ export function parseStoredDocument(raw: string | null): StoredDocument | undefi
   const spec = migrateToV03((parsed as Record<string, unknown>).spec);
   const result = validateProjectSpec(spec);
   // 화면 관계 오류만 남은 문서는 복원한다(#265 S1-2). 대상 페이지를 지운 뒤의 자동 저장본이
-  // 여기서 버려지면 새로고침 한 번에 작업이 seedSpec으로 바뀐다 — 페이지 삭제가 유입 action을
-  // 정리하는 S1-4 전까지의 예외다. 구조 오류가 하나라도 섞이면 전처럼 버리고, Save는 여전히 막는다.
+  // 여기서 버려지면 새로고침 한 번에 작업이 seedSpec으로 바뀐다 — S1-4 이후에도 이전 버전이 남긴
+  // 무효 자동 저장본을 보존하는 복구 예외다. 새 편집은 엄격한 프로젝트 후보 검증을 거친다. 구조 오류가 하나라도 섞이면 전처럼 버리고, Save는 여전히 막는다.
   if (!result.valid && !result.issues.every(isScreenRelationIssue)) return undefined;
 
   const diskRevision = (parsed as Record<string, unknown>).diskRevision;
