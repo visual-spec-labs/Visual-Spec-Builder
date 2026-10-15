@@ -150,6 +150,11 @@ jobs:
           FORCE_COLOR: '1'
         run: bash scripts/browser/run-journeys.sh
 
+      - name: Command 0.2 전송과 Undo (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/command-v02.mjs
+
       - name: 화면 관계 생성·Export 임시 차단 (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium

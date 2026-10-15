@@ -1,12 +1,17 @@
-# 09. Command Schema v0.1 확정 및 동결
+# 09. Command Schema v0.2 확정 및 동결
 
-동결 시작: 2026-09-19
+동결 시작: 2026-09-19. 현재 Command 0.2 / NL protocol 2 / 직접 agent-edit protocol 2.
+
+2026-10-15 S1-3 구현: #381 승인 계약을 적용했다. 외부 Transaction은 `version: "0.2"`가
+필수이며 removeNodeAction을 포함한 7종이다. 두 전송 모두 commandVersion을 그대로 G1에 전달한다.
+GUI 관계 배치도 no-op/프로젝트 후보 오류 시 전부 거부한다. 아래 v0.1/예정/제안 절은 결정 이력이며
+새 계약의 상세 의미는 S1-3 절을 따른다. S1-4 페이지 삭제/클립보드 구현은 별도 PR이다.
 
 ## 정본과 공개 표면
 
 런타임 정본은 `src/features/editor/command/command.schema.json`이다. `createNode`,
-`updateNode`, `deleteNode`, `moveNode`, `setLayout`, `updateScreen` 6종과 이들을 담는
-`Transaction`을 v0.1로 고정한다.
+`updateNode`, `deleteNode`, `moveNode`, `setLayout`, `updateScreen`, `removeNodeAction` 7종과
+버전이 있는 `Transaction`을 v0.2로 고정한다.
 
 ```ts
 import {

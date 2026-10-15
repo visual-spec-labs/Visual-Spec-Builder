@@ -1,3 +1,8 @@
+> 2026-10-15 #265 S1-3: 현재 Command는 v0.2(7종), NL과 직접 agent-edit 전송은 각각 protocol 2다.
+> 요청/성공 응답의 commandVersion은 "0.2"이며 직접 경로는 gui-state capabilities도 검사한다.
+> 이전 6종/무버전 예제는 조사 시점 기록이다. 현재 송수신 계약은 [09](09-command-schema-freeze.md)와
+> 배포 NL 스킬을 따른다. 프로젝트 대상 카탈로그/자연어 관계 예제(S1-10)는 아직 별도 작업이다.
+
 # 08. 자연어 변환 설계
 
 > 작성 기준일: **2026-09-18** / 기준 커밋: `develop` f0fd707 (PR #143 머지 후)

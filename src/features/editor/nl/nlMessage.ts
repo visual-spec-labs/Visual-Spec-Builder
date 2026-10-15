@@ -37,6 +37,7 @@ export function describeCommands(commands: readonly Command[]): string {
       case "createNode":
         created.add(command.id);
         break;
+      case "removeNodeAction":
       case "updateNode":
         updated.add(command.id);
         break;

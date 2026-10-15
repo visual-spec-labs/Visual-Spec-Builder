@@ -48,7 +48,8 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 
 | 필드 | 뜻 |
 |---|---|
-| `protocol` | 형식 버전. 지금은 `1`. 응답에도 **그대로** 돌려줘야 한다 |
+| `commandVersion` | Command 버전. 정확히 문자열 `"0.2"`이며 성공 응답에 그대로 포함한다 |
+| `protocol` | 형식 버전. 지금은 `2`. 응답에도 **그대로** 돌려줘야 한다 |
 | `id` | 이 요청의 식별자. 응답에는 이 값을 `requestId`라는 **다른 이름**으로 돌려준다(아래 참고) |
 | `instruction` | 사용자가 입력창에 적은 자연어 원문 |
 | `scope` | 적용 대상. `{ kind: "node" \| "screen", nodeId: string \| null, label: string }` — `kind`가 `"node"`면 `nodeId`가 그 노드, `"screen"`이면 `nodeId`는 `null`이고 화면 전체가 대상이다 |
@@ -60,15 +61,23 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 `scope.nodeId`를 찾아 지금 값을 확인하고 시작한다. `"screen"`이면 화면 전체가 대상이고,
 빈 화면(`page.nodes`에 `root` 하나뿐)이면 "화면을 만들어줘" 같은 생성 요청이다.
 
+## 버전 관문 — 파일 쓰기 전에 확인
+
+이 스킬은 NL 요청 **protocol 2 + commandVersion "0.2"**만 처리한다. 숫자/누락/다른 버전을
+자동 보정하지 않는다. protocol 1 요청에는 `{ "protocol": 1, "requestId": "<요청 id>",
+"error": "GUI와 visual-spec skills를 업데이트하세요. Command 0.2가 필요합니다." }`로만 응답하고
+commands를 만들지 않는다. 그 밖의 버전 불일치는 요청 protocol의 error 응답으로 업데이트를 안내한다.
+
 ## 응답 만들기 — Command 배열
 
-Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·`updateScreen`)의
+Command 7종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·`updateScreen`·`removeNodeAction`)의
 정확한 필드는 Command 계약 문서와 스키마가 정본이다 — 사용자 프로젝트는 함께 설치된
 `../visual-spec/contract/docs/09-command-schema-freeze.md`·`../visual-spec/contract/schema/command.schema.json`,
 저장소 안은 `docs/09-command-schema-freeze.md`·`src/features/editor/command/types.ts`. 요약:
 
 | Command | 필드 | 언제 쓰나 |
 |---|---|---|
+| `removeNodeAction` | `id` | button의 action 속성 제거. action 없는 button/없는 id/비button이면 전체 요청이 거부된다 |
 | `createNode` | `parentId`·`id`·`node`(완전한 Node)·`index?`(선택, 이슈 #193 — 생략하면 끝에 붙음) | 새 노드 추가. **부모가 먼저 만들어져 있어야 한다** — Command 순서가 부모→자식이어야 한다 |
 | `updateNode` | `id`·`path`(점 표기, 예: `"layout.gap"`)·`value` | 기존 노드의 필드 하나를 바꾼다 |
 | `deleteNode` | `id` | 노드(와 자손)를 지운다. `root`는 지울 수 없다 |
@@ -236,14 +245,14 @@ Command 6종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
 
 **성공**
 ```json
-{ "protocol": 1, "requestId": "<요청의 id 값>", "commands": [ /* Command 배열 */ ] }
+{ "protocol": 2, "commandVersion": "0.2", "requestId": "<요청의 id 값>", "commands": [ /* Command 배열 */ ] }
 ```
 
 **못 하겠을 때** — 표현할 수 없는 요구(예: `onClick` 동작, `component` 타입, 새 페이지
 생성)이거나 요청이 모호하면 `commands` 대신 `error`를 쓴다. `commands: []`는 쓰지 않는다 —
 Transaction은 Command가 최소 1개 필요하다(스키마가 거부한다).
 ```json
-{ "protocol": 1, "requestId": "<요청의 id 값>", "error": "버튼 클릭 동작은 표현할 수 없습니다 — v0.1은 표시용 텍스트만 지원합니다" }
+{ "protocol": 2, "commandVersion": "0.2", "requestId": "<요청의 id 값>", "error": "프로젝트에 없는 관계 대상을 추측할 수 없습니다 — 대상 PageId를 확인해 주세요" }
 ```
 
 `requestId`는 **요청의 `id` 필드 값을 그대로** 넣는다(필드 이름이 바뀌는 걸 놓치기 쉽다 —
@@ -263,12 +272,16 @@ Undo가 어긋난다. 대신 같은 Command를 GUI에 보내 GUI가 검증·적�
 2. **지금 상태를 읽는다.** `gui-state.json`의 `page`(활성 페이지 전체), `pageId`, `selectedId`
    ("이 버튼"이 가리키는 노드), `stateRevision`, `fileName`을 읽는다. 노드 id와 현재 값은 `page`에서만
    가져온다 — 파일을 다시 읽지 않는다(GUI의 미저장 편집이 반영된 쪽이 `page`다).
-3. **Command를 만든다.** 위 "응답 만들기" 절과 같은 Command 6종·규칙을 쓴다. 활성 페이지 한 장만
+3. **버전·지원 명령을 확인하고 Command를 만든다.** gui-state의 protocol이 정확히 2,
+   capabilities.commandVersion이 정확히 "0.2"이고 capabilities.commands 배열에 사용할 명령이
+   모두 있어야 한다. 누락/불일치면 agent-edit.json을 쓰지 않고 GUI와 `visual-spec skills` 갱신을
+   안내한다. GUI 종료로 오인하거나 specs 파일을 직접 수정해 우회하지 않는다.
+    위 "응답 만들기" 절과 같은 Command 7종·규칙을 쓴다. 활성 페이지 한 장만
    다룬다.
 4. **`.visual-spec/runtime/agent-edit.json`에 쓴다**(임시 파일에 쓰고 rename으로 교체한다).
    ```json
    {
-     "protocol": 1,
+     "protocol": 2, "commandVersion": "0.2",
      "id": "<새 고유 id — 요청마다 다르게>",
      "baseStateRevision": "<gui-state.json의 stateRevision 그대로>",
      "pageId": "<gui-state.json의 pageId 그대로>",
@@ -277,7 +290,9 @@ Undo가 어긋난다. 대신 같은 Command를 GUI에 보내 GUI가 검증·적�
    }
    ```
 5. **결과를 기다린다.** `.visual-spec/runtime/agent-edit-result.json`에서 `requestId`가 내 `id`와 같은
-   결과를 1초 간격으로 최대 30초 확인한다.
+   결과를 1초 간격으로 최대 30초 확인한다. 같은 requestId라도 protocol이 2가 아니면 성공으로
+   해석하지 않고 업데이트를 안내하며 중단한다. 버전 불일치의 invalid 결과도 자동 재전송하거나
+   downgrade하지 않는다.
    - `applied` — 적용됐다. GUI에 "외부 에이전트가 편집을 적용했습니다"와 되돌리기가 뜬다. 사용자에게
      무엇을 바꿨는지와 GUI에서 되돌릴 수 있다는 것을 알린다. 저장은 사용자가 GUI에서 한다.
    - `pending` — 배경을 바꾸는 편집이라 GUI에서 사용자 확인을 기다린다. **최종 결과가 아니다.**
@@ -301,6 +316,14 @@ Undo가 어긋난다. 대신 같은 Command를 GUI에 보내 GUI가 검증·적�
      작업공간을 연 GUI 탭이 있는지, 여러 탭이면 그중 하나만 연결된다).
 
 결과를 확인하지 않고 "적용했다"고 말하지 않는다.
+
+### 화면 관계 명령
+
+button의 action은 `updateNode(path: "action")`으로 전체 객체를 교체한다. 삭제는
+`removeNodeAction`만 쓰고 null/빈 객체/action.type/action.target 부분 쓰기는 금지한다.
+화면 kind는 `updateScreen(path: "kind")`으로 page/modal/widget를 쓴다. 최소/첫 page 및
+참조 source/target 규칙은 프로젝트 검증에서 확인한다. 요청에는 아직 다른 페이지 카탈로그가
+없으므로 이름으로 PageId를 추측하지 않는다. S1-10의 대상 카탈로그 지원은 별도 작업이다.
 
 ## 자주 틀리는 지점
 
@@ -344,7 +367,7 @@ Undo가 어긋난다. 대신 같은 Command를 GUI에 보내 GUI가 검증·적�
 `page.nodes.title.typography.fontSize`가 지금 24.
 
 ```json
-{ "protocol": 1, "requestId": "req-abc",
+{ "protocol": 2, "commandVersion": "0.2", "requestId": "req-abc",
   "commands": [
     { "type": "updateNode", "id": "title", "path": "typography.fontSize", "value": 32 }
   ] }
@@ -359,7 +382,7 @@ Command 9개, 3종(`updateScreen`·`setLayout`·`createNode`)으로 만든다.
 `08-natural-language.md`(로컬 계약 `docs/`) 3.3의 4노드 분석은 확장 전 기록이다.
 
 ```json
-{ "protocol": 1, "requestId": "req-xyz",
+{ "protocol": 2, "commandVersion": "0.2", "requestId": "req-xyz",
   "commands": [
     { "type": "updateScreen", "path": "name", "value": "Login" },
     { "type": "updateScreen", "path": "size", "value": { "width": 390, "height": 844 } },

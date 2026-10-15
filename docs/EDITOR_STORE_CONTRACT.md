@@ -327,3 +327,10 @@ root로 돌아간다. Ungroup은 자식을 원래 순서대로 frame의 형제 �
 Undo 대상이 아니다. 메모리의 미저장 편집·선택과 편집 Undo/Redo는 보존하고, 모든 history
 snapshot의 프로젝트 이름도 함께 갱신해 Undo가 이전 파일 이름의 표시명으로 돌아가지 않게 한다.
 활성 문서의 `documentStore.fileName`은 성공 후 새 이름으로 변경된다.
+
+## #265 S1-3 관계 명령
+
+`removeNodeAction(id)`는 선택 button의 action을 제거하고 Undo 한 단계를 만든다. 없는 action은
+no-op이다. setNodeField의 action은 전체 교체만 허용한다. 관계 명령이 든 GUI 배치는 no-op도
+전체 실패이며 모든 GUI 명령 후보는 프로젝트 전체 검증 뒤 커밋한다. 오류는 기존 편집 오류
+표시 경로로 보고하고 spec/선택/history를 유지한다. NL G2/G3는 기존 검증을 유지한다.

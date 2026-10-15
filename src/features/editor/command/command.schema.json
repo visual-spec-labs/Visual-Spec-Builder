@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CommandTransaction",
-  "description": "Visual Spec Command Schema v0.1 — 신뢰할 수 없는 입력이 Command Engine에 닿기 전의 형태 계약.",
+  "description": "Visual Spec Command Schema v0.2 — 신뢰할 수 없는 입력이 Command Engine에 닿기 전의 형태 계약.",
   "$ref": "#/$defs/Transaction",
   "$defs": {
     "Command": {
@@ -11,7 +11,8 @@
         { "$ref": "#/$defs/DeleteNodeCommand" },
         { "$ref": "#/$defs/MoveNodeCommand" },
         { "$ref": "#/$defs/SetLayoutCommand" },
-        { "$ref": "#/$defs/UpdateScreenCommand" }
+        { "$ref": "#/$defs/UpdateScreenCommand" },
+        { "$ref": "#/$defs/RemoveNodeActionCommand" }
       ]
     },
     "CreateNodeCommand": {
@@ -77,11 +78,21 @@
         "value": true
       }
     },
+    "RemoveNodeActionCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "const": "removeNodeAction" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" }
+      }
+    },
     "Transaction": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["commands"],
+      "required": ["version", "commands"],
       "properties": {
+        "version": { "const": "0.2" },
         "commands": {
           "type": "array",
           "minItems": 1,

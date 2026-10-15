@@ -1,3 +1,7 @@
+> 2026-10-15 #265 S1-3 구현: Command 0.2 removeNodeAction/전체 action 교체/kind, NL·직접 agent-edit
+> protocol 2와 commandVersion/capabilities 이전. 구 소비자 fixture, 새 G1~G3와 GUI 원자성 회귀 검사 추가.
+> S1-4 삭제/클립보드 정합성, S1-5 이후 UI/생성, S1-10 대상 카탈로그는 아직 별도 작업이다.
+
 # 07. 구현 현황
 
 > **현재 검증 코드: 2026-10-05 · `develop` `26ba851` (#237~#261 병합 완료).** #261은 문서만 바꿨으므로 코드는 `5670bfb`와 같다.

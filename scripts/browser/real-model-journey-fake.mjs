@@ -40,7 +40,7 @@ const write = (path, text) => {
 if (mode === "exit1") { process.stderr.write("가짜 에이전트: 인증이 만료되었습니다"); process.exit(1); }
 if (mode.startsWith("nl-")) {
   const request = read("runtime/nl-request.json");
-  const body = { protocol: 1, requestId: request.id };
+  const body = { protocol: 2, commandVersion: "0.2", requestId: request.id };
   if (mode === "nl-wrong-id") write(request.responsePath, JSON.stringify({ ...body, requestId: "nl-earlier", commands: [] }));
   if (mode === "nl-error") write(request.responsePath, JSON.stringify({ ...body, error: "가짜 에이전트가 요청을 거절했습니다." }));
   // 형식은 맞지만 없는 노드를 고치는 응답 — GUI가 적용 관문에서 거부한다.

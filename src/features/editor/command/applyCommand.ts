@@ -156,6 +156,11 @@ function applyUpdateNode(screen: ScreenSpec, command: UpdateNodeCommand): ApplyR
   }
 
   const nextNode = setByPath(node, command.path, command.value);
+  if (command.path === "action") {
+    const candidate = withNodes(screen, { ...nodes, [command.id]: nextNode });
+    const result = validateVisualSpec({ version: "0.3", screen: candidate });
+    if (!result.valid || command.value === undefined) return noOp(screen, "action은 유효한 전체 객체여야 합니다");
+  }
   return applied(withNodes(screen, { ...nodes, [command.id]: nextNode }));
 }
 
@@ -240,16 +245,19 @@ function applySetLayout(screen: ScreenSpec, command: SetLayoutCommand): ApplyRes
 }
 
 function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): ApplyResult {
+  if (command.path === "kind" && !["page", "modal", "widget"].some((kind) => command.value === kind)) {
+    return noOp(screen, "kind는 page/modal/widget 중 하나여야 합니다");
+  }
   if (!isEditableScreenPath(screen, command.path)) {
     // applyUpdateNode와 같은 이유(#146)
     return noOp(screen, `path '${command.path}'는 화면에 쓸 수 없습니다`);
   }
 
   const next = setByPath(screen, command.path, command.value);
-  if (command.path === "responsive") {
+  if (command.path === "responsive" || command.path === "kind") {
     const result = validateVisualSpec({ version: "0.3", screen: next });
     if (!result.valid) return noOp(screen, result.issues.map((issue) => issue.message).join(" "));
-    if (JSON.stringify(screen.responsive) === JSON.stringify(next.responsive)) return noOp(screen, "반응형 값이 같습니다");
+    if (command.path === "responsive" && JSON.stringify(screen.responsive) === JSON.stringify(next.responsive)) return noOp(screen, "반응형 값이 같습니다");
   }
   return applied(next);
 }
@@ -272,6 +280,13 @@ function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): Ap
  */
 export function applyCommandWithReason(screen: ScreenSpec, command: Command): ApplyResult {
   switch (command.type) {
+    case "removeNodeAction": {
+      const node = screen.nodes[command.id];
+      if (!node || node.type !== "button" || node.action === undefined) return noOp(screen, "action이 있는 button만 제거할 수 있습니다");
+      const next = { ...node };
+      delete next.action;
+      return applied(withNodes(screen, { ...screen.nodes, [command.id]: next }));
+    }
     case "createNode":
       return applyCreateNode(screen, command);
     case "updateNode":

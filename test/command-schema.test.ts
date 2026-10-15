@@ -23,9 +23,10 @@ const commands = [
   { type: "moveNode", id: "cardA", newParentId: "content", index: 0 },
   { type: "setLayout", id: "cardA", layout: frame.layout },
   { type: "updateScreen", path: "size.width", value: 1280 },
+  { type: "removeNodeAction", id: "button" },
 ] satisfies Command[];
 
-describe("Command Schema v0.1", () => {
+describe("Command Schema v0.2", () => {
   it.each(commands)("$type Command를 받는다", (command) => {
     expect(validateCommand(command)).toEqual({ valid: true, issues: [] });
   });
@@ -69,15 +70,15 @@ describe("Command Schema v0.1", () => {
   });
 
   it("Transaction에 1–100개 Command를 받는다", () => {
-    const transaction = { commands } satisfies Transaction;
+    const transaction = { version: "0.2", commands } satisfies Transaction;
     expect(validateTransaction(transaction)).toEqual({ valid: true, issues: [] });
-    expect(validateTransaction({ commands: [] }).valid).toBe(false);
-    expect(validateTransaction({ commands: Array(101).fill(commands[2]) }).valid).toBe(false);
+    expect(validateTransaction({ version: "0.2", commands: [] }).valid).toBe(false);
+    expect(validateTransaction({ version: "0.2", commands: Array(101).fill(commands[2]) }).valid).toBe(false);
   });
 
   it("Transaction의 추가 필드와 잘못된 원소를 거부한다", () => {
-    expect(validateTransaction({ commands, prompt: "make a page" }).valid).toBe(false);
-    expect(validateTransaction({ commands: [{ type: "deleteNode" }] }).valid).toBe(false);
+    expect(validateTransaction({ version: "0.2", commands, prompt: "make a page" }).valid).toBe(false);
+    expect(validateTransaction({ version: "0.2", commands: [{ type: "deleteNode" }] }).valid).toBe(false);
   });
 
   it("검증 중 예외가 나도 던지지 않고 issues를 돌려준다", () => {

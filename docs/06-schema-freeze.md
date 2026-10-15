@@ -515,7 +515,7 @@ D1~D4·§3·§5 권고안이며, 그 문서(#339)의 팀 승인·병합 전에�
   S1-2 프로젝트 검증이 새 IssueCode로 잡는다. 이 PR은 IssueCode를 추가하지 않으므로 S1-2 전에는
   없는 target도 구조 검증을 통과한다. 화면 문서(`VisualSpec`)는 외부 PageId를 검사하지 않는다.
   (S1-2에서 추가 — 아래 "화면 관계 참조 무결성" 절.)
-- **Command로는 아직 쓰지 못한다(임시 가드, S1-3에서 제거).** 쓰기 경로를 스키마에서 도출하는
+- **S1-1 당시 임시 가드(2026-10-15 S1-3에서 해제).** 현재 Command 0.2와 두 전송 protocol 2가 형태/버전/프로젝트 검증을 거친다. 아래는 S1-1 당시 차단 근거다. 쓰기 경로를 스키마에서 도출하는
   `command/editablePath.ts`가 updateScreen `kind`, updateNode `action`과 그 하위 경로를 막는다.
   G1 `validateCommand`·`validateTransaction`은 action이 붙은 createNode를 거부한다.
   `command.schema.json`과 Command 버전은 바꾸지 않았다. **스키마로는 허용, Command로는 아직

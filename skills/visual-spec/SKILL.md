@@ -47,3 +47,5 @@ GUI를 통한 자연어 편집·화면 생성(이슈 #73·#40·#154·#155·#183)
 저장소 안이면 파일로 읽고, 사용자 프로젝트면 [visual-spec-docs](../visual-spec-docs/SKILL.md)의
 GitHub 원문 절차로 읽되 설치한 패키지보다 새 내용일 수 있음을 함께 말한다.
 스키마·검증·예제는 이 스킬 폴더의 `contract/`(설치한 패키지와 같은 버전)에 있다.
+
+열린 GUI의 protocol/capabilities가 설치된 스킬과 다르면 GUI와 `visual-spec skills`를 갱신하도록 안내한다. 버전 불일치는 GUI 종료가 아니며 specs 파일 직접 편집으로 우회하지 않는다.

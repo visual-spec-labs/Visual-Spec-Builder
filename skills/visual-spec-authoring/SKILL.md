@@ -243,3 +243,5 @@ source of truth라는 전제가 깨진다.
   ```
 
 `valid: false` 면 [../visual-spec-validate/SKILL.md](../visual-spec-validate/SKILL.md) 로 넘어간다.
+
+열린 GUI의 protocol/capabilities가 설치된 스킬과 다르면 GUI와 `visual-spec skills`를 갱신하도록 안내한다. 버전 불일치는 GUI 종료가 아니며 specs 파일 직접 편집으로 우회하지 않는다.
