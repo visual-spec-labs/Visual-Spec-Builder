@@ -127,6 +127,33 @@ describe("TextField의 연속 타이핑을 undo 한 단계로 합친다 (#132)",
       );
     }
 
+    it.each([false, true])("rejected first input preserves the next Undo checkpoint (prior edit=%s)", (priorEdit) => {
+      if (priorEdit) useEditorStore.getState().setNodeField("cardA", "layout.gap", 40);
+      const before = useEditorStore.getState();
+      const field = nameField();
+      field.change(""); // required name: rejected, but the controlled input advanced its burst
+      expect(useEditorStore.getState()).toBe(before);
+      field.retype("Renamed");
+      expect(historyStepCount()).toBe(before.history.past.length + 1);
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().spec).toEqual(before.spec);
+    });
+
+    it("a rejected edit interrupts an already committed burst", () => {
+      const before = useEditorStore.getState().spec;
+      const field = nameField();
+      field.retype("First");
+      const first = useEditorStore.getState();
+      field.change("");
+      expect(useEditorStore.getState()).toBe(first);
+      field.retype("Second");
+      expect(historyStepCount()).toBe(2);
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().spec).toEqual(first.spec);
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().spec).toEqual(before);
+    });
+
     it("여러 글자를 이어 치면 undo 한 번에 타이핑 이전 값으로 돌아간다", () => {
       const before = activePage().name; // 시드의 "DashboardPage"
 

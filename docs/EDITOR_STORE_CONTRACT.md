@@ -334,3 +334,10 @@ snapshot의 프로젝트 이름도 함께 갱신해 Undo가 이전 파일 이름
 no-op이다. setNodeField의 action은 전체 교체만 허용한다. 관계 명령이 든 GUI 배치는 no-op도
 전체 실패이며 모든 GUI 명령 후보는 프로젝트 전체 검증 뒤 커밋한다. 오류는 기존 편집 오류
 표시 경로로 보고하고 spec/선택/history를 유지한다. NL G2/G3는 기존 검증을 유지한다.
+
+### Rejected edits and typing history (#265)
+
+`continueEdit` is a request to reuse a successfully committed transaction checkpoint.
+A rejected/no-op transaction invalidates that eligibility without mutating the document or history.
+The next valid edit starts a new checkpoint, even when a controlled input has already
+advanced its local burst. This preserves Undo on a fresh document and after unrelated edits.

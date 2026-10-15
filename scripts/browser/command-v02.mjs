@@ -64,6 +64,16 @@ try {
     commands: [{ type: "updateNode", id: "loginButton", path: "action", value: { type: "navigate", target: "dashboard" } }] }));
   await page.waitForFunction(() => editor.getState().spec.pages.login.nodes.loginButton.action?.target === "dashboard");
   assert.equal(await page.evaluate(() => editor.getState().history.past.length), baseline.past + 2);
+  // Real controlled TextField rejection must not consume the next Undo checkpoint.
+  await page.evaluate(() => editor.getState().select(null));
+  const beforeName = await page.evaluate(() => editor.getState().spec);
+  const name = page.getByRole("textbox", { name: "이름", exact: true });
+  await name.fill("");
+  assert.deepEqual(await page.evaluate(() => editor.getState().spec), beforeName);
+  await name.fill("Renamed");
+  await name.blur();
+  await page.evaluate(() => editor.getState().undo());
+  assert.deepEqual(await page.evaluate(() => editor.getState().spec), beforeName);
   assert.deepEqual(errors, []);
   console.log("PASS Command v0.2: capabilities; old/missing-version direct requests rejected without mutation; new direct edit/Undo/Redo; NL protocol 2 round trip. Fixture producers, no AI.");
 } finally { try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); } }

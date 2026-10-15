@@ -362,12 +362,19 @@ function applied(
  * Command 여러 개를 한 페이지 사본에 먼저 적용하고 최종 결과만 history에 얹는다.
  * Zustand의 set 콜백 한 번 안에서 호출되므로 중간 화면은 구독자에게 보이지 않는다.
  */
+// Only a committed transaction can be continued. Rejected attempts invalidate
+// eligibility without changing the document/history or emitting a store update.
+// Weak keys also isolate documents, Undo/Redo and externally replaced histories.
+const continuableHistories = new WeakSet<EditorState["history"]>();
+
 function appliedTransaction(
   state: EditorState,
   pageId: PageId,
   commands: Command[],
   continueEdit = false,
 ): Pick<EditorState, "spec" | "history"> | null {
+  const canContinue = continueEdit && continuableHistories.has(state.history);
+  continuableHistories.delete(state.history);
   const page = state.spec.pages[pageId];
   if (page === undefined) return null;
 
@@ -406,12 +413,11 @@ function appliedTransaction(
   // 이 단계로 undo/redo하면 바뀐 내용이 눈앞에 있어야 한다(#131, PR #142).
   const next = makeSnapshot(spec, pageId);
 
-  return {
-    spec,
-    history: continueEdit
-      ? replacePresent(state.history, next)
-      : pushHistory(state.history, next),
-  };
+  const history = canContinue
+    ? replacePresent(state.history, next)
+    : pushHistory(state.history, next);
+  continuableHistories.add(history);
+  return { spec, history };
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
