@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 
@@ -36,6 +38,15 @@ export function PageProperties() {
   const page = useEditorStore((state) => state.spec.pages[state.activePageId]);
   const setPageField = useEditorStore((state) => state.setPageField);
 
+  const [kindError, setKindError] = useState<{ pageId: string; message: string } | null>(null);
+  function changeKind(value: "page" | "modal" | "widget") {
+    const before = useEditorStore.getState().spec;
+    if ((page.kind ?? "page") === value) return;
+    setPageField(activePageId, "kind", value);
+    const error = useResponsiveViewStore.getState().error;
+    setKindError(useEditorStore.getState().spec === before && error ? { pageId: activePageId, message: error } : null);
+  }
+
   const presetId = findPresetId(page.size);
   const options =
     presetId === CUSTOM_PRESET_ID
@@ -63,6 +74,13 @@ export function PageProperties() {
 
   return (
     <PropertySection title="페이지 (Page)">
+      <SelectField
+        label="화면 종류"
+        value={page.kind ?? "page"}
+        options={[{ value: "page", label: "페이지 (page)" }, { value: "modal", label: "모달 (modal)" }, { value: "widget", label: "위젯 (widget)" }]}
+        onChange={changeKind}
+      />
+      {kindError?.pageId === activePageId && <p role="alert" className="text-xs text-content-muted">{kindError.message}</p>}
       <TextField
         label="이름"
         value={page.name}
