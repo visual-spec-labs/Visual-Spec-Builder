@@ -160,3 +160,42 @@ describe("imageUrlCss", () => {
     );
   });
 });
+
+
+describe("valid cleared image representation", () => {
+  it("shows the transparent image as an editable empty path and keeps nonempty paths", async () => {
+    const { EMPTY_IMAGE_SRC, imageSrcFromInput } = await import("@/features/editor/ui/properties/imageSrc");
+    expect(imageSrcFromInput("")).toBe(EMPTY_IMAGE_SRC);
+    expect(describeImageSrc(EMPTY_IMAGE_SRC)).toEqual({ kind: "path", value: "" });
+    expect(imageSrcFromInput("assets/replacement.png")).toBe("assets/replacement.png");
+    expect(resolveImageSrc(EMPTY_IMAGE_SRC)).toBe(EMPTY_IMAGE_SRC);
+  });
+  it("clears atomically, preserves layout, and restores the original bytes with one Undo", async () => {
+    const { EMPTY_IMAGE_SRC } = await import("@/features/editor/ui/properties/imageSrc");
+    const { useEditorStore } = await import("@/features/editor/store/editorStore");
+    const { validateProjectSpec } = await import("@/features/editor/schema");
+    const { parseSpecJson } = await import("@/features/editor/store/loadSpec");
+    const { default: fixture } = await import("./fixtures/screen-relations-project.json");
+    const spec = structuredClone(fixture) as unknown as import("@/features/editor/schema").ProjectSpec;
+    const original = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22/%3E";
+    spec.pages.login.nodes.picture = { type: "image", name: "Picture", box: { width: 200, height: 100 }, fit: "cover", src: original };
+    const root = spec.pages.login.nodes.root;
+    if (root.type !== "frame") throw Error("fixture root");
+    root.children.push({ node: "picture" });
+    useEditorStore.getState().loadSpec(spec);
+    const before = useEditorStore.getState().spec;
+    useEditorStore.getState().setNodeField("picture", "src", EMPTY_IMAGE_SRC);
+    const cleared = useEditorStore.getState();
+    expect(cleared.history.past).toHaveLength(1);
+    expect(cleared.spec.pages.login.nodes.picture).toEqual({ ...before.pages.login.nodes.picture, src: EMPTY_IMAGE_SRC });
+    expect(validateProjectSpec(cleared.spec).valid).toBe(true);
+    expect(parseSpecJson(JSON.stringify(cleared.spec))).toMatchObject({ ok: true });
+    useEditorStore.getState().undo(); expect(useEditorStore.getState().spec).toBe(before);
+    useEditorStore.getState().redo(); expect(useEditorStore.getState().spec).toBe(cleared.spec);
+    // The schema remains strict: empty strings are still invalid.
+    const invalid = structuredClone(cleared.spec);
+    const image = invalid.pages.login.nodes.picture;
+    if (image.type === "image") image.src = "";
+    expect(validateProjectSpec(invalid).valid).toBe(false);
+  });
+});

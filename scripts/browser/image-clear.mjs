@@ -1,0 +1,56 @@
+// Image clearing real controls and persistence; fixture project, no model call.
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { startBrowserWorkspace } from "./harness.mjs";
+const workspace = await mkdtemp(join(tmpdir(), "vs-image-clear-"));
+let runner;
+try {
+  for (const dir of ["specs", "runtime", "generated"]) await mkdir(join(workspace, dir), { recursive: true });
+  const project = JSON.parse(await readFile(new URL("../../test/fixtures/screen-relations-project.json", import.meta.url), "utf8"));
+  project.name = "ClearFlow";
+  const originalSrc = 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20width%3D%222%22%20height%3D%222%22%3E%3Crect%20width%3D%222%22%20height%3D%222%22%20fill%3D%22red%22/%3E%3C/svg%3E';
+  project.pages.login.nodes.picture = { type: "image", name: "ImportedImage", box: { width: 200, height: 100 }, src: originalSrc, fit: "cover" };
+  project.pages.login.nodes.root.children.push({ node: "picture" });
+  await writeFile(join(workspace, "specs/flow.json"), JSON.stringify(project));
+  runner = await startBrowserWorkspace(workspace);
+  const context = await runner.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await context.newPage(); page.setDefaultTimeout(15000);
+  const errors = []; page.on("pageerror", error => errors.push(error.message));
+  await page.goto(runner.url);
+  await page.getByRole("button").filter({ hasText: /ClearFlow.*페이지/s }).click();
+  await page.evaluate(async () => { window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore; });
+  const state = () => page.evaluate(() => ({ spec: editor.getState().spec, history: editor.getState().history }));
+  await page.getByRole("button", { name: "ImportedImage", exact: true }).click();
+  const before = await state();
+  await page.getByRole("button", { name: "지우기", exact: true }).click();
+  const cleared = await state();
+  const empty = await page.evaluate(async () => (await import("/src/features/editor/ui/properties/imageSrc.ts")).EMPTY_IMAGE_SRC);
+  assert.equal(cleared.spec.pages.login.nodes.picture.src, empty);
+  assert.equal(cleared.history.past.length, before.history.past.length + 1);
+  assert.equal(await page.getByRole("textbox", { name: "경로 (src)", exact: true }).inputValue(), "");
+  assert.equal(await page.evaluate(async (src) => {
+    const image = new Image(); image.src = src; await image.decode(); return image.naturalWidth;
+  }, empty), 1);
+  await page.getByRole("button", { name: "되돌리기", exact: true }).click();
+  assert.deepEqual((await state()).spec, before.spec);
+  await page.getByRole("button", { name: "다시 실행", exact: true }).click();
+  assert.deepEqual((await state()).spec, cleared.spec);
+  const expected = cleared.spec;
+  const saved = page.waitForResponse(r => r.request().method() === "PUT" && r.url().includes("specs/flow.json"));
+  const notice = new Promise(resolve => page.once("dialog", async d => { await d.accept(); resolve(); }));
+  await page.getByRole("button", { name: "파일", exact: true }).click();
+  await page.getByRole("menuitem", { name: "저장", exact: true }).click();
+  assert.equal((await saved).ok(), true); await notice;
+  assert.deepEqual(JSON.parse(await readFile(join(workspace, "specs/flow.json"), "utf8")), expected);
+  await page.getByRole("button", { name: "파일", exact: true }).click();
+  await page.getByRole("menuitem", { name: "열기", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "flow.json", exact: true }).click();
+  assert.deepEqual((await state()).spec, expected);
+  await page.reload();
+  await page.evaluate(async () => { window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore; });
+  assert.deepEqual((await state()).spec, expected);
+  assert.deepEqual(errors, []);
+  console.log("PASS image clear: actual UI clears to a decodable transparent image; empty editable path; one Undo/Redo; Save/Open/reload; original geometry and source restored. Fixture only.");
+} finally { try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); } }
