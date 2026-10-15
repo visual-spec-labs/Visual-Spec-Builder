@@ -50,7 +50,7 @@ G1(Command 스키마 검사)을 통과한다.
 1. `nl-request.json`을 읽는다 — `scope`(대상)·`page`(현재 스펙 전체)를 특히 눈여겨본다
 2. 요청을 Command 배열로 옮긴다. 새 노드가 필요하면 SKILL.md의 기본값 표에서 시작해 요청이
    말한 스타일로 바꾼다
-3. `{ protocol, requestId, commands }`(또는 표현할 수 없으면 `error`)를 `responsePath`에 쓴다
+3. `{ protocol: 2, commandVersion: "0.2", requestId, commands }`(또는 표현할 수 없으면 `error`)를 `responsePath`에 쓴다
 4. 검증은 GUI가 한다 — 실패하면 입력창 옆에 이유가 뜨고 사용자가 다시 요청한다
 
 ## 이 스킬이 하지 않는 것
@@ -61,5 +61,7 @@ G1(Command 스키마 검사)을 통과한다.
   (`docs/08-natural-language.md` 7.2가 MVP에서 뺀 범위 — SKILL.md "표현할 수 없는 것" 참고)
 - 스펙을 React 코드로 옮기는 것 → [visual-spec-to-react](./visual-spec-to-react.md)가 맡는다
 
-Command 6종의 필드, 기본값 표, 예제는 `skills/visual-spec-nl-response/SKILL.md` 본문을 본다.
+Command 7종의 필드, 기본값 표, 예제는 `skills/visual-spec-nl-response/SKILL.md` 본문을 본다.
 어느 스킬로 가야 할지 모르겠으면 [visual-spec](./visual-spec.md) 허브로 돌아간다.
+
+직접 agent-edit도 protocol 2와 commandVersion "0.2"를 쓴다. gui-state의 capabilities.commandVersion/commands를 먼저 검사하고 버전 불일치에는 파일 편집/자동 재전송으로 우회하지 않는다.

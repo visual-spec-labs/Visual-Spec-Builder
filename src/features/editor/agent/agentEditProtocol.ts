@@ -18,12 +18,12 @@
  */
 
 import { validateTransaction } from "@/features/editor/command/validate";
-import type { Command } from "@/features/editor/command/types";
+import { COMMAND_VERSION, COMMAND_TYPES, type Command } from "@/features/editor/command/types";
 import type { CommandValidationIssue } from "@/features/editor/command/validate";
 import type { PageId, ScreenSpec } from "@/features/editor/schema";
 import { RUNTIME_DIR } from "@/features/workspace/protocol";
 
-export const AGENT_EDIT_PROTOCOL_VERSION = 1;
+export const AGENT_EDIT_PROTOCOL_VERSION = 2;
 export const GUI_STATE_FILE = "gui-state.json";
 export const GUI_STATE_PATH = `${RUNTIME_DIR}/${GUI_STATE_FILE}`;
 export const AGENT_EDIT_FILE = "agent-edit.json";
@@ -32,6 +32,7 @@ export const AGENT_EDIT_RESULT_PATH = `${RUNTIME_DIR}/agent-edit-result.json`;
 
 /** GUI가 공개하는 현재 상태. 에이전트는 이걸 읽고 Command를 만든다. */
 export interface GuiState {
+  capabilities: { commandVersion: typeof COMMAND_VERSION; commands: readonly Command["type"][] };
   protocol: number;
   /** 이 상태를 공개한 GUI 연결(탭 id + 연결 순번 — 다시 연결하면 바뀐다). 연결을 풀면 잠금 해제와 함께 이 파일이 지워진다. */
   id: string;
@@ -93,6 +94,7 @@ export function buildGuiState(
 ): GuiState {
   return {
     protocol: AGENT_EDIT_PROTOCOL_VERSION,
+    capabilities: { commandVersion: COMMAND_VERSION, commands: COMMAND_TYPES },
     id: input.tabId,
     stateRevision: computeStateRevision(input),
     updatedAt: input.now.toISOString(),
@@ -131,7 +133,7 @@ export function parseAgentEdit(text: string | null): AgentEditParse {
   if (!isRecord(body) || typeof body.id !== "string" || body.id === "") return { kind: "unreadable" };
   const id = body.id;
   if (body.protocol !== AGENT_EDIT_PROTOCOL_VERSION) {
-    return { kind: "malformed", id, message: `요청 형식 버전이 다릅니다(기대: ${AGENT_EDIT_PROTOCOL_VERSION}, 받음: ${JSON.stringify(body.protocol)}).` };
+    return { kind: "malformed", id, message: `요청 형식 버전이 다릅니다(기대: ${AGENT_EDIT_PROTOCOL_VERSION}, 받음: ${JSON.stringify(body.protocol)}). GUI와 visual-spec skills를 업데이트하세요.` };
   }
   if (typeof body.baseStateRevision !== "string" || body.baseStateRevision === "") {
     return { kind: "malformed", id, message: "baseStateRevision이 없습니다. gui-state.json의 stateRevision을 그대로 넣으세요." };
@@ -142,7 +144,7 @@ export function parseAgentEdit(text: string | null): AgentEditParse {
   if (body.summary !== undefined && typeof body.summary !== "string") {
     return { kind: "malformed", id, message: "summary는 문자열이어야 합니다." };
   }
-  const result = validateTransaction({ commands: body.commands });
+  const result = validateTransaction({ version: body.commandVersion, commands: body.commands });
   if (!result.valid) return { kind: "invalid", id, issues: result.issues };
   return {
     kind: "edit", id, baseStateRevision: body.baseStateRevision, pageId: body.pageId,

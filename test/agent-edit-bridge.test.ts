@@ -32,7 +32,7 @@ const state = () => JSON.parse(files.get("runtime/gui-state.json") ?? "null");
 const result = () => JSON.parse(files.get("runtime/agent-edit-result.json") ?? "null");
 const title = () => (useEditorStore.getState().spec.pages.page1.nodes.headerTitle as { content: string }).content;
 function sendEdit(edit: Record<string, unknown>) {
-  files.set("runtime/agent-edit.json", JSON.stringify({ protocol: 1, ...edit }));
+  files.set("runtime/agent-edit.json", JSON.stringify({ protocol: 2, commandVersion: "0.2", ...edit }));
 }
 const background = (color: string) => [{ type: "updateNode", id: "root", path: "background", value: [{ type: "solid", color }] }];
 const retitle = (value: string) => [{ type: "updateNode", id: "headerTitle", path: "content", value }];
@@ -155,7 +155,7 @@ describe("GUI 상태 공개 (#279)", () => {
     expect(useAgentEditStore.getState().connected).toBe(true);
     const published = state();
     expect(published).toMatchObject({
-      protocol: 1, fileName: "same.json", diskRevision: "rev-1", pageId: "page1", selectedId: "headerTitle",
+      protocol: 2, fileName: "same.json", diskRevision: "rev-1", pageId: "page1", selectedId: "headerTitle",
       editPath: "runtime/agent-edit.json", resultPath: "runtime/agent-edit-result.json",
     });
     expect(published.page.nodes.headerTitle.content).toBe(title());
@@ -269,7 +269,7 @@ describe("에이전트 편집 적용 (#279)", () => {
   });
 
   it("다시 연결되면 이전에 처리한 마지막 요청을 다시 적용하지 않는다", async () => {
-    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "old", status: "applied" }));
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 2, requestId: "old", status: "applied" }));
     sendEdit({ id: "old", baseStateRevision: "whatever", pageId: "page1", commands: retitle("다시 적용되면 안 됨") });
     await connect();
     await vi.advanceTimersByTimeAsync(2000);
@@ -347,7 +347,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
       expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "confirm" });
       // 정지·연장 지연으로 잠금이 B 탭에 넘어갔다. B가 결과를 쓴다
       vi.mocked(acquireRequestLock).mockResolvedValue("busy");
-      files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "bg", status: "rejected", message: "B" }));
+      files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 2, requestId: "bg", status: "rejected", message: "B" }));
 
       useAgentEditStore.getState().resolveConfirm(accept); // 다음 연장 전에 누른다 — 직전 확인이 잡는다
       await vi.advanceTimersByTimeAsync(0);
@@ -394,7 +394,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
       path === "runtime/agent-edit-result.json" && owner !== "tab-b"
         ? { ok: false, error: "409" }
         : serverWrite(path, body, type, rev, owner));
-    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "b-new", status: "applied" }));
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 2, requestId: "b-new", status: "applied" }));
 
     useNavigationStore.getState().openHome(); // A는 아직 자기가 주인인 줄 안다
     await vi.advanceTimersByTimeAsync(0);
@@ -465,7 +465,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
   it("재연결 복원 중 결과·요청 파일 읽기가 실패하면 연결을 미뤄, 이미 적용한 요청의 결과를 덮지 않는다", async () => {
     // A를 적용하고 applied까지 기록한 상태(이전 연결)
     sendEdit({ id: "a", baseStateRevision: "old-connection", pageId: "page1", commands: retitle("A") });
-    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "a", status: "applied" }));
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 2, requestId: "a", status: "applied" }));
     const read = vi.mocked(readWorkspaceTextFileStrict);
     read.mockResolvedValueOnce({ ok: false }); // 복원 직후 읽기가 일시 실패
     await connect();
@@ -613,7 +613,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     await vi.advanceTimersByTimeAsync(10);
     // 그 사이 다른 탭이 B를 처리했다
     sendEdit({ id: "b", baseStateRevision: "other-tab", pageId: "page1", commands: retitle("B") });
-    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "b", status: "applied" }));
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 2, requestId: "b", status: "applied" }));
     useNavigationStore.getState().openEditor();
     await vi.advanceTimersByTimeAsync(11_000); // 다시 연결하고 연장 회차를 여러 번 지난다
     expect(useAgentEditStore.getState().connected).toBe(true);
@@ -640,7 +640,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     await vi.advanceTimersByTimeAsync(10);
     // 그 사이 다른 탭이 B를 처리했다
     sendEdit({ id: "b", baseStateRevision: "other-tab", pageId: "page1", commands: retitle("B") });
-    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "b", status: "applied" }));
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 2, requestId: "b", status: "applied" }));
     useNavigationStore.getState().openEditor();
     await vi.advanceTimersByTimeAsync(15_000); // 다시 연결 → A 쓰기가 실패로 끝남 → 연장 회차 여러 번
     writes.mockImplementation(serverWrite);
@@ -682,7 +682,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     // B가 연결해 new-b를 처리하고 푼다
     lockOwner = "tab-b";
     sendEdit({ id: "new-b", baseStateRevision: "b", pageId: "page1", commands: retitle("B") });
-    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "new-b", status: "applied" }));
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 2, requestId: "new-b", status: "applied" }));
     lockOwner = null;
     useNavigationStore.getState().openEditor(); // A가 다시 연결한다 — 새 주인 id로
     await vi.advanceTimersByTimeAsync(300);
@@ -927,7 +927,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
   });
 
   it("확인 대기(pending)로 남은 요청은 새 연결이 거절로 끝낸다 — 새로고침하면 확인창이 사라지기 때문이다", async () => {
-    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "bg", status: "pending" }));
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 2, requestId: "bg", status: "pending" }));
     sendEdit({ id: "bg", baseStateRevision: "old-tab", pageId: "page1", commands: background("#000000") });
     await connect();
     expect(result()).toMatchObject({ requestId: "bg", status: "rejected" });
@@ -937,7 +937,7 @@ describe("연결 조건 (#279 셀프 리뷰)", () => {
     // 요청 파일이 이미 지워졌어도 pending 결과는 끝낸다
     stop?.(); stop = undefined;
     files.clear();
-    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 1, requestId: "bg2", status: "pending" }));
+    files.set("runtime/agent-edit-result.json", JSON.stringify({ protocol: 2, requestId: "bg2", status: "pending" }));
     await connect();
     expect(result()).toMatchObject({ requestId: "bg2", status: "rejected" });
   });
@@ -953,9 +953,9 @@ describe("요청 형식 (#279)", () => {
   it("버전·기준 상태·페이지가 없으면 이유를 알리고, id를 읽을 수 없으면 답할 짝이 없다", () => {
     expect(parseAgentEdit(null)).toEqual({ kind: "none" });
     expect(parseAgentEdit("{ not json")).toEqual({ kind: "unreadable" });
-    expect(parseAgentEdit(JSON.stringify({ protocol: 1 }))).toEqual({ kind: "unreadable" });
-    expect(parseAgentEdit(JSON.stringify({ protocol: 2, id: "a" }))).toMatchObject({ kind: "malformed", id: "a" });
-    expect(parseAgentEdit(JSON.stringify({ protocol: 1, id: "a", pageId: "page1", commands: [] }))).toMatchObject({ kind: "malformed" });
-    expect(parseAgentEdit(JSON.stringify({ protocol: 1, id: "a", baseStateRevision: "r", commands: [] }))).toMatchObject({ kind: "malformed" });
+    expect(parseAgentEdit(JSON.stringify({ protocol: 2 }))).toEqual({ kind: "unreadable" });
+    expect(parseAgentEdit(JSON.stringify({ protocol: 1, id: "a" }))).toMatchObject({ kind: "malformed", id: "a" });
+    expect(parseAgentEdit(JSON.stringify({ protocol: 2, id: "a", pageId: "page1", commands: [] }))).toMatchObject({ kind: "malformed" });
+    expect(parseAgentEdit(JSON.stringify({ protocol: 2, id: "a", baseStateRevision: "r", commands: [] }))).toMatchObject({ kind: "malformed" });
   });
 });

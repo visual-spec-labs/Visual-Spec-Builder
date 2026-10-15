@@ -54,7 +54,7 @@
 
 import type { CommandValidationIssue } from "@/features/editor/command/validate";
 import { validateTransaction } from "@/features/editor/command/validate";
-import type { Command } from "@/features/editor/command/types";
+import { COMMAND_VERSION, type Command } from "@/features/editor/command/types";
 import type { NodeId, PageId, ScreenSpec } from "@/features/editor/schema";
 import { RUNTIME_DIR } from "@/features/workspace/protocol";
 
@@ -65,7 +65,7 @@ import { RUNTIME_DIR } from "@/features/workspace/protocol";
  * 갱신되기 때문이다. 버전이 다르면 조용히 이상한 Command를 만드는 대신
  * `parseNlResponse`가 걸러 낸다.
  */
-export const NL_PROTOCOL_VERSION = 1;
+export const NL_PROTOCOL_VERSION = 2;
 
 /** GUI가 쓰는 요청 파일(작업공간 루트 기준 상대 경로). */
 export const NL_REQUEST_PATH = `${RUNTIME_DIR}/nl-request.json`;
@@ -88,6 +88,7 @@ export interface NlScope {
 }
 
 export interface NlRequest {
+  commandVersion: typeof COMMAND_VERSION;
   protocol: number;
   /** 이 요청의 식별자. 응답의 `requestId`와 같아야 짝으로 인정한다. */
   id: string;
@@ -114,6 +115,7 @@ export interface BuildNlRequestInput {
 export function buildNlRequest(input: BuildNlRequestInput): NlRequest {
   return {
     protocol: NL_PROTOCOL_VERSION,
+    commandVersion: COMMAND_VERSION,
     id: input.id,
     instruction: input.instruction,
     scope: input.scope,
@@ -175,7 +177,7 @@ export function parseNlResponse(
   if (body.protocol !== NL_PROTOCOL_VERSION) {
     return {
       kind: "malformed",
-      message: `응답 형식 버전이 다릅니다(기대: ${NL_PROTOCOL_VERSION}, 받음: ${JSON.stringify(body.protocol)}).`,
+      message: `응답 형식 버전이 다릅니다(기대: ${NL_PROTOCOL_VERSION}, 받음: ${JSON.stringify(body.protocol)}). GUI와 visual-spec skills를 업데이트하세요.`,
     };
   }
 
@@ -184,7 +186,7 @@ export function parseNlResponse(
   }
 
   // G1 — Command 배열의 형태 검사(#153). Transaction 모양으로 감싸서 넘긴다.
-  const result = validateTransaction({ commands: body.commands });
+  const result = validateTransaction({ version: body.commandVersion, commands: body.commands });
   if (!result.valid) {
     return { kind: "invalid", issues: result.issues };
   }

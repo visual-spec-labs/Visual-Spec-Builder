@@ -327,3 +327,25 @@ root로 돌아간다. Ungroup은 자식을 원래 순서대로 frame의 형제 �
 Undo 대상이 아니다. 메모리의 미저장 편집·선택과 편집 Undo/Redo는 보존하고, 모든 history
 snapshot의 프로젝트 이름도 함께 갱신해 Undo가 이전 파일 이름의 표시명으로 돌아가지 않게 한다.
 활성 문서의 `documentStore.fileName`은 성공 후 새 이름으로 변경된다.
+
+## #265 S1-3 관계 명령
+
+`removeNodeAction(id)`는 선택 button의 action을 제거하고 Undo 한 단계를 만든다. 없는 action은
+no-op이다. setNodeField의 action은 전체 교체만 허용한다. 관계 명령이 든 GUI 배치는 no-op도
+전체 실패이며 모든 GUI 명령 후보는 프로젝트 전체 검증 뒤 커밋한다. 오류는 기존 편집 오류
+표시 경로로 보고하고 spec/선택/history를 유지한다. NL G2/G3는 기존 검증을 유지한다.
+
+### Rejected edits and typing history (#265)
+
+`continueEdit` is a request to reuse a successfully committed transaction checkpoint.
+A rejected/no-op transaction invalidates that eligibility without mutating the document or history.
+The next valid edit starts a new checkpoint, even when a controlled input has already
+advanced its local burst. This preserves Undo on a fresh document and after unrelated edits.
+
+### 이미지 비우기와 전체 후보 검증 (#265 S1-3 수정)
+
+ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 빈 경로 입력은
+실제 투명 1×1 SVG data URI(EMPTY_IMAGE_SRC)로 src를 한 번 교체한다. 스키마 예외나
+무효한 중간값을 저장하지 않으며 노드/크기/fit과 원본 asset 파일은 유지한다. 패널은 이
+정확한 URI를 빈 경로 입력으로 표시한다. Undo 한 번으로 이전 src 바이트를 복원한다.
+저장/다시 열기/일반 이미지 소비자는 추가 프로토콜 없이 유효한 투명 이미지를 읽는다.

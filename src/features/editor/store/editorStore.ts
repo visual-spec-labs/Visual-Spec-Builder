@@ -20,10 +20,11 @@ import {
 } from "@/features/editor/command/history";
 import {
   runTransactionGates,
+  dryRunTransaction,
   type TransactionGateResult,
 } from "@/features/editor/command/transactionGate";
 import type { Command } from "@/features/editor/command/types";
-import { migrateV01, validateVisualSpec } from "@/features/editor/schema";
+import { migrateV01, validateVisualSpec, validateProjectSpec } from "@/features/editor/schema";
 import type {
   Node,
   Responsive,
@@ -205,6 +206,7 @@ export interface EditorState {
    * 그 전까지는 이 조작만 되돌릴 방법이 없어서 그대로 데이터 유실이었다.
    */
   removePage: (id: PageId) => void;
+  removeNodeAction: (id: NodeId) => void;
   /**
    * 스펙 전체를 교체하고 선택을 해제한다(New/Open).
    * 화면 문서를 받으면 페이지 1개짜리 프로젝트로 넓힌다. 그래서 화면 문서 파일도
@@ -360,16 +362,32 @@ function applied(
  * Command 여러 개를 한 페이지 사본에 먼저 적용하고 최종 결과만 history에 얹는다.
  * Zustand의 set 콜백 한 번 안에서 호출되므로 중간 화면은 구독자에게 보이지 않는다.
  */
+// Only a committed transaction can be continued. Rejected attempts invalidate
+// eligibility without changing the document/history or emitting a store update.
+// Weak keys also isolate documents, Undo/Redo and externally replaced histories.
+const continuableHistories = new WeakSet<EditorState["history"]>();
+
 function appliedTransaction(
   state: EditorState,
   pageId: PageId,
   commands: Command[],
   continueEdit = false,
 ): Pick<EditorState, "spec" | "history"> | null {
+  const canContinue = continueEdit && continuableHistories.has(state.history);
+  continuableHistories.delete(state.history);
   const page = state.spec.pages[pageId];
   if (page === undefined) return null;
 
-  const nextPage = applyTransaction(page, commands);
+  const relationEdit = commands.some((c) => c.type === "removeNodeAction"
+    || (c.type === "updateNode" && (c.path === "action" || c.path.startsWith("action.")))
+    || (c.type === "updateScreen" && c.path === "kind")
+    || (c.type === "createNode" && c.node.type === "button" && c.node.action !== undefined));
+  const trial = relationEdit ? dryRunTransaction(page, commands) : null;
+  if (trial && trial.noOps.length > 0) {
+    useResponsiveViewStore.getState().reportError(trial.noOps.map((op) => op.reason).join("\n"));
+    return null;
+  }
+  const nextPage = trial?.screen ?? applyTransaction(page, commands);
   if (nextPage === page) return null;
   if (page.responsive || nextPage.responsive) {
     const validation = validateVisualSpec({ version: "0.3", screen: nextPage });
@@ -381,6 +399,12 @@ function appliedTransaction(
   }
 
   const spec = withPage(state.spec, pageId, nextPage);
+  const validation = validateProjectSpec(spec);
+  if (!validation.valid) {
+    useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+    return null;
+  }
+  useResponsiveViewStore.getState().reportError(null);
   // #131 리뷰(wook3964, PR #142): 지금 호출부는 전부 활성 페이지를 넘겨서 둘이
   // 같지만, 타입도 런타임도 그걸 강제하지 않는다. 비활성 페이지 편집이 생겨도
   // state.activePageId로 바꾸면 스냅숏이 편집된 페이지가 아니라 보고 있던 페이지를
@@ -389,12 +413,11 @@ function appliedTransaction(
   // 이 단계로 undo/redo하면 바뀐 내용이 눈앞에 있어야 한다(#131, PR #142).
   const next = makeSnapshot(spec, pageId);
 
-  return {
-    spec,
-    history: continueEdit
-      ? replacePresent(state.history, next)
-      : pushHistory(state.history, next),
-  };
+  const history = canContinue
+    ? replacePresent(state.history, next)
+    : pushHistory(state.history, next);
+  continuableHistories.add(history);
+  return { spec, history };
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -424,6 +447,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         history: replacePresent(state.history, makeSnapshot(state.spec, id)),
       };
     }),
+  removeNodeAction: (id) => set((state) => applied(state, state.activePageId, { type: "removeNodeAction", id }) ?? state),
   setNodeField: (id, path, value, continueEdit = false) =>
     set((state) => {
       // #40: setByPath를 직접 부르는 대신 updateNode Command를 만들어

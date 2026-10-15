@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import fixture from "./fixtures/screen-relations-project.json";
-import { AGENT_EDIT_PROTOCOL_VERSION, buildAgentEditResult, buildGuiState, computeStateRevision, parseAgentEdit } from "@/features/editor/agent/agentEditProtocol";
+import { AGENT_EDIT_PROTOCOL_VERSION, buildAgentEditResult, buildGuiState, computeStateRevision, parseAgentEdit } from "./fixtures/command-v01/agentEditProtocol";
 import { validateProjectSpec, type ProjectSpec } from "@/features/editor/schema";
 
-import { validateTransaction } from "@/features/editor/command";
-import { NL_PROTOCOL_VERSION, parseNlResponse } from "@/features/editor/nl/nlProtocol";
+import { validateTransaction } from "./fixtures/command-v01/validate";
+import { NL_PROTOCOL_VERSION, parseNlResponse } from "./fixtures/command-v01/nlProtocol";
 
 const project = fixture as unknown as ProjectSpec;
 

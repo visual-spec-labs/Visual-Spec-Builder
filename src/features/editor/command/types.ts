@@ -30,7 +30,8 @@ export type Command =
   | DeleteNodeCommand
   | MoveNodeCommand
   | SetLayoutCommand
-  | UpdateScreenCommand;
+  | UpdateScreenCommand
+  | RemoveNodeActionCommand;
 
 export interface CreateNodeCommand {
   type: "createNode";
@@ -92,6 +93,15 @@ export interface UpdateScreenCommand {
  * 하나의 트랜잭션으로 묶는다." history.pushHistory를 트랜잭션당 한 번만
  * 부르면 이 묶음 전체가 Undo 한 번에 되돌아간다.
  */
+export const COMMAND_VERSION = "0.2" as const;
+export const COMMAND_TYPES = ["createNode", "updateNode", "deleteNode", "moveNode", "setLayout", "updateScreen", "removeNodeAction"] as const satisfies readonly Command["type"][];
+
+export interface RemoveNodeActionCommand {
+  type: "removeNodeAction";
+  id: NodeId;
+}
+
 export interface Transaction {
+  version: typeof COMMAND_VERSION;
   commands: Command[];
 }
