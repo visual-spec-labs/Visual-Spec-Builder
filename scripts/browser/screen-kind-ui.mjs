@@ -24,6 +24,25 @@ try {
   await kind.selectOption("modal");
   assert.deepEqual(await state(), first, "first page kind change rejected without history mutation");
   assert.match(await page.getByRole("alert").first().textContent(), /첫 화면/);
+  const kindSection = page.getByRole("button", { name: "페이지 (Page)", exact: true }).locator("..");
+  await page.getByRole("textbox", { name: "이름", exact: true }).fill("Renamed first page");
+  await kindSection.getByRole("alert").waitFor({ state: "hidden" });
+  await page.getByRole("textbox", { name: "이름", exact: true }).fill(project.pages.login.name);
+  await kind.selectOption("modal");
+  await kindSection.getByRole("alert").waitFor({ state: "visible" });
+  // Actual Open of the same PageId must invalidate the old diagnostic.
+  await page.getByRole("button", { name: "파일", exact: true }).click();
+  await page.getByRole("menuitem", { name: "열기", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "flow.json", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("alertdialog").getByRole("button", { name: "저장된 파일 내용으로 계속", exact: true }).click();
+  await page.getByRole("alertdialog").waitFor({ state: "hidden" });
+  await kindSection.getByRole("alert").waitFor({ state: "hidden" });
+  await kind.selectOption("modal");
+  await kindSection.getByRole("alert").waitFor({ state: "visible" });
+  // Even reloading the identical spec object starts a new document session.
+  await page.evaluate(() => editor.getState().loadSpec(editor.getState().spec));
+  await kindSection.getByRole("alert").waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "DashboardPage", exact: true }).click();
   const target = await state(); await kind.selectOption("widget");
   assert.deepEqual(await state(), target, "incoming navigate reference blocks target kind change");

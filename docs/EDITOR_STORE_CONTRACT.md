@@ -366,6 +366,16 @@ PageProperties의 종류 선택은 setPageField(activePageId, "kind", value)를 
 modal/widget을 표지로 쓰지 않으며 일반 page가 없으면 미리보기 없음으로 표시한다.
 종류 선택은 modal 크기·배경막·위젯 instance 렌더 계약을 추가하지 않는다.
 
+종류 변경 오류는 pageId뿐 아니라 거부 당시 spec 참조와 documentId에 묶는다. 다른 편집 성공이나
+같은 PageId의 Open/New/reload 뒤에는 지난 문서의 오류를 새 문서의 진단으로 표시하지 않는다.
+### 이미지 비우기와 전체 후보 검증 (#265 S1-3 수정)
+
+ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 빈 경로 입력은
+실제 투명 1×1 SVG data URI(EMPTY_IMAGE_SRC)로 src를 한 번 교체한다. 스키마 예외나
+무효한 중간값을 저장하지 않으며 노드/크기/fit과 원본 asset 파일은 유지한다. 패널은 이
+정확한 URI를 빈 경로 입력으로 표시한다. Undo 한 번으로 이전 src 바이트를 복원한다.
+저장/다시 열기/일반 이미지 소비자는 추가 프로토콜 없이 유효한 투명 이미지를 읽는다.
+
 ## #265 S1-6 Interaction 편집
 
 대상 기반 동작의 종류 선택은 패널 draft만 바꾸며 첫 대상을 자동 선택하지 않는다. 사용자가 대상을
