@@ -155,6 +155,11 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/image-clear.mjs
 
+      - name: 자연어 읽기 전용 대상·현재 페이지 편집 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/nl-destinations.mjs
+
       - name: Command 0.2 전송과 Undo (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium

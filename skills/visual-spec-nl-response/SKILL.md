@@ -55,6 +55,7 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 | `scope` | 적용 대상. `{ kind: "node" \| "screen", nodeId: string \| null, label: string }` — `kind`가 `"node"`면 `nodeId`가 그 노드, `"screen"`이면 `nodeId`는 `null`이고 화면 전체가 대상이다 |
 | `pageId` | 대상 페이지 id (참고용 — Command 자체에는 페이지 개념이 없다) |
 | `page` | 대상 페이지의 **현재 스펙 전체**(`ScreenSpec` — `name`·`size`·`root`·`nodes`). 노드 id와 현재 값은 전부 여기서 읽는다. **추측하지 않는다** |
+| `destinations` | 선택 읽기 전용 목록: `{pageId, name, kind}`. kind는 생략 해석을 끝낸 page/modal/widget. 다른 화면 nodes나 편집 권한이 아니다 |
 | `responsePath` | 응답을 써야 할 경로. **`.visual-spec/` 기준 상대 경로다** — 값은 `runtime/nl-response.json`이고 실제 파일은 `.visual-spec/runtime/nl-response.json`이다. 프로젝트 루트 기준으로 해석해 `runtime/`을 새로 만들지 않는다. 다른 값이 오면 쓰지 말고 사용자에게 알린다 |
 
 `scope.kind === "node"`면 요청은 그 노드(와 필요하면 그 자손)만 겨냥한다. `page.nodes`에서
@@ -67,6 +68,22 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 자동 보정하지 않는다. protocol 1 요청에는 `{ "protocol": 1, "requestId": "<요청 id>",
 "error": "GUI와 visual-spec skills를 업데이트하세요. Command 0.2가 필요합니다." }`로만 응답하고
 commands를 만들지 않는다. 그 밖의 버전 불일치는 요청 protocol의 error 응답으로 업데이트를 안내한다.
+
+## 화면 연결 대상 확인 (S1-10)
+
+- `destinations`는 protocol 2의 선택 문맥이다. 없는 구 요청으로 일반적인 현재 화면 편집은 가능하지만,
+  target이 필요한 연결 요청에는 카탈로그가 있는 새 요청/업데이트를 안내하는 error로 답한다.
+- navigate는 kind=page, openModal은 kind=modal 후보만 사용한다. action.target은 목록의 정확한
+  pageId다. 사용자에게 명시된 ID 또는 유일하게 일치하는 이름을 확인하고, 이름이 중복이면 첫 후보를
+  선택하지 말고 후보 PageId를 적어 재지정을 요청하는 error로 답한다. 비슷한 이름으로 추측하지 않는다.
+- 없는 대상/ID를 만들거나, 다른 화면을 변경해 kind를 맞추거나, 다른 화면 nodes를 추론하지 않는다.
+  변경은 요청 pageId의 page.nodes 안에만 적용한다. 카탈로그는 읽기 전용이고 Command에 pageId를 추가하지 않는다.
+- 카탈로그가 낡았을 수 있다. GUI가 현재 프로젝트의 G3로 최종 검사한다. 우회나 직접 파일 수정은 하지 않는다.
+- 예: 목록에 `{pageId:"dashboard",name:"대시보드",kind:"page"}`가 있으면 현재 페이지 button에
+  `{type:"updateNode",id:"loginButton",path:"action",value:{type:"navigate",target:"dashboard"}}`.
+  `{pageId:"resetPassword",name:"비밀번호 찾기",kind:"modal"}`에는 value를
+  `{type:"openModal",target:"resetPassword"}`로 전체 교체한다. 제거는 removeNodeAction이고
+  close는 현재 화면이 modal/widget일 때 target 없는 전체 `{type:"close"}`다.
 
 ## 응답 만들기 — Command 배열
 

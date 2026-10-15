@@ -65,3 +65,12 @@ Command 7종의 필드, 기본값 표, 예제는 `skills/visual-spec-nl-response
 어느 스킬로 가야 할지 모르겠으면 [visual-spec](./visual-spec.md) 허브로 돌아간다.
 
 직접 agent-edit도 protocol 2와 commandVersion "0.2"를 쓴다. gui-state의 capabilities.commandVersion/commands를 먼저 검사하고 버전 불일치에는 파일 편집/자동 재전송으로 우회하지 않는다.
+
+## S1-10 대상 신원
+
+protocol 2 요청의 선택 `destinations` 목록은 다른 화면의 PageId/name/effective kind만 제공한다.
+변경 권한은 현재 pageId 안에 그대로 한정된다. navigate는 page, openModal은 modal을 대상으로 하고,
+중복 이름은 PageId 재지정을 요청한다. 목록이 없거나 대상이 없으면 target을 추측하지 않는다.
+응답 형식/Command 0.2는 그대로이며, GUI의 현재 프로젝트 G3가 최종 참조 유효성을 검사한다.
+새 카탈로그가 없는 기존 요청의 일반 화면 편집은 계속 지원한다. 검증 근거는 fixture이며 실제 AI
+관계 생성 완료를 뜻하지 않는다. 상세 계약은 [08](../08-natural-language.md)의 S1-10 절을 따른다.
