@@ -19,6 +19,7 @@ import { HOME_DRAFT_EXAMPLES } from "@/features/editor/ui/homeDraftExamples";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import {
+  homeCoverPage,
   previewButtonStyle,
   previewFrameStyle,
   previewImageStyle,
@@ -493,10 +494,7 @@ function ProjectCard({
   drawn: boolean;
   onDrawn: () => void;
 }) {
-  // 열면 editorStore.loadSpec이 항상 pageOrder[0]을 활성 페이지로 잡는다
-  // (editorStore.ts) — 그래서 카드 미리보기·크기도 같은 페이지를 기준으로
-  // 삼는다. 클릭해서 열었을 때 보게 될 화면과 카드가 어긋나지 않는다.
-  const coverPage = spec.pages[spec.pageOrder[0]];
+  const coverPage = homeCoverPage(spec);
 
   return (
     <div className="flex flex-col rounded-panel border border-line bg-surface">
@@ -506,14 +504,13 @@ function ProjectCard({
       onClick={onOpen}
       className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-2 text-left hover:border-primary"
     >
-      <ProjectPreview page={coverPage} scrollRoot={scrollRoot} drawn={drawn} onDrawn={onDrawn} />
+      {coverPage ? <ProjectPreview page={coverPage} scrollRoot={scrollRoot} drawn={drawn} onDrawn={onDrawn} /> : <p className="p-3 text-xs text-content-muted">미리볼 일반 페이지가 없습니다</p>}
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-content-strong">
           {spec.name}
         </p>
         <p className="text-xs text-content-muted">
-          페이지 {spec.pageOrder.length}개 · {coverPage.size.width}×
-          {coverPage.size.height}
+          페이지 {spec.pageOrder.length}개 {coverPage ? `· ${coverPage.size.width}×${coverPage.size.height}` : ""}
         </p>
       </div>
     </button>

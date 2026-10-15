@@ -356,6 +356,17 @@ projectId가 있으면 동일해야 하고 구 문서만 documentId fallback을 
 addPage와 replaceSpecFromOutside도 후보 전체 검증 후 변경한다. loadSpec은 Open에서 검증된 문서나
 자동 저장의 명시적 과거 관계 오류 복구본을 받는 기존 입구다. 복구 예외를 loadSpec의 조용한 폐기로
 바꾸지 않는다. 과거 오류는 검증 안내/미검증 사본으로 보존하며 저장 성공으로 표시하지 않는다.
+
+## #265 S1-5 화면 종류 UI
+
+PageProperties의 종류 선택은 setPageField(activePageId, "kind", value)를 한 번 호출한다.
+거부 이유는 필드 아래에 표시하고 스펙/순서/history를 보존한다. LayerTree는 pageOrder를 그대로
+유지하며 생략된 kind도 page 배지로 표시한다. 홈 카드의 homeCoverPage는 과거 복구본에서도
+modal/widget을 표지로 쓰지 않으며 일반 page가 없으면 미리보기 없음으로 표시한다.
+종류 선택은 modal 크기·배경막·위젯 instance 렌더 계약을 추가하지 않는다.
+
+종류 변경 오류는 pageId뿐 아니라 거부 당시 spec 참조와 documentId에 묶는다. 다른 편집 성공이나
+같은 PageId의 Open/New/reload 뒤에는 지난 문서의 오류를 새 문서의 진단으로 표시하지 않는다.
 ### 이미지 비우기와 전체 후보 검증 (#265 S1-3 수정)
 
 ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 빈 경로 입력은

@@ -1,3 +1,6 @@
+import type { ProjectSpec } from "@/features/editor/schema";
+import { useState } from "react";
+import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 
@@ -33,8 +36,19 @@ const PRESET_OPTIONS: SelectOption<string>[] = RESOLUTION_PRESETS.map((preset) =
  */
 export function PageProperties() {
   const activePageId = useEditorStore((state) => state.activePageId);
-  const page = useEditorStore((state) => state.spec.pages[state.activePageId]);
+  const spec = useEditorStore((state) => state.spec);
+  const documentId = useEditorStore((state) => state.documentId);
+  const page = spec.pages[activePageId];
   const setPageField = useEditorStore((state) => state.setPageField);
+
+  const [kindError, setKindError] = useState<{ pageId: string; spec: ProjectSpec; documentId: number; message: string } | null>(null);
+  function changeKind(value: "page" | "modal" | "widget") {
+    const before = useEditorStore.getState();
+    if ((page.kind ?? "page") === value) return;
+    setPageField(activePageId, "kind", value);
+    const error = useResponsiveViewStore.getState().error;
+    setKindError(useEditorStore.getState().spec === before.spec && error ? { pageId: activePageId, spec: before.spec, documentId: before.documentId, message: error } : null);
+  }
 
   const presetId = findPresetId(page.size);
   const options =
@@ -63,6 +77,13 @@ export function PageProperties() {
 
   return (
     <PropertySection title="페이지 (Page)">
+      <SelectField
+        label="화면 종류"
+        value={page.kind ?? "page"}
+        options={[{ value: "page", label: "페이지 (page)" }, { value: "modal", label: "모달 (modal)" }, { value: "widget", label: "위젯 (widget)" }]}
+        onChange={changeKind}
+      />
+      {kindError?.pageId === activePageId && kindError.spec === spec && kindError.documentId === documentId && <p role="alert" className="text-xs text-content-muted">{kindError.message}</p>}
       <TextField
         label="이름"
         value={page.name}

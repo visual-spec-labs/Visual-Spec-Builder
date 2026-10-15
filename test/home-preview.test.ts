@@ -59,3 +59,22 @@ describe("previewImageStyle — url() 인용", () => {
     expect(style.backgroundImage).toBe('url("/a\\"b\\\\c.png")');
   });
 });
+
+// S1-5: recovery cards must not promote modal/widget to an ordinary page cover.
+describe("homeCoverPage", () => {
+  it("uses the first actual page without changing order, including omitted kind", async () => {
+    const { homeCoverPage } = await import("@/features/editor/ui/homePreview");
+    const { default: fixture } = await import("./fixtures/screen-relations-project.json");
+    const spec = structuredClone(fixture) as unknown as import("@/features/editor/schema").ProjectSpec;
+    spec.pageOrder = ["resetPassword", "login", "dashboard"];
+    const before = structuredClone(spec);
+    expect(homeCoverPage(spec)).toBe(spec.pages.login);
+    expect(spec).toEqual(before);
+    spec.pages.login.kind = "page";
+    expect(homeCoverPage(spec)).toBe(spec.pages.login);
+    spec.pages.login.kind = "widget";
+    expect(homeCoverPage(spec)).toBe(spec.pages.dashboard);
+    spec.pages.dashboard.kind = "modal";
+    expect(homeCoverPage(spec)).toBeUndefined();
+  });
+});

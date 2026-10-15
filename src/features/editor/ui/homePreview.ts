@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 
 import type {
+  ProjectSpec,
+  ScreenSpec,
   Background,
   ButtonNode,
   FrameNode,
@@ -211,4 +213,9 @@ export function previewScale(
   }
 
   return Math.min(boxWidth / contentWidth, boxHeight / contentHeight);
+}
+
+/** Legacy recovery may violate first-page-kind; never use a modal/widget as a home cover. */
+export function homeCoverPage(spec: ProjectSpec): ScreenSpec | undefined {
+  return spec.pageOrder.map((id) => spec.pages[id]).find((page) => page && (page.kind ?? "page") === "page");
 }

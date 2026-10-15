@@ -347,11 +347,13 @@ function PageFolderRow({
         <button
           type="button"
           onClick={() => selectPage(pageId)}
+          aria-label={page.name}
           aria-current={isActive ? "true" : undefined}
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         >
           <Folder size={13} className="shrink-0 text-content-subtle" aria-hidden="true" />
           <span className="truncate font-medium">{page.name}</span>
+          <span aria-label={`화면 종류: ${page.kind ?? "page"}`} className="shrink-0 text-xs text-content-subtle">{page.kind ?? "page"}</span>
         </button>
 
         {canDelete ? (
