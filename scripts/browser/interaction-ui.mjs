@@ -1,0 +1,85 @@
+// S1-6 real controls and persistence; fixture project, no model call.
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { startBrowserWorkspace } from "./harness.mjs";
+const workspace = await mkdtemp(join(tmpdir(), "vs-interaction-ui-"));
+let runner;
+try {
+  for (const dir of ["specs", "runtime", "generated"]) await mkdir(join(workspace, dir), { recursive: true });
+  const project = JSON.parse(await readFile(new URL("../../test/fixtures/screen-relations-project.json", import.meta.url), "utf8"));
+  project.name = "InteractionFlow";
+  await writeFile(join(workspace, "specs/flow.json"), JSON.stringify(project));
+  runner = await startBrowserWorkspace(workspace);
+  const context = await runner.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await context.newPage(); page.setDefaultTimeout(15000);
+  const errors = []; page.on("pageerror", error => errors.push(error.message));
+  await page.goto(runner.url);
+  await page.getByRole("button").filter({ hasText: /InteractionFlow.*페이지/s }).click();
+  await page.evaluate(async () => { window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore; });
+  const state = () => page.evaluate(() => ({ spec: editor.getState().spec, history: editor.getState().history }));
+  const mode = page.getByRole("combobox", { name: "동작", exact: true });
+  const target = page.getByRole("combobox", { name: "대상 화면", exact: true });
+  await page.getByRole("button", { name: "LoginButton", exact: true }).click();
+  const before = await state();
+  assert.deepEqual(await mode.locator("option").evaluateAll(nodes => nodes.map(n => n.value)), ["none", "navigate", "openModal"]);
+  assert.deepEqual(await target.locator("option").evaluateAll(nodes => nodes.map(n => n.value)), ["", "login", "dashboard"]);
+  await mode.selectOption("openModal");
+  assert.deepEqual(await state(), before, "changing action type without choosing a target is only a draft");
+  assert.deepEqual(await target.locator("option").evaluateAll(nodes => nodes.map(n => n.value)), ["", "resetPassword"]);
+  await page.getByRole("button", { name: "ForgotButton", exact: true }).click();
+  await page.getByRole("button", { name: "LoginButton", exact: true }).click();
+  assert.equal(await mode.inputValue(), "navigate", "pending choice does not leak across node selection");
+  await mode.selectOption("openModal");
+  await target.selectOption("resetPassword");
+  assert.deepEqual((await state()).spec.pages.login.nodes.loginButton.action, { type: "openModal", target: "resetPassword" });
+  assert.equal((await state()).history.past.length, before.history.past.length + 1);
+  await page.getByRole("button", { name: "되돌리기", exact: true }).click();
+  assert.deepEqual((await state()).spec, before.spec);
+  await page.getByRole("button", { name: "다시 실행", exact: true }).click();
+  await page.getByRole("button", { name: "LoginButton", exact: true }).click();
+  await mode.selectOption("none");
+  assert.equal((await state()).spec.pages.login.nodes.loginButton.action, undefined);
+  await page.getByRole("button", { name: "되돌리기", exact: true }).click();
+  assert.deepEqual((await state()).spec.pages.login.nodes.loginButton.action, { type: "openModal", target: "resetPassword" });
+  await page.getByRole("button", { name: project.pages.resetPassword.name, exact: true }).click();
+  await page.getByRole("button", { name: "CloseButton", exact: true }).click();
+  await mode.selectOption("navigate"); await target.selectOption("dashboard");
+  await mode.selectOption("close");
+  assert.deepEqual((await state()).spec.pages.resetPassword.nodes.closeButton.action, { type: "close" });
+  const expected = (await state()).spec;
+  const saved = page.waitForResponse(r => r.request().method() === "PUT" && r.url().includes("specs/flow.json"));
+  const notice = new Promise(resolve => page.once("dialog", async d => { await d.accept(); resolve(); }));
+  await page.getByRole("button", { name: "파일", exact: true }).click();
+  await page.getByRole("menuitem", { name: "저장", exact: true }).click();
+  assert.equal((await saved).ok(), true); await notice;
+  assert.deepEqual(JSON.parse(await readFile(join(workspace, "specs/flow.json"), "utf8")), expected);
+  await page.getByRole("button", { name: "파일", exact: true }).click();
+  await page.getByRole("menuitem", { name: "열기", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "flow.json", exact: true }).click();
+  assert.deepEqual((await state()).spec, expected);
+  await page.reload();
+  await page.evaluate(async () => { window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore; });
+  assert.deepEqual((await state()).spec, expected);
+  await page.getByRole("button").filter({ hasText: /InteractionFlow.*페이지/s }).click();
+  // Responsive UI is a read-only base-action notice, never an override writer.
+  await page.evaluate(() => {
+    editor.getState().selectPage("login"); editor.getState().select("loginButton");
+    editor.getState().setResponsive("login", { breakpoints: { wide: { minWidthPx: 768 } }, overrides: {} });
+  });
+  await page.getByText("연결은 모든 화면 폭에서 같습니다. 기본 편집 모드에서 변경하세요.", { exact: true }).waitFor({ state: "visible" });
+  assert.equal(await mode.count(), 0);
+  // Historical invalid document remains visible with explicit missing-target warning.
+  await page.evaluate(({ expected }) => {
+    const legacy = structuredClone(expected); delete legacy.pages.resetPassword;
+    legacy.pageOrder = legacy.pageOrder.filter(id => id !== "resetPassword");
+    editor.getState().loadSpec(legacy); editor.getState().select("loginButton");
+  }, { expected });
+  await target.waitFor({ state: "visible" });
+  assert.equal(await target.inputValue(), "resetPassword");
+  assert.ok(await target.getByText("사용할 수 없는 대상 (resetPassword)", { exact: true }).count());
+  assert.ok(await page.getByRole("alert").filter({ hasText: /resetPassword.*pages에 없습니다/ }).count());
+  assert.deepEqual(errors, []);
+  console.log("PASS S1-6: filtered explicit targets; draft does not mutate; whole action replacement/removal/Undo/Redo; close context; Save/Open/reload; responsive notice; legacy missing-target warning. Fixture only.");
+} finally { try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); } }

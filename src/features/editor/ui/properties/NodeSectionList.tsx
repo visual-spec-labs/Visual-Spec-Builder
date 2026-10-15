@@ -1,3 +1,4 @@
+import { InteractionSection } from "./InteractionSection";
 import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import { useNodeField } from "./useNodeField";
 import { SegmentedControl } from "./fields";
@@ -19,8 +20,10 @@ import { TypographySection } from "./TypographySection";
  * 어떤 타입이 어떤 섹션을 갖는지는 전부 그 표에 있고, 여기는 id를 컴포넌트로
  * 바꾸기만 한다. 새 섹션을 만들 때 손볼 곳은 표와 이 switch 두 군데다.
  */
-function renderSection(id: SectionId, type: NodeType, selectedId: NodeId, responsive: boolean) {
+function renderSection(id: SectionId, type: NodeType, selectedId: NodeId, responsive: boolean, pageId: string) {
   switch (id) {
+    case "interaction":
+      return <InteractionSection key={`${pageId}:${selectedId}`} responsive={responsive} />;
     case "content":
       return responsive ? type === "image" ? <ResponsiveImageFit /> : null : <ContentSection type={type} />;
     case "layout":
@@ -52,11 +55,11 @@ export function NodeSectionList({
   type: NodeType;
   selectedId: NodeId;
 }) {
-  const { breakpoint } = useResponsiveScreen();
+  const { breakpoint, pageId } = useResponsiveScreen();
   return (
     <>
       {sectionsFor(type).map((id) => (
-        <div key={id}>{renderSection(id, type, selectedId, breakpoint !== null)}</div>
+        <div key={id}>{renderSection(id, type, selectedId, breakpoint !== null, pageId)}</div>
       ))}
     </>
   );
