@@ -1,4 +1,4 @@
-import { describeImageSrc } from "./imageSrc";
+import { describeImageSrc, EMPTY_IMAGE_SRC, imageSrcFromInput } from "./imageSrc";
 import type { NodeType } from "./nodeSections";
 import { PropertySection } from "./PropertySection";
 import { useNodeField } from "./useNodeField";
@@ -54,7 +54,7 @@ function ImageFields() {
         <TextField
           label="경로 (src)"
           value={display.value}
-          onChange={setSrc}
+          onChange={(value, continueEdit) => setSrc(imageSrcFromInput(value), continueEdit)}
           placeholder="assets/hero.png"
         />
       ) : (
@@ -73,7 +73,7 @@ function ImageFields() {
             */}
             <button
               type="button"
-              onClick={() => setSrc("")}
+              onClick={() => setSrc(EMPTY_IMAGE_SRC)}
               className="shrink-0 rounded-control focus-visible:outline-2 focus-visible:outline-content border border-line px-2 py-1.5 text-sm text-content-muted hover:text-content"
             >
               지우기
@@ -84,7 +84,7 @@ function ImageFields() {
           </FieldLabel>
         </Field>
       )}
-      {!src && <p className="text-xs text-content-muted">이미지가 비어 있습니다. 경로를 입력하세요. 파일 → 이미지 가져오기는 새 이미지 노드를 추가합니다.</p>}
+      {(!src || src === EMPTY_IMAGE_SRC) && <p className="text-xs text-content-muted">이미지가 비어 있습니다. 경로를 입력하세요. 파일 → 이미지 가져오기는 새 이미지 노드를 추가합니다.</p>}
       <SegmentedControl
         label="채우기 방식 (fit)"
         value={fit}

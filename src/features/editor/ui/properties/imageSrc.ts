@@ -12,6 +12,14 @@
 
 import { workspaceFileUrl } from "@/features/workspace/protocol";
 
+/** A real transparent 1×1 SVG, valid under ImageNode.src's nonempty-string contract. */
+export const EMPTY_IMAGE_SRC = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%221%22%20height%3D%221%22%3E%3C%2Fsvg%3E";
+
+/** Clearing keeps a valid image node and its layout; it does not delete the node or asset. */
+export function imageSrcFromInput(value: string): string {
+  return value === "" ? EMPTY_IMAGE_SRC : value;
+}
+
 export type ImageSrcDisplay =
   | { kind: "path"; value: string }
   | { kind: "data"; label: string };
@@ -20,6 +28,7 @@ export type ImageSrcDisplay =
 const DATA_URI = /^data:([^;,]*)[^,]*,/;
 
 export function describeImageSrc(src: string | undefined): ImageSrcDisplay {
+  if (src === EMPTY_IMAGE_SRC) return { kind: "path", value: "" };
   const match = DATA_URI.exec(src ?? "");
   if (match === null) {
     return { kind: "path", value: src ?? "" };

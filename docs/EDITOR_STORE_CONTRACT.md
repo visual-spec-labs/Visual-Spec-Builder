@@ -356,3 +356,10 @@ projectId가 있으면 동일해야 하고 구 문서만 documentId fallback을 
 addPage와 replaceSpecFromOutside도 후보 전체 검증 후 변경한다. loadSpec은 Open에서 검증된 문서나
 자동 저장의 명시적 과거 관계 오류 복구본을 받는 기존 입구다. 복구 예외를 loadSpec의 조용한 폐기로
 바꾸지 않는다. 과거 오류는 검증 안내/미검증 사본으로 보존하며 저장 성공으로 표시하지 않는다.
+### 이미지 비우기와 전체 후보 검증 (#265 S1-3 수정)
+
+ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 빈 경로 입력은
+실제 투명 1×1 SVG data URI(EMPTY_IMAGE_SRC)로 src를 한 번 교체한다. 스키마 예외나
+무효한 중간값을 저장하지 않으며 노드/크기/fit과 원본 asset 파일은 유지한다. 패널은 이
+정확한 URI를 빈 경로 입력으로 표시한다. Undo 한 번으로 이전 src 바이트를 복원한다.
+저장/다시 열기/일반 이미지 소비자는 추가 프로토콜 없이 유효한 투명 이미지를 읽는다.
