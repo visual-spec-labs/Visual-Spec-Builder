@@ -35,6 +35,8 @@ import type {
   VisualSpec,
 } from "@/features/editor/schema";
 
+import { preparePageRemoval } from "./pageRemoval";
+
 import { blankSpec } from "./blankSpec";
 import { generateNodeId } from "./nodeId";
 import { seedSpec } from "./seedSpec";
@@ -205,7 +207,7 @@ export interface EditorState {
    * #131: history에 쌓인다 — undo하면 지운 페이지와 그 노드 전부가 돌아온다.
    * 그 전까지는 이 조작만 되돌릴 방법이 없어서 그대로 데이터 유실이었다.
    */
-  removePage: (id: PageId) => void;
+  removePage: (id: PageId, expected?: { spec: ProjectSpec; documentId: number }) => void;
   removeNodeAction: (id: NodeId) => void;
   /**
    * 스펙 전체를 교체하고 선택을 해제한다(New/Open).
@@ -516,6 +518,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         pageOrder: asPageOrder([...state.spec.pageOrder, id]),
       };
 
+      const result = validateProjectSpec(spec);
+      if (!result.valid) { useResponsiveViewStore.getState().reportError(result.issues.map((issue) => issue.message).join("\n")); return state; }
       return {
         spec,
         // #131: 페이지까지 옮기는 액션이라 스냅숏을 직접 만든다 — undo하면
@@ -526,38 +530,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         focusRootId: null,
       };
     }),
-  removePage: (id) =>
+  removePage: (id, expected) =>
     set((state) => {
-      if (state.spec.pageOrder.length <= 1 || !hasKey(state.spec.pages, id)) {
+      if (expected && (state.spec !== expected.spec || state.documentId !== expected.documentId)) return state;
+      const prepared = preparePageRemoval(state.spec, id);
+      if (!prepared.ok) {
+        useResponsiveViewStore.getState().reportError(prepared.message);
         return state;
       }
-
-      const removedAt = state.spec.pageOrder.indexOf(id);
-      const nextOrder = state.spec.pageOrder.filter((pageId) => pageId !== id);
-      const nextPages = { ...state.spec.pages };
-      delete nextPages[id];
-
-      // 지운 자리에 올라온 페이지로 옮긴다. 마지막 장을 지웠으면 그 앞으로.
+      const spec = prepared.spec;
       const isActive = state.activePageId === id;
-      const fallback = nextOrder[Math.min(removedAt, nextOrder.length - 1)];
-      const activePageId = isActive ? fallback : state.activePageId;
-
-      const spec: ProjectSpec = {
-        ...state.spec,
-        pages: nextPages,
-        pageOrder: asPageOrder(nextOrder),
-      };
-
+      const removedAt = state.spec.pageOrder.indexOf(id);
+      const activePageId = isActive
+        ? spec.pageOrder[Math.min(removedAt, spec.pageOrder.length - 1)] : state.activePageId;
+      useResponsiveViewStore.getState().reportError(null);
       return {
-        spec,
-        // #131: 스냅숏이 spec 전체라 past에 남은 직전 단계가 지워진 페이지와
-        // 그 노드를 전부 들고 있다 — undo 한 번이면 그대로 돌아온다. 페이지별
-        // 스택 시절엔 되돌릴 대상(history[id])이 지우는 것과 함께 사라져서
-        // (#40 리뷰, GAMMJ, PR #102에서 의도적으로 지웠다) 이 조작만 유일하게
-        // 되돌릴 수 없었다. 같은 리뷰가 지적한 "지운 페이지의 스택을 id 재사용
-        // 으로 새 페이지가 물려받는" 누수도 스택이 하나가 되면서 사라진다.
-        history: pushHistory(state.history, makeSnapshot(spec, activePageId)),
-        activePageId,
+        spec, history: pushHistory(state.history, makeSnapshot(spec, activePageId)), activePageId,
         selectedId: isActive ? null : state.selectedId,
         focusRootId: isActive ? null : state.focusRootId,
       };
@@ -612,6 +600,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const project = typeof spec.projectId === "string" && spec.projectId.length > 0
         ? spec
         : { ...spec, projectId: state.spec.projectId ?? createProjectIdentity() };
+      const validation = validateProjectSpec(project);
+      if (!validation.valid) { useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => issue.message).join("\n")); return state; }
       const activePageId = project.pages[state.activePageId] ? state.activePageId : project.pageOrder[0];
       const page = project.pages[activePageId];
       return {
@@ -720,6 +710,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
   pasteNode: (entry, parentId) =>
     set((state) => {
+      useResponsiveViewStore.getState().reportError(null);
+      const hasAction = Object.values(entry.nodes).some((node) => node.type === "button" && node.action !== undefined);
+      const sameProject = entry.source !== undefined && (
+        entry.source.projectId && state.spec.projectId
+          ? entry.source.projectId === state.spec.projectId
+          : entry.source.documentId === state.documentId
+      );
+      if (hasAction && !sameProject) {
+        useResponsiveViewStore.getState().reportError("다른 프로젝트 또는 출처를 확인할 수 없는 연결은 붙여넣을 수 없습니다. 원본에서 연결을 명시적으로 제거한 뒤 다시 복사하세요.");
+        return state;
+      }
       const { nodes } = state.spec.pages[state.activePageId];
       const parent = nodes[parentId];
       if (parent === undefined || parent.type !== "frame") return state;

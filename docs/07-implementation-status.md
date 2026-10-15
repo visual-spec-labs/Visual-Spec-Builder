@@ -1,6 +1,11 @@
+> 2026-10-15 #265 S1-4: 페이지 삭제 시 모든 유입 action 정리·최소 실제 page 유지·첫 page 재배치를
+> 프로젝트 후보 검증 후 원자적으로 커밋한다. 취소/낡은 확인은 현재 문서/선택/history를 유지하고,
+> Undo/Redo 한 번으로 관계를 함께 복원한다. clipboard는 프로젝트 출처와 새 source/target 문맥을 검사한다.
+> 과거 무효 자동 저장본 보존 예외는 유지한다. 수용 근거는 단위 테스트와 Chromium fixture 여정이며 실제 AI 검증은 아니다.
+
 > 2026-10-15 #265 S1-3 구현: Command 0.2 removeNodeAction/전체 action 교체/kind, NL·직접 agent-edit
 > protocol 2와 commandVersion/capabilities 이전. 구 소비자 fixture, 새 G1~G3와 GUI 원자성 회귀 검사 추가.
-> S1-4 삭제/클립보드 정합성, S1-5 이후 UI/생성, S1-10 대상 카탈로그는 아직 별도 작업이다.
+> S1-5 이후 UI/생성, S1-10 대상 카탈로그는 아직 별도 작업이다.
 
 # 07. 구현 현황
 

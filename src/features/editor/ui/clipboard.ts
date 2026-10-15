@@ -1,3 +1,5 @@
+import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
+
 import { collectSubtreeIds, type NodeSubtree } from "@/features/editor/command/applyCommand";
 import type { Node, NodeId } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -32,7 +34,11 @@ export function copySelection(nodes: Record<NodeId, Node>, id: NodeId): void {
   }
   // structuredClone: 스키마가 JSON-safe 값만 쓰므로 안전하다. 나중에 store의
   // nodes를 편집해도 클립보드에 남긴 스냅숏이 함께 바뀌지 않아야 한다.
-  clipboard = structuredClone({ rootId: id, nodes: picked });
+  const state = useEditorStore.getState();
+  const knownSource = Object.values(state.spec.pages).some((page) => page.nodes === nodes);
+  clipboard = structuredClone({ rootId: id, nodes: picked,
+    ...(knownSource ? { source: { projectId: state.spec.projectId, documentId: state.documentId } } : {}),
+  });
 }
 
 /**
@@ -50,4 +56,6 @@ export function pasteClipboard(): void {
   const parentId = resolveInsertParent({ nodes, root, clickedId: selectedId ?? root });
 
   pasteNode(structuredClone(clipboard), parentId);
+  const error = useResponsiveViewStore.getState().error;
+  if (useEditorStore.getState().spec === spec && error) window.alert(error);
 }
