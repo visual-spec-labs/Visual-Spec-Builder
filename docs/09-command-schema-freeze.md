@@ -193,6 +193,80 @@ Merge Patch식) 일반 값 쓰기의 의미가 달라지고, 범용 필드 삭�
 | 새 NL GUI / protocol 2 + commandVersion 누락/불일치 | G1 version 오류, 적용 없음 |
 | 새 NL GUI / protocol 2 + commandVersion 0.2 | G1 → 기존 G2 → 기존 프로젝트 G3 |
 
+#### 직접 agent-edit 전송도 같은 변경에서 이전한다
+
+리뷰 [discussion_r4279197455](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/381#discussion_r4279197455)의
+지적을 확인했다. `agent/agentEditProtocol.ts`의 `parseAgentEdit`도 현재
+`validateTransaction({ commands: body.commands })`를 호출한다. NL만 이전하면 직접 편집은
+새 G1에서 모두 실패하거나, 버전 검사를 우회할 경우 구 GUI가 새 producer의 기존 명령을 받는다.
+따라서 **S1-3에서 두 전송과 producer 스킬을 같은 릴리스로 이전**한다. 아래 역시 제안이며 미구현이다.
+
+- `AGENT_EDIT_PROTOCOL_VERSION`을 **1 → 2**로 올린다. `runtime/gui-state.json`,
+  `runtime/agent-edit.json`, `runtime/agent-edit-result.json` 모두 protocol 2를 쓴다.
+  NL protocol 2와 숫자가 같아도 독립된 전송 계약이며 Ticket/manifest 버전과 무관하다.
+- gui-state는 기존 필드에 아래 **필수 capabilities**를 더한다. 명령 이름 목록은 실제 허용한
+  7종 전부이며 필드 의미는 Command 0.2 계약을 따른다. 새 producer는 protocol 2,
+  capabilities.commandVersion 0.2, 사용할 모든 명령의 지원 여부를 **쓰기 전에** 확인한다.
+  capabilities 누락·다른 버전·지원하지 않는 명령이면 편집 파일을 쓰지 않고 업데이트를 안내한다.
+
+```json
+{
+  "protocol": 2,
+  "capabilities": {
+    "commandVersion": "0.2",
+    "commands": ["createNode", "updateNode", "deleteNode", "moveNode", "setLayout", "updateScreen", "removeNodeAction"]
+  }
+}
+```
+
+위 조각은 새 필드만 보인 것이며 완전한 gui-state가 아니다. 기존 id·stateRevision·updatedAt·
+fileName·diskRevision·pageId·selectedId·page·editPath·resultPath는 그대로 필수다.
+직접 요청은 아래 모양이다(summary만 선택). 외부 version을 상수로 덮어 G1을 통과시키면 안 된다.
+
+```json
+{
+  "protocol": 2,
+  "commandVersion": "0.2",
+  "id": "unique-request-id",
+  "baseStateRevision": "revision-read-from-gui-state",
+  "pageId": "login",
+  "commands": [{ "type": "removeNodeAction", "id": "loginButton" }]
+}
+```
+
+- parser는 기존 id/형태 검사 뒤 protocol 불일치를 malformed로, commandVersion 누락/불일치를
+  `{ version: body.commandVersion, commands: body.commands }`의 G1 version 오류로 거부한다.
+  기존 bridge는 둘 다 `status: "invalid"` 결과로 반환한다. 새 결과의 protocol은 2이며
+  requestId/status/message/stateRevision/선택 uncertain 계약은 유지한다. 결과에는 commands가
+  없으므로 commandVersion을 추가하지 않는다. message에 기대/수신 버전·GUI/스킬 갱신 안내를 담는다.
+- 구 GUI는 protocol 2 요청을 기존 명령만 있어도 거부하고 **protocol 1 invalid 결과**를 낸다.
+  새 producer는 자기 requestId라도 결과 protocol이 다르면 성공으로 해석하지 않고 버전 불일치로
+  종료한다. 자동 downgrade, 재전송, `.visual-spec/specs/` 직접 수정으로의 우회는 금지한다.
+- 새 GUI는 protocol 1 요청을 거부한다. protocol 2만 복사한 구 producer도 commandVersion이
+  없으면 거부한다. 새 GUI + 새 producer만 두 버전 검사를 통과하며 기존 연결 잠금·상태 revision·
+  페이지 확인·중복 요청/재연결 처리·G2/G3·한 번의 Undo·결과 게시 권한을 그대로 거친다.
+- 배포 `skills/visual-spec-nl-response/SKILL.md`의 **NL 응답 절과 “대화에서 바로 고치기” 절**,
+  예제/실행 스크립트를 함께 이전한다. 직접 경로의 gui-state 읽기 단계에 capability 관문을 넣고,
+  protocol 1 GUI에는 파일 쓰기 없이 GUI와 `visual-spec skills` 갱신을 안내한다.
+  `skills/visual-spec/SKILL.md`와 `skills/visual-spec-authoring/SKILL.md`의 열린 GUI 경로 안내도
+  버전 불일치를 GUI 종료로 오인해 파일 편집으로 넘어가지 않게 맞춘다. 이 계약 PR에서는 배포
+  스킬을 먼저 변경하지 않는다(아직 protocol 1인 설치 GUI를 깨뜨리지 않음).
+
+| 직접 경로 조합 | 결과 |
+|---|---|
+| 구 GUI / protocol 1 + commandVersion 0.2 요청 | **현재 통과함**, 새 producer는 이 조합 금지 |
+| 구 GUI / protocol 2 요청(기존 명령만) | malformed → protocol 1 invalid 결과, 적용 없음 |
+| 새 GUI / protocol 1 요청 | protocol 불일치 → protocol 2 invalid 결과, 적용 없음 |
+| 새 GUI / protocol 2 + commandVersion 누락/불일치 | G1 version 오류 → invalid, 적용 없음 |
+| 구 gui-state 또는 capability 누락 / 새 producer | 편집 파일 쓰기 전 중단, 업데이트 안내 |
+| 새 GUI / protocol 2 + commandVersion 0.2 요청 | 기존 revision/잠금/G2/G3까지 성공해야 적용 |
+
+구 parser의 실제 수용/거부는 이 PR의 조사 테스트에 추가한다. **구/신 producer 스킬 fixture와
+새 GUI 왕복 테스트는 구현 PR의 필수 조건**이다: gui-state capability 게시, 구 요청/누락 버전
+거부 시 spec/history 불변, invalid 결과 protocol, 새 정상 요청 Undo/Redo, 구 GUI 결과를 받은
+새 producer의 중단, 버전 불일치 시 파일 쓰기/자동 재시도 부재를 검사한다. 현재 테스트가 이
+미구현 동작을 이미 보장한다고 주장하지 않는다.
+
 #### action과 kind의 명령 의미
 
 `removeNodeAction`은 `{ type: "removeNodeAction", id: NodeId }`만 받는다. 추가 필드·value·path는
