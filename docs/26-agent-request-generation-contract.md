@@ -1190,6 +1190,66 @@ projectRoot와 provenance로 확인한 티켓 상태를 전달하고, 반환 뒤
 request 잠금을 재확인해야 한다. 수용/Export에서는 현재 소스 자산과 snapshot을 다시 대조한다.
 아직 기존 GUI/스킬 dispatch를 v4로 전환한 것은 아니다.
 
+### 프로젝트 지문과 provenance 읽기 경계 (S1-9)
+
+`projectGenerationFingerprints`는 전체 snapshot/관계를 기존 검증기로 확인한 후 지문을 계산한다.
+프로젝트 지문은 pageOrder·생성 대상 화면·구조 plan·자산 mapping/검증한 byte hash·정책 버전을
+포함한다. 화면 지문은 openModal로 도달하는 화면의 cycle-safe closure를 ID순으로 포함하고
+navigate 대상의 본문과 pageOrder를 포함하지 않는다. 실행 status/error/requestId와 프로젝트
+표시 이름은 생성 입력 지문에 넣지 않는다. S1에 없는 widget instance 구현을 가정하지 않는다.
+제외 widget의 무효 참조는 전체 검증에서 여전히 거부한다.
+
+`projectProvenanceContext`는 입력을 독립된 정규 snapshot으로 보관하며 현재 계획의 page/artifact
+허용 출력 자리와 지문을 계산한다. 호출자는 현재 문서/현재 자산으로 context를 다시 만들고,
+엄격한 workspace reader가 읽은 실제 파일 바이트와 manifest를 `inspectProjectGeneration`에
+전달해야 한다. 이전 context를 현재 문서 검증으로 재사용하지 않는다.
+
+검사는 sidecar의 닫힌 형태/버전, 보존 자산 바이트, ID 중복·출처·정확한 경로, 실제 출력 hash,
+화면별 manifest protocol/소유권/requestId/지문과 component identity를 대조한다. 구조 또는 정책
+입력 차이는 stale, 누락/손상/파일 변경/manifest 불일치는 unverified, 검증된 출력 집합 부족은
+partial이다. page와 project artifact 전체가 정확히 갖춰져야 current다. 없는 기록/지문을 채우거나
+원문/파일을 삭제하지 않는다. manifest v2 형식과 기존 v3 판정은 유지한다.
+
+이 단계는 순수 읽기/판정 API다. workspace I/O, 잠금 아래 sidecar-last 확정·복구, AST 자산
+재작성, 실제 생성 runtime 및 GUI Export 연결은 후속이며 current 결과만으로 ZIP 빌드/실제 이미지
+decode 수용 조건까지 완료한 것으로 세지 않는다.
+
+#399 판정 보강: sidecar는 먼저 **기록된 plan**의 허용 경로·티켓 identity와 실제 파일/manifest를
+대조한다. 과거 plan의 inventory/DAG 모순도 거부한다. 그 근거가 정상인 뒤 현재 plan/지문과
+비교하므로 컴포넌트 이름·파일명·티켓 신원 변경은 stale로 표시한다. 손상 경로나 누락/변경 파일은
+여전히 unverified다. reader는 현재 plan 경로만이 아니라 검증된 과거 record의 출력도 읽어야 한다.
+v4 requestId 검사와 출력 경로 검사는 wire/provenance가 공유하며 CON/NUL/COM1 같은 staging
+예약어 기록을 matching manifest만으로 current로 승격하지 않는다.
+
+
+### GUI 소유 runtime 템플릿 (S1-9)
+
+`renderProjectRuntime`은 현재 provenance context를 다시 검증하고 계획에 있는
+`runtime/Routes.ts`, `runtime/Host.tsx`, `runtime/Entry.tsx` 세 문자열만 반환한다.
+파일 저장·수용 기록 확정·ZIP 생성은 하지 않는다. agent wave는 이 파일을 쓸 권한이 없다.
+Routes는 계획된 page root와 modal root만 import하고 widget을 제외한다. 화면 ID는 Map 키로
+보관하며 URL pathname을 바꾸지 않는 in-memory navigation을 사용한다.
+
+생성 화면 root는 default React component이며 `ScreenActions` props를 받는다.
+`onNavigate(target)`, `onOpenModal(target)`, `onClose()`를 하위 상호작용까지 전달하여 IR action에
+연결한다. Host는 page/modal registry에 없는 대상을 무시하고 navigate 때 모달을 닫는다.
+openModal은 한 개의 현재 모달을 교체하며 처음 연 trigger를 유지한다. page는 기존 viewport
+shell 계약을 따르고 modal root는 별도 viewport shell 없이 IR layout/content만 렌더링한다.
+Host가 modal root의 폭/높이/min-height를 panel에 맞추므로 root.box를 외곽 viewport로 쓰지 않는다.
+
+modal은 native dialog 한 개로 열며 backdrop 클릭은 닫지 않는다. Escape와 IR close action은
+닫고 원래 trigger에 focus를 돌린다. trigger가 사라졌으면 안정적인 Host에 focus한다.
+Tab은 modal 안에 가두고 HTML/body/Host의 기존 overflow와 scroll을 보존·복원한다.
+preferred size를 visual viewport와 safe-area + 16px 여백으로 clamp하며 긴 내용은 panel 내부에서
+스크롤한다. CSS media query는 host viewport를 기준으로 유지한다. 디자인에 없는 close 버튼,
+border, shadow를 추가하지 않는다.
+
+`VSB_PROJECT_RUNTIME_BROWSER=1 pnpm exec vitest run test/project-runtime-build.test.ts`는
+템플릿의 실제 문자열을 독립 TS 프로젝트에서 검사하고 Vite production build 뒤 Chromium으로
+navigate·modal 교체·Escape·focus·좁은 viewport·내부 스크롤/복원을 검증한다. 화면 본문은
+수동 fixture이며 실제 AI 생성, GUI 수용/Export 연결 완료를 뜻하지 않는다. 일반 전체 테스트의
+opt-in skip은 브라우저 통과 근거가 아니며 CI Chromium 잡에서 별도 실행한다.
+
 ### TSX 자산 모듈 변환기 구현 범위
 
 `rewriteProjectAssetModule`은 plan이 소유한 ZIP 상대 TSX 경로와 검증된 mapping을 받아 Babel
@@ -1215,3 +1275,10 @@ asset/CSS import는 선언뿐 아니라 import()와 require()의 정적 경로�
 거부한다. CSS parser가 colon을 별도 node로 나눌 수 있으므로 지원 url()/comment 범위를 제외한
 원래 값에서도 남은 vsb-asset token을 검사한다. url() 밖 token은 원문으로 남겨 깨진 배경을
 만들지 않고 오류로 중단한다. 일반 JS 문자열/주석의 비자산 텍스트는 계속 보존한다.
+
+
+#401 추가 경계: background/backgroundImage 이외 style의 url()/image-set()/image()/cross-fade()와
+자산 token·CSS escape를 거부한다. maskImage·cursor 등 URL을 받을 수 있는 속성의 동적 값이나
+var()도 지원하지 않는다. 일반 cursor:pointer/maskImage:none은 유지한다. SVG image의 href,
+xlinkHref, xlink:href는 정적/동적 여부와 무관하게 지원 밖이므로 명시적으로 거부한다.
+CSS custom property도 정적 URL 검사를 거치며 허용 외부 URL이라고 이 지원 범위를 넓히지 않는다.

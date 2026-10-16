@@ -56,3 +56,23 @@ describe('asset transform review regressions', () => {
     await expect(transform(`<div style={{backgroundImage:"${token}"}} />`)).rejects.toThrow();
   });
 });
+
+describe('unsupported CSS and SVG image URL positions', () => {
+  it.each([
+    '<div style={{maskImage:"url(../a.png)"}} />',
+    '<div style={{cursor:"url(../a.png), auto"}} />',
+    '<div style={{WebkitMaskImage:"url(https://other.test/a.png)"}} />',
+    '<div style={{maskImage:path}} />', '<div style={{cursor:path}} />',
+    '<div style={{"--picture":"url(../a.png)"}} />',
+    '<svg><image href="../a.svg" /></svg>',
+    '<svg><image xlinkHref="../a.svg" /></svg>',
+    '<svg><image xlink:href="../a.svg" /></svg>',
+    '<svg><image href={path} /></svg>',
+  ])('rejects unsupported image source %s', async source => {
+    await expect(transform(source)).rejects.toThrow();
+  });
+  it('preserves non-image cursor and mask values', async () => {
+    const source = '<div style={{cursor:"pointer",maskImage:"none",color:"red"}} />';
+    expect(await transform(source)).toEqual({code:source,usedAssets:[]});
+  });
+});

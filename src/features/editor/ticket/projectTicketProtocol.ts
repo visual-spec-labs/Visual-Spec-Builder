@@ -27,27 +27,13 @@ function segment(value: string): boolean {
   return isWorkspaceSegment(value) && !isWindowsDeviceName(value);
 }
 
-/** Dispatch this compact serialization; pretty-printing requires a fresh byte-budget check. */
-export function serializeProjectTicketRequest(request: ProjectTicketRequest): string {
-  const text = JSON.stringify(request);
-  if (text.length > WORKSPACE_MAX_BODY_BYTES || new TextEncoder().encode(text).byteLength > WORKSPACE_MAX_BODY_BYTES) {
-    throw new ProjectProtocolError("malformed", "프로젝트 요청이 32 MiB UTF-8 PUT 한도를 초과합니다.");
-  }
-  return text;
+export function isProjectTicketRequestId(value: string): boolean {
+  return /^[A-Za-z0-9_-]{1,128}$/.test(value) && segment(value);
 }
 
-/** Caller supplies the manifest-owned projectRoot; this pure function does not assign ownership. */
-export function buildProjectTicketRequest(args: {
-  requestId: string; projectRoot: string; snapshotContent: string; snapshotSha256: string; ticketIds: string[];
-}): ProjectTicketRequest {
-  const { requestId, projectRoot, snapshotContent, snapshotSha256, ticketIds } = args;
-  if (!segment(requestId)) throw new ProjectProtocolError("invalid-output-path", "요청 ID가 Windows에서도 유효한 staging 폴더여야 합니다.");
-  const parsed = parseProjectInputSnapshot(snapshotContent, snapshotSha256, requestId);
-  if (!parsed.ok) throw new ProjectProtocolError("stale-input", parsed.error);
+/** Shared path inventory validation for current requests and historical provenance plans. */
+export function assertProjectOutputPaths(plan: ProjectPlan, projectRoot: string): void {
   if (!segment(projectRoot)) throw new ProjectProtocolError("invalid-output-path", "프로젝트 생성 폴더가 정규 경로가 아닙니다.");
-  const { project, plan, assets } = parsed.snapshot;
-  if (!ticketIds.length) throw new ProjectProtocolError("missing-ticket", "빈 프로젝트 wave는 전달하지 않습니다.");
-  if (new Set(ticketIds).size !== ticketIds.length) throw new ProjectProtocolError("duplicate-ticket", "wave 티켓 ID가 중복됩니다.");
   const paths = new Set<string>();
   for (const ticket of plan.tickets) {
     if (!segment(ticket.sourcePageId) || !segment(`${ticket.componentName}.tsx`)) {
@@ -62,6 +48,30 @@ export function buildProjectTicketRequest(args: {
   if (new Set(pageIds.map(id => id.toLowerCase())).size !== pageIds.length) {
     throw new ProjectProtocolError("invalid-output-path", "대소문자만 다른 PageId 생성 자리가 충돌합니다.");
   }
+}
+
+/** Dispatch this compact serialization; pretty-printing requires a fresh byte-budget check. */
+export function serializeProjectTicketRequest(request: ProjectTicketRequest): string {
+  const text = JSON.stringify(request);
+  if (text.length > WORKSPACE_MAX_BODY_BYTES || new TextEncoder().encode(text).byteLength > WORKSPACE_MAX_BODY_BYTES) {
+    throw new ProjectProtocolError("malformed", "프로젝트 요청이 32 MiB UTF-8 PUT 한도를 초과합니다.");
+  }
+  return text;
+}
+
+/** Caller supplies the manifest-owned projectRoot; this pure function does not assign ownership. */
+export function buildProjectTicketRequest(args: {
+  requestId: string; projectRoot: string; snapshotContent: string; snapshotSha256: string; ticketIds: string[];
+}): ProjectTicketRequest {
+  const { requestId, projectRoot, snapshotContent, snapshotSha256, ticketIds } = args;
+  if (!isProjectTicketRequestId(requestId)) throw new ProjectProtocolError("invalid-output-path", "요청 ID가 Windows에서도 유효한 staging 폴더여야 합니다.");
+  const parsed = parseProjectInputSnapshot(snapshotContent, snapshotSha256, requestId);
+  if (!parsed.ok) throw new ProjectProtocolError("stale-input", parsed.error);
+  if (!segment(projectRoot)) throw new ProjectProtocolError("invalid-output-path", "프로젝트 생성 폴더가 정규 경로가 아닙니다.");
+  const { project, plan, assets } = parsed.snapshot;
+  if (!ticketIds.length) throw new ProjectProtocolError("missing-ticket", "빈 프로젝트 wave는 전달하지 않습니다.");
+  if (new Set(ticketIds).size !== ticketIds.length) throw new ProjectProtocolError("duplicate-ticket", "wave 티켓 ID가 중복됩니다.");
+  assertProjectOutputPaths(plan, projectRoot);
   const byId = new Map(plan.tickets.map(ticket => [ticket.id, ticket]));
   const outputRoot = `staging/${requestId}`;
   const tickets = ticketIds.map(id => {

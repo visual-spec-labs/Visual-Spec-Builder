@@ -179,6 +179,12 @@ jobs:
           VSB_PROJECT_ASSET_BROWSER: '1'
         run: timeout --signal=TERM --kill-after=10s 120s pnpm exec vitest run test/project-asset-build.test.ts
 
+      - name: 프로젝트 runtime typecheck/build 및 page/modal 동작 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+          VSB_PROJECT_RUNTIME_BROWSER: '1'
+        run: timeout --signal=TERM --kill-after=10s 120s pnpm exec vitest run test/project-runtime-build.test.ts
+
       - name: 버튼 Interaction 편집·Undo·저장 (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium

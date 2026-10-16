@@ -125,7 +125,9 @@ export async function rewriteProjectAssetModule(args: {
     if (attributes.some(attribute => attribute.type === "JSXSpreadAttribute")) throw Error("JSX spread로 자산 URL/style을 전달할 수 없습니다.");
     for (const attribute of attributes) {
       if (attribute.type !== "JSXAttribute") continue;
-      const key = name(attribute.name);
+      const key = node(attribute.name) && attribute.name.type === "JSXNamespacedName"
+        ? `${name(attribute.name.namespace)}:${name(attribute.name.name)}` : name(attribute.name);
+      if (tag === "image" && ["href", "xlinkHref", "xlink:href"].includes(key ?? "")) throw Error("SVG image URL은 지원하지 않는 자산 위치입니다.");
       const value = attribute.value;
       if (tag === "img" && (key === "src" || key === "srcSet")) {
         if (key === "srcSet") throw Error("srcSet 자산은 현재 지원하지 않습니다.");
@@ -143,7 +145,19 @@ export async function rewriteProjectAssetModule(args: {
         if (styleKey === "background" || styleKey === "backgroundImage" || styleKey === "background-image") {
           if (literal === null || !node(property.value)) throw Error("background는 정적 문자열이어야 합니다.");
           edit(property.value, background(literal));
-        } else if (literal?.includes("vsb-asset:")) throw Error("지원하지 않는 style 자산 위치입니다.");
+        } else {
+          // Only background/backgroundImage are image-bearing positions in the v4 contract.
+          // Inspect every other static value, including CSS custom properties, rather than
+          // letting URL-bearing properties bypass the image mapping/allowlist checks.
+          const urlProperty = /^(?:webkit|moz|ms|o)?(?:mask|maskimage|borderimage|borderimagesource|liststyle|liststyleimage|cursor|content|filter|clippath|fill|stroke)$/i.test((styleKey ?? "").replaceAll("-", ""));
+          if (literal === null && urlProperty) throw Error("지원하지 않는 동적 style 자산 위치입니다.");
+          if (literal !== null) {
+            if (/vsb-asset:/i.test(literal) || literal.includes("\\")) throw Error("지원하지 않는 style 자산 위치입니다.");
+            parseCss(literal).walk(part => {
+              if (part.type === "function" && (/^(?:url|(?:-webkit-)?image-set|image|cross-fade)$/i.test(part.value) || (urlProperty && /^var$/i.test(part.value)))) throw Error("지원하지 않는 style 자산 위치입니다.");
+            });
+          }
+        }
       }
     }
   });
