@@ -8,12 +8,13 @@ import { GENERATION_MANIFEST_PATH, parseGenerationManifest } from '@/features/ed
 import { planProjectOutputs, commitProjectOutputs, restoreProjectOutputs } from '@/features/editor/ui/projectOutputAcceptance';
 import { readProjectGenerationEvidence } from '@/features/editor/ui/projectGenerationWorkspace';
 import fixture from './fixtures/screen-relations-project.json';
-const io=vi.hoisted(()=>({disk:new Map<string,Uint8Array>(),writes:[] as string[],current:true,lease:true,hook:vi.fn(),failPath:''}));
+const io=vi.hoisted(()=>({disk:new Map<string,Uint8Array>(),writes:[] as string[],current:true,lease:true,hook:vi.fn(),failPath:'',rejectFence:false}));
 const encode=(text:string)=>new TextEncoder().encode(text);
 vi.mock('@/features/editor/ui/agentRequestLock',()=>({holdRequestLock:async()=>({renew:async()=>io.lease,release:()=>{io.lease=false;}})}));
 vi.mock('@/features/editor/ui/workspaceClient',()=>({
   readWorkspaceFileSnapshot:async(path:string)=>({ok:true,snapshot:io.disk.has(path)?{bytes:io.disk.get(path)!.slice(),revision:sha256Hex(io.disk.get(path)!)}:null}),
   writeWorkspaceFile:async(path:string,body:string|ArrayBuffer,_mime:string,expected?:string,owner?:string)=>{
+    if(io.rejectFence&&path.includes('runtime/project-generation-')&&typeof body==='string'&&JSON.parse(body).phase==='pending'){io.lease=false;return {ok:false,status:409,error:'lease expired before fence'};}
     if(owner&&!io.lease)return {ok:false,status:409,error:'lease'};
     if(path===io.failPath)return {ok:false,status:500,error:'injected'};
     const current=io.disk.get(path);if(expected!==undefined&&expected!==(current?sha256Hex(current):'missing'))return {ok:false,status:409,error:'CAS'};
@@ -41,7 +42,7 @@ function prepare(id:string,project:ProjectSpec,plan:ReturnType<typeof compilePro
   return {prepared:{request,snapshot},results:request.tickets.map(t=>({ticketId:t.id,status:'done' as const})),runId:id+'-run',isCurrent:()=>io.current};
 }
 beforeEach(()=>{
-  io.disk.clear();io.writes=[];io.current=true;io.lease=true;io.hook.mockReset();io.failPath='';
+  io.disk.clear();io.writes=[];io.current=true;io.lease=true;io.hook.mockReset();io.failPath='';io.rejectFence=false;
   io.disk.set(GENERATION_MANIFEST_PATH,encode(JSON.stringify({protocol:2,projects:{owner:{fileName:null,outputDir:'owned',createdAt:'now'}},entries:{}})));
 });
 describe('atomic project wave acceptance',()=>{
@@ -268,4 +269,12 @@ it('resumes an explicitly retried pending recovery after a second lease loss',as
   io.hook.mockReset();io.lease=true;
   expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:true,recoveryRequired:false});
   expect([...io.disk.keys()].filter(path=>path.startsWith('generated/'))).toEqual([]);
+});
+
+it('does not require recovery when the server rejects the first fence after lease expiry',async()=>{
+  const args=setup();const plan=await planProjectOutputs(args);const manifest=text(GENERATION_MANIFEST_PATH);io.rejectFence=true;
+  expect(await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent})).toMatchObject({committed:false,recoveryRequired:false});
+  expect(io.disk.has(plan.evidence.sidecarPath)).toBe(false);
+  expect([...io.disk.keys()].filter(path=>path.startsWith('generated/'))).toEqual([]);
+  expect(text(GENERATION_MANIFEST_PATH)).toBe(manifest);
 });

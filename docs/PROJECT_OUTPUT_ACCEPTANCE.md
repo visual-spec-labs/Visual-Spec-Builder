@@ -67,6 +67,9 @@ create-only 저장한다. 첫 출력 쓰기 전에 기존 sidecar를 다음 폐�
 {"protocol":2,"phase":"pending","projectId":"owner","runId":"run","requestId":"request","journalSha256":"<64자리 SHA-256>"}
 ```
 
+첫 pending PUT이 서버의 CAS/lease 409로 거절되면 출력 쓰기 전이므로 해당 실행의 복구를
+요구하지 않는다. 저장 여부가 불확실한 연결/서버 실패를 같은 것으로 간주하지 않는다.
+
 protocol:2는 수락 완료 provenance가 아니다. 기존 protocol:1 inspector도 이를 unverified로
 거부한다. 새 계획은 pending sidecar가 있으면 기존 적용의 명시 복구를 요구한다. 에이전트의
 응답/입력 snapshot/IR 버전은 바뀌지 않는다. 기존 스킬은 여전히 sidecar를 쓰지 않는다.

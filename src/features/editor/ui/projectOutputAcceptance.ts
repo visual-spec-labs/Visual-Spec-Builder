@@ -223,6 +223,9 @@ async function commitProjectOutputsNow(plan:ProjectOutputPlan, decisions:Readonl
     await checkOutputs(retained);
     await assertCurrent();sidecarAttempted=true;
     const fenced=await writeWorkspaceFile(plan.evidence.sidecarPath,pendingText,'application/json',expectedRevision(previousSidecar),plan.requestId);
+    // A server CAS/lease rejection proves this first mutable write did not happen.
+    // Do not advertise a restore handle for a run that never installed its fence.
+    if(!fenced.ok&&fenced.status===409){sidecarAttempted=false;throw Error('프로젝트 소유권 기록이 잠금/버전 충돌로 거절됐습니다.');}
     if(!fenced.ok||!await sameFile(plan.evidence.sidecarPath,revision(pendingText)))throw Error('미커밋 프로젝트 소유권 기록을 확인하지 못했습니다.');
     await assertCurrent();await checkOutputs(retained);
     for(const file of files) {
