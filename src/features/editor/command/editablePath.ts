@@ -209,7 +209,7 @@ export function isEditableScreenPath(screen: ScreenSpec, path: string): boolean 
  * radius가 이미 모서리별 객체면 허용하고, 숫자 하나면 막는다.
  */
 export function isEditableNodePath(node: Node, path: string): boolean {
-  if (node.type === "instance") return false;
+  if (node.type === "instance" && path !== "box.width" && path !== "box.height") return false;
   if (path.startsWith("action.")) return false;
   return isEditablePath(
     NODE_DEF_BY_TYPE[node.type],

@@ -41,7 +41,7 @@ const { values: args } = parseArgs({ options: {
 } });
 
 const readExample = async (name) => JSON.parse(await readFile(new URL(`../../examples/${name}`, import.meta.url), "utf8"));
-const project = (name, pages) => ({ version: "0.3", name, pageOrder: Object.keys(pages), pages });
+const project = (name, pages) => ({ version: "0.4", name, pageOrder: Object.keys(pages), pages });
 const login = (await readExample("login-screen.json")).screen;
 const imageHero = (await readExample("image-hero.json")).screen;
 const responsiveCards = (await readExample("responsive-cards.json")).screen;
@@ -123,7 +123,7 @@ function fontLockError(url, digest) {
 
 /** 지정한 ProjectSpec의 페이지마다 사례 하나를 만든다. 사례 이름(표시·--case용)은 page.name이다. */
 function specTargets(spec) {
-  if (spec.version !== "0.3" || !Array.isArray(spec.pageOrder)) throw new Error("--spec은 0.3 ProjectSpec(pageOrder·pages)이어야 합니다.");
+  if (spec.version !== "0.4" || !Array.isArray(spec.pageOrder)) throw new Error("--spec은 0.4 ProjectSpec(pageOrder·pages)이어야 합니다.");
   return spec.pageOrder.map((page) => {
     const screen = spec.pages[page];
     const height = screen.size.height;

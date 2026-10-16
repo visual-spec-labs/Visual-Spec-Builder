@@ -6,6 +6,7 @@ import type { Direction } from "./canvasLayout";
 import { handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu } from "./canvasSelection";
 import { ResizeHandles } from "./CanvasResizeHandles";
 import { buttonStyle, frameStyle, imageStyle, inputStyle, textStyle } from "./nodeStyles";
+import { boxStyle } from "./canvasLayout";
 
 /** 스펙 트리의 DOM 렌더링과 선택 노드 실측. 이벤트 해석은 canvasSelection에 위임한다. */
 /**
@@ -130,7 +131,7 @@ export function RenderNode({
     );
   }
 
-  if (node.type === "instance") return <div ref={ref} data-node-id={id} aria-label={node.name} onClick={(event) => handleNodeClick(id, event)}>위젯 미리보기 준비 중</div>;
+  if (node.type === "instance") return <div ref={ref} data-node-id={id} aria-label={node.name} style={{ ...boxStyle(node.box, parentDirection), ...resizeAnchor }} onClick={(event) => handleNodeClick(id, event)}>위젯 미리보기 준비 중</div>;
   return (
     <div
       ref={ref}

@@ -798,6 +798,15 @@ describe("project rename (#227)", () => {
       body: JSON.stringify({ fileName: "old.json", name: "New", expectedText: oldText, projectId }) })).status).toBe(200);
     expect(JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8")).projectId).toBe(projectId);
   });
+  it("persists the current version when renaming a valid 0.3 project", async () => {
+    const legacy = JSON.stringify({ ...JSON.parse(oldText), version: "0.3" });
+    writeFileSync(join(workspaceRoot, "specs/old.json"), legacy);
+    const response = await rename("New", "old.json", legacy);
+    expect(response.status).toBe(200);
+    const saved = JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"));
+    expect(saved.version).toBe("0.4");
+    expect(saved.projectId).toEqual(expect.any(String));
+  });
   it("legacy 화면 문서 rename은 프로젝트 형식과 ID를 저장해 다시 열어도 신원을 유지한다", async () => {
     const legacy = JSON.stringify(blankSpec);
     const projectId = "legacy-project-id";

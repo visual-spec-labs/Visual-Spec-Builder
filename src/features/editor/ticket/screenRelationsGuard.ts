@@ -12,5 +12,5 @@ export const UNSUPPORTED_SCREEN_RELATIONS_MESSAGE =
  */
 export function hasUnsupportedScreenRelations(page: ScreenSpec): boolean {
   return page.kind === "modal" || page.kind === "widget" ||
-    Object.values(page.nodes).some(node => node.type === "button" && node.action !== undefined);
+    Object.values(page.nodes).some(node => node.type === "instance" || (node.type === "button" && node.action !== undefined));
 }

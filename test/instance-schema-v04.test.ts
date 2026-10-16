@@ -3,6 +3,9 @@ import { migrateToV04, validateProjectSpec, validateVisualSpec } from '@/feature
 import { validateCommand } from '@/features/editor/command/validate';
 import { applyCommand } from '@/features/editor/command/applyCommand';
 import { compileProjectTickets, ProjectPlanError } from '@/features/editor/ticket/compileProjectTickets';
+import { compileTickets } from '@/features/editor/ticket/compileTickets';
+import { hasUnsupportedScreenRelations } from '@/features/editor/ticket/screenRelationsGuard';
+import { isEditableNodePath } from '@/features/editor/command/editablePath';
 import fixture from './fixtures/screen-relations-project.json';
 import legacyScreen from './fixtures/legacy/dashboard-cards.v0.1.json';
 import legacyProject from './fixtures/legacy/two-page-project.v0.2.json';
@@ -90,6 +93,17 @@ describe('IR 0.4 instance schema boundary', () => {
     const project = projectWithInstance();
     project.projectId = 'example';
     expect(() => compileProjectTickets(project as any)).toThrow(ProjectPlanError);
+  });
+
+  it('blocks the legacy compiler and allows only displayed instance size edits', () => {
+    const project = projectWithInstance();
+    const page = project.pages.login;
+    expect(hasUnsupportedScreenRelations(page)).toBe(true);
+    expect(() => compileTickets(page)).toThrow('Widget instance generation is not supported yet.');
+    const instance = page.nodes.sharedCard;
+    expect(isEditableNodePath(instance, 'box.width')).toBe(true);
+    expect(isEditableNodePath(instance, 'box.height')).toBe(true);
+    expect(isEditableNodePath(instance, 'ref')).toBe(false);
   });
 
   it('rejects old version at current validation while current screen remains valid', () => {

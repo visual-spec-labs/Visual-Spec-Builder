@@ -78,7 +78,7 @@ import {
   isCanonicalProjectRuntimePath,
 } from "./protocol";
 import { migrateToV04, migrateV01 } from "../editor/schema/migrate";
-import type { VisualSpec } from "../editor/schema/types";
+import type { ProjectSpec, VisualSpec } from "../editor/schema/types";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
 import { projectFileName } from "./projectName";
 import { checkRequestOrigin } from "./requestOrigin";
@@ -348,7 +348,7 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
         const requestedProjectId = typeof input.projectId === "string" ? input.projectId : existingProjectId ?? randomUUID();
         // 이름 변경은 저장 경계다. 화면 문서는 프로젝트 형태로 승격해 ID와
         // 새 이름을 함께 기록해야 다음 브라우저 문맥에서도 같은 프로젝트다.
-        const renamed = JSON.stringify(isProject ? { ...spec, name: requestedName, projectId: requestedProjectId } : {
+        const renamed = JSON.stringify(isProject ? { ...(migrated as ProjectSpec), name: requestedName, projectId: requestedProjectId } : {
           ...migrateV01({ ...(migrated as VisualSpec), screen: { ...(migrated as VisualSpec).screen, name: requestedName } }),
           projectId: requestedProjectId,
         }, null, 2);

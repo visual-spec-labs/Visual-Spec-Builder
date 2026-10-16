@@ -1,6 +1,6 @@
 // 성능 실측(#293)용 작업공간 픽스처를 만든다. 측정 스크립트(measure.mjs)가 부른다.
 //
-// 프로젝트 문서(0.3)를 `count`개, 각 페이지의 노드를 정확히 `nodes`개로 만든다. 노드 구성은
+// 프로젝트 문서(0.4)를 `count`개, 각 페이지의 노드를 정확히 `nodes`개로 만든다. 노드 구성은
 // 실제 화면과 비슷하게 root → 섹션(frame) → 카드(frame row) → text·button·input이다. 이미지
 // 시나리오는 큰 PNG 하나를 assets/에 두고 모든 프로젝트가 image 노드로 참조한다(`distinct`면 프로젝트마다
 // 다른 PNG — 디코딩·비트맵 메모리를 프로젝트 수만큼 쓰게 한다, #318).
@@ -86,7 +86,7 @@ export function buildPage(total, { imageSrc } = {}) {
 }
 
 export function buildProject(name, nodeCount, options) {
-  const spec = { version: "0.3", name, pages: { main: buildPage(nodeCount, options) }, pageOrder: ["main"] };
+  const spec = { version: "0.4", name, pages: { main: buildPage(nodeCount, options) }, pageOrder: ["main"] };
   const result = validateProjectSpec(spec);
   if (!result.valid) throw new Error(`픽스처가 스키마를 어깁니다: ${JSON.stringify(result.errors ?? result).slice(0, 500)}`);
   if (Object.keys(spec.pages.main.nodes).length !== nodeCount) throw new Error("노드 수가 맞지 않습니다");
