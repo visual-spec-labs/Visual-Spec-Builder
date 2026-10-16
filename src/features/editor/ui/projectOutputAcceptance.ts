@@ -325,6 +325,11 @@ async function restoreProjectOutputsNow(runId:string,context:ProjectOutputPlan['
         conflict=true;throw Error('복구 중 이전 wave의 유지 출력이 변경됐습니다. 외부 변경을 보존합니다.');
       }
     };
+    const checkRestored=async()=>{
+      for(const item of files)if(!await same(`generated/${item.file.path}`,item.file.previousRevision??WORKSPACE_MISSING_REVISION)) {
+        conflict=true;throw Error('복구 중 대상 파일이 변경됐습니다. 외부 변경을 보존합니다.');
+      }
+    };
 
     try {
       await check();
@@ -338,13 +343,13 @@ async function restoreProjectOutputsNow(runId:string,context:ProjectOutputPlan['
         if(!saved.ok){if(saved.status===409){changed.pop();conflict=true;}throw Error('파일 복구가 충돌하거나 실패했습니다.');}
         if(!await same(`generated/${item.file.path}`,item.file.previousRevision??WORKSPACE_MISSING_REVISION))throw Error('파일 복구 readback이 다릅니다.');
       }
-      await check();await checkRetained();manifestAttempted=true;
+      await check();await checkRetained();await checkRestored();manifestAttempted=true;
       const metadata=await writeWorkspaceFile(GENERATION_MANIFEST_PATH,restoredManifest,'application/json',undefined,owner);
       if(!metadata.ok||!await same(GENERATION_MANIFEST_PATH,revision(restoredManifest)))throw Error('이전 manifest 항목 복원을 확인하지 못했습니다.');
-      await check();await checkRetained();sidecarAttempted=true;
+      await check();await checkRetained();await checkRestored();sidecarAttempted=true;
       const restored=await mutate(evidence.sidecarPath,previousSidecar?.bytes??null,evidence.sidecarFile.revision);
       if(!restored.ok||!await same(evidence.sidecarPath,previousSidecar?.revision??WORKSPACE_MISSING_REVISION))throw Error('이전 sidecar 복원을 확인하지 못했습니다.');
-      await check();await checkRetained();
+      await check();await checkRetained();await checkRestored();
       return {restored:true,recoveryRequired:false,message:null};
     } catch(error) {
       // If restore itself fails, return to the accepted bytes while still holding this

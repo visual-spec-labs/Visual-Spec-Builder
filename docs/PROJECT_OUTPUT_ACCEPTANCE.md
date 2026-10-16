@@ -55,6 +55,9 @@ commit point 전 실패/취소는 원래 lease가 살아 있을 때만 자기 by
 현재 sidecar에서 해당 requestId의 전체 출력 목록과 run 범위가 정확히 일치해야 한다.
 이번 되돌리기에 포함하지 않는 이전 wave 출력도 첫 쓰기 전·metadata 쓰기 전·확정 시 다시
 검사한다. 외부 변경이 있으면 자기 쓰기만 보상하고 recoveryRequired를 유지한다.
+되돌리는 모든 파일 역시 각 파일의 쓰기 직후뿐 아니라 manifest 쓰기 전·sidecar 쓰기 전·최종
+확정 시 이전 revision 또는 원본 부재 상태를 재검사한다. 사이에 생긴 수동 bytes는 보존하고
+성공으로 반환하지 않는다.
 plan.json만 있거나 범위가 잘렸거나 파일/백업이 달라졌으면 변경하지 않는다.
 이전 manifest 항목만 현재 manifest에 합쳐 다른 프로젝트 registry/항목을 유지한다.
 복구 자체가 중단되면 같은 복구 lease 아래에서 accepted bytes로 보상한다.

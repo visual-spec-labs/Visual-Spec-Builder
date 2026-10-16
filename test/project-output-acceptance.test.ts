@@ -331,3 +331,20 @@ it.each(['change','delete'])('rejects a retained output %s during a committed-wa
   expect(await restoreProjectOutputs(second.runId,second.context,args.isCurrent)).toMatchObject({restored:false,recoveryRequired:true});
   expect(mode==='delete'?io.disk.has(retained):text(retained)).toBe(mode==='delete'?false:'external retained edit');
 });
+
+it.each(['missing','previous'].flatMap(mode=>['outputs','manifest','sidecar'].map(stage=>({mode,stage}))))('does not report a completed restore when $mode output changes after $stage write',async ({mode,stage})=>{
+  const args=setup();const path=args.prepared.request.tickets[0].filePath;
+  if(mode==='previous')io.disk.set('generated/'+path,encode('previous manual bytes'));
+  const plan=await planProjectOutputs(args);
+  const decisions=mode==='previous'?{[path]:'overwrite' as const}:{};
+  expect((await commitProjectOutputs(plan,decisions,{lock,isCurrent:args.isCurrent})).committed).toBe(true);
+  const manual='new manual bytes after restore';
+  const injectionPath=stage==='outputs'?'generated/'+plan.targets.at(-1)!.path:stage==='manifest'?GENERATION_MANIFEST_PATH:plan.evidence.sidecarPath;
+  let injected=false;
+  io.hook.mockImplementation((writtenPath:string)=>{
+    if(!injected&&writtenPath===injectionPath){injected=true;io.disk.set('generated/'+path,encode(manual));}
+  });
+  expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:false,recoveryRequired:true});
+  expect(injected).toBe(true);
+  expect(text('generated/'+path)).toBe(manual);
+});
