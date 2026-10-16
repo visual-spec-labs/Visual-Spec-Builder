@@ -1220,3 +1220,32 @@ decode 수용 조건까지 완료한 것으로 세지 않는다.
 여전히 unverified다. reader는 현재 plan 경로만이 아니라 검증된 과거 record의 출력도 읽어야 한다.
 v4 requestId 검사와 출력 경로 검사는 wire/provenance가 공유하며 CON/NUL/COM1 같은 staging
 예약어 기록을 matching manifest만으로 current로 승격하지 않는다.
+
+
+### GUI 소유 runtime 템플릿 (S1-9)
+
+`renderProjectRuntime`은 현재 provenance context를 다시 검증하고 계획에 있는
+`runtime/Routes.ts`, `runtime/Host.tsx`, `runtime/Entry.tsx` 세 문자열만 반환한다.
+파일 저장·수용 기록 확정·ZIP 생성은 하지 않는다. agent wave는 이 파일을 쓸 권한이 없다.
+Routes는 계획된 page root와 modal root만 import하고 widget을 제외한다. 화면 ID는 Map 키로
+보관하며 URL pathname을 바꾸지 않는 in-memory navigation을 사용한다.
+
+생성 화면 root는 default React component이며 `ScreenActions` props를 받는다.
+`onNavigate(target)`, `onOpenModal(target)`, `onClose()`를 하위 상호작용까지 전달하여 IR action에
+연결한다. Host는 page/modal registry에 없는 대상을 무시하고 navigate 때 모달을 닫는다.
+openModal은 한 개의 현재 모달을 교체하며 처음 연 trigger를 유지한다. page는 기존 viewport
+shell 계약을 따르고 modal root는 별도 viewport shell 없이 IR layout/content만 렌더링한다.
+Host가 modal root의 폭/높이/min-height를 panel에 맞추므로 root.box를 외곽 viewport로 쓰지 않는다.
+
+modal은 native dialog 한 개로 열며 backdrop 클릭은 닫지 않는다. Escape와 IR close action은
+닫고 원래 trigger에 focus를 돌린다. trigger가 사라졌으면 안정적인 Host에 focus한다.
+Tab은 modal 안에 가두고 HTML/body/Host의 기존 overflow와 scroll을 보존·복원한다.
+preferred size를 visual viewport와 safe-area + 16px 여백으로 clamp하며 긴 내용은 panel 내부에서
+스크롤한다. CSS media query는 host viewport를 기준으로 유지한다. 디자인에 없는 close 버튼,
+border, shadow를 추가하지 않는다.
+
+`VSB_PROJECT_RUNTIME_BROWSER=1 pnpm exec vitest run test/project-runtime-build.test.ts`는
+템플릿의 실제 문자열을 독립 TS 프로젝트에서 검사하고 Vite production build 뒤 Chromium으로
+navigate·modal 교체·Escape·focus·좁은 viewport·내부 스크롤/복원을 검증한다. 화면 본문은
+수동 fixture이며 실제 AI 생성, GUI 수용/Export 연결 완료를 뜻하지 않는다. 일반 전체 테스트의
+opt-in skip은 브라우저 통과 근거가 아니며 CI Chromium 잡에서 별도 실행한다.
