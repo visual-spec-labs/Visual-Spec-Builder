@@ -109,6 +109,10 @@ describe('atomic project wave acceptance',()=>{
     const args=setup();io.disk.set(args.prepared.request.tickets[0].outputPath,encode('export default()=> <img src="../unknown.png"/>'));
     await expect(planProjectOutputs(args)).rejects.toThrow();expect(io.writes).toEqual([]);
   });
+  it.each(['../../../other-project/pages/Home','../../unplanned/Helper','/tmp/outside','@/private'])('rejects an import outside the project plan: %s',async source=>{
+    const args=setup();io.disk.set(args.prepared.request.tickets[0].outputPath,encode(`import Other from ${JSON.stringify(source)}; export default()=> <Other/>`));
+    await expect(planProjectOutputs(args)).rejects.toThrow();expect(io.writes).toEqual([]);
+  });
 });
 
 

@@ -18,6 +18,10 @@ dispatch가 반환한 기존 ticket lease를 수락까지 유지한다. 이 모�
 
 AST 자산 변환 후 출력 hash를 계산한다. 모든 page ticket의 현재 출력이 모였을 때만
 GUI 소유 routes/host/entry를 만든다. artifact에 가짜 page manifest 항목을 만들지 않는다.
+자산 검사와 별도로 AST import/export/import()/require()/TS import type의 경계를 검사한다.
+상대 import는 같은 프로젝트 계획의 TSX 티켓으로 해석되어야 한다. 다른 프로젝트·계획 밖
+파일·절대/alias/URL·동적 경로는 거부한다. bare package dependency는 후속 build/Export 검사
+대상이며 이 단계가 패키지 설치나 typecheck 성공을 보장하지는 않는다.
 수동/다른 소유 출력은 명시적 overwrite가 필요하다. 하나라도 keep/미결정이면 wave 전체를
 변경하지 않는다. 원본과 sidecar는 디코딩 문자열이 아닌 정확한 bytes로 백업한다(BOM 포함).
 
