@@ -19,13 +19,18 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * 진짜다(`importOriginal`을 그대로 펼친다). 이 파일만 모듈을 갈아끼우므로 미들웨어의
  * 다른 동작을 보는 `workspace-middleware.test.ts`는 진짜 `node:fs` 위에서 돈다.
  */
-const failure = vi.hoisted(() => ({ atRename: false, atTempWrite: false }));
+const failure = vi.hoisted(() => ({ atRename: false, atTempWrite: false, linkRace: false, atLink: false }));
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
   return {
     ...actual,
     default: actual,
+    linkSync: ((...args: Parameters<typeof actual.linkSync>) => {
+      if (failure.linkRace) actual.writeFileSync(args[1], "external winner");
+      if (failure.atLink) throw Object.assign(new Error("hard links unavailable"), { code: "ENOTSUP" });
+      return actual.linkSync(...args);
+    }) as typeof actual.linkSync,
     writeFileSync: ((...args: Parameters<typeof actual.writeFileSync>) => {
       // 디스크 부족·I/O 오류가 **진짜로** 일어나는 모양을 흉내 낸다: 대상 파일을
       // 먼저 0바이트로 자른 다음 내용을 채우다가 실패한다. 예외만 던지면 "자르기"가
@@ -83,6 +88,8 @@ beforeEach(() => {
 
 afterEach(() => {
   failure.atRename = false;
+  failure.atLink = false;
+  failure.linkRace = false;
   failure.atTempWrite = false;
   rmSync(workspaceRoot, { recursive: true, force: true });
 });
@@ -171,5 +178,23 @@ describe("기존 스펙 덮어쓰기는 원자적이다 (PR #145 리뷰)", () =>
     const saved = new Uint8Array(readFileSync(join(workspaceRoot, "assets", "hero.png")));
     expect(Array.from(saved)).toEqual(Array.from(png));
     expect(tempLeftovers("assets")).toEqual([]);
+  });
+});
+
+
+describe("immutable project snapshot publication", () => {
+  it.each(["race", "unsupported", "partial-write"])("does not overwrite or publish partial bytes on %s", async mode => {
+    failure.linkRace = mode === "race";
+    failure.atLink = mode === "unsupported";
+    failure.atTempWrite = mode === "partial-write";
+    const response = await fetch(`${baseUrl}/__vs/file/runtime/project-input-test.json`, {
+      method: "PUT", headers: { "x-visual-spec-expected-revision": "missing" }, body: "snapshot bytes",
+    });
+    expect(response.status).toBe(mode === "race" ? 409 : 500);
+    await response.text();
+    const target = join(workspaceRoot, "runtime", "project-input-test.json");
+    if (mode === "race") expect(readFileSync(target, "utf8")).toBe("external winner");
+    else expect(existsSync(target)).toBe(false);
+    expect(tempLeftovers("runtime")).toEqual([]);
   });
 });
