@@ -1,5 +1,6 @@
 import { validateResponsive } from "./validateResponsive";
 import { validateScreenRelations } from "./validateScreenRelations";
+import { validateInstances } from "./validateInstances";
 
 import Ajv2020 from "ajv/dist/2020";
 import type { ErrorObject } from "ajv/dist/2020";
@@ -26,7 +27,11 @@ export type IssueCode =
   | "action-target-kind"
   | "navigate-to-non-page"
   | "action-source-invalid"
-  | "first-page-kind";
+  | "first-page-kind"
+  | "instance-ref-missing"
+  | "instance-ref-kind"
+  | "instance-cycle"
+  | "instance-override-invalid";
 
 export interface ValidationIssue {
   code: IssueCode;
@@ -518,6 +523,7 @@ function validateProject(input: unknown, cache?: ScreenValidationCache, schemaCh
       issues.push(...pageIssues.map(issue => ({ ...issue })));
     }
     issues.push(...validateScreenRelations(project));
+    issues.push(...validateInstances(project));
 
     return { valid: issues.length === 0, issues };
   } catch {

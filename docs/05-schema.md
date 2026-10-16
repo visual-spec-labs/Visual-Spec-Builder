@@ -206,3 +206,11 @@ override 대상 및 합성 결과는 S2-2 프로젝트 의미 검증에서 검�
 `migrateToV04`는 기존 0.1/0.2/0.3을 현재 버전으로 올린다. 구버전 문서에 이미
 `instance`가 있으면 버전을 유지하고 거부한다. 기존 `migrateToV03` 공개 함수는 과거
 0.3 변환 의미를 유지한다. 0.3 소비자에게 instance를 제거해 저장하지 않는다.
+
+### S2-2 프로젝트 의미 검증
+
+`validateProjectSpec`은 스키마와 각 화면의 로컬 구조를 통과한 뒤 모든 instance의 ref를
+같은 프로젝트의 widget에 대조한다. `instance-ref-missing`, `instance-ref-kind`,
+`instance-cycle`, `instance-override-invalid`를 반환한다. override는 widget의 직접
+Text/Button 노드만 가리킬 수 있고, Button의 빈 content는 무효다. 여러 화면이 같은 widget을
+참조하는 DAG는 유효하다. 독립 `validateVisualSpec`은 외부 ref를 확인하지 않는다.

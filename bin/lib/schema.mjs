@@ -37,7 +37,7 @@ function merge(base, patch) {
 	for (const [key, value] of Object.entries(patch)) entries.set(key, merge(entries.get(key), value));
 	return Object.fromEntries(entries);
 }
-function pointer$1(value) {
+function pointer$2(value) {
 	return value.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 /** 스키마 통과 뒤 호출한다. GUI에서 렌더하는 함수가 아니라 폭별 계약 검증이다. */
@@ -51,21 +51,21 @@ function validateResponsive(screen, basePath) {
 	for (const [id, breakpoint] of breakpoints) {
 		if (widths.has(breakpoint.minWidthPx)) issues.push({
 			code: "responsive-duplicate-width",
-			path: `${path}/breakpoints/${pointer$1(id)}/minWidthPx`,
+			path: `${path}/breakpoints/${pointer$2(id)}/minWidthPx`,
 			message: "같은 페이지의 breakpoint 폭은 서로 달라야 합니다."
 		});
 		widths.add(breakpoint.minWidthPx);
 	}
 	for (const id of Object.keys(responsive.overrides)) if (!breakpoints.has(id)) issues.push({
 		code: "responsive-breakpoint-missing",
-		path: `${path}/overrides/${pointer$1(id)}`,
+		path: `${path}/overrides/${pointer$2(id)}`,
 		message: `breakpoint "${id}"가 선언되지 않았습니다.`
 	});
 	const effective = new Map(Object.entries(screen.nodes));
 	for (const [id] of [...breakpoints].sort((a, b) => a[1].minWidthPx - b[1].minWidthPx)) {
 		const overrides = Object.prototype.hasOwnProperty.call(responsive.overrides, id) ? responsive.overrides[id] : {};
 		for (const [nodeId, patch] of Object.entries(overrides)) {
-			const patchPath = `${path}/overrides/${pointer$1(id)}/${pointer$1(nodeId)}`;
+			const patchPath = `${path}/overrides/${pointer$2(id)}/${pointer$2(nodeId)}`;
 			if (!Object.prototype.hasOwnProperty.call(screen.nodes, nodeId)) {
 				issues.push({
 					code: "responsive-node-missing",
@@ -108,7 +108,7 @@ function validateResponsive(screen, basePath) {
 }
 //#endregion
 //#region src/features/editor/schema/validateScreenRelations.ts
-function pointer(value) {
+function pointer$1(value) {
 	return value.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 /** kind 생략은 page다(docs/24 §3). */
@@ -135,7 +135,7 @@ function validateScreenRelations(project) {
 	for (const [pageId, page] of Object.entries(project.pages)) for (const [nodeId, node] of Object.entries(page.nodes)) {
 		if (node.type !== "button" || node.action === void 0) continue;
 		const { action } = node;
-		const actionPath = `/pages/${pointer(pageId)}/nodes/${pointer(nodeId)}/action`;
+		const actionPath = `/pages/${pointer$1(pageId)}/nodes/${pointer$1(nodeId)}/action`;
 		if (action.type === "close") {
 			if (kindOf(page) === "page") issues.push({
 				code: "action-source-invalid",
@@ -161,6 +161,94 @@ function validateScreenRelations(project) {
 			path: targetPath,
 			message: `navigate 대상 "${action.target}"의 kind는 "page"여야 합니다 (현재 "${kindOf(target)}").`
 		});
+	}
+	return issues;
+}
+//#endregion
+//#region src/features/editor/schema/validateInstances.ts
+function pointer(value) {
+	return value.replace(/~/g, "~0").replace(/\//g, "~1");
+}
+/** Cross-page widget checks run only after the closed JSON schema succeeds. */
+function validateInstances(project) {
+	const issues = [];
+	const edges = /* @__PURE__ */ new Map();
+	for (const [pageId, page] of Object.entries(project.pages)) {
+		const fromWidget = page.kind === "widget";
+		if (fromWidget) edges.set(pageId, []);
+		for (const [nodeId, node] of Object.entries(page.nodes)) {
+			if (node.type !== "instance") continue;
+			const path = `/pages/${pointer(pageId)}/nodes/${pointer(nodeId)}`;
+			const target = Object.prototype.hasOwnProperty.call(project.pages, node.ref) ? project.pages[node.ref] : void 0;
+			if (!target) {
+				issues.push({
+					code: "instance-ref-missing",
+					path: `${path}/ref`,
+					message: `위젯 참조 "${node.ref}"가 없습니다.`
+				});
+				continue;
+			}
+			if (target.kind !== "widget") {
+				issues.push({
+					code: "instance-ref-kind",
+					path: `${path}/ref`,
+					message: `참조 "${node.ref}"는 widget이어야 합니다.`
+				});
+				continue;
+			}
+			if (fromWidget) edges.get(pageId).push({
+				target: node.ref,
+				path: `${path}/ref`
+			});
+			for (const [overrideId, override] of Object.entries(node.overrides ?? {})) {
+				const overridePath = `${path}/overrides/${pointer(overrideId)}`;
+				const original = Object.prototype.hasOwnProperty.call(target.nodes, overrideId) ? target.nodes[overrideId] : void 0;
+				if (!original || original.type !== "text" && original.type !== "button") {
+					issues.push({
+						code: "instance-override-invalid",
+						path: overridePath,
+						message: `원본 widget의 Text/Button 노드 "${overrideId}"가 없습니다.`
+					});
+					continue;
+				}
+				if (original.type === "button" && override.content === "") issues.push({
+					code: "instance-override-invalid",
+					path: `${overridePath}/content`,
+					message: "Button의 content는 비어 있을 수 없습니다."
+				});
+			}
+		}
+	}
+	const state = /* @__PURE__ */ new Map();
+	for (const start of edges.keys()) {
+		if (state.has(start)) continue;
+		const stack = [{
+			pageId: start,
+			next: 0
+		}];
+		state.set(start, 1);
+		while (stack.length) {
+			const frame = stack[stack.length - 1];
+			const adjacent = edges.get(frame.pageId) ?? [];
+			if (frame.next === adjacent.length) {
+				state.set(frame.pageId, 2);
+				stack.pop();
+				continue;
+			}
+			const edge = adjacent[frame.next++];
+			if (state.get(edge.target) === 1) issues.push({
+				code: "instance-cycle",
+				path: edge.path,
+				message: `widget 참조 순환이 "${edge.target}"에서 닫힙니다.`
+			});
+			else if (!state.has(edge.target)) {
+				state.set(edge.target, 1);
+				stack.push({
+					pageId: edge.target,
+					next: 0
+				});
+			}
+		}
 	}
 	return issues;
 }
@@ -509,6 +597,7 @@ function validateProject(input, cache, schemaChecked = false, unchanged) {
 			issues.push(...pageIssues.map((issue) => ({ ...issue })));
 		}
 		issues.push(...validateScreenRelations(project));
+		issues.push(...validateInstances(project));
 		return {
 			valid: issues.length === 0,
 			issues
