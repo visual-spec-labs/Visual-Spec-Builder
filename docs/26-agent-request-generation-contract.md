@@ -1309,3 +1309,27 @@ producer/Export 연결은 별도 단계이며 이 전달에서 완료로 표시�
 템플릿 정책을 project-runtime-2/assets-2로 올려 이전 runtime 출력이 current로 남지 않게 한다.
 과거 plan의 routes 순서는 해당 page root ticket 순서의 부분열이어야 한다. routes만 재정렬한
 모순된 기록은 unverified이며 정상 과거 plan과 현재 문서 pageOrder 차이는 계속 stale이다.
+
+### 직전 sidecar 부재 복구를 위한 조건부 제거
+
+초기 byte 저장 단계의 runtime DELETE 금지에서 **정규 project-generation-<64자리 소문자 hash>.json**
+하나만 예외로 한다. 직전 sidecar가 없던 실행을 복구할 때 이전 부재를 복원해야 하기 때문이다.
+이 경로의 DELETE는 현재 ticket lease owner와 현재 바이트의 정확한 SHA-256을 모두 요구한다.
+missing token·owner 생략은 428, 바뀐 hash/lease는 409이며 queue 안에서 다시 검사한다.
+입력 snapshot, 요청/응답, 비정규/대소문자 alias와 다른 runtime 경로는 계속 삭제 금지다.
+기존 origin·canonical scope·symlink·직렬화 경계는 유지한다.
+
+이는 byte 저장 primitive이며 lease/hash 자체가 복구 provenance를 증명하지 않는다. 새 GUI의
+복구 caller는 project-recovery 보조 기록과 run.json, 현재 출력/sidecar hash를 검증한 뒤에만
+직전 없음인 sidecar 제거를 호출해야 한다. 이 전달은 해당 caller나 자동 복구 완료가 아니다.
+
+sidecar PUT도 owner를 제공하면 기존 generated/manifest와 같은 ticket lease fence를
+실제 write 시점에 적용한다. 잃은 owner는 같은 hash를 제시해도 쓰지 못한다. 기존 CAS-only
+저장 API는 보존하지만 새 수용/복구 caller는 PUT에도 owner를 반드시 제공한다.
+
+교차 프로세스 경계 보강: 모든 sidecar PUT(CAS-only 포함)의 revision 재비교와 rename,
+owner가 있는 DELETE의 revision 재비교와 unlink를 같은 디스크 ticket mutex 안에서 수행한다.
+프로세스 로컬 path queue만으로 다른 서버의 PUT을 막았다고 가정하지 않는다. owner를 제공한
+PUT은 같은 mutex 안에서 lease도 검사한다. 외부 프로그램의 직접 파일 수정까지 막는 것은 아니다.
+실제 별도 Vite 서버 프로세스의 PUT을 DELETE 선행 검사와 mutex 획득 사이에 넣는 회귀와
+CAS-only PUT의 디스크 mutex 공유 회귀를 필수로 둔다.

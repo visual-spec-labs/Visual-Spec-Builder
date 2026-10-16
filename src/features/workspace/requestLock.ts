@@ -179,3 +179,15 @@ export function holdsRequestLock(
   const current = readLock(workspaceRoot, kind);
   return owner !== undefined && current !== null && current.owner === owner && current.expiresAt > now;
 }
+
+
+/** Shared process mutex for project metadata CAS, including legacy CAS-only writers.
+ * The caller compares the revision and mutates inside this callback. A supplied owner
+ * must still hold its lease; omitting an owner does not bypass the shared mutex.
+ */
+export function writeTicketRecord(workspaceRoot: string, owner: string | undefined, write: () => void): boolean {
+  return withLockMutex(workspaceRoot, "ticket", () => {
+    if (owner !== undefined && !holdsRequestLock(workspaceRoot, "ticket", owner)) return false;
+    write(); return true;
+  });
+}
