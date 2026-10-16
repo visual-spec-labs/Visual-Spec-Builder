@@ -29,10 +29,10 @@ GUI 소유 routes/host/entry를 만든다. artifact에 가짜 page manifest 항�
 
 1. 현재 문서/lease/소스 자산을 확인하고 모든 원본을 create-only 백업한다.
 2. plan.json과 project-recovery.json을 create-only 저장하고 readback을 확인한다.
-3. 검토 당시 출력·manifest·sidecar revision을 다시 비교한다.
+3. 검토 당시 출력·manifest·sidecar revision과 이전 wave에서 유지할 모든 출력 hash를 첫 출력 쓰기 전에 다시 비교한다.
 4. 현재 owner와 CAS로 각 출력을 쓰고 실제 bytes를 readback한다.
-5. 소스 자산/문서/lease를 다시 확인하고 manifest, sidecar 순서로 쓴다.
-6. sidecar readback 뒤 마지막 현재성/lease 확인이 성공하면 commit point다.
+5. 소스 자산/문서/lease를 다시 확인하고 manifest를 쓴다. sidecar에 포함할 전체 출력(이전 wave와 이번 wave)의 hash를 다시 확인한 뒤 sidecar를 쓴다.
+6. sidecar readback 뒤 전체 출력 hash와 마지막 현재성/lease 확인이 성공하면 commit point다.
 7. 실제 적용 범위를 run.json에 기록한다. 이 후 Stop은 이미 커밋한 wave를 취소하지 않는다.
 
 manifest는 기존 전체 파일 쓰기 API를 사용한다. GUI writer는 ticket lease로 직렬화되고
@@ -44,7 +44,10 @@ recoveryRequired를 함께 반환하며, 복구 가능하다고 거짓으로 보
 
 commit point 전 실패/취소는 원래 lease가 살아 있을 때만 자기 bytes를 CAS로 보상한다.
 원본 출력, manifest, sidecar 순서로 되돌리며 직전 부재인 sidecar는 조건부 DELETE한다.
-새 수동 bytes나 새 lease를 덮어쓰지 않는다. 원래 lease를 잃으면 새 lease를 자동 획득해
+새 수동 bytes나 새 lease를 덮어쓰지 않는다. 유지할 이전 wave 출력이 변경·삭제됐거나
+최종 출력 hash 검사가 실패하면 committed=false, recoveryRequired=true다. 이번 쓰기의
+보상이 완료돼도 외부 변경으로 과거 수락 상태가 유효하지 않을 수 있으므로 이를 성공 복구로
+표시하지 않는다. 외부 변경 bytes/부재는 보존하며 다음 수락에는 새 계획과 검증이 필요하다. 원래 lease를 잃으면 새 lease를 자동 획득해
 과거 쓰기 권한으로 사용하지 않는다. 실제 범위와 백업을 남기고 recoveryRequired를 알린다.
 
 `restoreProjectOutputs`는 명시적 요청에서 새 lease를 얻고 run.json, project-recovery.json,

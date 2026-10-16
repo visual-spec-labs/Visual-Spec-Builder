@@ -62,7 +62,10 @@
 - local img는 정적 `src="vsb-asset:<sha256>"`, 배경은 정적 inline style의
   `url("vsb-asset:<sha256>")`만 쓴다. GUI AST가 모듈 상대 new URL binding으로 변환한다.
   agent가 new URL, 로컬 이미지 import/require, srcSet, SVG image href, mask/cursor URL,
-  동적 URL 조합·style spread를 만들지 않는다. 외부 HTTP/data URL은 원본 IR에 있는 정확한 값만
+  동적 URL 조합·style spread를 만들지 않는다. **모든 JSX prop spread도 금지**다.
+  이미지와 무관한 `<Card {...props} />`와 callback spread도 AST가 거부하므로
+  `<Card onNavigate={onNavigate} title={title} />`처럼 각 prop을 명시한다.
+  외부 HTTP/data URL은 원본 IR에 있는 정확한 값만
   정적으로 쓴다. CSS var로 제한을 우회하지 않는다.
 - 반복 이미지가 서로 다르면 image src를 동적 prop으로 바꾸지 않는다. 각 variant의 JSX에
   정적 token을 두고 variant key로 분기한다. background도 각 분기의 정적 style을 JSX에 직접
@@ -74,7 +77,13 @@
 
 ## 파일과 응답
 
-출력 권한은 `.visual-spec/<각 wave ticket.outputPath>`의 TSX와 고정 responsePath뿐이다.
+영구 출력 권한은 `.visual-spec/<각 wave ticket.outputPath>`의 TSX와 고정 responsePath뿐이다.
+검증·원자적 응답에 필요한 임시 파일은 다음 두 범위에서만 별도로 허용한다.
+프로젝트 JSON과 선택적인 typecheck/build 복사본은 OS 임시 폴더의 이번 실행 전용 디렉터리에
+만들고 finally에서 정리한다. 원본 프로젝트 작업공간에는 검증용 파일을 만들지 않는다.
+응답은 고정 responsePath와 같은 디렉터리에 새 고유 임시 파일을 exclusive-create하고,
+현재 요청/입력 hash 재확인 뒤 고정 responsePath로 rename한다. 부모 symlink/실제 경계도
+확인하며 실패·취소 시 자신이 만든 임시 파일만 제거한다. 기존 파일을 임시 이름으로 재사용하지 않는다.
 plan.artifacts의 Routes.ts/Host.tsx/Entry.tsx는 GUI 소유다. agent는 artifact, generated,
 manifest, sidecar, 원본 spec/assets, snapshot, backup, 다른 wave 파일을 수정하지 않는다.
 manifest/sidecar/backup을 읽어서 자체 소유권 결정을 내리지도 않는다. 파일을 쓰기 직전마다
@@ -85,8 +94,21 @@ typecheck/build를 실행하되 staging에 임의 helper/artifact를 추가하�
 컴파일·브라우저·실제 AI 품질 검증을 통과로 보고하지 않는다.
 
 응답은 정확히 `{ "protocol": 4, "requestId": "현재 id", "results": [...] }`다. 각 wave ID가
-정확히 한 번 있고 status는 done/failed, optional message 외 추가 필드는 없다. failed에는
+정확히 한 번 있고 각 항목은 정확히 `{ ticketId, status, message? }`다. 요청 항목의 `id`를
+응답에서는 **ticketId**로 옮긴다. status는 done/failed, optional message 외 추가 필드는 없다. failed에는
 비어 있지 않은 message가 필수다. artifact ID나 다음 wave를 results에 넣지 않는다.
 응답 직전 현재 요청/입력 hash를 다시 확인하고 같은 디렉터리 임시 파일에서 rename한다.
 취소/변경된 요청은 응답하지 않는다. 이 확인은 best-effort이며 GUI가 최종 수락을 결정한다.
 하나라도 failed면 GUI는 이번 wave 전체를 수락하지 않는다. 다음 요청을 먼저 추측하지 않는다.
+
+예제 ID는 현재 요청의 값으로 바꾼다. 한 티켓 요청의 성공 응답:
+
+```json
+{"protocol":4,"requestId":"v4-example","results":[{"ticketId":"home:Home","status":"done"}]}
+```
+
+같은 요청의 실패 응답은 성공 응답 대신 쓴다:
+
+```json
+{"protocol":4,"requestId":"v4-example","results":[{"ticketId":"home:Home","status":"failed","message":"요청된 dependency export를 확인하지 못했습니다."}]}
+```
