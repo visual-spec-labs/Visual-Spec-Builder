@@ -148,8 +148,19 @@ export const BACKUP_DIR: WorkspaceDir = "backups";
  * 버전은 디스크 바이트의 SHA-256(16진수 64자)이다.
  */
 export const WORKSPACE_REVISION_DIRS: readonly WorkspaceDir[] = ["specs", "generated", "backups"];
+/** Reserved v4 runtime records; this does not extend the workspace allow-list. */
+export function projectRuntimeRecordKind(path: string): "snapshot" | "provenance" | null {
+  const lower = path.toLowerCase();
+  if (lower.startsWith("runtime/project-input-")) return "snapshot";
+  if (lower.startsWith("runtime/project-generation-")) return "provenance";
+  return null;
+}
+export function isCanonicalProjectRuntimePath(path: string): boolean {
+  return /^runtime\/project-input-[A-Za-z0-9_-]{1,128}\.json$/.test(path)
+    || /^runtime\/project-generation-[a-f0-9]{64}\.json$/.test(path);
+}
 export function tracksRevision(relativePath: string): boolean {
-  return WORKSPACE_REVISION_DIRS.some((dir) => relativePath.startsWith(`${dir}/`));
+  return WORKSPACE_REVISION_DIRS.some((dir) => relativePath.startsWith(`${dir}/`)) || projectRuntimeRecordKind(relativePath) !== null;
 }
 
 /** 화이트리스트에 있는 폴더 이름들. 미들웨어가 서버 시작 때 만들어 둔다. */
