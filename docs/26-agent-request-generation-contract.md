@@ -1250,9 +1250,43 @@ navigate·modal 교체·Escape·focus·좁은 viewport·내부 스크롤/복원�
 수동 fixture이며 실제 AI 생성, GUI 수용/Export 연결 완료를 뜻하지 않는다. 일반 전체 테스트의
 opt-in skip은 브라우저 통과 근거가 아니며 CI Chromium 잡에서 별도 실행한다.
 
+### TSX 자산 모듈 변환기 구현 범위
 
-#402 후속 경계: 모달 ID가 바뀌면 panel scroll을 (0,0)으로 초기화한 뒤 focus한다.
-접근성 이름은 snapshot의 modal screen name(빈 이름이면 ID)이며 교체 시 갱신한다.
+`rewriteProjectAssetModule`은 plan이 소유한 ZIP 상대 TSX 경로와 검증된 mapping을 받아 Babel
+TypeScript/JSX AST에서 img src와 정적 inline background/backgroundImage의 CSS url()만 변환한다.
+CSS 값은 별도 value parser로 읽는다. 각 hash에 충돌 없는 모듈 binding 하나를 만들고 정적
+`new URL(literal, import.meta.url).href`를 사용한다. directive·주석·일반 텍스트의 token은 전역
+치환하지 않는다. AST 위치 patch 뒤 재파싱해 문법을 확인한다. parser는 호출 시 lazy import한다.
+
+현재 agent 입력 허용 범위는 정적 문자열 img src, 정적 object style, 정적 background 문자열이다.
+동적 src/배경, srcSet, JSX/style spread와 계산 style key, CSS escape/지원하지 않는 background 함수,
+계획 밖 출력, mapping 밖 token/임의 로컬 URL/직접 이미지·CSS import는 명시 오류다. HTTP(S)/data
+참조도 호출자가 현재 프로젝트에서 모은 allow-list에 정확히 있어야 한다. 기존 URL 식별자가 있으면
+추가 생성자의 shadowing 가능성 때문에 거부한다. 현재 ProjectPlan에 CSS 산출물이 없으므로 CSS
+module 출력/import 지원을 가장하지 않는다. 별도 코드/소유권 검증과 snapshot byte 검증은 여전히 필요하다.
+
+CI opt-in `project-asset-build.test.ts`는 실제 변환기의 page/host TSX를 독립 fixture로 typecheck하고
+Vite base=./, assetsInlineLimit=0으로 빌드한다. 동일 dist를 `/`와 `/products/demo/`에 각각 mount한
+Chromium에서 img 두 개와 inline background의 image.decode·실제 SVG 요청을 확인한다. CSS module,
+실제 모델 출력, GUI Export ZIP의 최종 수용까지 검증했다는 뜻은 아니다.
+
+#401 보강: 정적 문자열에는 보간 없는 template literal도 포함한다. 보간 있는 URL은 계속 거부한다.
+asset/CSS import는 선언뿐 아니라 import()와 require()의 정적 경로도 검사하고, 동적 경로 표현은
+거부한다. CSS parser가 colon을 별도 node로 나눌 수 있으므로 지원 url()/comment 범위를 제외한
+원래 값에서도 남은 vsb-asset token을 검사한다. url() 밖 token은 원문으로 남겨 깨진 배경을
+만들지 않고 오류로 중단한다. 일반 JS 문자열/주석의 비자산 텍스트는 계속 보존한다.
+
+
+#401 추가 경계: background/backgroundImage 이외 style의 url()/image-set()/image()/cross-fade()와
+자산 token·CSS escape를 거부한다. maskImage·cursor 등 URL을 받을 수 있는 속성의 동적 값이나
+var()도 지원하지 않는다. 일반 cursor:pointer/maskImage:none은 유지한다. SVG image의 href,
+xlinkHref, xlink:href는 정적/동적 여부와 무관하게 지원 밖이므로 명시적으로 거부한다.
+CSS custom property도 정적 URL 검사를 거치며 허용 외부 URL이라고 이 지원 범위를 넓히지 않는다.
+
+
+#402 후속 경계: 모달 ID가 바뀌면 panel 자체에 preventScroll focus하고 scroll을 (0,0)으로 초기화한다. 첫 control이 아래에
+있어도 도입부를 숨기지 않으며 이후 Tab/focus 이동은 기존 내부 scroll 규칙을 따른다.
+접근성 이름은 snapshot의 modal screen name(trim 뒤 비어 있으면 ID)이며 교체 시 갱신한다.
 템플릿 정책을 project-runtime-2/assets-2로 올려 이전 runtime 출력이 current로 남지 않게 한다.
 과거 plan의 routes 순서는 해당 page root ticket 순서의 부분열이어야 한다. routes만 재정렬한
 모순된 기록은 unverified이며 정상 과거 plan과 현재 문서 pageOrder 차이는 계속 stale이다.

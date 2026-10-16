@@ -16,7 +16,7 @@ it.runIf(process.env.VSB_PROJECT_RUNTIME_BROWSER === '1')('generated runtime typ
       const id = ticket.sourcePageId;
       const content = id === 'login' ? '<button id="navigate" onClick={() => actions.onNavigate("dashboard")}>Navigate</button><button id="open" onClick={() => actions.onOpenModal("resetPassword")}>Open</button>'
         : id === 'dashboard' ? '<h1 id="dashboard">Dashboard</h1><button id="back" onClick={() => actions.onNavigate("login")}>Back</button>'
-        : id === 'otherModal' ? '<h2 id="modal-title">Other modal heading</h2><div style={{height:2000}}>Long content without controls</div>'
+        : id === 'otherModal' ? '<h2 id="modal-title">Other modal heading</h2><div style={{height:2000}}>Long introductory content</div><button id="late-control">Late control</button>'
         : `<style>{"#modal-title{font-size:20px}@media(min-width:800px){#modal-title{font-size:32px}}"}</style><h2 id="modal-title">${id}</h2><input aria-label="Name"/><button id="close" onClick={actions.onClose}>Close</button><button id="replace" onClick={() => actions.onOpenModal("otherModal")}>Replace</button><button id="modal-navigate" onClick={() => actions.onNavigate("dashboard")}>Navigate</button>`;
       write(`owned/${id}/pages/${ticket.componentName}.tsx`, `import type { ScreenActions } from '../../runtime/Routes'; export default function Screen(actions:ScreenActions){return <div data-screen="${id}" style={{display:'flex',flexDirection:'column',width:12,height:12,background:'#fff'}}>${content}</div>}`);
     }
