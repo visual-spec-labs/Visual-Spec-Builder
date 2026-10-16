@@ -202,9 +202,11 @@ function sameSnapshot(value, snapshot) {
 	if (!value || !snapshot || typeof value !== "object" || typeof snapshot !== "object") return false;
 	if (Object.getPrototypeOf(value) !== Object.getPrototypeOf(snapshot)) return false;
 	const keys = Object.getOwnPropertyNames(value);
-	if (keys.length !== Object.getOwnPropertyNames(snapshot).length) return false;
-	for (const key of keys) {
-		if (!Object.prototype.hasOwnProperty.call(snapshot, key)) return false;
+	const savedKeys = Object.getOwnPropertyNames(snapshot);
+	if (keys.length !== savedKeys.length) return false;
+	for (let index = 0; index < keys.length; index++) {
+		const key = keys[index];
+		if (key !== savedKeys[index]) return false;
 		const field = Object.getOwnPropertyDescriptor(value, key);
 		if (!("value" in field) || field.enumerable !== Object.prototype.propertyIsEnumerable.call(snapshot, key) || !sameSnapshot(field.value, snapshot[key])) return false;
 	}

@@ -403,7 +403,7 @@ ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 �
 
 GUI `appliedTransaction`은 프로젝트 전체의 유효성을 계속 요구한다. 변경하지 않은 화면의
 스키마·그래프·gradient·responsive 결과만 store-local WeakMap으로 재사용한다. 화면 객체 신원과
-분리된 내용 snapshot과 모두 같아야 hit이며, 제자리 mutation도 내용이 바뀌면 다시 검사한다. 내용 비교는 JSON 문자열을 쓰지 않는다. undefined/비유한 수/숨김 속성이 직렬화에서 서로
+분리된 내용 snapshot과 속성 순서까지 모두 같아야 hit이며, 제자리 mutation도 내용이 바뀌면 다시 검사한다. 내용 비교는 JSON 문자열을 쓰지 않는다. undefined/비유한 수/숨김 속성이 직렬화에서 서로
 같아지는 문제를 피하며, 접근자와 clone에 보존되지 않는 prototype은 cache hit 대상이 아니다.
 프로젝트 봉투 검증은 정본 ProjectSpec에서 화면 부분만 분리하여 매번 실행한다. pageOrder와
 모든 화면의 action 관계는 항상 새 프로젝트에서 검사한다. 대상 kind 변경/삭제, 무효 복구 문서의

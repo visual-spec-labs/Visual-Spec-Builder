@@ -86,9 +86,12 @@ function sameSnapshot(value: unknown, snapshot: unknown): boolean {
   if (!value || !snapshot || typeof value !== "object" || typeof snapshot !== "object") return false;
   if (Object.getPrototypeOf(value) !== Object.getPrototypeOf(snapshot)) return false;
   const keys = Object.getOwnPropertyNames(value);
-  if (keys.length !== Object.getOwnPropertyNames(snapshot).length) return false;
-  for (const key of keys) {
-    if (!Object.prototype.hasOwnProperty.call(snapshot, key)) return false;
+  const savedKeys = Object.getOwnPropertyNames(snapshot);
+  if (keys.length !== savedKeys.length) return false;
+  for (let index = 0; index < keys.length; index++) {
+    const key = keys[index];
+    // Diagnostic traversal uses property order: equal key sets are not equivalent.
+    if (key !== savedKeys[index]) return false;
     const field = Object.getOwnPropertyDescriptor(value, key)!;
     // structuredClone snapshots have data properties, so inspecting their descriptors
     // again is unnecessary. A newly installed getter on the live input is never a hit.

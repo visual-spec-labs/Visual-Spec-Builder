@@ -94,3 +94,23 @@ it("falls back for prototypes and non-enumerable fields instead of trusting a JS
   Object.defineProperty(box, "width", { value: "invalid", enumerable: false, configurable: true });
   expect(cached(project)).toEqual(validateProjectSpec(project));
 });
+
+it("preserves diagnostic order after deleting and reinserting an unchanged node", () => {
+  const cached = createCachedProjectValidator();
+  const project = structuredClone(fixture) as unknown as ProjectSpec;
+  const nodes = project.pages.login.nodes;
+  nodes.orphanA = structuredClone(nodes.title);
+  nodes.orphanB = structuredClone(nodes.title);
+  const before = validateProjectSpec(project);
+  expect(cached(project)).toEqual(before); // Cache the invalid page, including issue order.
+  const orphanPaths = (result: typeof before) => result.issues
+    .filter(issue => issue.code === "orphan-node").map(issue => issue.path);
+  expect(orphanPaths(before)).toEqual(["/pages/login/nodes/orphanA", "/pages/login/nodes/orphanB"]);
+  const unchangedNode = nodes.orphanA;
+  delete nodes.orphanA;
+  nodes.orphanA = unchangedNode;
+  const after = validateProjectSpec(project);
+  expect(orphanPaths(after)).toEqual(["/pages/login/nodes/orphanB", "/pages/login/nodes/orphanA"]);
+  expect(cached(project)).toEqual(after);
+  expect(cached(project)).toEqual(after); // Reuse must preserve the new order too.
+});
