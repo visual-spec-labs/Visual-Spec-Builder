@@ -866,3 +866,84 @@ PowerShell 같은 일반 Win32 프로그램은 그 경로를 열거나 지우지
 | 재리뷰 — 실파일(임시 폴더 + 실제 작업공간 서버·HTTP 클라이언트) | Export 기록 404(서버 실제 응답)·HTTP 500·네트워크 오류·서버 읽기 오류 구분, A Export → B 저장 → 재검사 전 다운로드(옛 결과·자산 읽는 중 저장)에서 ZIP을 만들지 않음. Windows 장치 이름 PageId·티켓 이름 거부, Windows에서 거부하지 않았을 때 서버가 만든 `con` 폴더·`Con.tsx`가 PowerShell(일반 Win32 경로)에서 보이지 않음 | `test/export-identity.test.ts` 7건, `test/generation-device-name.test.ts` 5건(Windows 전용 1건) |
 | 재리뷰 — 구 스킬 fixture | develop `537b591`의 설치 스킬 사본(v2)의 버전 관문·경로 규칙을 흉내 낸 fixture 에이전트 + 실제 실행기: v3 요청에 쓰기 전 멈춤 → 만료 안내에 스킬 갱신, v2 응답 → 구버전 안내, v2 번호였다면 모든 티켓 경로 실패 | `test/ticket-protocol-compat.test.ts` 5건, `test/ticket-protocol.test.ts` |
 | 실제 모델 실행 | 하지 않음(스킬 경로 규칙·규약 v3 변경 포함). 구 스킬 + 새 GUI 조합도 fixture로만 확인했다 | — |
+
+## S1-8/9 요청 v4 계약 리뷰 초안 — 2026-10-16 (미구현)
+
+사용자는 #388에서 기존 v3 유지 + 별도 프로젝트 v4, 이미지 바이트 변경 감지 + 프로젝트 ZIP을
+승인했다(2026-10-16 08:36 UTC). exact wire 형식의 승인이나 외부 리뷰 완료는 아니다.
+이 절은 Draft 리뷰용이며 현재 `TICKET_PROTOCOL_VERSION = 3`, parser, 배포 스킬, manifest 및
+run.json을 변경하지 않는다. #388의 정상 merge 재거절을 우회하는 대체 구현/병합 경로가 아니다.
+
+### 버전과 요청 필드 제안
+
+기존 `buildTicketRequest`·`parseTicketResponse`와 v3 동작은 유지한다. 프로젝트 producer/parser는
+별도 함수와 `PROJECT_TICKET_PROTOCOL_VERSION = 4`를 사용한다. 따라서 기존 상수를 일괄 4로
+바꿔 단일 화면 요청을 조용히 새 형태로 전환하지 않는다. 배포 스킬은 protocol별 분기 후 각각의
+요청/응답 형식을 지킨다. v4 요청을 구 v3 스킬이 받으면 쓰기 전에 거부한다.
+
+프로젝트 v4 요청의 아래 필드는 필수이며, 이 목록 밖 필드와 null은 허용하지 않는 안이다.
+
+| 필드 | 형태 / 의미 |
+|---|---|
+| protocol | 상수 4 |
+| id | 현행 requestId 생성/문자 제한을 재사용하는 비어 있지 않은 문자열 |
+| project | 요청 시점 불변 ProjectSpec 전체. projectId 필수, 프로젝트 검증 통과 |
+| projectRoot | `generated/` 기준 기존 projectId 소유 outputDir. 페이지별 generatedRoot와 구별 |
+| allTickets | v0.2 ProjectTicket 전체 계획. ID/출처/의존/파일 자리의 허용 범위를 정함 |
+| tickets | 이번 wave의 항목 배열. 아래 필드만 가진다 |
+| responsePath | 현행 `runtime/ticket-response.json` |
+| outputRoot | 현행 `staging/<id>` |
+| assets | 프로젝트에서 참조한 로컬 자산 snapshot 목록. 자산이 없으면 빈 배열 |
+
+wave 항목은 `id`, `sourcePageId`, `componentName`, `kind`, `instances`, `filePath`, `outputPath`를
+필수로 가진다. 앞 다섯 값은 allTickets의 해당 항목과 정확히 일치한다.
+`filePath = <projectRoot>/<sourcePageId>/pages|components/<componentName>.tsx`,
+`outputPath = <outputRoot>/<filePath>`이며 기존 Windows 이름/대소문자 충돌/루트 탈출 검사도 적용한다.
+`page`/`pageId`/페이지별 `generatedRoot`는 v4 최상위에 받지 않는다. project와 충돌하는 두 번째
+화면 snapshot을 두지 않는다. wave가 비어 있으면 요청을 쓰지 않는다.
+
+### 응답·수용 제안
+
+응답은 기존 키를 유지한 `{ protocol: 4, requestId, results }`이며 각 결과는
+`{ ticketId, status: "done" | "failed", message? }`다. failed의 message는 비어 있지 않은 문자열을
+요구한다. 추가 속성과 null은 거부한다. requestId 불일치는 기존처럼 stale이고 현재 요청의
+실패로 덮어쓰지 않는다. id가 일치하면 protocol→형태→중복/누락/미요청 ticketId를 검사한다.
+results의 ID 집합은 wave와 정확히 같아야 한다. done만으로 성공 확정하지 않고 파일/소유권/
+지문/현재 요청 세대/수동 변경 보호를 검사한다. failed 결과를 다른 티켓 성공으로 상쇄하지 않는다.
+
+오류 분류 후보는 `version-mismatch`, `malformed`, `duplicate-ticket`, `missing-ticket`,
+`unexpected-ticket`, `invalid-source`, `invalid-dependency`, `invalid-output-path`, `stale-input`이다.
+실제 parser 반환 타입과 GUI 안내의 연결은 스키마/규약 PR에서 단위 테스트로 확정한다.
+
+### 로컬 자산과 Export 제안
+
+assets 항목은 `{ sourcePath, sha256, byteLength, zipPath }`이며 모두 필수다. sourcePath는 기존
+프로젝트가 명시 참조한 workspace assets 경계 안의 정규 상대 경로다. sha256은 실제 바이트의
+64자리 소문자 hex, byteLength는 0 이상 정수다. zipPath는 프로젝트 ZIP 내부
+`assets/<sha256><정규 확장자>`다. 파일 basename만으로 합치지 않는다. 동일 출력 이름에 다른
+바이트가 대응하면 거부하며 심볼릭 링크의 실제 경로도 승인된 경계 안인지 확인한다.
+
+요청 작성 때 읽은 자산 바이트와 hash를 snapshot에 묶는다. 응답 수용 직전 및 Export 직전에
+현재 참조 자산을 다시 읽어 같은 hash인지 확인한다. 내용이 달라지거나 파일이 없으면 stale/오류로
+막으며 이전 출력을 최신 완료라고 표시하지 않는다. GUI만 수용 기록을 쓴다는 규칙은 유지한다.
+동일 requestId의 요청 중 다른 프로젝트로 Save As하거나 취소/교체되면 자산까지 포함해 확정하지 않는다.
+외부 URL 내용은 이 로컬 hash 보장의 대상이 아니며 독립 앱의 네트워크 의존성을 기록한다.
+
+ZIP은 같은 projectId의 검증된 계획에 포함된 출력과 사용 자산만 포함하고 PageId 하위 구조를
+유지한다. 상대 import와 자산 URL은 ZIP 내부 실제 파일에 대응해야 한다. 경로 검사를 통과한
+것과 실제 typecheck/build/이동·모달 동작 검증은 별도 증거다.
+
+### 구현 전에 남은 계약 검토
+
+- 프로젝트 host/entry/route 파일을 어떤 티켓/소유권으로 생성·검증할지: 모든 프로젝트 티켓의
+  sourcePageId 필수 조건과 모순되지 않도록 별도 산출물 또는 소스 소유 티켓 방식을 확정한다.
+- 자산 hash snapshot을 기존 manifest protocol/run.json 번호를 바꾸지 않고 어떻게 보존할지:
+  기존 parser가 거부하지 않는 추가 구조와 구 기록의 확인 불가 판정을 검증해야 한다.
+- 자산을 에이전트가 읽는 snapshot 자리, ZIP URL 재작성, 같은 바이트의 확장자 차이 정책을 확정한다.
+- v4→실제 v3 스킬 쓰기 전 거부, v3→새 스킬 v3 응답 유지, v4 GUI의 v3 응답 거부를 각각 검사한다.
+- modal cycle·공유 modal/widget·무관한 화면 변경·rename/order·요청 중 편집·자산 바이트 변경을
+  전이 지문 회귀에 포함한다. S2 구현을 S1 fixture로 대신했다고 표시하지 않는다.
+
+이 미해결 경계를 숨기거나 임의의 runtime fallback으로 메우지 않는다. 계약 리뷰 후 별도 스키마
+PR이 수용된 다음 compiler/GUI/스킬/Export를 구현한다. 실제 에이전트→ZIP→독립 앱 확인 전에는
+#265 완료가 아니다.
