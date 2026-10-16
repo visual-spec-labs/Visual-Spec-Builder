@@ -43,7 +43,7 @@ try {
   assert.equal((await state()).spec.pages.login.nodes.loginButton.action, undefined);
   await page.getByRole("button", { name: "되돌리기", exact: true }).click();
   assert.deepEqual((await state()).spec.pages.login.nodes.loginButton.action, { type: "openModal", target: "resetPassword" });
-  await page.getByRole("button", { name: project.pages.resetPassword.name, exact: true }).click();
+  await page.getByRole("button", { name: `${project.pages.resetPassword.name}, 화면 종류: modal`, exact: true }).click();
   await page.getByRole("button", { name: "CloseButton", exact: true }).click();
   await mode.selectOption("navigate"); await target.selectOption("dashboard");
   await mode.selectOption("close");

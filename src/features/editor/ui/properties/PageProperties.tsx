@@ -62,10 +62,11 @@ export function PageProperties() {
       return; // "직접 입력"을 다시 고른 경우 — 크기를 건드리지 않는다.
     }
 
-    setPageField(activePageId, "size", {
+    const committed = setPageField(activePageId, "size", {
       width: preset.width,
       height: preset.height,
     });
+    if (!committed) return;
 
     // 아트보드가 실제로 커지고 작아지므로 확대율을 다시 맞춘다. 캔버스가
     // setContent를 올려주길 기다리면 한 프레임 늦어 직전 크기로 맞춰지므로,

@@ -347,7 +347,7 @@ function PageFolderRow({
         <button
           type="button"
           onClick={() => selectPage(pageId)}
-          aria-label={page.name}
+          aria-label={`${page.name}, 화면 종류: ${page.kind ?? "page"}`}
           aria-current={isActive ? "true" : undefined}
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         >

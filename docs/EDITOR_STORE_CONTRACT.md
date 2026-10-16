@@ -384,3 +384,17 @@ ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 �
 전체 객체 교체다. page에는 새 close 선택을 제공하지 않는다. 반응형 편집 중에는 쓰기 컨트롤을
 제공하지 않는다(action은 override 대상이 아님). 후보 프로젝트 검증은 기존 store가 맡는다.
 과거 복구본의 누락/잘못된 대상과 close source 경고는 기존 관계 validator의 진단을 표시한다.
+
+### 거부된 페이지·반응형 편집의 호출 결과 (#265)
+
+`setPageField`는 검증된 변경을 커밋했을 때만 `true`를 반환하고 거부·no-op이면 `false`다.
+해상도 프리셋 호출자는 이 결과가 참일 때만 content 크기와 Fit을 갱신한다.
+`setResponsive`는 페이지 사전 검사뿐 아니라 최종 프로젝트 검사 실패도 오류 문자열로 반환한다.
+호출자는 실패 시 미리보기 폭·입력 폼을 성공 상태로 바꾸거나 오류를 지우지 않는다.
+관계 오류가 남은 복구 문서도 전체 candidate 검증을 통과해야 편집을 커밋한다.
+
+성능 측정은 `VSB_MEASURE_PROJECT_VALIDATION=1 node scripts/browser/rejected-project-edits.mjs`로
+선택 실행한다(공용 browser harness 환경 필요). 유효한 201노드 화면을 1/10/50장 구성하고
+10회 warm-up 뒤 30회의 동기 store 편집을 측정한다. 구독자 비용을 포함하며 paint·실제 drag
+프레임 시간은 포함하지 않는다. 수치는 환경 의존이며 CI 통과 임계값으로 쓰지 않는다.
+측정 결과만으로 전체 candidate 검증을 페이지 한 장 검사로 약화하지 않는다.
