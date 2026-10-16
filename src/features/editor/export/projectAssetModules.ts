@@ -12,7 +12,13 @@ function visit(value: unknown, fn: (value: Ast) => void) {
   }
 }
 function staticString(value: unknown): string | null {
-  return node(value) && value.type === "StringLiteral" && typeof value.value === "string" ? value.value : null;
+  if (!node(value)) return null;
+  if (value.type === "StringLiteral" && typeof value.value === "string") return value.value;
+  if (value.type === "TemplateLiteral" && Array.isArray(value.expressions) && value.expressions.length === 0) {
+    const cooked = (value.quasis as { value: { cooked: string | null } }[])[0]?.value.cooked;
+    return typeof cooked === "string" ? cooked : null;
+  }
+  return null;
 }
 function name(value: unknown): string | null {
   return node(value) && typeof value.name === "string" ? value.name : staticString(value);
@@ -67,10 +73,15 @@ export async function rewriteProjectAssetModule(args: {
   const background = (value: string): string => {
     if (value.includes("\\")) throw Error("escape를 포함한 background URL은 지원하지 않습니다.");
     const tree = parseCss(value);
+    const covered: { start: number; end: number }[] = [];
     const replacements: { start: number; end: number; identifier: string }[] = [];
     tree.walk(part => {
+      if (part.type === "comment") covered.push({ start: part.sourceIndex, end: part.sourceEndIndex });
       if ("unclosed" in part && part.unclosed) throw Error("닫히지 않은 CSS 값입니다.");
-      if (part.type !== "function") return;
+      if (part.type !== "function") {
+        if (part.type !== "comment" && /vsb-asset:/i.test(part.value)) throw Error("자산 token은 CSS url() 안에만 허용합니다.");
+        return;
+      }
       const fn = part.value.toLowerCase();
       if (fn !== "url") {
         if (!["linear-gradient", "radial-gradient", "repeating-linear-gradient", "repeating-radial-gradient", "rgb", "rgba", "hsl", "hsla", "calc"].includes(fn)) throw Error("동적/지원하지 않는 background 함수입니다.");
@@ -79,9 +90,13 @@ export async function rewriteProjectAssetModule(args: {
       const items = part.nodes.filter(item => item.type !== "space");
       if (items.length !== 1 || !["string", "word"].includes(items[0].type)) throw Error("정적 url() 값이 필요합니다.");
       const identifier = image(items[0].value);
+      covered.push({ start: part.sourceIndex, end: part.sourceEndIndex });
       if (identifier) replacements.push({ start: part.sourceIndex, end: part.sourceEndIndex, identifier });
       return false;
     });
+    let unsupported = value;
+    for (const range of covered.sort((a, b) => b.start - a.start)) unsupported = unsupported.slice(0, range.start) + unsupported.slice(range.end);
+    if (/vsb-asset:/i.test(unsupported)) throw Error("자산 token은 CSS url() 안에만 허용합니다.");
     let cursor = 0; const pieces: string[] = [];
     for (const replacement of replacements) {
       pieces.push(JSON.stringify(value.slice(cursor, replacement.start) + 'url("'), replacement.identifier);
@@ -97,6 +112,12 @@ export async function rewriteProjectAssetModule(args: {
     if (item.type === "ImportDeclaration" || item.type === "ExportNamedDeclaration" || item.type === "ExportAllDeclaration") {
       const source = staticString(item.source);
       if (source && /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg|css)(?:[?#]|$)/i.test(source)) throw Error("Agent의 직접 자산/CSS import는 계획 범위 밖입니다.");
+    }
+    if (item.type === "ImportExpression" || (item.type === "CallExpression" && node(item.callee)
+      && (item.callee.type === "Import" || (item.callee.type === "Identifier" && item.callee.name === "require")))) {
+      const target = item.type === "ImportExpression" ? item.source : (item.arguments as unknown[])[0];
+      const source = staticString(target);
+      if (source === null || /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg|css)(?:[?#]|$)/i.test(source)) throw Error("동적/직접 자산·CSS import는 지원하지 않습니다.");
     }
     if (item.type !== "JSXOpeningElement") return;
     const tag = name(item.name);

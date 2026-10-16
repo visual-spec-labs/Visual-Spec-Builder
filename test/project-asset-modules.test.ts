@@ -36,9 +36,23 @@ describe('project asset module transform', () => {
     await expect(transform('export const =')).rejects.toThrow();
     await expect(transform(`<img src="${token}" />`, '../escape.tsx')).rejects.toThrow(/계획/);
   });
+  it('accepts static template literals without treating interpolation as static', async () => {
+    const source = '<img src={`' + token + '`} style={{backgroundImage: `url("' + token + '")`}} />';
+    const { code } = await transform(source);
+    expect(code).toContain('src={vsbAsset0}'); expect(code.match(/new URL/g)).toHaveLength(1);
+  });
   it('keeps multiple url() replacements ordered and reuses bindings', async () => {
     const { code } = await transform(`<div style={{background: 'url(${token}), url("${token}") center'}} />`);
     expect(code.match(/new URL/g)).toHaveLength(1);
     expect(code).toContain(' + vsbAsset0 + '); expect(code).toContain('center');
+  });
+});
+
+describe('asset transform review regressions', () => {
+  it.each(['import("./theme.css")', 'import("./image.svg?url")', 'require("./image.png")'])('rejects direct asset dependency %s', async source => {
+    await expect(transform(source)).rejects.toThrow();
+  });
+  it('rejects an asset token in a background outside url()', async () => {
+    await expect(transform(`<div style={{backgroundImage:"${token}"}} />`)).rejects.toThrow();
   });
 });

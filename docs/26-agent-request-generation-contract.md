@@ -1175,6 +1175,21 @@ kind:stale, kind:malformed/code/message, 또는 kind:results/results다. done은
 한다면 그 결과의 크기를 다시 검사해야 한다. snapshot이 들어가도 wave metadata가 더해진 request는
 초과할 수 있다. v4 응답보다 새 버전이면 GUI 업데이트, 오래된 응답이면 스킬 갱신을 안내한다.
 
+### 불변 입력의 workspace 저장 준비
+
+`prepareStoredProjectRequest`는 await 이전에 문서/plan/wave/출력 폴더를 복사하고 전체 plan 문맥을
+검증한다. 기존 strict workspace reader로 자산을 수집하여 snapshot을 만들고 v4 wave를 검증한 뒤,
+`expectedRevision=missing`으로 snapshot만 쓴다. 성공 또는 409 충돌 뒤에는 저장 파일을 다시 읽어
+정확한 UTF-8 문자열과 hash를 대조해야 요청 객체를 반환한다. 409라도 바이트가 다르면 덮어쓰지
+않고 중단한다. 다른 전송 실패는 기존 파일이 있더라도 성공으로 바꾸지 않는다.
+
+모든 I/O 전후에 문서 세대/취소를 확인한다. 저장 중 취소되면 미사용 immutable snapshot이 남을 수
+있지만 요청을 반환하거나 request 파일을 쓰지는 않는다. runtime DELETE 제한을 우회해 지우지 않는다.
+이 함수는 소유권 폴더/수용 상태를 발급하거나 잠금을 대신하지 않는다. 호출자는 manifest에서 검증한
+projectRoot와 provenance로 확인한 티켓 상태를 전달하고, 반환 뒤 실제 dispatch 전에 현재 세대와
+request 잠금을 재확인해야 한다. 수용/Export에서는 현재 소스 자산과 snapshot을 다시 대조한다.
+아직 기존 GUI/스킬 dispatch를 v4로 전환한 것은 아니다.
+
 ### TSX 자산 모듈 변환기 구현 범위
 
 `rewriteProjectAssetModule`은 plan이 소유한 ZIP 상대 TSX 경로와 검증된 mapping을 받아 Babel
@@ -1194,3 +1209,9 @@ CI opt-in `project-asset-build.test.ts`는 실제 변환기의 page/host TSX를 
 Vite base=./, assetsInlineLimit=0으로 빌드한다. 동일 dist를 `/`와 `/products/demo/`에 각각 mount한
 Chromium에서 img 두 개와 inline background의 image.decode·실제 SVG 요청을 확인한다. CSS module,
 실제 모델 출력, GUI Export ZIP의 최종 수용까지 검증했다는 뜻은 아니다.
+
+#401 보강: 정적 문자열에는 보간 없는 template literal도 포함한다. 보간 있는 URL은 계속 거부한다.
+asset/CSS import는 선언뿐 아니라 import()와 require()의 정적 경로도 검사하고, 동적 경로 표현은
+거부한다. CSS parser가 colon을 별도 node로 나눌 수 있으므로 지원 url()/comment 범위를 제외한
+원래 값에서도 남은 vsb-asset token을 검사한다. url() 밖 token은 원문으로 남겨 깨진 배경을
+만들지 않고 오류로 중단한다. 일반 JS 문자열/주석의 비자산 텍스트는 계속 보존한다.
