@@ -1167,3 +1167,27 @@ kind:stale, kind:malformed/code/message, 또는 kind:results/results다. done은
 이 함수들은 소유권 레지스트리를 만들거나 status=done의 provenance를 인증하지 않는다. producer는
 기대 projectRoot와 상태를 기존 소유권/수용 기록으로 확정한 뒤 불변 snapshot을 create-only 저장하고
 잠금 안에서 dispatch해야 한다. 이 전달은 pure wire이며 기존 GUI/runner/스킬/Export를 아직 전환하지 않는다.
+
+### 프로젝트 지문과 provenance 읽기 경계 (S1-9)
+
+`projectGenerationFingerprints`는 전체 snapshot/관계를 기존 검증기로 확인한 후 지문을 계산한다.
+프로젝트 지문은 pageOrder·생성 대상 화면·구조 plan·자산 mapping/검증한 byte hash·정책 버전을
+포함한다. 화면 지문은 openModal로 도달하는 화면의 cycle-safe closure를 ID순으로 포함하고
+navigate 대상의 본문과 pageOrder를 포함하지 않는다. 실행 status/error/requestId와 프로젝트
+표시 이름은 생성 입력 지문에 넣지 않는다. S1에 없는 widget instance 구현을 가정하지 않는다.
+제외 widget의 무효 참조는 전체 검증에서 여전히 거부한다.
+
+`projectProvenanceContext`는 입력을 독립된 정규 snapshot으로 보관하며 현재 계획의 page/artifact
+허용 출력 자리와 지문을 계산한다. 호출자는 현재 문서/현재 자산으로 context를 다시 만들고,
+엄격한 workspace reader가 읽은 실제 파일 바이트와 manifest를 `inspectProjectGeneration`에
+전달해야 한다. 이전 context를 현재 문서 검증으로 재사용하지 않는다.
+
+검사는 sidecar의 닫힌 형태/버전, 보존 자산 바이트, ID 중복·출처·정확한 경로, 실제 출력 hash,
+화면별 manifest protocol/소유권/requestId/지문과 component identity를 대조한다. 구조 또는 정책
+입력 차이는 stale, 누락/손상/파일 변경/manifest 불일치는 unverified, 검증된 출력 집합 부족은
+partial이다. page와 project artifact 전체가 정확히 갖춰져야 current다. 없는 기록/지문을 채우거나
+원문/파일을 삭제하지 않는다. manifest v2 형식과 기존 v3 판정은 유지한다.
+
+이 단계는 순수 읽기/판정 API다. workspace I/O, 잠금 아래 sidecar-last 확정·복구, AST 자산
+재작성, 실제 생성 runtime 및 GUI Export 연결은 후속이며 current 결과만으로 ZIP 빌드/실제 이미지
+decode 수용 조건까지 완료한 것으로 세지 않는다.
