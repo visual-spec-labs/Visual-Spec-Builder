@@ -1087,3 +1087,22 @@ S1에서는 widget instance가 없지만 S2 closure 계약을 제거하지 않�
 이 초안은 여섯 기술 선택을 구체화한 리뷰 대상이며 승인 완료나 구현 완료가 아니다. 현재 런타임은
 변경하지 않는다. 선행 계약·별도 schema 정상 수용 뒤 compiler/GUI/스킬/Export를 구현하며,
 실제 에이전트→ZIP→독립 앱 확인 전에는 #265 완료가 아니다.
+
+### 프로젝트 runtime 기록의 저장 관문 (S1-9 선행 구현)
+
+`runtime/project-input-<requestId>.json`과 `runtime/project-generation-<sha256(projectId)>.json`에만
+기존 revision 헤더를 적용한다. GET/성공 PUT은 실제 바이트 SHA-256을 반환한다. 두 경로의 PUT은
+기대 revision이 필수(누락 428, 잘못된 형식/정규 경로 400)다. 일반 runtime v3 파일의 동작은 유지한다.
+
+- snapshot은 `missing`만 받으며 기존 파일은 동일 바이트라도 409다. producer는 409 뒤 별도 GET으로
+  정확한 바이트를 확인해야 하고, 다른 바이트이면 중단해야 한다. 완료된 임시 파일을 hard link로
+  create-only 게시하여 CAS 확인 이후 외부 프로세스가 만든 파일도 덮어쓰지 않는다. hard link를
+  지원하지 않는 파일 시스템에서는 500으로 중단하며 overwrite rename으로 fallback하지 않는다.
+- provenance는 `missing` 또는 읽은 SHA-256으로 비교/쓰기한다. 앱 내부 동시 쓰기는 기존 공통
+  mutation queue로 직렬화하고 stale 쓰기는 409다. HTTP 밖 writer와의 완전한 파일 시스템 잠금은
+  아니다. 수용/복구는 여전히 요청 잠금·hash 재확인·sidecar-last 순서를 지켜야 한다.
+- 대소문자만 다른 snapshot 파일명은 별개 파일로 만들지 않는다. reserved prefix의 비정규
+  경로도 거부한다. allow-list·origin·symlink 경계와 runtime DELETE 금지는 바꾸지 않는다.
+
+이 단계는 byte 저장 경계만 구현한다. snapshot 내용/자산 검증, producer, sidecar 복구 및 생성/Export
+연결은 후속이며 이 API 통과를 프로젝트 생성 완료로 세지 않는다.

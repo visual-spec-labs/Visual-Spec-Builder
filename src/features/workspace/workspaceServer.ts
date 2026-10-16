@@ -39,6 +39,7 @@ import {
   closeSync,
   mkdirSync,
   lstatSync,
+  linkSync,
   readdirSync,
   realpathSync,
   renameSync,
@@ -72,6 +73,8 @@ import {
   isRequestLockKind,
   requestLockKindForPath,
   tracksRevision,
+  projectRuntimeRecordKind,
+  isCanonicalProjectRuntimePath,
 } from "./protocol";
 import { migrateToV03, migrateV01 } from "../editor/schema/migrate";
 import type { VisualSpec } from "../editor/schema/types";
@@ -232,7 +235,7 @@ let tempFileCounter = 0;
  * 것은 "쓰다가 실패했을 때 원본을 잃는 것"이고 그건 rename만으로 해결된다. 개발 서버
  * 저장 경로마다 fsync를 걸면 저장이 눈에 띄게 느려진다.
  */
-function writeFileAtomic(absolutePath: string, body: Buffer): void {
+function writeFileAtomic(absolutePath: string, body: Buffer, createOnly = false): void {
   tempFileCounter += 1;
   const tempPath = join(
     dirname(absolutePath),
@@ -241,7 +244,12 @@ function writeFileAtomic(absolutePath: string, body: Buffer): void {
 
   try {
     writeFileSync(tempPath, body);
-    renameSync(tempPath, absolutePath);
+    if (createOnly) {
+      // Publish complete bytes without replacing a file created after the CAS read.
+      // Hard-link failure is an error; do not fall back to overwriting rename.
+      linkSync(tempPath, absolutePath);
+      unlinkSync(tempPath);
+    } else renameSync(tempPath, absolutePath);
   } catch (error) {
     // 실패한 임시 파일은 치운다. 이것마저 실패하면(이미 없다 등) 더 할 일이 없다 —
     // 원래의 실패 사유를 덮어쓰지 않고 그대로 올려보내는 쪽이 중요하다.
@@ -488,6 +496,26 @@ function handleWrite(
       // 생성 파일·백업의 기대 버전 비교(#282). `generated/`는 보낸 쓰기만 비교한다(opt-in) — 외부
       // 에이전트는 이 라우트를 거치지 않으므로 이것이 외부 writer 보호는 아니다. 앱의 확정·되돌리기는
       // 언제나 보내서, 사용자가 확인한 뒤 파일이 바뀌었으면 쓰지 않는다. `backups/`는 필수다.
+      const projectRecord = projectRuntimeRecordKind(relativePath);
+      if (projectRecord !== null) {
+        if (!isCanonicalProjectRuntimePath(relativePath)) {
+          sendError(res, 400, "프로젝트 runtime 기록의 정규 경로가 아닙니다."); return;
+        }
+        const expected = req.headers[WORKSPACE_EXPECTED_REVISION_HEADER];
+        if (expected === undefined) {
+          sendError(res, 428, "프로젝트 runtime 기록은 기대 버전이 필요합니다."); return;
+        }
+        if (typeof expected !== "string" || !/^(missing|[a-f0-9]{64})$/.test(expected)) {
+          sendError(res, 400, "기대 버전 형식이 잘못됐습니다."); return;
+        }
+        if (projectRecord === "snapshot" && expected !== WORKSPACE_MISSING_REVISION) {
+          sendError(res, 409, "프로젝트 입력 snapshot은 덮어쓰지 않습니다."); return;
+        }
+        const aliases = readdirSync(dirname(absolutePath)).filter(name => name.toLowerCase() === basename(absolutePath).toLowerCase());
+        if (aliases.some(name => name !== basename(absolutePath)) || expected !== currentRevision(absolutePath)) {
+          sendError(res, 409, "프로젝트 runtime 기록이 이미 있거나 확인한 뒤 변경됐습니다."); return;
+        }
+      }
       if (relativePath.startsWith("generated/") || relativePath.startsWith("backups/")) {
         const expected = req.headers[WORKSPACE_EXPECTED_REVISION_HEADER];
         if (expected === undefined && relativePath.startsWith("backups/")) {
@@ -528,7 +556,14 @@ function handleWrite(
           return;
         }
       } else {
-        writeFileAtomic(absolutePath, body);
+        try {
+          writeFileAtomic(absolutePath, body, projectRecord === "snapshot");
+        } catch (error) {
+          if (projectRecord === "snapshot" && (error as NodeJS.ErrnoException).code === "EEXIST") {
+            sendError(res, 409, "프로젝트 입력 snapshot이 이미 있습니다. 덮어쓰지 않았습니다."); return;
+          }
+          throw error;
+        }
       }
       if (tracksRevision(relativePath)) res.setHeader(WORKSPACE_REVISION_HEADER, workspaceRevision(body));
     } catch (error) {
