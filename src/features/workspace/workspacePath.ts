@@ -28,6 +28,7 @@
  */
 
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
+import { isWorkspaceSegment } from "./workspaceSegment";
 
 import {
   WORKSPACE_DIR_RULES,
@@ -57,9 +58,6 @@ export type Rejected = { ok: false; reason: RejectReason };
 
 export type ResolveResult = ResolvedFile | Rejected;
 
-/** 세그먼트 하나에 들어올 수 없는 것들 — 디코딩 **후에** 본다. */
-const FORBIDDEN_IN_SEGMENT = /[/\\:*?"<>|\u0000-\u001f\u007f]/;
-
 /**
  * target이 workspaceRoot 안(또는 그 자신)인지 본다.
  *
@@ -88,12 +86,7 @@ function decodeSegment(raw: string): string | null {
     return null;
   }
 
-  if (decoded === "" || decoded === "." || decoded === "..") return null;
-  if (FORBIDDEN_IN_SEGMENT.test(decoded)) return null;
-  // Windows는 이름 끝의 점·공백을 조용히 떼어낸다 — `foo.json.`이 `foo.json`이 되는
-  // 식으로 확장자 검사를 우회할 수 있어 아예 받지 않는다.
-  if (decoded !== decoded.trimEnd() || decoded.endsWith(".")) return null;
-  return decoded;
+  return isWorkspaceSegment(decoded) ? decoded : null;
 }
 
 /**

@@ -73,6 +73,7 @@ import {
   isRequestLockKind,
   requestLockKindForPath,
   tracksRevision,
+  WORKSPACE_MAX_BODY_BYTES as MAX_BODY_BYTES,
   projectRuntimeRecordKind,
   isCanonicalProjectRuntimePath,
 } from "./protocol";
@@ -102,9 +103,6 @@ import {
  * 다른 값이 저장소 파일에 들어간다. 프로세스 경계를 넘기는 데는 환경 변수가 가장 얕다.
  */
 export const WORKSPACE_ENV_VAR = "VISUAL_SPEC_WORKSPACE";
-
-/** PUT 본문 상한. 이미지 한 장 기준으로 넉넉하되, 무한정 메모리에 담지는 않는다. */
-const MAX_BODY_BYTES = 32 * 1024 * 1024;
 
 const CONTENT_TYPES: Record<string, string> = {
   ".json": "application/json; charset=utf-8",

@@ -174,6 +174,8 @@ export function isWorkspaceDir(value: string): value is WorkspaceDir {
 export const WORKSPACE_RENAME_ROUTE = `${WORKSPACE_API_PREFIX}/rename`;
 /** Disk compare-and-write tokens; missing is create-only, never overwrite. */
 export const WORKSPACE_REVISION_HEADER = "x-visual-spec-revision";
+/** Existing HTTP PUT cap; snapshot producers budget encoded UTF-8 bytes against this same limit. */
+export const WORKSPACE_MAX_BODY_BYTES = 32 * 1024 * 1024;
 export const WORKSPACE_EXPECTED_REVISION_HEADER = "x-visual-spec-expected-revision";
 export const WORKSPACE_MISSING_REVISION = "missing";
 
