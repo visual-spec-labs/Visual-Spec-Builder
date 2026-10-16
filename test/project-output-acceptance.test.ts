@@ -1,3 +1,4 @@
+import { findPendingProjectRecovery } from '@/features/editor/ui/projectPendingRecovery';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectSpec } from '@/features/editor/schema';
 import { compileProjectTickets } from '@/features/editor/ticket/compileProjectTickets';
@@ -269,6 +270,27 @@ it('resumes an explicitly retried pending recovery after a second lease loss',as
   io.hook.mockReset();io.lease=true;
   expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:true,recoveryRequired:false});
   expect([...io.disk.keys()].filter(path=>path.startsWith('generated/'))).toEqual([]);
+});
+
+it('discovers a pending run after losing the in-memory handle without mutating any file',async()=>{
+  const args=setup();const plan=await planProjectOutputs(args);
+  io.hook.mockImplementation((path:string)=>{if(path.startsWith('generated/'))io.lease=false;});
+  expect((await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent})).recoveryRequired).toBe(true);
+  io.hook.mockReset();const before=[...io.disk];const writes=[...io.writes];
+  const found=await findPendingProjectRecovery('owner',args.isCurrent);
+  expect(found?.runId).toBe(plan.runId);expect(found?.context).toEqual(plan.context);
+  expect([...io.disk]).toEqual(before);expect(io.writes).toEqual(writes);
+  expect(await findPendingProjectRecovery('another-project',args.isCurrent)).toBeNull();
+  io.lease=true;
+  expect(await restoreProjectOutputs(found!.runId,found!.context,args.isCurrent)).toMatchObject({restored:true,recoveryRequired:false});
+});
+it('rejects discovery when the stored input is missing without changing pending evidence',async()=>{
+  const args=setup();const plan=await planProjectOutputs(args);
+  io.hook.mockImplementation((path:string)=>{if(path.startsWith('generated/'))io.lease=false;});
+  await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent});
+  io.disk.delete(args.prepared.snapshot.path);const before=[...io.disk];
+  await expect(findPendingProjectRecovery('owner',args.isCurrent)).rejects.toThrow(/snapshot/);
+  expect([...io.disk]).toEqual(before);
 });
 
 it('does not require recovery when the server rejects the first fence after lease expiry',async()=>{

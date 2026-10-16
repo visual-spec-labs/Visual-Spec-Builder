@@ -215,6 +215,11 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/recovery-provenance.mjs
 
+      - name: 미커밋 프로젝트 reload·명시 복구 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/project-pending-recovery.mjs
+
       - name: 실제 경과 대기 — 전체 및 생략 상태 회귀 (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium

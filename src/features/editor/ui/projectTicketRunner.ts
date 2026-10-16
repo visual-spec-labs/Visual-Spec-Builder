@@ -1,3 +1,4 @@
+import { findPendingProjectRecovery } from './projectPendingRecovery';
 import type { OverwriteDecision } from '@/features/editor/export/overwriteGuard';
 import { needsDecision } from '@/features/editor/export/overwriteGuard';
 import { useDocumentStore } from '@/features/editor/store/documentStore';
@@ -113,4 +114,19 @@ export async function restoreLastProjectRun():Promise<void> {
       lastProjectRun:result.restored?null:run,restoreMessage:result.restored?'프로젝트의 마지막 적용을 되돌렸습니다. 티켓을 다시 생성하세요.':result.message});
     if(result.restored&&useTicketStore.getState().generation===initial.generation)useTicketStore.setState({tickets:initial.tickets.map(ticket=>({...ticket,status:'pending',error:undefined}))});
   } finally {if(useTicketStore.getState().generation===initial.generation)useTicketStore.setState({running:false});if(active===state)active=null;}
+}
+
+export async function discoverPendingProjectRun():Promise<void> {
+  const initial=useTicketStore.getState();
+  if(active||initial.running||!initial.sourceProject?.projectId||!isProjectTicketPlanCurrent())return;
+  const state:Active={cancelled:false,generation:initial.generation,wait:null,answer:null};active=state;
+  const current=()=>active===state&&!state.cancelled&&useTicketStore.getState().generation===initial.generation&&isProjectTicketPlanCurrent();
+  useTicketStore.setState({running:true,restoreMessage:null});
+  try {
+    const run=await findPendingProjectRecovery(initial.sourceProject.projectId,current);
+    if(!current())return;
+    if(run)useTicketStore.setState({lastProjectRun:{...run,documentId:initial.sourceDocumentId!,projectIdentity:initial.sourceProjectIdentity!},restoreMessage:'미완료 프로젝트 적용을 찾았습니다. 되돌리기를 누르면 파일 전체를 다시 확인한 뒤 복구합니다.'});
+    else useTicketStore.setState({restoreMessage:'현재 프로젝트의 미완료 적용이 없습니다.'});
+  }catch(error){if(current())useTicketStore.setState({restoreMessage:error instanceof Error?error.message:'미완료 적용을 확인하지 못했습니다.'});}
+  finally {if(useTicketStore.getState().generation===initial.generation)useTicketStore.setState({running:false});if(active===state)active=null;}
 }

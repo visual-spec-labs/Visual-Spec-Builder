@@ -1,6 +1,7 @@
+import { parseProjectInputSnapshot } from '@/features/editor/ticket/projectInputSnapshot';
 import { GENERATION_MANIFEST_PATH, parseGenerationManifest } from '@/features/editor/export/generationManifest';
 import { projectGenerationPath } from '@/features/editor/export/projectGenerationIdentity';
-import type { ProjectProvenanceContext } from '@/features/editor/export/projectGenerationProvenance';
+import { projectProvenanceContext, type ProjectProvenanceContext } from '@/features/editor/export/projectGenerationProvenance';
 import { isProjectTicketRequestId } from '@/features/editor/ticket/projectTicketProtocol';
 import { WORKSPACE_MISSING_REVISION } from '@/features/workspace/protocol';
 import type { HeldRequestLock } from './agentRequestLock';
@@ -100,4 +101,29 @@ export async function recoverPendingProjectOutputs(args:{
     if(!saved.ok||!await same(sidecarPath,journal.previousSidecarRevision??WORKSPACE_MISSING_REVISION))throw Error('미커밋 sidecar 복구를 확인하지 못했습니다.');
     return {restored:true,recoveryRequired:false,message:null};
   }catch(error){return fail(error instanceof Error?error.message:'미커밋 프로젝트 복구에 실패했습니다.');}
+}
+
+/** Read-only discovery after reload. This handle is not restore authorization:
+ * recoverPendingProjectOutputs rechecks the fence, journal and every byte under a new lease.
+ */
+export async function findPendingProjectRecovery(projectId:string,isCurrent:()=>boolean) {
+  const marker=await readProjectFile(projectGenerationPath(projectId),isCurrent);
+  if(!marker||!isPendingProjectRecovery(strictProjectText(marker.bytes)))return null;
+  const value:unknown=JSON.parse(strictProjectText(marker.bytes));
+  if(!exact(value,['protocol','phase','projectId','runId','requestId','journalSha256'])||value.projectId!==projectId
+    ||typeof value.runId!=='string'||!isProjectTicketRequestId(value.runId)||typeof value.requestId!=='string'||!isProjectTicketRequestId(value.requestId)||!hash(value.journalSha256))throw Error('미완료 적용 기록의 신원이 유효하지 않습니다.');
+  const journalFile=await readProjectFile(`backups/${value.runId}/pending-recovery.json`,isCurrent);
+  if(!journalFile||journalFile.revision!==value.journalSha256)throw Error('미완료 적용 저널 hash가 다릅니다.');
+  const journal=JSON.parse(strictProjectText(journalFile.bytes));
+  if(journal?.protocol!==1||journal.projectId!==projectId||journal.runId!==value.runId||journal.requestId!==value.requestId||typeof journal.projectRoot!=='string')throw Error('미완료 적용 저널의 신원이 다릅니다.');
+  const input=await readProjectFile(`runtime/project-input-${value.requestId}.json`,isCurrent);
+  if(!input)throw Error('미완료 적용의 입력 snapshot이 없습니다.');
+  const parsed=parseProjectInputSnapshot(strictProjectText(input.bytes),input.revision,value.requestId);
+  if(!parsed.ok||parsed.snapshot.projectId!==projectId)throw Error('미완료 적용의 입력 snapshot이 유효하지 않습니다.');
+  const context=projectProvenanceContext(parsed.snapshot,journal.projectRoot);
+  const manifest=await readProjectFile(GENERATION_MANIFEST_PATH,isCurrent);
+  const registry=parseGenerationManifest(manifest?strictProjectText(manifest.bytes):null);
+  if(registry.protocol!==2||registry.projects[projectId]?.outputDir!==context.projectRoot)throw Error('미완료 적용의 생성 폴더 소유권이 다릅니다.');
+  if(!isCurrent()||revision(await readProjectFile(projectGenerationPath(projectId),isCurrent))!==marker.revision)throw Error('확인 중 미완료 적용이 변경됐습니다.');
+  return {runId:value.runId,context};
 }
