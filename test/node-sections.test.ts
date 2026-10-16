@@ -34,6 +34,10 @@ describe("노드 타입별 섹션 표", () => {
     expect([...coveredNodeTypes()].sort()).toEqual([...schemaNodeTypes()].sort());
   });
 
+  it("Interaction은 button만 갖는다", () => {
+    expect(coveredNodeTypes().filter((type) => sectionsFor(type).includes("interaction"))).toEqual(["button"]);
+  });
+
   it("모든 타입이 Size를 갖는다 — box는 다섯 타입 공통 필수 필드다", () => {
     for (const type of coveredNodeTypes()) {
       expect(sectionsFor(type)).toContain("size");
@@ -123,6 +127,7 @@ describe("노드 타입별 섹션 표", () => {
   it("새로 편집할 수 있게 된 세 타입이 실제로 섹션을 갖는다", () => {
     expect(sectionsFor("image")).toEqual(["content", "size", "effects"]);
     expect(sectionsFor("button")).toEqual([
+      "interaction",
       "content",
       "size",
       "typography",

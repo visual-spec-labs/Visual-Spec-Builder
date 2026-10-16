@@ -15,6 +15,7 @@ import type { Node } from "@/features/editor/schema";
  * 별도 작업이다).
  */
 export type SectionId =
+  | "interaction"
   | "content"
   | "layout"
   | "size"
@@ -34,7 +35,7 @@ const SECTIONS: Record<NodeType, readonly SectionId[]> = {
   frame: ["layout", "size", "background", "border", "effects"],
   text: ["content", "size", "typography", "color", "effects"],
   image: ["content", "size", "effects"],
-  button: ["content", "size", "typography", "color", "background", "border"],
+  button: ["interaction", "content", "size", "typography", "color", "background", "border"],
   input: ["content", "size", "typography", "color", "background", "border"],
 };
 

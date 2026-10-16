@@ -225,7 +225,7 @@ import type {
 | frame | Layout · Size · Background · Border · Effects(그림자 포함) |
 | text | Content · Size · Font · Color · Effects |
 | image | Content · Size · Effects |
-| button | Content · Size · Font · Color · Background · Border |
+| button | Interaction · Content · Size · Font · Color · Background · Border |
 | input | Content · Size · Font · Color · Background · Border |
 
 **섹션별 필드**
@@ -233,6 +233,7 @@ import type {
 | 섹션 | 필드 | 경로 | 쓰는 타입 |
 |---|---|---|---|
 | Content | 텍스트(여러 줄) | `content` | text |
+| Interaction | 없음 / 페이지 이동 / 모달 열기 / 닫기와 종류별 대상 | `action` 전체 교체 / `removeNodeAction` | button — 반응형 모드에서는 기본 편집 안내만 표시 |
 | Content | 라벨(한 줄) | `content` | button |
 | Content | 안내 문구 | `placeholder` | input |
 | Content | 경로 / 채우기 방식(채우기·맞추기·늘이기) | `src`, `fit` | image — Import로 들어온 data URI는 요약만 보이고 "지우기"로 비운 뒤 경로를 넣는다(`ContentSection.tsx`) |
@@ -374,6 +375,15 @@ ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 �
 무효한 중간값을 저장하지 않으며 노드/크기/fit과 원본 asset 파일은 유지한다. 패널은 이
 정확한 URI를 빈 경로 입력으로 표시한다. Undo 한 번으로 이전 src 바이트를 복원한다.
 저장/다시 열기/일반 이미지 소비자는 추가 프로토콜 없이 유효한 투명 이미지를 읽는다.
+
+## #265 S1-6 Interaction 편집
+
+대상 기반 동작의 종류 선택은 패널 draft만 바꾸며 첫 대상을 자동 선택하지 않는다. 사용자가 대상을
+선택할 때 전체 action을 한 번 교체한다. 대상 선택 전까지 기존 저장값을 유지한다고 표시한다.
+스펙/페이지/노드가 바뀌면 pending 선택은 재사용하지 않는다. 없음은 전용 제거 명령, 닫기는 target 없는
+전체 객체 교체다. page에는 새 close 선택을 제공하지 않는다. 반응형 편집 중에는 쓰기 컨트롤을
+제공하지 않는다(action은 override 대상이 아님). 후보 프로젝트 검증은 기존 store가 맡는다.
+과거 복구본의 누락/잘못된 대상과 close source 경고는 기존 관계 validator의 진단을 표시한다.
 
 ### 거부된 페이지·반응형 편집의 호출 결과 (#265)
 
