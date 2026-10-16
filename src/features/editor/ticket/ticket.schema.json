@@ -34,6 +34,240 @@
     "Tickets": {
       "type": "array",
       "items": { "$ref": "#/$defs/Ticket" }
+    },
+    "ProjectTicket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "componentName",
+        "kind",
+        "instances",
+        "dependsOn",
+        "status",
+        "version",
+        "sourcePageId"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "componentName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "page",
+            "component"
+          ]
+        },
+        "instances": {
+          "type": "array",
+          "items": {
+            "$ref": "visual-spec#/$defs/NodeId"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "status": {
+          "$ref": "#/$defs/TicketStatus"
+        },
+        "error": {
+          "description": "선택 필드. 실패 사유이며 status가 failed일 때만 상태 관리 코드가 유지한다.",
+          "type": "string"
+        },
+        "version": {
+          "const": "0.2"
+        },
+        "sourcePageId": {
+          "$ref": "visual-spec#/$defs/PageId"
+        }
+      }
+    },
+    "ProjectTickets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ProjectTicket"
+      }
+    },
+    "ProjectArtifact": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "kind",
+            "filePath",
+            "dependsOn"
+          ],
+          "properties": {
+            "id": {
+              "const": "project:routes"
+            },
+            "kind": {
+              "const": "routes"
+            },
+            "filePath": {
+              "const": "runtime/Routes.ts"
+            },
+            "dependsOn": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "kind",
+            "filePath",
+            "dependsOn"
+          ],
+          "properties": {
+            "id": {
+              "const": "project:host"
+            },
+            "kind": {
+              "const": "host"
+            },
+            "filePath": {
+              "const": "runtime/Host.tsx"
+            },
+            "dependsOn": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "kind",
+            "filePath",
+            "dependsOn"
+          ],
+          "properties": {
+            "id": {
+              "const": "project:entry"
+            },
+            "kind": {
+              "const": "entry"
+            },
+            "filePath": {
+              "const": "runtime/Entry.tsx"
+            },
+            "dependsOn": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ProjectPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "projectId",
+        "tickets",
+        "routes",
+        "entryPageId",
+        "artifacts",
+        "excludedPages"
+      ],
+      "properties": {
+        "version": {
+          "const": "0.2"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "tickets": {
+          "$ref": "#/$defs/ProjectTickets"
+        },
+        "routes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "pageId",
+              "ticketId"
+            ],
+            "properties": {
+              "pageId": {
+                "$ref": "visual-spec#/$defs/PageId"
+              },
+              "ticketId": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "entryPageId": {
+          "$ref": "visual-spec#/$defs/PageId"
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/ProjectArtifact"
+          }
+        },
+        "excludedPages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "pageId",
+              "reason"
+            ],
+            "properties": {
+              "pageId": {
+                "$ref": "visual-spec#/$defs/PageId"
+              },
+              "reason": {
+                "const": "widget-not-supported-in-s1"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

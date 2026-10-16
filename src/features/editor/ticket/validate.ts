@@ -91,3 +91,23 @@ export function validateTicket(input: unknown): TicketValidationResult {
 export function validateTickets(input: unknown): TicketValidationResult {
   return runValidator(input, getTicketsValidator());
 }
+
+const projectValidators = new Map<string, CompiledValidator>();
+function projectValidator(definition: "ProjectTicket" | "ProjectTickets" | "ProjectPlan"): CompiledValidator {
+  let validator = projectValidators.get(definition);
+  if (!validator) {
+    validator = createAjv().compile({ $ref: `ticket-schema#/$defs/${definition}` });
+    projectValidators.set(definition, validator);
+  }
+  return validator;
+}
+/** Shape only; project references, identity and dependency DAG require compiler context. */
+export function validateProjectTicket(input: unknown): TicketValidationResult {
+  return runValidator(input, projectValidator("ProjectTicket"));
+}
+export function validateProjectTickets(input: unknown): TicketValidationResult {
+  return runValidator(input, projectValidator("ProjectTickets"));
+}
+export function validateProjectPlan(input: unknown): TicketValidationResult {
+  return runValidator(input, projectValidator("ProjectPlan"));
+}

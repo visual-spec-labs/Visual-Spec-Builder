@@ -1,4 +1,4 @@
-import type { NodeId } from "@/features/editor/schema";
+import type { NodeId, PageId } from "@/features/editor/schema";
 
 /**
  * Visual Spec IR을 컴포넌트 구현 작업 단위로 쪼갠 것(PRD 1차 14장, "화면 생성과
@@ -32,4 +32,26 @@ export interface Ticket {
    * 다른 상태에서는 항상 비운다 — `ticketStatus.markTicketStatus`가 지운다.
    */
   error?: string;
+}
+
+/** Project v0.2 is additive; legacy Ticket and compileTickets(screen) remain v0.1. */
+export interface ProjectTicket extends Ticket {
+  version: "0.2";
+  sourcePageId: PageId;
+}
+export type ProjectArtifact = {
+  id: "project:routes"; kind: "routes"; filePath: "runtime/Routes.ts"; dependsOn: string[];
+} | {
+  id: "project:host"; kind: "host"; filePath: "runtime/Host.tsx"; dependsOn: string[];
+} | {
+  id: "project:entry"; kind: "entry"; filePath: "runtime/Entry.tsx"; dependsOn: string[];
+};
+export interface ProjectPlan {
+  version: "0.2";
+  projectId: string;
+  tickets: ProjectTicket[];
+  routes: { pageId: PageId; ticketId: string }[];
+  entryPageId: PageId;
+  artifacts: ProjectArtifact[];
+  excludedPages: { pageId: PageId; reason: "widget-not-supported-in-s1" }[];
 }
