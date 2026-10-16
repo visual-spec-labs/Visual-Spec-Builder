@@ -1282,3 +1282,23 @@ asset/CSS import는 선언뿐 아니라 import()와 require()의 정적 경로�
 var()도 지원하지 않는다. 일반 cursor:pointer/maskImage:none은 유지한다. SVG image의 href,
 xlinkHref, xlink:href는 정적/동적 여부와 무관하게 지원 밖이므로 명시적으로 거부한다.
 CSS custom property도 정적 URL 검사를 거치며 허용 외부 URL이라고 이 지원 범위를 넓히지 않는다.
+
+
+### v4 workspace dispatch와 lease 인계 (S1-9)
+
+`requestProjectTicketBatch`는 호출 시 project/plan/wave를 복사한 뒤 기존 ticket 요청 잠금을
+획득한다. 잠금이 busy/unavailable이면 입력 저장도 요청 쓰기도 하지 않는다. 잠금 아래에서
+`prepareStoredProjectRequest`의 immutable 저장/readback을 완료하고 강제 renew와 현재 문서 세대를
+재확인한 뒤 `serializeProjectTicketRequest`의 크기 검증된 compact JSON만 보낸다.
+기존 v3의 관계 차단과 응답 parser는 유지하고 대기/연장/timeout/취소 루프만 공유한다.
+
+v4 응답은 정확한 wave/parser를 거쳐야 하며 구버전으로 fallback하지 않는다. 응답 GET 중
+취소/문서 세대 변경/lease 손실/만료가 생기면 수용 후보를 반환하지 않는다. response에는 보존한
+request/snapshot과 아직 보유한 lease를 함께 돌려준다. malformed response도 호출자가 오류를
+표시한 뒤 finally에서 lease를 해제해야 한다. 다른 종료 경로는 내부에서 해제하며 wait도 settle한다.
+입력 준비 중 취소는 immutable 입력만 남길 수 있고 generated/문서/status를 바꾸지 않는다.
+
+호출자는 provenance로 검증한 status와 manifest 소유 projectRoot를 제공해야 한다. 이 API가
+소유권을 새로 발급하거나 done을 확정하지 않는다. 현재 자산 재대조·원자적 수용/복구와 실제 GUI
+producer/Export 연결은 별도 단계이며 이 전달에서 완료로 표시하지 않는다. 가상 시간 fixture는
+실제 모델 실행이나 실제 180초 경과 검증이 아니다.

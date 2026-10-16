@@ -40,6 +40,9 @@ import {
   type TicketResponseResult,
 } from "./ticketProtocol";
 
+import { prepareStoredProjectRequest } from "@/features/editor/ui/projectInputStorage";
+import { parseProjectTicketResponse, serializeProjectTicketRequest, PROJECT_TICKET_PROTOCOL_VERSION, type ProjectTicketResponse } from "./projectTicketProtocol";
+
 /** 응답을 확인하는 간격. `nlAgentClient.NL_POLL_INTERVAL_MS`와 같은 값이다. */
 export const TICKET_POLL_INTERVAL_MS = 1000;
 
@@ -49,7 +52,7 @@ export const TICKET_POLL_INTERVAL_MS = 1000;
  */
 export const TICKET_TIMEOUT_MS = AGENT_WAIT_WINDOW_MS;
 
-export type TicketBatchOutcome =
+export type TicketBatchOutcome<Result = TicketResponseResult> =
   | { kind: "unsupported"; message: string }
   | { kind: "unavailable"; message: string }
   /** 같은 작업공간의 다른 탭 요청이 아직 응답을 기다린다(#273). 요청 파일을 쓰지 않았다. */
@@ -69,7 +72,7 @@ export type TicketBatchOutcome =
    */
   | { kind: "connectionLost"; message: string }
   | { kind: "cancelled" }
-  | { kind: "response"; result: TicketResponseResult; lock?: HeldRequestLock };
+  | { kind: "response"; result: Result; lock?: HeldRequestLock };
 
 /** 취소 신호. 호출부(ticketStore)가 "중지"를 누르면 `cancelled`를 세운다. */
 export interface TicketCancelToken {
@@ -117,6 +120,40 @@ export async function requestTicketBatch(
   }
 }
 
+type StoredProjectRequest = Awaited<ReturnType<typeof prepareStoredProjectRequest>>;
+export type ProjectTicketBatchOutcome = Exclude<TicketBatchOutcome<ProjectTicketResponse>, { kind: "response" }>
+  | { kind: "response"; result: ProjectTicketResponse; lock: HeldRequestLock; prepared: StoredProjectRequest };
+
+/** Project producer supplies a manifest-owned root and provenance-verified plan statuses.
+ * Storage and dispatch share the request lease; response callers retain it through acceptance.
+ */
+export async function requestProjectTicketBatch(
+  input: Parameters<typeof prepareStoredProjectRequest>[0],
+  cancel: TicketCancelToken,
+  wait: AgentRequestWait = createAgentRequestWait(),
+): Promise<ProjectTicketBatchOutcome> {
+  const captured = { ...input, project: structuredClone(input.project), plan: structuredClone(input.plan), ticketIds: [...input.ticketIds] };
+  const current = { get cancelled() { return cancel.cancelled || captured.signal?.aborted === true || !captured.isCurrent(); } };
+  try {
+    let prepared: StoredProjectRequest | undefined;
+    const outcome = await sendTicketTransport(captured.requestId, async () => {
+      prepared = await prepareStoredProjectRequest({ ...captured, isCurrent: () => !current.cancelled });
+      const { request } = prepared;
+      return { id: request.id, protocol: PROJECT_TICKET_PROTOCOL_VERSION, body: serializeProjectTicketRequest(request),
+        parse: (text: string | null) => parseProjectTicketResponse(text ?? "", request) };
+    }, current, wait, true, true);
+    if (outcome.kind !== "response") return outcome;
+    // requireLease and retainLock guarantee both; never expose an unlocked acceptance candidate.
+    if (!outcome.lock || !prepared) { outcome.lock?.release(); throw Error("프로젝트 응답의 입력/잠금 근거가 없습니다."); }
+    return { ...outcome, lock: outcome.lock, prepared };
+  } catch (error) {
+    if (current.cancelled) return { kind: "cancelled" };
+    return { kind: "writeFailed", message: error instanceof Error ? error.message : "프로젝트 요청을 준비하지 못했습니다." };
+  } finally { wait.settle(); }
+}
+
+interface TicketWire<Result> { id: string; protocol: number; body: string; parse: (text: string | null) => Result }
+
 async function sendTicketBatch(
   input: BuildTicketRequestInput,
   cancel: TicketCancelToken,
@@ -128,8 +165,15 @@ async function sendTicketBatch(
   }
   const request = buildTicketRequest(input);
 
-  // 같은 작업공간의 다른 탭 요청을 덮어쓰지 않도록 요청 파일 잠금부터 잡는다(#273).
-  const lock = await holdRequestLock("ticket", request.id, () => cancel.cancelled);
+  return sendTicketTransport(request.id, async () => ({ id: request.id, protocol: TICKET_PROTOCOL_VERSION,
+    body: JSON.stringify(request, null, 2), parse: (text: string | null) => parseTicketResponse(text, request.id) }), cancel, wait, retainLock);
+}
+
+async function sendTicketTransport<Result extends { kind: string }>(
+  id: string, prepare: () => Promise<TicketWire<Result>>, cancel: TicketCancelToken,
+  wait: AgentRequestWait, retainLock: boolean, requireLease = false,
+): Promise<TicketBatchOutcome<Result>> {
+  const lock = await holdRequestLock("ticket", id, () => cancel.cancelled);
   if (lock === "busy") {
     if (cancel.cancelled) return { kind: "cancelled" };
     return {
@@ -142,6 +186,11 @@ async function sendTicketBatch(
     // 잠금을 기다리는 사이 취소됐으면 요청 파일을 쓰지 않는다 — 쓰면 외부 에이전트가 정리 전에
     // 읽고 실행할 수 있다(PR #296 리뷰). 잠금은 아래 finally가 푼다.
     if (cancel.cancelled) return { kind: "cancelled" };
+    if (requireLease && lock === "unavailable") return { kind: "unavailable", message: "프로젝트 요청에는 작업공간 요청 잠금이 필요합니다." };
+    const request = await prepare();
+    if (cancel.cancelled) return { kind: "cancelled" };
+    if (requireLease && lock !== "unavailable" && !await lock.renew(true)) return { kind: "lockLost", message: "프로젝트 요청을 저장하기 전에 잠금을 확인하지 못했습니다." };
+    if (cancel.cancelled) return { kind: "cancelled" };
     const outcome = await waitForTicketResponse(request, cancel, wait, lock === "unavailable" ? null : lock);
     if (retainLock && outcome.kind === "response" && lock !== "unavailable") {
       transferred = true;
@@ -153,15 +202,15 @@ async function sendTicketBatch(
   }
 }
 
-async function waitForTicketResponse(
-  request: ReturnType<typeof buildTicketRequest>,
+async function waitForTicketResponse<Result extends { kind: string }>(
+  request: TicketWire<Result>,
   cancel: TicketCancelToken,
   wait: AgentRequestWait,
   lock: HeldRequestLock | null,
-): Promise<TicketBatchOutcome> {
+): Promise<TicketBatchOutcome<Result>> {
   const written = await writeWorkspaceFile(
     TICKET_REQUEST_PATH,
-    JSON.stringify(request, null, 2),
+    request.body,
     "application/json",
     undefined,
     request.id,
@@ -204,10 +253,10 @@ async function waitForTicketResponse(
     }
     const result =
       files !== null && files.includes(TICKET_RESPONSE_FILE)
-        ? parseTicketResponse(await readWorkspaceTextFile(TICKET_RESPONSE_PATH), request.id)
-        : ({ kind: "stale" } as const);
+        ? request.parse(await readWorkspaceTextFile(TICKET_RESPONSE_PATH))
+        : null;
     if (cancel.cancelled) return { kind: "cancelled" };
-    if (!wait.expired() && result.kind !== "stale") {
+    if (!wait.expired() && result !== null && result.kind !== "stale") {
       // A slow response GET may outlive the lease. Verify ownership again before accepting it.
       if (lock !== null && !await lock.renew(true)) {
         return { kind: "lockLost", message: "응답 수용 전에 요청 잠금을 확인하지 못했습니다. 다시 요청하세요." };
@@ -229,7 +278,7 @@ async function waitForTicketResponse(
             // 구버전 스킬(티켓 요청 규약 v2)은 v3 요청을 받으면 응답 없이 멈추고 에이전트 대화에만 버전 불일치를
             // 알린다(#281 리뷰) — GUI에서는 이 만료로만 보이므로 그 경우의 할 일을 함께 적는다.
             message: "대기 시간 안에 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요. " +
-              `에이전트가 티켓 요청 규약 버전이 다르다고 알렸다면 \`visual-spec skills\`로 스킬을 갱신한 뒤 다시 전달하세요(이 GUI는 규약 v${TICKET_PROTOCOL_VERSION}).`,
+              `에이전트가 티켓 요청 규약 버전이 다르다고 알렸다면 \`visual-spec skills\`로 스킬을 갱신한 뒤 다시 전달하세요(이 GUI는 규약 v${request.protocol}).`,
           };
     }
     await sleep(TICKET_POLL_INTERVAL_MS);
