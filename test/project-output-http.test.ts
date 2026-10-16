@@ -16,7 +16,7 @@ import { GENERATION_MANIFEST_PATH } from '@/features/editor/export/generationMan
 import fixture from './fixtures/screen-relations-project.json';
 
 let root:string;let server:Server;let current:boolean;
-let afterResponse:(path:string,method:string)=>void;
+let afterResponse:(path:string,method:string)=>void|Promise<void>;
 const nativeFetch=globalThis.fetch;
 function seed(path:string,body:string) {const full=join(root,path);mkdirSync(dirname(full),{recursive:true});writeFileSync(full,body);}
 beforeEach(async()=>{
@@ -31,7 +31,7 @@ beforeEach(async()=>{
   vi.stubGlobal('fetch',async(input:RequestInfo|URL,init?:RequestInit)=>{
     const path=String(input);const headers=new Headers(init?.headers);headers.set('origin',origin);
     const response=await nativeFetch(new URL(path,origin),{...init,headers});
-    afterResponse(path,init?.method??'GET');return response;
+    await afterResponse(path,init?.method??'GET');return response;
   });
   seed(GENERATION_MANIFEST_PATH,JSON.stringify({protocol:2,projects:{owner:{fileName:null,outputDir:'owned',createdAt:'now'}},entries:{}}));
 });
@@ -62,11 +62,28 @@ it('compensates cancellation after the server persisted the sidecar using real c
   const plan=await preparedWave();const lock=await holdRequestLock('ticket',plan.requestId);
   if(typeof lock==='string')throw Error(lock);
   const manifest=readFileSync(join(root,GENERATION_MANIFEST_PATH));
-  afterResponse=(path,method)=>{if(method==='PUT'&&path.endsWith(plan.evidence.sidecarPath))current=false;};
+  afterResponse=(path,method)=>{if(method==='PUT'&&path.endsWith(plan.evidence.sidecarPath)&&JSON.parse(readFileSync(join(root,plan.evidence.sidecarPath),'utf8')).protocol===1)current=false;};
   try {
     expect(await commitProjectOutputs(plan,{}, {lock,isCurrent:()=>current})).toMatchObject({committed:false,recoveryRequired:false});
     expect(existsSync(join(root,plan.evidence.sidecarPath))).toBe(false);
     for(const target of plan.targets)expect(existsSync(join(root,'generated',target.path))).toBe(false);
     expect(readFileSync(join(root,GENERATION_MANIFEST_PATH))).toEqual(manifest);
   } finally {await releaseRequestLock('ticket',plan.requestId);lock.release();}
+});
+
+it('recovers a pending real HTTP wave after losing its original server lease',async()=>{
+  const plan=await preparedWave();const lock=await holdRequestLock('ticket',plan.requestId);
+  if(typeof lock==='string')throw Error(lock);
+  const manifest=readFileSync(join(root,GENERATION_MANIFEST_PATH));let lost=false;
+  afterResponse=async(path,method)=>{if(!lost&&method==='PUT'&&path.includes('/generated/')){lost=true;await releaseRequestLock('ticket',plan.requestId);}};
+  try {
+    expect(await commitProjectOutputs(plan,{}, {lock,isCurrent:()=>current})).toMatchObject({committed:false,recoveryRequired:true});
+    expect(lost).toBe(true);
+    expect(JSON.parse(readFileSync(join(root,plan.evidence.sidecarPath),'utf8')).phase).toBe('pending');
+  } finally {lock.release();await releaseRequestLock('ticket',plan.requestId);}
+  afterResponse=()=>{};
+  expect(await restoreProjectOutputs(plan.runId,plan.context,()=>current)).toMatchObject({restored:true,recoveryRequired:false});
+  expect(readFileSync(join(root,GENERATION_MANIFEST_PATH))).toEqual(manifest);
+  expect(existsSync(join(root,plan.evidence.sidecarPath))).toBe(false);
+  for(const target of plan.targets)expect(existsSync(join(root,'generated',target.path))).toBe(false);
 });
