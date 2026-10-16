@@ -156,7 +156,7 @@ describe('explicit project run restore',()=>{
     expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:false,recoveryRequired:true});expect([...io.disk]).toEqual(before);
   });
   it('does not treat plan.json as recovery authority',async()=>{
-    const args=setup();const plan=await planProjectOutputs(args);await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent});io.disk.delete(`backups/${plan.runId}/run.json`);
+    const args=setup();const plan=await planProjectOutputs(args);await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent});io.disk.delete(`backups/${plan.runId}/run.json`);io.disk.delete(`backups/${plan.runId}/pending-recovery.json`);
     expect((await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).restored).toBe(false);expect(io.disk.has(plan.evidence.sidecarPath)).toBe(true);
   });
   it('refuses tampered backup bytes and keeps accepted output',async()=>{
@@ -299,4 +299,52 @@ it('does not require recovery when the server rejects the first fence after leas
   expect(io.disk.has(plan.evidence.sidecarPath)).toBe(false);
   expect([...io.disk.keys()].filter(path=>path.startsWith('generated/'))).toEqual([]);
   expect(text(GENERATION_MANIFEST_PATH)).toBe(manifest);
+});
+
+it('restores accepted output when post-commit run bookkeeping failed',async()=>{
+  const args=setup();const plan=await planProjectOutputs(args);io.failPath=`backups/${plan.runId}/run.json`;
+  expect(await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent})).toMatchObject({committed:true,recoveryRequired:true});
+  expect((await readProjectGenerationEvidence(plan.context)).inspection.state).toBe('partial');
+  io.failPath='';
+  expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:true,recoveryRequired:false});
+  expect([...io.disk.keys()].filter(path=>path.startsWith('generated/'))).toEqual([]);
+  expect(io.disk.has(plan.evidence.sidecarPath)).toBe(false);
+});
+it.each(['scope','backup','request'])('rejects missing-run fallback with altered %s',async mode=>{
+  const args=setup();const plan=await planProjectOutputs(args);io.failPath=`backups/${plan.runId}/run.json`;
+  await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent});io.failPath='';
+  const path=`backups/${plan.runId}/pending-recovery.json`;const journal=JSON.parse(text(path));
+  if(mode==='scope')journal.files.pop();else if(mode==='request')journal.requestId='another-request';
+  else io.disk.set(`backups/${plan.runId}/generation-manifest.json`,encode('{}'));
+  io.disk.set(path,encode(JSON.stringify(journal)));const before=[...io.disk];
+  expect((await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).restored).toBe(false);
+  expect([...io.disk]).toEqual(before);
+});
+it.each(['change','delete'])('rejects a retained output %s during a committed-wave restore',async mode=>{
+  const args=setup();const first=await planProjectOutputs(args);await commitProjectOutputs(first,{}, {lock,isCurrent:args.isCurrent});
+  const record=JSON.parse(text(first.evidence.sidecarPath));const next=structuredClone(args.prepared.request.plan);
+  for(const ticket of next.tickets)if(record.outputs.some((output:{id:string})=>output.id===ticket.id))ticket.status='done';
+  const second=await planProjectOutputs(prepare('second',args.prepared.request.project,next));
+  expect((await commitProjectOutputs(second,{}, {lock,isCurrent:args.isCurrent})).committed).toBe(true);
+  const retained='generated/'+record.outputs[0].filePath;
+  io.hook.mockImplementation((path:string)=>{if(path==='generated/'+second.targets[0].path){if(mode==='delete')io.disk.delete(retained);else io.disk.set(retained,encode('external retained edit'));}});
+  expect(await restoreProjectOutputs(second.runId,second.context,args.isCurrent)).toMatchObject({restored:false,recoveryRequired:true});
+  expect(mode==='delete'?io.disk.has(retained):text(retained)).toBe(mode==='delete'?false:'external retained edit');
+});
+
+it.each(['missing','previous'].flatMap(mode=>['outputs','manifest','sidecar'].map(stage=>({mode,stage}))))('does not report a completed restore when $mode output changes after $stage write',async ({mode,stage})=>{
+  const args=setup();const path=args.prepared.request.tickets[0].filePath;
+  if(mode==='previous')io.disk.set('generated/'+path,encode('previous manual bytes'));
+  const plan=await planProjectOutputs(args);
+  const decisions=mode==='previous'?{[path]:'overwrite' as const}:{};
+  expect((await commitProjectOutputs(plan,decisions,{lock,isCurrent:args.isCurrent})).committed).toBe(true);
+  const manual='new manual bytes after restore';
+  const injectionPath=stage==='outputs'?'generated/'+plan.targets.at(-1)!.path:stage==='manifest'?GENERATION_MANIFEST_PATH:plan.evidence.sidecarPath;
+  let injected=false;
+  io.hook.mockImplementation((writtenPath:string)=>{
+    if(!injected&&writtenPath===injectionPath){injected=true;io.disk.set('generated/'+path,encode(manual));}
+  });
+  expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:false,recoveryRequired:true});
+  expect(injected).toBe(true);
+  expect(text('generated/'+path)).toBe(manual);
 });
