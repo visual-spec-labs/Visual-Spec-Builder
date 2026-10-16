@@ -62,7 +62,7 @@ describe("immutable project input bytes", () => {
     const snapshot = buildProjectInputSnapshot("r", source, compileProjectTickets(source), []);
     expect(snapshot.content).toContain("https://example.test/hero.png");
     expect(snapshot.content).toContain("data:image/png;base64,");
-    for (const path of ["assets/../hero.png", "assets/nested/hero.png", "blob:ephemeral", "unresolved-id", "/public/hero.png"]) {
+    for (const path of ["assets/../hero.png", "blob:ephemeral", "unresolved-id", "/public/hero.png"]) {
       root.background = [{ type: "image", src: path, fit: "cover" }];
       expect(() => buildProjectInputSnapshot("r", source, compileProjectTickets(source), [])).toThrow(/보존할 수 없는/);
     }

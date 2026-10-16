@@ -1119,10 +1119,10 @@ create-only 저장 관문으로 먼저 확정해야 한다. v3 builder/parser는
 `projectAssetPaths`는 검증된 page/modal의 모든 image와 base/responsive image background를
 수집한다(숨김 포함). widget-only 경로는 S1 mapping에서 제외한다. mapping은 실제 참조 집합과
 정확히 같아야 하며 중복/누락/추가 sourcePath를 거부한다. assets 목록은 sourcePath 순서로 만든다.
-workspace assets의 한 단계 파일 경로만 수집하며 실제 파일 읽기는 기존 canonical/symlink 경계를
+workspace reader와 같은 decoded segment 규칙으로 중첩 assets 경로도 수집하며 실제 파일 읽기는 기존 canonical/symlink 경계를
 통과한 reader 책임이다. data URI는 project JSON 안의 그대로인 바이트 표현으로 보존하고 https/http
 참조는 네트워크 의존으로 남긴다(이 pure API가 외부 fetch를 하지는 않는다). blob·미해결 assetId·
-public 절대 경로·중첩/탈출 상대 경로는 standalone 보존을 보장할 수 없으므로 명시 오류다.
+public 절대 경로·탈출 상대 경로는 standalone 보존을 보장할 수 없으므로 명시 오류다.
 
 `createProjectAssetSnapshot`은 파일명 대신 byte signature로 PNG/JPEG/GIF/WebP/AVIF/BMP/ICO/SVG
 타입과 정규 확장자를 고른다. 예를 들어 PNG 바이트의 .jpg source도 .png ZIP으로 대응한다.
@@ -1133,3 +1133,12 @@ module-aware URL 수용 검사는 후속이다. 동일 JPEG 바이트의 jpg/jpe
 
 이 전달은 저장된 snapshot/자산 재검증까지의 pure 경계다. HTTP 수집/dispatch, v4 wire validator,
 코드 AST URL 변환, sidecar 수용/복구와 GUI/Export 연결은 아직 별도 작업이다.
+
+#395 검증 보강: 금지 문자·끝 공백/점·빈 segment는 서버와 공유하는 predicate로 거부한다.
+sourcePath는 이미 decoded된 IR 경로이며 reader URL은 각 segment를 인코딩한다. parser도
+sourcePath 오름차순을 강제하므로 배열을 뒤집어 hash를 다시 계산해도 거부한다.
+
+완성된 snapshot의 **UTF-8 JSON 전체 바이트**는 workspace PUT과 공유하는 32 MiB 상한 이하여야
+한다. 개별 base64 및 자산 합계는 먼저 검사하고, project/plan/metadata/JSON escaping까지 포함한
+최종 길이도 검사한다. parser 역시 hash 계산 전에 같은 한도를 검사한다. 초과 시 원본을 변경하거나
+자산을 버리지 않고 명시 오류로 중단한다. 저장 한도를 늘리거나 자동 축소하지 않는다.

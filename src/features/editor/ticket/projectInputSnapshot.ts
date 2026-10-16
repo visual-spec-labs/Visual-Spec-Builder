@@ -1,6 +1,7 @@
 import type { ProjectSpec } from "@/features/editor/schema";
 import { canonicalJson, sha256Hex } from "@/features/editor/export/contentHash";
-import { WORKSPACE_DIR_RULES } from "@/features/workspace/protocol";
+import { WORKSPACE_DIR_RULES, WORKSPACE_MAX_BODY_BYTES } from "@/features/workspace/protocol";
+import { isWorkspaceSegment } from "@/features/workspace/workspaceSegment";
 import { validateProjectPlanContext } from "./compileProjectTickets";
 import type { ProjectPlan } from "./types";
 
@@ -24,9 +25,22 @@ function exactKeys(value: unknown, keys: string[]): value is Record<string, unkn
     && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
 }
 function validAssetPath(path: string): boolean {
-  if (!/^assets\/[^/\\\u0000-\u001f]+$/.test(path)) return false;
-  const extension = path.slice(path.lastIndexOf(".")).toLowerCase();
+  const segments = path.split("/");
+  if (segments[0] !== "assets" || segments.length < 2 || !segments.every(isWorkspaceSegment)) return false;
+  const filename = segments.at(-1)!;
+  const dot = filename.lastIndexOf(".");
+  if (dot <= 0) return false;
+  const extension = filename.slice(dot).toLowerCase();
   return (WORKSPACE_DIR_RULES.assets as readonly string[]).includes(extension);
+}
+function sizeError(): Error {
+  return Error("프로젝트 입력 snapshot이 32 MiB UTF-8 PUT 한도를 초과합니다. 자산/문서 크기를 줄인 뒤 다시 시도하세요.");
+}
+function snapshotBytes(content: string): Uint8Array {
+  if (content.length > WORKSPACE_MAX_BODY_BYTES) throw sizeError();
+  const bytes = new TextEncoder().encode(content);
+  if (bytes.byteLength > WORKSPACE_MAX_BODY_BYTES) throw sizeError();
+  return bytes;
 }
 export function projectInputSnapshotPath(requestId: string): string {
   if (!REQUEST_ID.test(requestId)) throw Error("잘못된 프로젝트 요청 ID입니다.");
@@ -72,6 +86,8 @@ function decodeBase64(value: string): Uint8Array {
 /** Caller must read through the existing workspace canonical-path/symlink boundary first. */
 export function createProjectAssetSnapshot(sourcePath: string, bytes: Uint8Array): ProjectAssetSnapshot {
   if (!validAssetPath(sourcePath)) throw Error("프로젝트 자산은 승인된 assets 상대 경로여야 합니다.");
+  // Metadata/project bytes are nonempty, so base64 alone cannot consume the whole cap.
+  if (4 * Math.ceil(bytes.length / 3) >= WORKSPACE_MAX_BODY_BYTES) throw sizeError();
   const mediaType = projectAssetMediaType(bytes);
   const sha256 = sha256Hex(bytes);
   return { sourcePath, sha256, byteLength: bytes.length, mediaType,
@@ -113,10 +129,13 @@ function validateSnapshot(value: unknown): asserts value is ProjectInputSnapshot
   const project = value.project as ProjectSpec;
   if (value.projectId !== project.projectId) throw Error("snapshot 프로젝트 신원이 다릅니다.");
   const seen = new Set<string>(); const byteByHash = new Map<string, string>();
+  let previousSource: string | undefined;
   for (const asset of value.assets) {
     if (!exactKeys(asset, ["sourcePath", "sha256", "byteLength", "mediaType", "zipPath", "dataBase64"])
       || typeof asset.sourcePath !== "string" || typeof asset.dataBase64 !== "string") throw Error("자산 snapshot 형태가 잘못됐습니다.");
     if (seen.has(asset.sourcePath)) throw Error("자산 sourcePath가 중복됩니다.");
+    if (previousSource !== undefined && asset.sourcePath < previousSource) throw Error("자산 목록이 sourcePath 순서로 정렬되지 않았습니다.");
+    previousSource = asset.sourcePath;
     seen.add(asset.sourcePath);
     const actual = createProjectAssetSnapshot(asset.sourcePath, decodeBase64(asset.dataBase64));
     if (canonicalJson(actual) !== canonicalJson(asset)) throw Error("자산 길이/hash/type/경로가 보유 바이트와 다릅니다.");
@@ -124,24 +143,26 @@ function validateSnapshot(value: unknown): asserts value is ProjectInputSnapshot
     if (previous !== undefined && previous !== actual.dataBase64) throw Error("자산 hash 충돌입니다.");
     byteByHash.set(actual.sha256, actual.dataBase64);
   }
-  if (canonicalJson([...seen].sort()) !== canonicalJson(projectAssetPaths(project))) throw Error("프로젝트 자산 mapping에 누락 또는 미참조 자산이 있습니다.");
+  if (canonicalJson([...seen]) !== canonicalJson(projectAssetPaths(project))) throw Error("프로젝트 자산 mapping에 누락 또는 미참조 자산이 있습니다.");
 }
 
 /** Pure preparation; producer must persist content create-only before publishing a v4 request. */
 export function buildProjectInputSnapshot(requestId: string, project: ProjectSpec, plan: ProjectPlan, assets: ProjectAssetSnapshot[]) {
   const path = projectInputSnapshotPath(requestId);
+  if (assets.reduce((sum, asset) => sum + asset.dataBase64.length, 0) >= WORKSPACE_MAX_BODY_BYTES) throw sizeError();
   const candidate = { protocol: 1, requestId, projectId: project.projectId, project, plan,
     assets: [...assets].sort((a, b) => a.sourcePath < b.sourcePath ? -1 : a.sourcePath > b.sourcePath ? 1 : 0) };
   validateSnapshot(candidate);
   const content = canonicalJson(candidate);
-  return { path, content, sha256: sha256Hex(new TextEncoder().encode(content)) };
+  return { path, content, sha256: sha256Hex(snapshotBytes(content)) };
 }
 
 /** Never trusts hash alone: revalidates metadata, plan context and every retained asset byte. */
 export function parseProjectInputSnapshot(content: string, expectedHash: string, requestId: string):
   { ok: true; snapshot: ProjectInputSnapshot } | { ok: false; error: string } {
   try {
-    if (!/^[a-f0-9]{64}$/.test(expectedHash) || sha256Hex(new TextEncoder().encode(content)) !== expectedHash) throw Error("입력 snapshot hash가 다릅니다.");
+    const bytes = snapshotBytes(content);
+    if (!/^[a-f0-9]{64}$/.test(expectedHash) || sha256Hex(bytes) !== expectedHash) throw Error("입력 snapshot hash가 다릅니다.");
     const value: unknown = JSON.parse(content);
     validateSnapshot(value);
     if (value.requestId !== requestId) throw Error("입력 snapshot 요청 ID가 다릅니다.");
