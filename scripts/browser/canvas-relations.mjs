@@ -84,6 +84,61 @@ try {
   assert.ok(await panel.evaluate(el => el.scrollTop) > 0);
   await page.keyboard.press("Escape");
   assert.deepEqual(await state(), longBefore);
+
+  // Make both the editor and document genuinely scrollable; native dialog alone
+  // must not be assumed to lock either background scroll position.
+  const surface = page.getByTestId("editor-canvas-surface");
+  await page.evaluate(() => {
+    document.documentElement.style.overflow = 'auto';
+    document.body.style.overflow = 'auto';
+    const spacer = document.createElement('div'); spacer.id = 'scroll-fixture'; spacer.style.height = '3000px'; document.body.append(spacer);
+    document.querySelector('[data-testid="editor-canvas-surface"]').scrollTop = 100;
+    window.scrollTo(0, 100);
+  });
+  await trigger.focus();
+  const beforeScroll = await page.evaluate(() => ({ window: window.scrollY, canvas: document.querySelector('[data-testid="editor-canvas-surface"]').scrollTop }));
+  await trigger.press('Enter');
+  await dialog.waitFor();
+  await page.mouse.move(4, 500); await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(200);
+  assert.deepEqual(await page.evaluate(() => ({ window: window.scrollY, canvas: document.querySelector('[data-testid="editor-canvas-surface"]').scrollTop })), beforeScroll, 'backdrop wheel cannot move document or canvas');
+  await panel.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  const bottom = await panel.evaluate(el => el.scrollTop);
+  const panelBounds = await panel.boundingBox();
+  await page.mouse.move(panelBounds.x + 10, panelBounds.y + 10); await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(200);
+  assert.equal(await panel.evaluate(el => el.scrollTop), bottom, 'panel remains at bottom boundary');
+  assert.deepEqual(await page.evaluate(() => ({ window: window.scrollY, canvas: document.querySelector('[data-testid="editor-canvas-surface"]').scrollTop })), beforeScroll, 'panel boundary does not chain to background');
+  await page.mouse.wheel(0, -300); await page.waitForTimeout(200);
+  assert.ok(await panel.evaluate(el => el.scrollTop) < bottom, 'panel still scrolls away from its boundary');
+  // Browser-only nested overflow fixture: the current IR has no overflow field.
+  // Exercise chaining from this inner scroller through the real modal panel.
+  await panel.evaluate(el => {
+    const nested = document.createElement('div'); nested.id = 'nested-scroll-fixture';
+    nested.style.cssText = 'height:120px;overflow:auto;flex:none';
+    const content = document.createElement('div'); content.style.height = '900px';
+    nested.append(content); el.prepend(nested); el.scrollTop = 0;
+  });
+  const nested = page.locator('#nested-scroll-fixture');
+  const nestedBounds = await nested.boundingBox();
+  await page.mouse.move(nestedBounds.x + 15, nestedBounds.y + 15); await page.mouse.wheel(0, 300); await page.waitForTimeout(200);
+  assert.ok(await nested.evaluate(el => el.scrollTop) > 0, 'nested content consumes wheel inside its range');
+  assert.equal(await panel.evaluate(el => el.scrollTop), 0);
+  await nested.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await page.mouse.wheel(0, 300); await page.waitForTimeout(200);
+  assert.ok(await panel.evaluate(el => el.scrollTop) > 0, 'inner boundary transfers scrolling to modal panel');
+  assert.deepEqual(await page.evaluate(() => ({ window: window.scrollY, canvas: document.querySelector('[data-testid="editor-canvas-surface"]').scrollTop })), beforeScroll, 'nested chain stays inside modal');
+  // Remove the actual opening control while the dialog is open.
+  await trigger.evaluate(el => el.remove());
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await surface.evaluate(el => document.activeElement === el), true, 'removed trigger falls back to stable editor surface');
+  assert.deepEqual(await page.evaluate(() => ({ window: window.scrollY, canvas: document.querySelector('[data-testid="editor-canvas-surface"]').scrollTop })), beforeScroll, 'closing and focus restore preserve scroll positions');
+  assert.deepEqual(await page.evaluate(() => [document.documentElement.style.overflow, document.body.style.overflow]), ['auto', 'auto']);
+  assert.equal(await surface.evaluate(el => el.style.overflow), '', 'original canvas overflow style restored');
+  await page.mouse.move(4, 500); await page.mouse.wheel(0, 300); await page.waitForTimeout(200);
+  assert.ok(await page.evaluate(() => window.scrollY) > beforeScroll.window, 'document scrolling resumes after close');
+  assert.deepEqual(await state(), longBefore);
   assert.deepEqual(errors, []);
   console.log("PASS canvas: markers/target navigation preserve document and Undo; modal host breakpoint, clamp, root sizing, backdrop, Tab/Escape/focus restoration, internal scroll; fixture only");
 } finally {
