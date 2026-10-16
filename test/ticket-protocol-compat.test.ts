@@ -172,7 +172,8 @@ describe("새 GUI(규약 v3) + 설치된 v2 스킬 — 조용히 실패하지 �
 
 describe("구 GUI(규약 v2) + 새 스킬 — 문서 계약", () => {
   it("새 스킬은 v3과 v2 요청을 모두 처리하고 요청과 같은 번호로 응답한다고 명시한다", () => {
-    expect(currentSkill).toContain("이 스킬은 **티켓 요청 규약 v3**(현재 GUI)과 v2(생성 자리 전의 구버전\n   GUI)를 처리한다. 응답의 `protocol`은 요청과 같은 번호로 쓴다.");
+    expect(currentSkill).toContain("프로젝트 v4와 단일 화면 v3·v2를 분리해서 처리한다.");
+    expect(currentSkill).toContain("응답의 `protocol`은 요청과 같은 번호로 쓴다.");
     expect(currentSkill).toContain("- `protocol: 2`: 구버전 GUI의 요청이다. `generatedRoot`가 없고");
     expect(currentSkill).toContain("`visual-spec skills`로 갱신");
   });
