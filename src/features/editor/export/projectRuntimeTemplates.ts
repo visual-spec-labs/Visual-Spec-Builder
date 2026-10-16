@@ -16,6 +16,7 @@ export function renderProjectRuntime(input: ProjectProvenanceContext): Map<strin
     `export const entryPageId = ${JSON.stringify(plan.entryPageId)};`,
     `export const pageScreens = new Map<string, ComponentType<ScreenActions>>([${pages.join(",")}]);`,
     `export const modalScreens = new Map<string, ComponentType<ScreenActions>>([${modals.map(ticket => `[${JSON.stringify(ticket.sourcePageId)}, ${aliases.get(ticket.sourcePageId)}]`).join(",")}]);`,
+    `export const modalNames = new Map<string, string>([${modals.map(ticket => `[${JSON.stringify(ticket.sourcePageId)}, ${JSON.stringify(context.snapshot.project.pages[ticket.sourcePageId].name || ticket.sourcePageId)}]`).join(",")}]);`,
     `export const modalSizes = new Map<string, { width: number; height: number }>([${modals.map(ticket => `[${JSON.stringify(ticket.sourcePageId)}, ${JSON.stringify(context.snapshot.project.pages[ticket.sourcePageId].size)}]`).join(",")}]);`,
   ].join("\n") + "\n";
   const files = new Map<string, string>([
@@ -29,7 +30,7 @@ export function renderProjectRuntime(input: ProjectProvenanceContext): Map<strin
 }
 
 const HOST_SOURCE = String.raw`import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import { entryPageId, pageScreens, modalScreens, modalSizes, type ScreenActions } from "./Routes";
+import { entryPageId, pageScreens, modalScreens, modalSizes, modalNames, type ScreenActions } from "./Routes";
 function viewport() {
   const visual = window.visualViewport;
   return { width: visual?.width ?? window.innerWidth, height: visual?.height ?? window.innerHeight, left: visual?.offsetLeft ?? 0, top: visual?.offsetTop ?? 0 };
@@ -60,10 +61,10 @@ function ModalSurface({ id, actions, trigger, fallback }: { id: string; actions:
     window.addEventListener("resize", update); window.visualViewport?.addEventListener("resize", update); window.visualViewport?.addEventListener("scroll", update);
     return () => { window.removeEventListener("resize", update); window.visualViewport?.removeEventListener("resize", update); window.visualViewport?.removeEventListener("scroll", update); };
   }, []);
-  useEffect(() => { (panel.current?.querySelector<HTMLElement>("button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex='-1'])") ?? panel.current)?.focus(); }, [id]);
+  useEffect(() => { panel.current?.scrollTo(0, 0); (panel.current?.querySelector<HTMLElement>("button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex='-1'])") ?? panel.current)?.focus(); }, [id]);
   const availableHeight = "max(0px, calc(" + view.height + "px - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)))";
   const minimumHeight = "min(" + size.height + "px, " + availableHeight + ")";
-  return <dialog ref={dialog} aria-label="Modal" className="vsb-project-dialog"
+  return <dialog ref={dialog} aria-label={modalNames.get(id) ?? id} className="vsb-project-dialog"
     onClick={event => event.stopPropagation()}
     onCancel={event => { event.preventDefault(); actions.onClose(); }}
     onKeyDown={event => {

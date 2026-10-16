@@ -25,7 +25,11 @@ try {
   assert.equal(await page.locator('#modal-title').evaluate(el => getComputedStyle(el).fontSize), '32px');
   await page.mouse.click(4, 500); assert.equal(await dialog.count(), 1);
   for (let index = 0; index < 8; index++) { await page.keyboard.press('Tab'); assert.equal(await dialog.evaluate(el => el.contains(document.activeElement)), true); }
+  await panel.locator('[data-screen]').evaluate(el => { const spacer = document.createElement('div'); spacer.style.height = '2000px'; el.prepend(spacer); });
+  await page.locator('#replace').focus(); assert.ok(await panel.evaluate(el => el.scrollTop) > 0);
   await page.locator('#replace').click(); await panel.locator('[data-screen="otherModal"]').waitFor(); assert.equal(await dialog.count(), 1);
+  assert.equal(await panel.evaluate(el => el.scrollTop), 0);
+  assert.equal(await dialog.getAttribute('aria-label'), 'OtherModal');
   await page.keyboard.press('Escape'); await panel.waitFor({ state: 'detached' });
   assert.equal(await page.locator('#open').evaluate(el => document.activeElement === el), true);
   await page.locator('#open').click(); await page.locator('#modal-navigate').click(); await page.locator('#dashboard').waitFor(); assert.equal(await dialog.count(), 0);

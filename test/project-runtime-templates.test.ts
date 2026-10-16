@@ -10,6 +10,8 @@ describe('GUI project runtime artifacts', () => {
     expect(routes).toContain('export const entryPageId = "login"');
     expect(routes).toContain('new Map<string, ComponentType<ScreenActions>>');
     expect(routes).not.toContain('notificationWidget');
+    expect(routes).toContain('export const modalNames');
+    expect(routes).toContain('["otherModal", "OtherModal"]');
     for (const ticket of context.snapshot.plan.tickets.filter(t => t.kind === 'page')) expect(routes).toContain(`../${ticket.sourcePageId}/pages/${ticket.componentName}`);
     expect(context.snapshot).toEqual(before);
   });

@@ -3,7 +3,7 @@ import type { ProjectPlan } from "@/features/editor/ticket/types";
 import { buildProjectInputSnapshot, projectAssetPaths, type ProjectInputSnapshot } from "@/features/editor/ticket/projectInputSnapshot";
 import { canonicalJson, sha256Hex } from "./contentHash";
 
-export const PROJECT_TEMPLATE_VERSION = "project-runtime-1/assets-2";
+export const PROJECT_TEMPLATE_VERSION = "project-runtime-2/assets-2";
 const hash = (value: unknown) => sha256Hex(new TextEncoder().encode(canonicalJson(value)));
 
 /** Runtime progress is not generation input. Array ordering remains meaningful. */
