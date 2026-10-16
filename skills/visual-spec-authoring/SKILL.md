@@ -20,7 +20,7 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ```json
 {
-  "version": "0.3",
+  "version": "0.4",
   "screen": {
     "name": "EmptyTitle",
     "size": { "width": 1440, "height": 900 },

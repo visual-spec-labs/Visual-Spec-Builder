@@ -441,7 +441,7 @@ function validatePageOrder(project: ProjectSpec): ValidationIssue[] {
  * `/pages/<id>/...`가 된다. 이어서 페이지 사이의 화면 관계(action 대상·첫 화면 kind)를
  * 본다(validateScreenRelations.ts).
  *
- * 0.1·0.2 문서는 여기서 무효다 — 옛 문서를 받는 입구는 `migrateToV03`로 먼저
+ * 0.1·0.2·0.3 문서는 여기서 무효다 — 옛 문서를 받는 입구는 `migrateToV04`로 먼저
  * 바꾼 뒤 검증한다(store/loadSpec.ts·store/specStorage.ts).
  */
 type ScreenValidationCache = WeakMap<ScreenSpec, { snapshot: ScreenSpec; path: string; issues: ValidationIssue[] }>;
@@ -461,7 +461,7 @@ export function createCachedProjectValidator(): (input: unknown) => ValidationRe
         const saved = cache.get(page);
         const hit = saved !== undefined && sameSnapshot(page, saved.snapshot);
         if (hit) unchanged.add(page);
-        if (!hit && !getSchemaValidator()({ version: "0.3", screen: page })) return validateProjectSpec(input);
+        if (!hit && !getSchemaValidator()({ version: "0.4", screen: page })) return validateProjectSpec(input);
       }
       return validateProject(input, cache, true, unchanged);
     } catch { return validateProjectSpec(input); }

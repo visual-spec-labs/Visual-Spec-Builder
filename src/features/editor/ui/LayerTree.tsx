@@ -46,6 +46,7 @@ const TYPE_ICON: Record<Node["type"], LucideIcon> = {
   image: ImageIcon,
   button: ButtonIcon,
   input: InputIcon,
+  instance: FrameIcon,
 };
 
 /** "레이어 추가" 버튼이 만드는 기본 Frame. blankSpec의 root frame과 같은 규격이다. */

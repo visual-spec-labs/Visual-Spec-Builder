@@ -23,7 +23,13 @@
         "type": { "const": "createNode" },
         "parentId": { "$ref": "visual-spec#/$defs/NodeId" },
         "id": { "$ref": "visual-spec#/$defs/NodeId" },
-        "node": { "$ref": "visual-spec#/$defs/Node" },
+        "node": { "oneOf": [
+          { "$ref": "visual-spec#/$defs/FrameNode" },
+          { "$ref": "visual-spec#/$defs/TextNode" },
+          { "$ref": "visual-spec#/$defs/ImageNode" },
+          { "$ref": "visual-spec#/$defs/ButtonNode" },
+          { "$ref": "visual-spec#/$defs/InputNode" }
+        ] },
         "index": { "type": "integer", "minimum": 0 }
       }
     },

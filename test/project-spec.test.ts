@@ -18,7 +18,7 @@ const screenDoc = dashboardCards as VisualSpec;
 /** 페이지 2개짜리 프로젝트. 두 예제를 그대로 페이지로 얹는다. */
 function twoPageProject(): ProjectSpec {
   return {
-    version: "0.3",
+    version: "0.4",
     name: "two-page",
     pages: {
       home: (dashboardCards as VisualSpec).screen,
@@ -32,7 +32,7 @@ describe("migrateV01 / toVisualSpec", () => {
   it("화면 문서를 페이지 1개짜리 프로젝트로 넓힌다", () => {
     const project = migrateV01(screenDoc);
 
-    expect(project.version).toBe("0.3");
+    expect(project.version).toBe("0.4");
     expect(project.pageOrder).toHaveLength(1);
     expect(project.pages[project.pageOrder[0]]).toEqual(screenDoc.screen);
   });

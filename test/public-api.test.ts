@@ -96,7 +96,7 @@ const screen: ScreenSpec = {
   root: nodeId,
   nodes: { root: node, label: textNode, hero: imageNode },
 };
-const spec: VisualSpec = { version: "0.3", screen };
+const spec: VisualSpec = { version: "0.4", screen };
 
 describe("공개 API 표면", () => {
   it("타입만으로 조립한 문서가 검증을 통과한다", () => {

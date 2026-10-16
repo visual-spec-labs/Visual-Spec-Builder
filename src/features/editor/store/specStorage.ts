@@ -1,4 +1,4 @@
-import { isScreenRelationIssue, migrateToV03, validateProjectSpec } from "@/features/editor/schema";
+import { isScreenRelationIssue, migrateToV04, validateProjectSpec } from "@/features/editor/schema";
 import type { ProjectSpec } from "@/features/editor/schema";
 import type { PauseReason } from "./saveConflictStore";
 
@@ -32,7 +32,7 @@ export interface StoredDocument {
  *
  * 다음 중 하나라도 해당하면 undefined다 — 저장된 값이 없다, JSON으로 파싱이 안
  * 된다, 봉투 모양이 아니다, `fileName`이 문자열도 null도 아니다, `spec`이
- * (`migrateToV03`로 0.3으로 바꾼 뒤에도) `validateProjectSpec`을 통과하지 못한다.
+ * (`migrateToV04`로 0.4로 바꾼 뒤에도) `validateProjectSpec`을 통과하지 못한다.
  * 단 화면 관계 오류(`isScreenRelationIssue`)만 남은 spec은 복원한다(#265 S1-2 — 아래 parseStoredDocument).
  * **#128 시절 저장된 옛 형태**(봉투 없이 `ProjectSpec`이 최상위)도 여기
  * 걸린다 — `spec` 필드가 없어 검증에 실패하고 조용히 폐기된다. 로컬 캐시일 뿐이라 한 번 seedSpec/`null`로 되돌아가는 것을
@@ -71,7 +71,7 @@ export function parseStoredDocument(raw: string | null): StoredDocument | undefi
 
   // 검증 전에 0.3으로 바꾼다(#127). 빠뜨리면 0.2 시절 자동 저장본이 아래 검증에서
   // 조용히 버려져, 갱신 직후 첫 실행에서 작업이 사라진다.
-  const spec = migrateToV03((parsed as Record<string, unknown>).spec);
+  const spec = migrateToV04((parsed as Record<string, unknown>).spec);
   const result = validateProjectSpec(spec);
   // 화면 관계 오류만 남은 문서는 복원한다(#265 S1-2). 대상 페이지를 지운 뒤의 자동 저장본이
   // 여기서 버려지면 새로고침 한 번에 작업이 seedSpec으로 바뀐다 — S1-4 이후에도 이전 버전이 남긴

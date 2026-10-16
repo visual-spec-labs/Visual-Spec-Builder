@@ -154,7 +154,7 @@ function generatedWrites(): string[] {
 /** 같은 화면 두 장(page1·page2)을 가진 프로젝트 — 컴포넌트 이름이 모두 같다. */
 function twoPageProject(): ProjectSpec {
   return {
-    version: "0.3",
+    version: "0.4",
     name: "Shop",
     pages: { page1: structuredClone(seedSpec.screen), page2: structuredClone(seedSpec.screen) },
     pageOrder: ["page1", "page2"],
@@ -258,7 +258,7 @@ describe("같은 이름이 서로 덮지 않는다", () => {
     expect(pageIdCaseConflicts("signup", ["Login", "login", "signup"])).toEqual([]);
 
     const project: ProjectSpec = {
-      version: "0.3",
+      version: "0.4",
       name: "Shop",
       pages: { Login: structuredClone(seedSpec.screen), login: structuredClone(seedSpec.screen) },
       pageOrder: ["Login", "login"],

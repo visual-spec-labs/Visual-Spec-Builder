@@ -806,7 +806,7 @@ describe("project rename (#227)", () => {
       body: JSON.stringify({ fileName: "old.json", name: "New", expectedText: legacy, projectId }) });
     expect(response.status).toBe(200);
     const saved = JSON.parse(readFileSync(join(workspaceRoot, "specs/New.json"), "utf8"));
-    expect(saved).toEqual({ version: "0.3", name: "New", pages: { page1: { ...blankSpec.screen, name: "New" } }, pageOrder: ["page1"], projectId });
+    expect(saved).toEqual({ version: "0.4", name: "New", pages: { page1: { ...blankSpec.screen, name: "New" } }, pageOrder: ["page1"], projectId });
 
     // 실제 Open과 같은 파싱·스토어 로드 경로에서 새 문맥의 ID가 보존된다.
     const reopened = parseSpecJson(JSON.stringify(saved));

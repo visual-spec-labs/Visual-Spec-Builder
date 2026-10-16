@@ -112,6 +112,7 @@ function insertChildReference(
 }
 
 function applyCreateNode(screen: ScreenSpec, command: CreateNodeCommand): ApplyResult {
+  if (command.node.type === "instance") return noOp(screen, "위젯 instance Command는 아직 지원되지 않습니다");
   const { nodes } = screen;
   const parent = nodes[command.parentId];
   if (parent === undefined) {
@@ -158,7 +159,7 @@ function applyUpdateNode(screen: ScreenSpec, command: UpdateNodeCommand): ApplyR
   const nextNode = setByPath(node, command.path, command.value);
   if (command.path === "action") {
     const candidate = withNodes(screen, { ...nodes, [command.id]: nextNode });
-    const result = validateVisualSpec({ version: "0.3", screen: candidate });
+    const result = validateVisualSpec({ version: "0.4", screen: candidate });
     if (!result.valid || command.value === undefined) return noOp(screen, "action은 유효한 전체 객체여야 합니다");
   }
   return applied(withNodes(screen, { ...nodes, [command.id]: nextNode }));
@@ -255,7 +256,7 @@ function applyUpdateScreen(screen: ScreenSpec, command: UpdateScreenCommand): Ap
 
   const next = setByPath(screen, command.path, command.value);
   if (command.path === "responsive" || command.path === "kind") {
-    const result = validateVisualSpec({ version: "0.3", screen: next });
+    const result = validateVisualSpec({ version: "0.4", screen: next });
     if (!result.valid) return noOp(screen, result.issues.map((issue) => issue.message).join(" "));
     if (command.path === "responsive" && JSON.stringify(screen.responsive) === JSON.stringify(next.responsive)) return noOp(screen, "반응형 값이 같습니다");
   }

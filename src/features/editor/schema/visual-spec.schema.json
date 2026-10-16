@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "VisualSpec",
-  "description": "Visual Spec Schema v0.3 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 0.1 문서는 앱이 열 때 0.3으로 변환한다(schema/migrate.ts).",
+  "description": "Visual Spec Schema v0.4 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 구버전 문서는 앱이 열 때 0.4로 변환한다(schema/migrate.ts).",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "screen"],
   "properties": {
-    "version": { "const": "0.3" },
+    "version": { "const": "0.4" },
     "screen": { "$ref": "#/$defs/ScreenSpec" }
   },
   "$defs": {
@@ -43,12 +43,12 @@
       "enum": ["page", "modal", "widget"]
     },
     "ProjectSpec": {
-      "description": "Visual Spec v0.3 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 화면 문서와 같은 ScreenSpec이다. 버전은 IR 세대를 뜻하고, 화면 문서와는 버전이 아니라 키(screen / pages)로 구별한다. 0.2 문서는 앱이 열 때 0.3으로 변환한다.",
+      "description": "Visual Spec v0.4 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 화면 문서와 같은 ScreenSpec이다. 구버전 문서는 앱이 열 때 0.4로 변환한다.",
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "name", "pages", "pageOrder"],
       "properties": {
-        "version": { "const": "0.3" },
+        "version": { "const": "0.4" },
         "name": { "type": "string", "minLength": 1 },
         "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "description": "GUI가 지정하는 프로젝트의 안정 신원. 편집·앱 안 이름 변경에서는 유지하고 Save As 복사에서는 새 값으로 바꾼다. 생략된 기존 문서는 앱이 열 때 ID를 부여한다." },
         "pages": {
@@ -89,7 +89,8 @@
         { "$ref": "#/$defs/TextNode" },
         { "$ref": "#/$defs/ImageNode" },
         { "$ref": "#/$defs/ButtonNode" },
-        { "$ref": "#/$defs/InputNode" }
+        { "$ref": "#/$defs/InputNode" },
+        { "$ref": "#/$defs/InstanceNode" }
       ]
     },
     "FrameNode": {
@@ -186,6 +187,32 @@
         "color": { "$ref": "#/$defs/Color" },
         "background": { "$ref": "#/$defs/Background" },
         "border": { "$ref": "#/$defs/Border" }
+      }
+    },
+    "InstanceNode": {
+      "type": "object",
+      "description": "같은 프로젝트의 widget 화면을 참조하는 leaf. 참조/override 대상 검사는 프로젝트 문맥에서 한다.",
+      "additionalProperties": false,
+      "required": ["type", "name", "box", "ref"],
+      "properties": {
+        "type": { "const": "instance" },
+        "name": { "type": "string", "minLength": 1 },
+        "visible": { "type": "boolean", "default": true },
+        "box": { "$ref": "#/$defs/Box" },
+        "ref": { "$ref": "#/$defs/PageId" },
+        "overrides": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/NodeId" },
+          "additionalProperties": { "$ref": "#/$defs/InstanceContentOverride" }
+        }
+      }
+    },
+    "InstanceContentOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "content": { "type": "string" },
+        "color": { "$ref": "#/$defs/Color" }
       }
     },
     "Action": {
@@ -732,6 +759,14 @@
         }
       }
     },
+    "InstanceOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "visible": { "type": "boolean", "default": true },
+        "box": { "$ref": "#/$defs/PartialBox" }
+      }
+    },
     "NodeOverride": {
       "description": "대상 nodes[id].type에 해당하는 override만 허용한다(validator 의미 검증).",
       "anyOf": [
@@ -749,6 +784,9 @@
         },
         {
           "$ref": "#/$defs/InputOverride"
+        },
+        {
+          "$ref": "#/$defs/InstanceOverride"
         }
       ]
     },

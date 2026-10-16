@@ -61,7 +61,7 @@ export function collectImageSrcs(nodes: Record<NodeId, SpecNode>, root: NodeId):
       if (node.src !== "") srcs.add(node.src);
       return;
     }
-    if (node.type === "text") return;
+    if (node.type === "text" || node.type === "instance") return;
     for (const fill of node.background ?? []) {
       if (fill.type === "image" && fill.src !== "") srcs.add(fill.src);
     }

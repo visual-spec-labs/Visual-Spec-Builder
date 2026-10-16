@@ -27,7 +27,7 @@ React 코드가 아니다.
 `placeholder`가 필수 텍스트 필드다 — **표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은
 동작은 없다.** 실물 예제는 `layout.direction: "grid"`와 함께 쓴 `examples/form-grid.json`.
 
-`background`(frame·button·input)는 채우기 겹의 배열이다(문서 버전 `"0.3"`). 요구가 없으면
+`background`(frame·button·input)는 채우기 겹의 배열이다(현재 문서 버전 `"0.4"`). 요구가 없으면
 단색 한 겹으로 쓰고, 그라디언트·여러 겹을 요구받았을 때만 `linear` 겹을 쓴다(배열 앞이 위 겹).
 실물 예제는 히어로·버튼·카드 배경과 딱 끊기는 stop을 담은 `examples/gradient-hero.json`.
 

@@ -1,5 +1,5 @@
 import {
-  migrateToV03,
+  migrateToV04,
   validateProjectSpec,
   validateVisualSpec,
 } from "@/features/editor/schema";
@@ -24,7 +24,7 @@ function isProjectDocument(parsed: unknown): boolean {
  * exportSpec.ts의 buildExportPayload와 대칭 — 파싱/파일 읽기의 반대 방향.
  *
  * 화면 문서와 프로젝트 문서를 모두 받는다. 어느 쪽인지는 키로 가른다.
- * 0.1·0.2 문서는 검증 전에 `migrateToV03`로 0.3으로 바꾼다 — 파일은 다시 쓰지
+ * 0.1·0.2·0.3 문서는 검증 전에 `migrateToV04`로 0.4로 바꾼다 — 파일은 다시 쓰지
  * 않고, 처음 저장할 때 0.3으로 바뀐다. 화면 문서를 프로젝트로 넓히는 일은
  * 스토어의 loadSpec이 한다.
  */
@@ -37,7 +37,7 @@ export function parseSpecJson(jsonText: string): LoadSpecResult {
     return { ok: false, issueCount: 1, issues: [{ code: "schema", path: "/", message: "올바른 JSON이 아닙니다. JSON 구문을 확인하세요." }] };
   }
 
-  const migrated = migrateToV03(parsed);
+  const migrated = migrateToV04(parsed);
   const result = isProjectDocument(migrated)
     ? validateProjectSpec(migrated)
     : validateVisualSpec(migrated);

@@ -23,6 +23,11 @@ export class ProjectPlanError extends Error {
 function inputIssues(project: unknown): ProjectPlanIssue[] {
   const result = validateProjectSpec(project);
   if (!result.valid) return result.issues.map(issue => ({ ...issue, code: "project" }));
+  for (const [pageId, screen] of Object.entries((project as ProjectSpec).pages)) {
+    for (const [nodeId, node] of Object.entries(screen.nodes)) {
+      if (node.type === "instance") return [{ code: "project", path: `/pages/${pageId}/nodes/${nodeId}`, message: "위젯 instance 생성은 아직 지원되지 않습니다." }];
+    }
+  }
   if (!(project as ProjectSpec).projectId) {
     return [{ code: "identity", path: "/projectId", message: "프로젝트 생성에는 안정 projectId가 필요합니다." }];
   }

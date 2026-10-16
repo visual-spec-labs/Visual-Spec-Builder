@@ -395,7 +395,7 @@ function appliedTransaction(
   const nextPage = trial?.screen ?? applyTransaction(page, commands);
   if (nextPage === page) return null;
   if (page.responsive || nextPage.responsive) {
-    const validation = validateVisualSpec({ version: "0.3", screen: nextPage });
+    const validation = validateVisualSpec({ version: "0.4", screen: nextPage });
     if (!validation.valid) {
       useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
       return null;
@@ -494,7 +494,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const page = state.spec.pages[pageId];
     if (!page) return "페이지가 없습니다.";
     if (JSON.stringify(page.responsive) === JSON.stringify(value)) return null;
-    const result = validateVisualSpec({ version: "0.3", screen: { ...page, responsive: value } });
+    const result = validateVisualSpec({ version: "0.4", screen: { ...page, responsive: value } });
     if (!result.valid) return result.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n");
     const next = applied(state, pageId, { type: "updateScreen", path: "responsive", value }, continueEdit);
     if (!next) return useResponsiveViewStore.getState().error ?? "반응형 변경을 적용하지 못했습니다.";

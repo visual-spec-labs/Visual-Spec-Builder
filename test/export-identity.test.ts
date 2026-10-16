@@ -153,7 +153,7 @@ describe("Save As 뒤 Export 결과와 다운로드", () => {
     vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => { created.push(blob as Blob); return "blob:test"; });
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     vi.stubGlobal("document", { createElement: () => ({ click: () => {} }) });
-    const project: ProjectSpec = { version: "0.3", name: "Shop", pages: { page1: structuredClone(seedSpec.screen) }, pageOrder: ["page1"] };
+    const project: ProjectSpec = { version: "0.4", name: "Shop", pages: { page1: structuredClone(seedSpec.screen) }, pageOrder: ["page1"] };
     useEditorStore.getState().loadSpec(project);
     useDocumentStore.getState().clearFileName();
     useDocumentStore.getState().setFileName("shop.json", null);

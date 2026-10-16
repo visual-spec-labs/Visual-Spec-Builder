@@ -69,7 +69,7 @@ describe("specStorage (#128 → #185: 파일명도 함께 저장)", () => {
     // required 필드(pages·pageOrder 등)가 빠진, 구조가 깨진 값.
     localStorage.setItem(
       SPEC_STORAGE_KEY,
-      JSON.stringify({ fileName: "a.json", spec: { version: "0.3" } }),
+      JSON.stringify({ fileName: "a.json", spec: { version: "0.4" } }),
     );
     expect(loadStoredSpec()).toBeUndefined();
     expect(loadStoredFileName()).toBeUndefined();
@@ -84,7 +84,7 @@ describe("specStorage (#128 → #185: 파일명도 함께 저장)", () => {
     );
 
     expect(loadStoredSpec()).toEqual(twoPageExample);
-    expect(loadStoredSpec()?.version).toBe("0.3");
+    expect(loadStoredSpec()?.version).toBe("0.4");
     expect(loadStoredFileName()).toBe("admin.json");
   });
 

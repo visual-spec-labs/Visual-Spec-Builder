@@ -17,6 +17,8 @@ Visual Spec JSON을 읽어 React(TSX) + Tailwind 코드를 직접 작성한다. 
    `validate` 명령(이 기기의 정확한 명령은 `../visual-spec/contract/LOCAL.md`, 없으면 `README.md`)으로, 이 저장소 안에서는
    `@/features/editor/schema`의 `validateVisualSpec`으로 검사한다.
    실패하면 반환된 `issues`를 사용자에게 그대로 보여주고 **중단한다**. 임의로 고치지 않는다.
+   문서의 어느 화면에든 `type: "instance"`가 있으면 S2 위젯 생성 절차가 배포되기 전에는
+   생성 파일을 쓰지 않고 지원되지 않는다고 알린다. 위젯을 빈 노드로 대체하지 않는다.
 3. **통과하면 아래 매핑 참고표를 따라 TSX 코드를 직접 작성한다.** 표에 없는 상황을 만나면
    판단해서 채우되, 왜 그렇게 했는지 한 줄로 밝힌다. 화면이 컴포넌트 여러 개로 쪼개질
    상황이면 "컴포넌트 단위로 분리 생성한다" 절을 먼저 본다. `screen.responsive`가 있으면

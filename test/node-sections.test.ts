@@ -57,7 +57,7 @@ describe("노드 타입별 섹션 표", () => {
       (type) => !sectionsFor(type).includes("content"),
     );
 
-    expect(withoutContent).toEqual(["frame"]);
+    expect(withoutContent).toEqual(["frame", "instance"]);
   });
 
   it("Typography와 Color는 늘 함께 온다 — 글꼴만 있고 글자색이 없는 타입은 없다", () => {

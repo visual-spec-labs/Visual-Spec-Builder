@@ -6,7 +6,7 @@ import type { VisualSpec } from "@/features/editor/schema";
  * 통합 후에는 실제 문서 로드로 대체된다.
  */
 export const seedSpec: VisualSpec = {
-  version: "0.3",
+  version: "0.4",
   screen: {
     name: "DashboardPage",
     size: { width: 1440, height: 900 },

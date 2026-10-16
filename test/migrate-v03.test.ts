@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   migrateToV03,
+  migrateToV04,
   validateProjectSpec,
   validateVisualSpec,
 } from "@/features/editor/schema";
@@ -48,14 +49,14 @@ describe("migrateToV03 — 옛 문서", () => {
   it("0.1 화면 문서를 변환하면 0.3으로 유효하다", () => {
     const migrated = migrateToV03(legacyDashboard);
 
-    expect(validateVisualSpec(migrated)).toEqual({ valid: true, issues: [] });
+    expect(validateVisualSpec(migrateToV04(migrated))).toEqual({ valid: true, issues: [] });
     expect((migrated as VisualSpec).version).toBe("0.3");
   });
 
   it("0.2 프로젝트 문서를 변환하면 0.3으로 유효하다", () => {
     const migrated = migrateToV03(legacyTwoPage);
 
-    expect(validateProjectSpec(migrated)).toEqual({ valid: true, issues: [] });
+    expect(validateProjectSpec(migrateToV04(migrated))).toEqual({ valid: true, issues: [] });
     expect((migrated as ProjectSpec).version).toBe("0.3");
   });
 
@@ -78,9 +79,9 @@ describe("migrateToV03 — 옛 문서", () => {
   });
 
   it("examples/의 0.3 예제는 옛 예제를 이 함수로 변환한 결과와 같다", () => {
-    expect(migrateToV03(legacyDashboard)).toEqual(dashboardCardsExample);
-    expect(migrateToV03(legacyCardEffects)).toEqual(cardEffectsExample);
-    expect(migrateToV03(legacyTwoPage)).toEqual(twoPageExample);
+    expect(migrateToV04(legacyDashboard)).toEqual(dashboardCardsExample);
+    expect(migrateToV04(legacyCardEffects)).toEqual(cardEffectsExample);
+    expect(migrateToV04(legacyTwoPage)).toEqual(twoPageExample);
   });
 
   it("이미 0.3인 문서는 그대로 돌려준다", () => {

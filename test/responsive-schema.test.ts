@@ -102,7 +102,7 @@ describe("반응형 선택 확장 (#222)", () => {
   it("project에서도 같은 계약을 적용하고 페이지 오류 경로를 보존한다", () => {
     const { spec, responsive } = fixture();
     responsive.breakpoints.desktop.minWidthPx = 768;
-    const project = { version: "0.3", name: "Project", pages: { home: spec.screen }, pageOrder: ["home"] };
+    const project = { version: "0.4", name: "Project", pages: { home: spec.screen }, pageOrder: ["home"] };
     expect(validateProjectSpec(project).issues).toContainEqual(expect.objectContaining({ code: "responsive-duplicate-width", path: "/pages/home/responsive/breakpoints/tablet/minWidthPx" }));
   });
   it("prototype 이름을 상속된 breakpoint/node로 오인하지 않는다", () => {

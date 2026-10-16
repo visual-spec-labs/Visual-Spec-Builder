@@ -2,7 +2,7 @@
 //
 // 사용자 프로젝트의 에이전트는 이 저장소의 `@/features/editor/schema`를 import할 수 없고,
 // GitHub develop 원문을 읽으면 설치한 패키지와 버전이 어긋난다. 그래서 앱과 **같은**
-// 검증기(`validateProjectSpec`·`validateVisualSpec`·`migrateToV03`)를 순수 JS 한 파일로
+// 검증기(`validateProjectSpec`·`validateVisualSpec`·`migrateToV04`)를 순수 JS 한 파일로
 // 묶어 `bin/lib/schema.mjs`에 둔다. `visual-spec validate`가 이 파일을 쓴다.
 //
 // 생성물은 저장소에 커밋한다 — `npx visual-spec`은 빌드 없이 바로 실행돼야 한다

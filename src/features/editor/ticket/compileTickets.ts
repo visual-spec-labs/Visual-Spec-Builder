@@ -98,6 +98,7 @@ function structuralKey(
     });
   }
 
+  if (node.type === "instance") throw new Error("Widget instance generation is not supported yet.");
   const nextVisiting = new Set(visiting).add(id);
   return JSON.stringify({
     t: "frame",

@@ -21,6 +21,7 @@ function PreviewNode({ screen, id, direction, action, rootStyle }: {
   if (node.type === "image") return <div {...props} role="img" aria-label={node.name} style={imageStyle(node, direction)} />;
   if (node.type === "input") return <input {...props} aria-label={node.name} placeholder={node.placeholder} style={inputStyle(node, direction)} />;
   if (node.type === "button") return <button {...props} type="button" style={buttonStyle(node, direction)} onClick={() => action(node.action)}>{node.content}</button>;
+  if (node.type === "instance") return <div {...props} aria-label={node.name}>위젯 미리보기 준비 중</div>;
   return <div {...props} style={{ ...frameStyle(node, direction), ...rootStyle }}>
     {node.children.map(child => <PreviewNode key={child.node} screen={screen} id={child.node} direction={node.layout.direction} action={action} />)}
   </div>;

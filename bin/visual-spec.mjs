@@ -185,7 +185,7 @@ function contractReadme() {
     "`LOCAL.md`에 이 기기의 정확한 명령이 있다. 없거나 그 경로가 없으면 추측하지 말고 사용자에게",
     "`visual-spec skills`를 실행한 명령(도구 저장소의 `bin/visual-spec.mjs` 경로)을 묻는다.",
     "",
-    "- 스펙 검증: `visual-spec validate <스펙 파일>...` — 앱이 파일을 열 때와 같은 검증(0.3으로 변환 →",
+    "- 스펙 검증: `visual-spec validate <스펙 파일>...` — 앱이 파일을 열 때와 같은 검증(0.4로 변환 →",
     "  스키마·구조 검사). 유효하면 `✓`, 아니면 이슈마다 `[code] path: message`를 출력하고 exit 1.",
     "- GUI 실행: `visual-spec`(인자 없음, `visual-spec gui`라는 명령은 없다). 끝나지 않는 개발 서버라",
     "  백그라운드로 띄우고 출력의 `http://localhost:…` 주소를 사용자에게 알려 준다. `.visual-spec/`이",
@@ -639,7 +639,7 @@ function runSkills(args) {
 }
 
 /**
- * 스펙 파일을 앱이 열 때와 같은 순서로 검사한다(#278): JSON 파싱 → 0.3으로 변환 →
+ * 스펙 파일을 앱이 열 때와 같은 순서로 검사한다(#278): JSON 파싱 → 0.4로 변환 →
  * 프로젝트(`pages`)면 `validateProjectSpec`, 아니면 `validateVisualSpec`.
  * `store/loadSpec.ts`의 `parseSpecJson`과 같은 판정이다. 하나라도 실패하면 exit 1.
  *
@@ -647,7 +647,7 @@ function runSkills(args) {
  */
 async function runValidate(files) {
   if (files.length === 0) throw new Error("검사할 스펙 파일을 지정하세요: visual-spec validate <파일>...");
-  const { migrateToV03, validateProjectSpec, validateVisualSpec } = await import("./lib/schema.mjs");
+  const { migrateToV04, validateProjectSpec, validateVisualSpec } = await import("./lib/schema.mjs");
   let failed = 0;
   for (const file of files) {
     let parsed;
@@ -659,7 +659,7 @@ async function runValidate(files) {
       console.log(`✗ ${file} — ${reason}: ${error instanceof Error ? error.message : String(error)}`);
       continue;
     }
-    const migrated = migrateToV03(parsed);
+    const migrated = migrateToV04(parsed);
     const isProject = typeof migrated === "object" && migrated !== null && "pages" in migrated;
     const { valid, issues } = isProject ? validateProjectSpec(migrated) : validateVisualSpec(migrated);
     if (valid) {

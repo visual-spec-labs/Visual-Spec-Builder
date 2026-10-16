@@ -77,7 +77,7 @@ import {
   projectRuntimeRecordKind,
   isCanonicalProjectRuntimePath,
 } from "./protocol";
-import { migrateToV03, migrateV01 } from "../editor/schema/migrate";
+import { migrateToV04, migrateV01 } from "../editor/schema/migrate";
 import type { VisualSpec } from "../editor/schema/types";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
 import { projectFileName } from "./projectName";
@@ -329,7 +329,7 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
         const original = readFileSync(from.absolutePath, "utf8");
         if (original !== input.expectedText) { sendError(res, 409, "다른 곳에서 파일이 변경되었습니다. 목록을 새로 불러온 뒤 다시 시도하세요."); return; }
         const spec: unknown = JSON.parse(original);
-        const migrated = migrateToV03(spec);
+        const migrated = migrateToV04(spec);
         const isProject = typeof spec === "object" && spec !== null && "pages" in spec;
         const existingProjectId = isProject && typeof spec === "object" && spec !== null &&
           "projectId" in spec && typeof spec.projectId === "string" ? spec.projectId : undefined;
