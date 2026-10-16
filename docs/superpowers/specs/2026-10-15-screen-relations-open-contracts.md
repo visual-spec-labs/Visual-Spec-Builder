@@ -135,3 +135,63 @@ current가 되지 않으며 기존 출력 바이트 hash·소유권·수용 기�
 3. Ticket 변경은 별도 계약 PR에서 `src/features/editor/ticket/ticket.schema.json`, **수동 관리** `ticket/types.ts`, `ticket/validate.ts`와 문맥 검사, compiler·protocol·schema/compat 테스트를 함께 맞춘다. `bin/visual-spec.mjs`의 배포 계약 복사(`schema/ticket.schema.json`, `docs/11-ticket-schema-freeze.md`)와 `test/cli-contract.test.ts`, 배포/사람용 스킬도 확인한다. `generate:types`는 Visual Spec IR 타입 생성이며 `bin/lib/schema.mjs` 번들도 Ticket 타입/검증기의 갱신을 대신하지 않는다. IR 변경이 별도로 생길 때만 그 정본·생성 타입·번들 절차를 추가한다. 리더 또는 리뷰어 승인과 필수 CI를 거친다.
 4. 이후에만 프로젝트 compiler·GUI 범위·요청 producer/소비 스킬·검증기·Export를 함께 구현한다. 지문 fixture에는 modal cycle, 공유 modal/widget 변경, 무관한 화면 변경, rename/order, 관계 삭제, 진행 중 편집, 자산 정책을 포함한다. S2 fixture/구현을 이번 S1 완료로 세지 않는다.
 5. fixture typecheck/build와 실제 AI 생성 검증을 분리해 보고한다. 현재 이 제안은 어느 쪽의 런타임 완료도 주장하지 않는다.
+
+## 2026-10-16 위임에 따른 구체 선택과 실제 승인 경계
+
+사용자는 2026-10-16 08:10 UTC에 “내가말한데로 그 이슈가 완료될때까지 필요하면 내 권한으로 머지하면서 끝까지진핸해”라고 후속 구현과 정상 병합을 위임했다.
+위 표의 미정 사항을 전부 별도 제품 담당자 허가 대기로 해석하지 않는다. 다음은 그 위임 안에서
+선택한 **다음 계약 PR의 구체 권장안**이다. 이 문서는 여전히 실행 중인 wire 계약을 바꾸지 않으며,
+사용자의 포괄 위임을 GitHub의 APPROVED 리뷰로 기록하거나 리뷰어를 대리하지 않는다.
+
+### D6 구체 권장값
+
+- 호스트 CSS layout viewport로 breakpoint를 선택한다. 실제 배치는 visual viewport의 폭·높이·offset을
+  사용하므로 모바일 키보드가 가리는 영역에 패널을 고정하지 않는다. visualViewport가 없으면 layout viewport를 쓴다.
+- 각 변 여백은 16 CSS px와 해당 safe-area inset의 합이다. viewport가 32px보다 작아도 가용 크기는
+  `max(0, viewport - 양쪽 여백)`으로 계산한다. IR에 새 geometry 필드를 추가하지 않는다.
+- 패널 border-box 폭은 `min(size.width, availableWidth)`, 최소 높이는 `min(size.height, availableHeight)`,
+  최대 높이는 availableHeight다. 내부 overflow는 양축 auto이며 자식 좌표/폰트를 scale하지 않는다.
+- root.box의 width/height는 패널 외곽 크기를 재지정하지 않는다. root layout의 padding은 패널 내부에
+  포함하고 box-sizing은 border-box다. root background는 기존 노드 값 그대로 쓴다.
+- backdrop은 rgba(0,0,0,0.4), 추가 border/shadow는 기본 없음이다. 이 값은 호스트 기본 표현이며
+  문서 스타일을 덮어쓰는 영속 IR 값이 아니다. page 셸의 geometry 계약은 바꾸지 않는다.
+- native dialog의 showModal/cancel을 사용하되 상태 동기화·Tab 순환·Escape·교체·트리거 소멸 fallback을
+  실제 브라우저로 검사한다. backdrop 클릭은 닫지 않는다. 키보드가 열린 상태와 작은 viewport에서
+  포커스 항목을 내부 스크롤로 노출하는 수용 검사를 추가한다.
+
+### D11 구체 경계
+
+- `compileTickets(screen)`는 기존 Ticket v0.1 반환 계약을 유지한다. 새 `compileProjectTickets(project)`가
+  Ticket v0.2를 반환한다. 프로젝트 티켓은 `sourcePageId` 필수이며 identity는 PageId + 해당 화면의
+  기존 안정 ticket ID로 구성한다. 문자열 결합 구분자 충돌이 없도록 tuple을 인코딩한다.
+- 요청 v4는 `project`(불변 ProjectSpec), `tickets`(이번 wave), `allTickets`(전체 계획)를 구분한다.
+  프로젝트 identity/outputDir와 기존 requestId·staging 경계는 유지한다. 화면 한 장을 의미하는 기존
+  `page`/`pageId`와 project snapshot을 동시에 받아 어느 쪽을 우선할지 추측하지 않는다.
+- 응답은 protocol=4와 requestId, 요청 wave의 각 ticketId 결과를 사용한다. 중복·미요청 ID와 누락 결과는
+  수용 전에 거부한다. 실패 결과가 있어도 성공한 다른 티켓의 검증은 독립 실행하되 전체 성공으로 표시하지 않는다.
+- 구 GUI v3 → 새 스킬은 기존 v3 전용 분기로 처리하여 v3로 응답한다. 새 GUI v4 → 구 스킬은 기존
+  protocol 비교로 쓰기 전에 거부한다. v4 요청을 v3로 자동 낮추거나 v4 GUI가 v3 응답을 수용하지 않는다.
+- ZIP에는 기존 PageId별 pages/components 구조를 유지하고 프로젝트 루트 `assets/`를 둔다. 로컬 자산은
+  SHA-256 콘텐츠 주소 + 원래 확장자로 배치한다. 동일 바이트만 공유하며 이름만 같은 다른 바이트는 합치지 않는다.
+  허용된 프로젝트 참조에서 읽은 바이트의 hash와 매핑을 요청 snapshot/수용 검사에 포함한다. 요청 중
+  바이트 변경은 stale로 거부한다. 기존 수용 기록을 이 보장으로 소급 승격하지 않는다.
+- 외부 URL은 기존 참조 정책을 유지하되 원격 콘텐츠 최신성은 보장하지 않는다. 다운로드하지 않은 외부
+  자산이 포함되면 standalone 검증 기록에 네트워크 의존성을 명시한다. 자체 완결 예제는 로컬 자산만 쓴다.
+- 경로·전이 지문·출력 소유권·수동 변경 보호는 위 절의 규칙을 적용한다. 새 필드의 exact schema,
+  오류 코드와 구버전 fixture는 docs/11·26 계약/스키마 PR에서 함께 검증한다.
+
+### 위임으로 결정할 수 있는 것과 남은 게이트
+
+여백/배경막/기본 호스트 구현, 함수명·필드 후보, 구 GUI 호환 분기, 테스트 fixture와 경로 매핑은
+위임된 가역적 설계 선택이다. #280·#281과의 대조는 기존 계약 충돌을 찾기 위한 기술 검토이며,
+문서에 별도로 지정되지 않은 담당자의 개인 승인을 새 필수 조건으로 만들지 않는다.
+
+반면 #265 절차 1~3과 docs/24는 **선행 계약 PR, 스키마 단독 PR, 리더 또는 최소 1명 승인,
+관리자 병합 금지**를 명시한다. 이번 정상 PR389 병합 재심사는 사용자 위임을 전달했지만 자동 승인
+검토가 “eligible external approval” 부재로 거절했다. 따라서 현재 실행 환경의 실제 병합 차단은
+외부 승인 부재다. 다른 API/CLI로 재시도하거나 보호 설정을 바꾸지 않는다. 이 문서의 구체화는
+그 게이트를 통과했다는 기록이 아니다. 계약 PR의 정상 수용 이전에 v4 런타임을 배포하지 않는다.
+
+최종 완료 증거는 S1/S2 전 항목, GUI Save→세션 종료→Open, 실제 에이전트 생성,
+Export ZIP→독립 앱 typecheck/build와 관계 동작, develop 전체 검사다. fixture 또는 권장안만으로
+완료를 표시하지 않는다. 실제 에이전트 접근 불가·생성 실패는 해당 단계에서 별도 blocker로 기록한다.
