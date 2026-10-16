@@ -3,12 +3,27 @@ import { describe, expect, it, vi } from 'vitest';
 import ts from 'typescript';
 import * as React from 'react';
 import { rewriteProjectAssetModule } from '@/features/editor/export/projectAssetModules';
+import { parseProjectTicketResponse, type ProjectTicketRequest } from '@/features/editor/ticket/projectTicketProtocol';
 
 const source=readFileSync(new URL('../skills/visual-spec-ticket-response/examples/Screen.tsx',import.meta.url),'utf8');
 const contract=readFileSync(new URL('../skills/visual-spec-ticket-response/PROJECT_V4.md',import.meta.url),'utf8');
 const hashes=['a'.repeat(64),'b'.repeat(64)];
 
 describe('shipped project skill executable examples (not AI execution)',()=>{
+  it('parses both shipped response examples with ticketId and rejects the ambiguous request-side id key',()=>{
+    const request:Pick<ProjectTicketRequest,'id'|'tickets'>={id:'v4-example',tickets:[{id:'home:Home',sourcePageId:'home',componentName:'Home',kind:'page',instances:['root'],filePath:'my-app/home/pages/Home.tsx',outputPath:'staging/v4-example/my-app/home/pages/Home.tsx'}]};
+    const examples=[...contract.matchAll(/```json\n([\s\S]*?)\n```/g)].map(match=>JSON.parse(match[1]));
+    expect(examples).toHaveLength(2);
+    for(const response of examples){
+      expect(parseProjectTicketResponse(JSON.stringify(response),request).kind).toBe('results');
+      const wrong={...response,results:response.results.map((item:{ticketId:string;status:string;message?:string})=>({id:item.ticketId,status:item.status,...(item.message?{message:item.message}:{})}))};
+      expect(parseProjectTicketResponse(JSON.stringify(wrong),request).kind).toBe('malformed');
+    }
+  });
+  it('rejects callback-only JSX spreads as the procedure now explicitly requires',async()=>{
+    await expect(rewriteProjectAssetModule({source:'export default function Screen(props:object){return <Card {...props}/>}',modulePath:'home/pages/Home.tsx',ownedModulePaths:['home/pages/Home.tsx'],assets:[]})).rejects.toThrow(/spread/);
+    expect(contract).toContain('모든 JSX prop spread도 금지');
+  });
   it('forwards each concrete IR action through the Host callbacks and keeps both static image variants',()=>{
     const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React, target:ts.ScriptTarget.ES2022}}).outputText;
     const exported:Record<string,(props:Record<string,unknown>)=>React.ReactElement>= {};
