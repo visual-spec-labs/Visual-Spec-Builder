@@ -1168,6 +1168,13 @@ kind:stale, kind:malformed/code/message, 또는 kind:results/results다. done은
 기대 projectRoot와 상태를 기존 소유권/수용 기록으로 확정한 뒤 불변 snapshot을 create-only 저장하고
 잠금 안에서 dispatch해야 한다. 이 전달은 pure wire이며 기존 GUI/runner/스킬/Export를 아직 전환하지 않는다.
 
+#398 경계 보강: requestId는 staging 디렉터리이므로 CON/NUL/COM1 등 Windows 장치명을
+거부한다(snapshot 파일명에 접두사가 붙는 것만으로 staging 경로가 안전해지지는 않는다).
+`serializeProjectTicketRequest`는 compact JSON 전체의 UTF-8 크기를 공유 32 MiB PUT 상한과
+대조한다. builder도 반환 전에 이를 호출한다. producer는 이 직렬화 결과를 보내며 pretty-print를
+한다면 그 결과의 크기를 다시 검사해야 한다. snapshot이 들어가도 wave metadata가 더해진 request는
+초과할 수 있다. v4 응답보다 새 버전이면 GUI 업데이트, 오래된 응답이면 스킬 갱신을 안내한다.
+
 ### 프로젝트 지문과 provenance 읽기 경계 (S1-9)
 
 `projectGenerationFingerprints`는 전체 snapshot/관계를 기존 검증기로 확인한 후 지문을 계산한다.

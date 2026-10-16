@@ -1,6 +1,7 @@
 import type { ProjectSpec } from "@/features/editor/schema";
 import { canonicalJson } from "@/features/editor/export/contentHash";
 import { generatedTicketPath, isWindowsDeviceName } from "@/features/editor/export/generationIdentity";
+import { WORKSPACE_MAX_BODY_BYTES } from "@/features/workspace/protocol";
 import { isWorkspaceSegment } from "@/features/workspace/workspaceSegment";
 import type { ProjectPlan } from "./types";
 import { parseProjectInputSnapshot, projectInputSnapshotPath, type ProjectAssetMapping } from "./projectInputSnapshot";
@@ -26,11 +27,21 @@ function segment(value: string): boolean {
   return isWorkspaceSegment(value) && !isWindowsDeviceName(value);
 }
 
+/** Dispatch this compact serialization; pretty-printing requires a fresh byte-budget check. */
+export function serializeProjectTicketRequest(request: ProjectTicketRequest): string {
+  const text = JSON.stringify(request);
+  if (text.length > WORKSPACE_MAX_BODY_BYTES || new TextEncoder().encode(text).byteLength > WORKSPACE_MAX_BODY_BYTES) {
+    throw new ProjectProtocolError("malformed", "프로젝트 요청이 32 MiB UTF-8 PUT 한도를 초과합니다.");
+  }
+  return text;
+}
+
 /** Caller supplies the manifest-owned projectRoot; this pure function does not assign ownership. */
 export function buildProjectTicketRequest(args: {
   requestId: string; projectRoot: string; snapshotContent: string; snapshotSha256: string; ticketIds: string[];
 }): ProjectTicketRequest {
   const { requestId, projectRoot, snapshotContent, snapshotSha256, ticketIds } = args;
+  if (!segment(requestId)) throw new ProjectProtocolError("invalid-output-path", "요청 ID가 Windows에서도 유효한 staging 폴더여야 합니다.");
   const parsed = parseProjectInputSnapshot(snapshotContent, snapshotSha256, requestId);
   if (!parsed.ok) throw new ProjectProtocolError("stale-input", parsed.error);
   if (!segment(projectRoot)) throw new ProjectProtocolError("invalid-output-path", "프로젝트 생성 폴더가 정규 경로가 아닙니다.");
@@ -63,10 +74,12 @@ export function buildProjectTicketRequest(args: {
     return { id, sourcePageId: ticket.sourcePageId, componentName: ticket.componentName, kind: ticket.kind,
       instances: [...ticket.instances], filePath, outputPath: `${outputRoot}/${filePath}` };
   });
-  return { protocol: PROJECT_TICKET_PROTOCOL_VERSION, id: requestId, project, projectRoot, plan, tickets,
+  const request: ProjectTicketRequest = { protocol: PROJECT_TICKET_PROTOCOL_VERSION, id: requestId, project, projectRoot, plan, tickets,
     responsePath: TICKET_RESPONSE_PATH, outputRoot,
     assets: assets.map(({ dataBase64: _data, ...mapping }) => mapping),
     inputSnapshotPath: projectInputSnapshotPath(requestId), inputSnapshotSha256: snapshotSha256 };
+  serializeProjectTicketRequest(request);
+  return request;
 }
 
 export type ProjectRequestValidation = { valid: true; request: ProjectTicketRequest }
@@ -113,7 +126,10 @@ export function parseProjectTicketResponse(text: string, request: Pick<ProjectTi
     const body: unknown = JSON.parse(text);
     if (!record(body)) throw new ProjectProtocolError("malformed", "응답이 객체가 아닙니다.");
     if (body.requestId !== request.id) return { kind: "stale" };
-    if (body.protocol !== PROJECT_TICKET_PROTOCOL_VERSION) throw new ProjectProtocolError("version-mismatch", "프로젝트 응답은 protocol 4가 필요합니다. visual-spec skills로 스킬을 갱신하세요.");
+    if (body.protocol !== PROJECT_TICKET_PROTOCOL_VERSION) throw new ProjectProtocolError("version-mismatch",
+      typeof body.protocol === "number" && body.protocol > PROJECT_TICKET_PROTOCOL_VERSION
+        ? "에이전트가 더 새로운 프로젝트 규약으로 응답했습니다. GUI를 업데이트한 뒤 다시 전달하세요."
+        : "프로젝트 응답은 protocol 4가 필요합니다. visual-spec skills로 스킬을 갱신하세요.");
     if (Object.keys(body).sort().join(",") !== "protocol,requestId,results" || !Array.isArray(body.results)) {
       throw new ProjectProtocolError("malformed", "응답의 필수/추가 필드가 규약과 다릅니다.");
     }
