@@ -44,7 +44,8 @@ try {
   assert.match(openedProjectId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
   assert.deepEqual(openedContent, project, "Open preserves fixture content while assigning an identity");
   for (const id of project.pageOrder.filter(id => id !== "control")) {
-    const name = project.pages[id].name;
+    const screen = project.pages[id];
+    const name = `${screen.name}, 화면 종류: ${screen.kind ?? "page"}`;
     if (id !== project.pageOrder[0]) await page.getByRole("button", { name, exact: true }).click();
     await page.evaluate(() => openTickets());
     await page.getByRole("button", { name: "에이전트에 전달", exact: true }).click();
@@ -60,7 +61,7 @@ try {
     assert.equal(await page.evaluate(() => exportStore.getState().freshness), null);
     assert.equal(await page.evaluate(() => exportStore.getState().report), null);
   }
-  await page.getByRole("button", { name: "OrdinaryControl", exact: true }).click();
+  await page.getByRole("button", { name: "OrdinaryControl, 화면 종류: page", exact: true }).click();
   await page.getByRole("button", { name: "다시 검사", exact: true }).click();
   await page.waitForFunction(() => exportStore.getState().status === "ready");
   const current = await page.evaluate(() => editor.getState().spec);

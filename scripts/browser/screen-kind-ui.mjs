@@ -43,7 +43,7 @@ try {
   // Even reloading the identical spec object starts a new document session.
   await page.evaluate(() => editor.getState().loadSpec(editor.getState().spec));
   await kindSection.getByRole("alert").waitFor({ state: "hidden" });
-  await page.getByRole("button", { name: "DashboardPage", exact: true }).click();
+  await page.getByRole("button", { name: "DashboardPage, 화면 종류: page", exact: true }).click();
   const target = await state(); await kind.selectOption("widget");
   assert.deepEqual(await state(), target, "incoming navigate reference blocks target kind change");
   await page.getByRole("button", { name: "새 페이지", exact: true }).click();

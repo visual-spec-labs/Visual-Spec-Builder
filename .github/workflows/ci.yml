@@ -165,6 +165,11 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/screen-relations-guard.mjs
 
+      - name: 거부된 편집의 뷰 상태와 접근성 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/rejected-project-edits.mjs
+
       - name: 화면 종류 선택·Undo·저장 (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium

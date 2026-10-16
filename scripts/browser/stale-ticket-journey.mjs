@@ -132,10 +132,10 @@ try {
   await staleNotice.waitFor();
   assert.equal(await button("에이전트에 전달").isDisabled(), true);
   // 다른 페이지로 갔다 돌아오면 같은 객체라 다시 현재다. 다른 페이지에 있는 동안은 낡음이다.
-  await button("Beta").click();
+  await button("Beta, 화면 종류: page").click();
   await page.waitForFunction(() => editor.getState().activePageId === "beta");
   await staleNotice.waitFor();
-  await button("Alpha").click();
+  await button("Alpha, 화면 종류: page").click();
   await page.waitForFunction(() => editor.getState().activePageId === "alpha");
   await staleNotice.waitFor();
   console.log("PASS Undo restores deliverability; Redo and page switch keep the old plan blocked");
