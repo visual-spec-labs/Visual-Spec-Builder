@@ -186,6 +186,32 @@ function isScreenRelationIssue(issue) {
 }
 var schemaValidator;
 var projectSchemaValidator;
+var projectEnvelopeValidator;
+function getProjectEnvelopeValidator() {
+	if (!projectEnvelopeValidator) {
+		const schema = structuredClone(visual_spec_schema_default);
+		Object.assign(schema.$defs.ProjectSpec.properties.pages, { additionalProperties: true });
+		const ajv = new Ajv2020({ allErrors: true });
+		ajv.addSchema(schema, "project-envelope");
+		projectEnvelopeValidator = ajv.compile({ $ref: "project-envelope#/$defs/ProjectSpec" });
+	}
+	return projectEnvelopeValidator;
+}
+function sameSnapshot(value, snapshot) {
+	if (Object.is(value, snapshot)) return true;
+	if (!value || !snapshot || typeof value !== "object" || typeof snapshot !== "object") return false;
+	if (Object.getPrototypeOf(value) !== Object.getPrototypeOf(snapshot)) return false;
+	const keys = Object.getOwnPropertyNames(value);
+	const savedKeys = Object.getOwnPropertyNames(snapshot);
+	if (keys.length !== savedKeys.length) return false;
+	for (let index = 0; index < keys.length; index++) {
+		const key = keys[index];
+		if (key !== savedKeys[index]) return false;
+		const field = Object.getOwnPropertyDescriptor(value, key);
+		if (!("value" in field) || field.enumerable !== Object.prototype.propertyIsEnumerable.call(snapshot, key) || !sameSnapshot(field.value, snapshot[key])) return false;
+	}
+	return true;
+}
 function getSchemaValidator() {
 	if (schemaValidator === void 0) schemaValidator = new Ajv2020({ allErrors: true }).compile(visual_spec_schema_default);
 	return schemaValidator;
@@ -412,19 +438,39 @@ function validatePageOrder(project) {
 	});
 	return issues;
 }
-/**
-* 프로젝트 문서를 검증한다. 절대 던지지 않는다.
-* 페이지마다 화면 문서와 같은 그래프·stop 정렬 검사를 돌리고, 에러 경로는
-* `/pages/<id>/...`가 된다. 이어서 페이지 사이의 화면 관계(action 대상·첫 화면 kind)를
-* 본다(validateScreenRelations.ts).
-*
-* 0.1·0.2 문서는 여기서 무효다 — 옛 문서를 받는 입구는 `migrateToV03`로 먼저
-* 바꾼 뒤 검증한다(store/loadSpec.ts·store/specStorage.ts).
+/** Store-local cache: project constraints and cross-page relations are always checked in full.
+* Compare a detached content snapshot too, so even an in-place mutation cannot reuse stale results.
+* Weak keys do not retain closed documents or discarded Undo snapshots.
 */
+function createCachedProjectValidator() {
+	const cache = /* @__PURE__ */ new WeakMap();
+	return (input) => {
+		try {
+			if (!getProjectEnvelopeValidator()(input)) return validateProjectSpec(input);
+			const project = input;
+			const unchanged = /* @__PURE__ */ new Set();
+			for (const page of Object.values(project.pages)) {
+				const saved = cache.get(page);
+				const hit = saved !== void 0 && sameSnapshot(page, saved.snapshot);
+				if (hit) unchanged.add(page);
+				if (!hit && !getSchemaValidator()({
+					version: "0.3",
+					screen: page
+				})) return validateProjectSpec(input);
+			}
+			return validateProject(input, cache, true, unchanged);
+		} catch {
+			return validateProjectSpec(input);
+		}
+	};
+}
 function validateProjectSpec(input) {
+	return validateProject(input);
+}
+function validateProject(input, cache, schemaChecked = false, unchanged) {
 	try {
 		const validateSchema = getProjectSchemaValidator();
-		if (!validateSchema(input)) {
+		if (!schemaChecked && !validateSchema(input)) {
 			const issues = (validateSchema.errors ?? []).map((error) => ({
 				code: "schema",
 				path: error.instancePath || "/",
@@ -444,7 +490,23 @@ function validateProjectSpec(input) {
 		const issues = validatePageOrder(project);
 		for (const [pageId, page] of Object.entries(project.pages)) {
 			const pagePath = `/pages/${escapeJsonPointer(pageId)}`;
-			issues.push(...validateScreenReferences(page, pagePath), ...validateGradientStops(page, pagePath), ...validateResponsive(page, pagePath));
+			const cached = cache?.get(page);
+			const hit = unchanged?.has(page) && cached?.path === pagePath;
+			const pageIssues = hit ? cached.issues : [
+				...validateScreenReferences(page, pagePath),
+				...validateGradientStops(page, pagePath),
+				...validateResponsive(page, pagePath)
+			];
+			if (cache && !hit) try {
+				cache.set(page, {
+					snapshot: structuredClone(page),
+					path: pagePath,
+					issues: pageIssues
+				});
+			} catch {
+				cache.delete(page);
+			}
+			issues.push(...pageIssues.map((issue) => ({ ...issue })));
 		}
 		issues.push(...validateScreenRelations(project));
 		return {
@@ -574,4 +636,4 @@ function mapValues(record, map) {
 	return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, map(value)]));
 }
 //#endregion
-export { VisualSpecValidationError, assertVisualSpec, isScreenRelationIssue, migrateToV03, migrateV01, toVisualSpec, validateProjectSpec, validateVisualSpec, visual_spec_schema_default as visualSpecJsonSchema };
+export { VisualSpecValidationError, assertVisualSpec, createCachedProjectValidator, isScreenRelationIssue, migrateToV03, migrateV01, toVisualSpec, validateProjectSpec, validateVisualSpec, visual_spec_schema_default as visualSpecJsonSchema };

@@ -398,3 +398,34 @@ ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 �
 10회 warm-up 뒤 30회의 동기 store 편집을 측정한다. 구독자 비용을 포함하며 paint·실제 drag
 프레임 시간은 포함하지 않는다. 수치는 환경 의존이며 CI 통과 임계값으로 쓰지 않는다.
 측정 결과만으로 전체 candidate 검증을 페이지 한 장 검사로 약화하지 않는다.
+
+### GUI 후보 검증 캐시 (#265 / PR387 성능 후속)
+
+GUI `appliedTransaction`은 프로젝트 전체의 유효성을 계속 요구한다. 변경하지 않은 화면의
+스키마·그래프·gradient·responsive 결과만 store-local WeakMap으로 재사용한다. 화면 객체 신원과
+분리된 내용 snapshot과 속성 순서까지 모두 같아야 hit이며, 제자리 mutation도 내용이 바뀌면 다시 검사한다. 내용 비교는 JSON 문자열을 쓰지 않는다. undefined/비유한 수/숨김 속성이 직렬화에서 서로
+같아지는 문제를 피하며, 접근자와 clone에 보존되지 않는 prototype은 cache hit 대상이 아니다.
+프로젝트 봉투 검증은 정본 ProjectSpec에서 화면 부분만 분리하여 매번 실행한다. pageOrder와
+모든 화면의 action 관계는 항상 새 프로젝트에서 검사한다. 대상 kind 변경/삭제, 무효 복구 문서의
+무관한 편집도 계속 거부한다. 화면 스키마 오류는 기존 전체 validator로 돌아가 동일 오류를 반환한다.
+반환 오류 객체를 바꿔도 캐시는 오염되지 않는다.
+
+외부 Open/Save, NL transactionGate 및 기존 `validateProjectSpec` 경로는 그대로다. 캐시는
+WeakMap이라 폐기한 문서/Undo snapshot을 강하게 보존하지 않으며, 참조만 같다고 통과시키지 않는다.
+전체 validator와의 결과 동등성은 fixture 전체, 복구/Undo, schema 오류, action 대상·kind 변경,
+제자리 mutation과 비JSON 값 회귀로 검사한다. 이것은 검증 비용을 줄이는 변경이며 드래그 프레임
+예산 달성이나 모든 구독자/렌더링 비용 제거를 뜻하지 않는다.
+
+2026-10-16 Node24.19.0/Chromium151에서 같은 browser 안에서 full/cache 호출 순서를 번갈아
+측정했다(10 warm-up, 30 samples, 변경 화면 201노드, 별도 검증 비교; paint 제외).
+
+| 총 노드 | full p50/p95 ms | cache p50/p95 ms | GUI store p50/p95 ms |
+|---|---|---|---|
+| 201 | 0.8 / 2.2 | 1.2 / 3.1 | 2.4 / 12.4 |
+| 2010 | 7.1 / 11.0 | 4.1 / 12.6 | 28.1 / 49.8 |
+| 10050 | 35.7 / 71.4 | 18.9 / 35.9 | 76.3 / 153.1 |
+
+작은 프로젝트에서는 snapshot 비용으로 느려질 수 있다. 큰 프로젝트의 검증 비용 감소는
+관찰했지만 전체 GUI 비용/실제 drag 프레임 목표를 해결했다는 뜻은 아니다. 별도 실행 간 p95는
+크게 흔들렸으므로 이 값을 성능 보장이나 CI 시간 단언으로 사용하지 않는다. 재현은
+`VSB_MEASURE_PROJECT_VALIDATION=1`의 `scripts/browser/rejected-project-edits.mjs`이다.

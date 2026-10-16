@@ -24,7 +24,7 @@ import {
   type TransactionGateResult,
 } from "@/features/editor/command/transactionGate";
 import type { Command } from "@/features/editor/command/types";
-import { migrateV01, validateVisualSpec, validateProjectSpec } from "@/features/editor/schema";
+import { migrateV01, validateVisualSpec, validateProjectSpec, createCachedProjectValidator } from "@/features/editor/schema";
 import type {
   Node,
   Responsive,
@@ -370,6 +370,8 @@ function applied(
 // Weak keys also isolate documents, Undo/Redo and externally replaced histories.
 const continuableHistories = new WeakSet<EditorState["history"]>();
 
+const validateGuiCandidate = createCachedProjectValidator();
+
 function appliedTransaction(
   state: EditorState,
   pageId: PageId,
@@ -402,7 +404,7 @@ function appliedTransaction(
   }
 
   const spec = withPage(state.spec, pageId, nextPage);
-  const validation = validateProjectSpec(spec);
+  const validation = validateGuiCandidate(spec);
   if (!validation.valid) {
     useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
     return null;

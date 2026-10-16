@@ -163,7 +163,7 @@ export function NaturalLanguageBar() {
     setFeedback({ kind: "pending" });
 
     const outcome = await requestNlEdit(
-      { id: createNlRequestId(), instruction: text, scope, pageId, page },
+      { id: createNlRequestId(), instruction: text, scope, pageId, page, project: spec },
       token,
       wait,
     );

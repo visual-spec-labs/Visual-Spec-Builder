@@ -1,7 +1,7 @@
 > 2026-10-15 #265 S1-3: 현재 Command는 v0.2(7종), NL과 직접 agent-edit 전송은 각각 protocol 2다.
 > 요청/성공 응답의 commandVersion은 "0.2"이며 직접 경로는 gui-state capabilities도 검사한다.
 > 이전 6종/무버전 예제는 조사 시점 기록이다. 현재 송수신 계약은 [09](09-command-schema-freeze.md)와
-> 배포 NL 스킬을 따른다. 프로젝트 대상 카탈로그/자연어 관계 예제(S1-10)는 아직 별도 작업이다.
+> 배포 NL 스킬을 따른다. S1-10은 아래 읽기 전용 destinations 카탈로그로 대상 신원을 전달한다.
 
 # 08. 자연어 변환 설계
 
@@ -720,3 +720,29 @@ cat skills/visual-spec-authoring/SKILL.md
   (`skills/visual-spec-nl-response/SKILL.md`, 6종째). `visual-spec-authoring`은 그대로
   둔다 — "파일을 직접 쓰거나 고친다"는 산출물이 여전히 유효한 별개 요청이기 때문이다.
   `skills/visual-spec/SKILL.md`의 분기표는 예측대로 줄이 하나 늘었다.
+
+## S1-10 읽기 전용 대상 카탈로그 (protocol 2의 선택 문맥 확장)
+
+요청의 선택 필드 `destinations`는 `{pageId: PageId, name: string, kind: "page" | "modal" | "widget"}[]`다.
+GUI는 요청 시점의 프로젝트에서 pageOrder 순서대로 모든 화면을 담고 생략된 kind는 page로 정규화한다.
+이 목록에는 다른 화면의 nodes, 파일 경로, 명령, 편집 권한이 없다. 이름은 표시/검색 힌트이며 PageId가
+신원이다. 중복 이름을 합치지 않는다. 실제 action.target에는 목록의 PageId만 쓴다.
+
+protocol=2와 commandVersion="0.2", 기존 요청 필드와 응답 형식은 그대로다. `destinations` 없는 구
+요청도 유효하며 buildNlRequest의 구 입력은 필드를 생략한다. 기존 protocol 2 생산자는 추가 문맥을
+무시하고 기존 형식으로 응답할 수 있다. 새 스킬은 카탈로그가 없는 요청에서 화면 간 target을 추측하지
+않고 재요청/업데이트를 안내한다. 임의 제3자의 닫힌 요청 스키마까지 호환한다고 보장하지 않는다.
+GUI의 현재 protocol 2 응답 parser는 카탈로그를 되돌려 받거나 새 응답 필드를 요구하지 않는다.
+
+navigate는 effective kind=page, openModal은 modal만 대상으로 삼는다. 이름이 여러 후보와 일치하면
+첫 항목을 고르지 않고 후보 PageId로 재지정을 요청하는 error 응답을 만든다. 없는 이름/ID를 만들거나
+다른 화면을 수정해서 대상을 맞추지 않는다. close는 target 없이 현재 modal/widget 문맥에서만 쓴다.
+
+수정 범위는 여전히 요청의 활성 pageId와 그 page.nodes다. 다른 화면의 NodeId, pageId 명령 확장,
+프로젝트 전체 변경은 허용하지 않는다. 응답 대기 중 문서/화면 변경 거부와 최종 **현재 프로젝트** G3를
+그대로 유지한다. 카탈로그는 검증 우회용 allow-list나 최신성 보장이 아니다. 삭제/종류 변경된 대상은
+기존 현재 프로젝트 검증에서 거부한다. 카탈로그의 이름을 바꾸어도 프로젝트가 바뀌지 않는다.
+
+예: 현재 login의 loginButton에 `{type:"updateNode", id:"loginButton", path:"action", value:{type:"navigate", target:"dashboard"}}`.
+모달은 value를 `{type:"openModal", target:"resetPassword"}`로 전체 교체하며 제거는
+`{type:"removeNodeAction", id:"loginButton"}`다. 두 target은 요청 카탈로그에서 확인한 ID일 때만 사용한다.

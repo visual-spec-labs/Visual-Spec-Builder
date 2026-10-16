@@ -94,6 +94,7 @@ import {
 ```ts
 import {
   validateProjectSpec,     // (input: unknown) => ValidationResult, 절대 던지지 않는다
+  createCachedProjectValidator, // () => 같은 판정/오류를 반환하는 독립 캐시 검증 함수
   migrateV01,              // (spec: VisualSpec) => ProjectSpec
   toVisualSpec,            // (page: ScreenSpec) => VisualSpec
 } from "@/features/editor/schema";
@@ -616,3 +617,13 @@ Command 가드의 S1-3 해제와 별개이며, S1-2만 완료해도 이 가드�
 `specStorage`의 관계 오류 전용 복원 예외는 **과거 데이터 보존 경계로 유지**한다.
 단순 엄격화로 seedSpec으로 대체하거나 action/kind를 자동 삭제·변환하지 않는다.
 Open/Save/NL G3는 엄격하며 기존 오류 안내와 미검증 복구 사본 경로를 유지한다.
+
+
+### GUI 검증 캐시 (IR 스키마 변경 없음, #265 성능 후속)
+
+`createCachedProjectValidator()`는 호출마다 독립 WeakMap을 가진 프로젝트 검증 함수를 만든다.
+정본의 프로젝트 제약·모든 화면 스키마와 그래프·전체 action 관계를 유지하며, 바뀌지 않은 화면의
+결과만 재사용한다. 내용 snapshot도 비교하므로 객체 신원만으로 유효성을 추측하지 않는다.
+기존 `validateProjectSpec`의 결과/오류 순서는 유지하며 NL G3·Open·Save는 기존 함수를 계속 쓴다.
+상세 수명/비JSON 경계는 [스토어 계약](EDITOR_STORE_CONTRACT.md)의 GUI 후보 검증 캐시 절을 따른다.
+공개 barrel에 함수가 추가되어 배포 CLI 번들도 재생성한다. IR 버전/필드/오류 코드는 바꾸지 않는다.

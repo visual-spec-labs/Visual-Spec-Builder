@@ -63,7 +63,7 @@ try {
   assert.equal(await page.getByRole("textbox", { name: "새 분기점 ID", exact: true }).inputValue(), "");
   if (process.env.VSB_MEASURE_PROJECT_VALIDATION === "1") {
     const measurements = await page.evaluate(async project => {
-      const { validateProjectSpec } = await import("/src/features/editor/schema/index.ts");
+      const { validateProjectSpec, createCachedProjectValidator } = await import("/src/features/editor/schema/index.ts");
       const rows = [];
       for (const count of [1, 10, 50]) {
         const screen = structuredClone(project.pages.login);
@@ -76,6 +76,21 @@ try {
         for (let i = 0; i < count; i++) { candidate.pages[`page${i}`] = structuredClone(screen); candidate.pageOrder.push(`page${i}`); }
         assertValid(candidate);
         function assertValid(value) { if (!validateProjectSpec(value).valid) throw Error("Invalid benchmark fixture"); }
+        const cached = createCachedProjectValidator();
+        const validationSamples = { full: [], cached: [] };
+        cached(candidate);
+        for (let i = 0; i < 40; i++) {
+          const next = { ...candidate, pages: { ...candidate.pages, page0: { ...candidate.pages.page0, size: { ...candidate.pages.page0.size, width: 1000 + i } } } };
+          const order = i % 2 ? ["full", "cached"] : ["cached", "full"];
+          for (const mode of order) {
+            const start = performance.now();
+            const result = (mode === "full" ? validateProjectSpec : cached)(next);
+            if (!result.valid) throw Error("Validator benchmark rejected valid edit");
+            if (i >= 10) validationSamples[mode].push(performance.now() - start);
+          }
+        }
+        for (const values of Object.values(validationSamples)) values.sort((a,b) => a-b);
+        const validationOnly = Object.fromEntries(Object.entries(validationSamples).map(([mode, values]) => [mode, { p50ms: values[15], p95ms: values[28] }]));
         editor.getState().loadSpec(candidate);
         const samples = [];
         for (let i = 0; i < 40; i++) {
@@ -84,7 +99,7 @@ try {
           if (i >= 10) samples.push(performance.now() - start);
         }
         samples.sort((a,b) => a-b);
-        rows.push({ pages: count, nodes: count * 201, samples: samples.length, p50ms: samples[15], p95ms: samples[28] });
+        rows.push({ pages: count, nodes: count * 201, samples: samples.length, p50ms: samples[15], p95ms: samples[28], validationOnly });
       }
       return rows;
     }, project);

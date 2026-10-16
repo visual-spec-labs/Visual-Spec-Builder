@@ -55,7 +55,7 @@
 import type { CommandValidationIssue } from "@/features/editor/command/validate";
 import { validateTransaction } from "@/features/editor/command/validate";
 import { COMMAND_VERSION, type Command } from "@/features/editor/command/types";
-import type { NodeId, PageId, ScreenSpec } from "@/features/editor/schema";
+import type { NodeId, PageId, ScreenSpec, ProjectSpec, ScreenKind } from "@/features/editor/schema";
 import { RUNTIME_DIR } from "@/features/workspace/protocol";
 
 /**
@@ -87,6 +87,20 @@ export interface NlScope {
   label: string;
 }
 
+export interface NlDestination {
+  readonly pageId: PageId;
+  readonly name: string;
+  readonly kind: ScreenKind;
+}
+
+/** Snapshot metadata only. Never exposes other pages' mutable node trees. */
+export function buildDestinationCatalog(project: ProjectSpec): NlDestination[] {
+  return project.pageOrder.flatMap((pageId) => {
+    const page = project.pages[pageId];
+    return page ? [{ pageId, name: page.name, kind: page.kind ?? "page" }] : [];
+  });
+}
+
 export interface NlRequest {
   commandVersion: typeof COMMAND_VERSION;
   protocol: number;
@@ -101,9 +115,13 @@ export interface NlRequest {
   page: ScreenSpec;
   /** 에이전트가 답을 써야 하는 자리. 규약을 문서 밖에서도 알 수 있게 실어 보낸다. */
   responsePath: string;
+  /** Optional protocol-2 request context; does not expand mutation scope. */
+  destinations?: readonly NlDestination[];
 }
 
 export interface BuildNlRequestInput {
+  /** GUI snapshot; omitted by older callers. Only destination metadata is serialized. */
+  project?: ProjectSpec;
   id: string;
   instruction: string;
   scope: NlScope;
@@ -122,6 +140,7 @@ export function buildNlRequest(input: BuildNlRequestInput): NlRequest {
     pageId: input.pageId,
     page: input.page,
     responsePath: NL_RESPONSE_PATH,
+    ...(input.project ? { destinations: buildDestinationCatalog(input.project) } : {}),
   };
 }
 
