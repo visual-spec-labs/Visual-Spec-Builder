@@ -79,6 +79,16 @@ describe("visual-spec skills (#104)", () => {
     }
   });
 
+  it("프로젝트 v4 분기와 실행 가능한 예제를 두 에이전트 설치 위치에 함께 배포한다", () => {
+    expect(runCli(["skills"], projectDir).exitCode).toBe(0);
+    for (const target of [".claude/skills", ".agents/skills"]) {
+      for (const file of ["PROJECT_V4.md", "examples/Screen.tsx"]) {
+        expect(readFileSync(join(projectDir,target,"visual-spec-ticket-response",file),"utf8"))
+          .toBe(readFileSync(join(REPO_ROOT,"skills/visual-spec-ticket-response",file),"utf8"));
+      }
+    }
+  });
+
   it("로컬에서 내용이 바뀐 스킬만 갱신하고 나머지는 그대로 둔다", () => {
     runCli(["skills"], projectDir);
     const editedPath = join(projectDir, ".claude", "skills", "visual-spec", "SKILL.md");

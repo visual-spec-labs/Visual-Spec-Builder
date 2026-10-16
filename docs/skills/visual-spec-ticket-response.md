@@ -33,6 +33,11 @@ Ticket 스키마나 자연어 `commands` 형식을 응답에 쓰지 않는다. �
 
 ## 한계
 
+프로젝트 요청 v4는 [별도 배포 절차](../../skills/visual-spec-ticket-response/PROJECT_V4.md)로
+분기한다. 불변 입력 snapshot/hash, sourcePageId와 전체 plan, 정적 자산 token, 실제 IR action의
+callback을 사용한다. v2/v3는 기존 단일 화면 절차를 유지한다. 이 스킬 전달만으로 프로젝트
+GUI producer/Export 연결이나 실제 모델 생성 품질이 검증되는 것은 아니다.
+
 GUI의 중지는 에이전트 프로세스를 종료하지 않는다. 중지·만료된 요청이 늦게 쓴 파일은 그
 요청의 임시 출력에 남고 GUI가 확정하지 않으므로 현재 결과를 덮지 않는다
 ([26](../26-agent-request-generation-contract.md)). 다만 에이전트가 규약을 무시하고 `generated/`에
