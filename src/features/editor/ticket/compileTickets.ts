@@ -37,6 +37,7 @@ function structuralKey(
   id: NodeId,
   nodes: Record<NodeId, Node>,
   visiting: ReadonlySet<NodeId> = new Set(),
+  compareActions = false,
 ): string {
   if (visiting.has(id)) {
     return JSON.stringify({ t: "cycle" });
@@ -75,6 +76,7 @@ function structuralKey(
   if (node.type === "button") {
     return JSON.stringify({
       t: "button",
+      ...(compareActions ? { action: node.action && [node.action.type, "target" in node.action ? node.action.target : null] } : {}),
       visible: node.visible,
       box: node.box,
       typography: node.typography,
@@ -107,7 +109,7 @@ function structuralKey(
     shadow: node.shadow,
     opacity: node.opacity,
     blur: node.blur,
-    children: node.children.map((child) => structuralKey(child.node, nodes, nextVisiting)),
+    children: node.children.map((child) => structuralKey(child.node, nodes, nextVisiting, compareActions)),
   });
 }
 
@@ -115,13 +117,14 @@ function structuralKey(
 function groupRepeatedSiblings(
   children: ChildReference[],
   nodes: Record<NodeId, Node>,
+  compareActions: boolean,
 ): NodeId[][] {
   const buckets = new Map<string, NodeId[]>();
 
   for (const child of children) {
     if (nodes[child.node] === undefined) continue;
 
-    const key = structuralKey(child.node, nodes);
+    const key = structuralKey(child.node, nodes, new Set(), compareActions);
     const bucket = buckets.get(key);
     if (bucket === undefined) {
       buckets.set(key, [child.node]);
@@ -150,6 +153,11 @@ function groupRepeatedSiblings(
  * 별도로 위상 정렬할 필요가 없다.
  */
 export function compileTickets(screen: ScreenSpec): Ticket[] {
+  return compileScreenTickets(screen, false);
+}
+
+/** Internal shared planner; project generation also compares complete button actions. */
+export function compileScreenTickets(screen: ScreenSpec, compareActions: boolean): Ticket[] {
   const { root, nodes } = screen;
   const rootNode = nodes[root];
   if (rootNode === undefined || rootNode.type !== "frame") return [];
@@ -160,7 +168,7 @@ export function compileTickets(screen: ScreenSpec): Ticket[] {
   const plans = rootNode.children.flatMap((child) => {
     const node = nodes[child.node];
     if (node === undefined) return [];
-    const groups = node.type === "frame" ? groupRepeatedSiblings(node.children, nodes) : [];
+    const groups = node.type === "frame" ? groupRepeatedSiblings(node.children, nodes, compareActions) : [];
     return [{
       nodeId: child.node,
       baseName: toPascalCase(node.name),

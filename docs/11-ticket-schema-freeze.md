@@ -209,3 +209,21 @@ version 필수, nonempty/unique instances, unique dependsOn, 고정 artifact 경
 최신 소유자 지시(“너가 작업하는건 리뷰 필요없이 진행해도된다고, 이슈부터 끝내자”)에 따라
 선행 계약 #388/#390은 정상 merge 도구로 수용됐다. 앞의 Draft/외부 리뷰 대기 설명은 당시 상태 기록이다.
 스키마와 기능을 분리하는 순서, 실제 CI와 일반 merge 방식은 계속 유지한다.
+
+### S1-8 프로젝트 compiler/context 전달
+
+`compileProjectTickets(project)`는 유효한 전체 ProjectSpec과 **기존 projectId**를 요구하며
+없는 ID를 생성하거나 legacy 문서에 주입하지 않는다. 실패 시 `ProjectPlanError.issues`를 던진다.
+페이지/모달의 기존 이름 규칙은 공유하되 반복 구조 비교에 button action(type/target)을 포함한다.
+따라서 다른 목적지를 가진 동일 모양 버튼/하위 트리는 합치지 않는다. 기존 `compileTickets(screen)`
+출력과 v3 요청은 그대로 유지한다.
+
+`validateProjectPlanContext(plan, project)`는 외부/저장된 계획을 채택하기 **전** 필수 경계다.
+형태 검사 뒤 전역 ID 유일성·존재/동일 화면 component 의존·cycle을 검사하고 현재 프로젝트로
+정본 계획을 재구성해 전체 membership·source-local instances·root/route 대응·entry·고정 artifact
+3종과 모든 의존·widget 제외를 비교한다. 객체 키 순서는 무관하고 배열 순서는 계획 계약이다.
+실행 상태 status/error만 비교에서 제외한다. 입력이 악성이어도 예외 대신 issues를 반환한다.
+표시 이름만 변경하면 신원은 유지하지만 오래된 componentName/plan은 다시 컴파일해야 한다.
+
+이 단계는 pure compiler/context만 제공한다. GUI producer 전환·프로젝트 요청 v4·모듈 기준 자산 URL·
+immutable snapshot/provenance·Export는 아직 미구현이며 기존 관계 생성 가드를 해제하지 않는다.
