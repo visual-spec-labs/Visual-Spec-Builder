@@ -193,3 +193,19 @@ widget을 생성했다고 표시하지 않는다. instance 처리와 widget 공�
 첫 route 불일치 거부, artifact 경로/ID 중복 거부, 유효 widget의 명시 제외와 무효 widget 때문에
 전체 거부, host 템플릿 버전 변경 시 프로젝트 산출물 stale을 각각 검사한다.
 이 선택은 여전히 계약 리뷰 초안이며 스키마/생성 구현 완료를 뜻하지 않는다.
+
+### S1-8 별도 스키마 전달 (2026-10-16)
+
+#390 계약 뒤 첫 구현은 형태 계약만 추가한다: `$defs/ProjectTicket`, `ProjectTickets`, `ProjectPlan`,
+`ProjectArtifact`와 수동 TypeScript 타입, `validateProjectTicket(s)`·`validateProjectPlan`을 공개한다.
+스키마 루트는 v0.1 Ticket을 유지하므로 기존 CLI 배포 복사·구 validator는 새 필드를 여전히 거부한다.
+CLI는 정본 파일 전체를 복사하여 새 defs도 배포한다. IR schema/자동 타입 번들은 변경하지 않는다.
+
+이 전달의 `validateProjectPlan`은 형태 검사다. route와 실제 화면 대응, 전역 ID 유일성, dependency
+DAG/entry와 실제 project 일치, 전체 IR 검증은 다음 compiler/context 단계가 담당한다. sourcePageId와
+version 필수, nonempty/unique instances, unique dependsOn, 고정 artifact 경로와 종류의 짝을 검사한다.
+기존 v0.1→새 v0.2 자동 승격은 하지 않는다. compiler/GUI/v4 producer는 아직 이 API로 전환하지 않는다.
+
+최신 소유자 지시(“너가 작업하는건 리뷰 필요없이 진행해도된다고, 이슈부터 끝내자”)에 따라
+선행 계약 #388/#390은 정상 merge 도구로 수용됐다. 앞의 Draft/외부 리뷰 대기 설명은 당시 상태 기록이다.
+스키마와 기능을 분리하는 순서, 실제 CI와 일반 merge 방식은 계속 유지한다.
