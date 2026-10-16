@@ -7,9 +7,10 @@ import { buildProjectInputSnapshot } from '@/features/editor/ticket/projectInput
 import { buildProjectTicketRequest } from '@/features/editor/ticket/projectTicketProtocol';
 import { projectProvenanceContext } from '@/features/editor/export/projectGenerationProvenance';
 import { parseProjectInputSnapshot } from '@/features/editor/ticket/projectInputSnapshot';
-import { runProjectTickets, cancelProjectTicketRun, isProjectTicketPlanCurrent } from '@/features/editor/ui/projectTicketRunner';
+import { runProjectTickets, cancelProjectTicketRun, isProjectTicketPlanCurrent, discoverPendingProjectRun } from '@/features/editor/ui/projectTicketRunner';
 import fixture from './fixtures/screen-relations-project.json';
-const io=vi.hoisted(()=>({sequence:0,requests:[] as string[][],release:vi.fn(),beforeResponse:vi.fn(),commit:vi.fn(),failed:false,committed:false,review:false}));
+const io=vi.hoisted(()=>({sequence:0,requests:[] as string[][],release:vi.fn(),beforeResponse:vi.fn(),commit:vi.fn(),failed:false,committed:false,review:false,find:vi.fn()}));
+vi.mock('@/features/editor/ui/projectPendingRecovery',()=>({findPendingProjectRecovery:io.find}));
 vi.mock('@/features/editor/ui/generationTarget',()=>({ensureGenerationTarget:async()=>({ok:true,target:{projectId:'owner',outputDir:'owned',root:'owned/login'}})}));
 vi.mock('@/features/editor/ticket/ticketAgentClient',async()=>{
   const input=await import('@/features/editor/ticket/projectInputSnapshot');const protocol=await import('@/features/editor/ticket/projectTicketProtocol');
@@ -32,7 +33,7 @@ vi.mock('@/features/editor/ui/projectOutputAcceptance',()=>({
   },restoreProjectOutputs:vi.fn(),
 }));
 beforeEach(()=>{
-  io.sequence=0;io.requests=[];io.release.mockReset();io.beforeResponse.mockReset();io.commit.mockReset();io.failed=false;io.committed=false;io.review=false;
+  io.find.mockReset().mockResolvedValue(null);io.sequence=0;io.requests=[];io.release.mockReset();io.beforeResponse.mockReset();io.commit.mockReset();io.failed=false;io.committed=false;io.review=false;
   useEditorStore.getState().loadSpec({...structuredClone(fixture),projectId:'owner'} as unknown as ProjectSpec);
   useDocumentStore.setState({fileName:null,projectIdentity:0});useTicketStore.setState({lastProjectRun:null});
   useTicketStore.getState().compileProject(useEditorStore.getState().spec);
@@ -83,4 +84,21 @@ it('settles an outstanding overwrite review immediately when the document change
 it('keeps the whole failed wave pending and never promotes partial success',async()=>{
   io.failed=true;await runProjectTickets();expect(io.commit).not.toHaveBeenCalled();expect(io.requests).toHaveLength(1);
   expect(useTicketStore.getState().runError).toContain('agent failed');expect(useTicketStore.getState().tickets.every(ticket=>ticket.status==='pending')).toBe(true);
+});
+
+it('discovers a pending recovery handle without changing document or ticket statuses',async()=>{
+  const initial=useTicketStore.getState();const source=useEditorStore.getState().spec;
+  const snapshot=buildProjectInputSnapshot('reload',source,initial.projectPlan!,[]);
+  const context=projectProvenanceContext(JSON.parse(snapshot.content),'owned');
+  io.find.mockResolvedValue({runId:'pending-run',context});
+  await discoverPendingProjectRun();
+  expect(useTicketStore.getState().lastProjectRun).toMatchObject({runId:'pending-run',context,documentId:initial.sourceDocumentId,projectIdentity:initial.sourceProjectIdentity});
+  expect(useTicketStore.getState().tickets).toBe(initial.tickets);expect(useEditorStore.getState().spec).toBe(source);
+  expect(useTicketStore.getState().running).toBe(false);expect(io.requests).toEqual([]);
+});
+it('discards discovery from a document identity that changed while reading',async()=>{
+  let finish!:(value:unknown)=>void;io.find.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+  const pending=discoverPendingProjectRun();useDocumentStore.setState({projectIdentity:99});
+  finish({runId:'wrong-context',context:{}});await pending;
+  expect(useTicketStore.getState().lastProjectRun).toBeNull();expect(useTicketStore.getState().running).toBe(false);
 });

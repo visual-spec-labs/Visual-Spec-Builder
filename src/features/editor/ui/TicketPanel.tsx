@@ -1,3 +1,4 @@
+import { discoverPendingProjectRun } from './projectTicketRunner';
 import { useEffect, useState } from "react";
 
 import { useDocumentStore } from "@/features/editor/store/documentStore";
@@ -253,6 +254,9 @@ export function TicketPanel() {
 
       {/* 마지막 적용 되돌리기(#282). 적용이 쓴 바이트가 그대로인 파일만 백업으로 돌려놓는다 —
           그 뒤 다시 고친 파일은 더 새로운 수정이라 건드리지 않는다. */}
+      {projectPlan && !running && <div className="border-t border-line px-3 py-2 text-xs text-content-muted">
+        <button type="button" disabled={isStale} onClick={()=>void discoverPendingProjectRun()} className="underline hover:text-content disabled:opacity-50">미완료 적용 확인</button>
+      </div>}
       {projectPlan && lastProjectRun && !running && <div className="border-t border-line px-3 py-2 text-xs text-content-muted">
         <button type="button" onClick={()=>void restoreLastRun()} className="underline hover:text-content">마지막 프로젝트 적용 되돌리기</button>
       </div>}

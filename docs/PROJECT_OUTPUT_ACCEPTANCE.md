@@ -85,7 +85,7 @@ protocol:2는 수락 완료 provenance가 아니다. 기존 protocol:1 inspector
 저널 hash까지 함께 고치는 악의적 writer의 인증을 제공하거나 직접 파일 쓰기를 잠그지 않는다.
 
 **남은 범위:** pending 기록이 없는 과거 미커밋 실패, 완료 sidecar 뒤 run.json 기록 실패,
-페이지 재로드 뒤 복구 실행 자동 발견, 이미 복구 완료한 실행의 idempotent 성공은 아직 별도다.
+이미 복구 완료한 실행의 idempotent 성공은 아직 별도다.
 plan.json만으로 새 lease의 복구 권한을 만들지 않는다. UI가 보존한 마지막 실행 handle로
 명시 복구할 수 있으며 실제 AI 실행 여부와 무관하다.
 
@@ -96,3 +96,12 @@ plan.json만으로 새 lease의 복구 권한을 만들지 않는다. UI가 보�
 - 실제 HTTP 검사는 browser-relative URL만 Node 서버 주소로 연결한다. 실제 workspaceClient,
   lease, middleware, revision, 파일시스템을 사용해 수락 후 새 lease 복구와 sidecar 저장 직후
   취소 보상과 실제 server lease를 잃은 미커밋 적용의 새 lease 복구를 검사한다. 실제 AI 생성/GUI 버튼/Export 검증으로 세지 않는다.
+
+## reload 뒤 미완료 적용 확인
+
+프로젝트 티켓 패널의 `미완료 적용 확인`은 현재 projectId의 pending sidecar와 hash로 고정한
+저널, 저장된 입력 snapshot, 생성 폴더 registry를 읽는다. 입력 snapshot은 복구 경로를
+유도할 문맥이며, 읽기 결과만으로 복구 권한을 부여하지 않는다. 버튼은 파일이나 티켓 상태를
+바꾸지 않고 현재 문서의 복구 handle만 되살린다. 문서·신원·계획 세대가 바뀌면 결과를 버린다.
+이후 `마지막 프로젝트 적용 되돌리기`를 누르면 새 lease 아래 전체 복구 검증을 다시 수행한다.
+손상된 기록이나 입력 부재는 명시 오류이며 다른 프로젝트/실행을 추측하지 않는다.
