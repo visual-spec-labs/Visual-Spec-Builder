@@ -66,6 +66,36 @@ type CompiledValidator = ReturnType<InstanceType<typeof Ajv2020>["compile"]>;
 
 let schemaValidator: CompiledValidator | undefined;
 let projectSchemaValidator: CompiledValidator | undefined;
+let projectEnvelopeValidator: CompiledValidator | undefined;
+
+function getProjectEnvelopeValidator(): CompiledValidator {
+  if (!projectEnvelopeValidator) {
+    const schema = structuredClone(visualSpecJsonSchema);
+    // Keep every project constraint from the canonical schema. Screen schemas are
+    // checked separately; failures fall back to the original validator for exact errors.
+    Object.assign(schema.$defs.ProjectSpec.properties.pages, { additionalProperties: true });
+    const ajv = new Ajv2020({ allErrors: true });
+    ajv.addSchema(schema, "project-envelope");
+    projectEnvelopeValidator = ajv.compile({ $ref: "project-envelope#/$defs/ProjectSpec" });
+  }
+  return projectEnvelopeValidator;
+}
+
+function sameSnapshot(value: unknown, snapshot: unknown): boolean {
+  if (Object.is(value, snapshot)) return true;
+  if (!value || !snapshot || typeof value !== "object" || typeof snapshot !== "object") return false;
+  if (Object.getPrototypeOf(value) !== Object.getPrototypeOf(snapshot)) return false;
+  const keys = Object.getOwnPropertyNames(value);
+  if (keys.length !== Object.getOwnPropertyNames(snapshot).length) return false;
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(snapshot, key)) return false;
+    const field = Object.getOwnPropertyDescriptor(value, key)!;
+    // structuredClone snapshots have data properties, so inspecting their descriptors
+    // again is unnecessary. A newly installed getter on the live input is never a hit.
+    if (!("value" in field) || field.enumerable !== Object.prototype.propertyIsEnumerable.call(snapshot, key) || !sameSnapshot(field.value, (snapshot as Record<string, unknown>)[key])) return false;
+  }
+  return true;
+}
 
 function getSchemaValidator(): CompiledValidator {
   if (schemaValidator === undefined) {
@@ -411,11 +441,39 @@ function validatePageOrder(project: ProjectSpec): ValidationIssue[] {
  * 0.1·0.2 문서는 여기서 무효다 — 옛 문서를 받는 입구는 `migrateToV03`로 먼저
  * 바꾼 뒤 검증한다(store/loadSpec.ts·store/specStorage.ts).
  */
+type ScreenValidationCache = WeakMap<ScreenSpec, { snapshot: ScreenSpec; path: string; issues: ValidationIssue[] }>;
+
+/** Store-local cache: project constraints and cross-page relations are always checked in full.
+ * Compare a detached content snapshot too, so even an in-place mutation cannot reuse stale results.
+ * Weak keys do not retain closed documents or discarded Undo snapshots.
+ */
+export function createCachedProjectValidator(): (input: unknown) => ValidationResult {
+  const cache: ScreenValidationCache = new WeakMap();
+  return input => {
+    try {
+      if (!getProjectEnvelopeValidator()(input)) return validateProjectSpec(input);
+      const project = input as ProjectSpec;
+      const unchanged = new Set<ScreenSpec>();
+      for (const page of Object.values(project.pages)) {
+        const saved = cache.get(page);
+        const hit = saved !== undefined && sameSnapshot(page, saved.snapshot);
+        if (hit) unchanged.add(page);
+        if (!hit && !getSchemaValidator()({ version: "0.3", screen: page })) return validateProjectSpec(input);
+      }
+      return validateProject(input, cache, true, unchanged);
+    } catch { return validateProjectSpec(input); }
+  };
+}
+
 export function validateProjectSpec(input: unknown): ValidationResult {
+  return validateProject(input);
+}
+
+function validateProject(input: unknown, cache?: ScreenValidationCache, schemaChecked = false, unchanged?: Set<ScreenSpec>): ValidationResult {
   try {
     const validateSchema = getProjectSchemaValidator();
 
-    if (!validateSchema(input)) {
+    if (!schemaChecked && !validateSchema(input)) {
       const issues: ValidationIssue[] = (validateSchema.errors ?? []).map(
         (error) => ({
           code: "schema",
@@ -440,11 +498,21 @@ export function validateProjectSpec(input: unknown): ValidationResult {
 
     for (const [pageId, page] of Object.entries(project.pages)) {
       const pagePath = `/pages/${escapeJsonPointer(pageId)}`;
-      issues.push(
-        ...validateScreenReferences(page, pagePath),
-        ...validateGradientStops(page, pagePath),
-        ...validateResponsive(page, pagePath),
-      );
+      const cached = cache?.get(page);
+      const hit = unchanged?.has(page) && cached?.path === pagePath;
+      const pageIssues = hit
+        ? cached.issues
+        : [
+          ...validateScreenReferences(page, pagePath),
+          ...validateGradientStops(page, pagePath),
+          ...validateResponsive(page, pagePath),
+        ];
+      if (cache && !hit) {
+        try { cache.set(page, { snapshot: structuredClone(page), path: pagePath, issues: pageIssues }); }
+        catch { cache.delete(page); }
+      }
+      // Callers may annotate returned issues; never expose the cached objects.
+      issues.push(...pageIssues.map(issue => ({ ...issue })));
     }
     issues.push(...validateScreenRelations(project));
 
