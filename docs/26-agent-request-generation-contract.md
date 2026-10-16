@@ -1174,3 +1174,23 @@ kind:stale, kind:malformed/code/message, 또는 kind:results/results다. done은
 대조한다. builder도 반환 전에 이를 호출한다. producer는 이 직렬화 결과를 보내며 pretty-print를
 한다면 그 결과의 크기를 다시 검사해야 한다. snapshot이 들어가도 wave metadata가 더해진 request는
 초과할 수 있다. v4 응답보다 새 버전이면 GUI 업데이트, 오래된 응답이면 스킬 갱신을 안내한다.
+
+### TSX 자산 모듈 변환기 구현 범위
+
+`rewriteProjectAssetModule`은 plan이 소유한 ZIP 상대 TSX 경로와 검증된 mapping을 받아 Babel
+TypeScript/JSX AST에서 img src와 정적 inline background/backgroundImage의 CSS url()만 변환한다.
+CSS 값은 별도 value parser로 읽는다. 각 hash에 충돌 없는 모듈 binding 하나를 만들고 정적
+`new URL(literal, import.meta.url).href`를 사용한다. directive·주석·일반 텍스트의 token은 전역
+치환하지 않는다. AST 위치 patch 뒤 재파싱해 문법을 확인한다. parser는 호출 시 lazy import한다.
+
+현재 agent 입력 허용 범위는 정적 문자열 img src, 정적 object style, 정적 background 문자열이다.
+동적 src/배경, srcSet, JSX/style spread와 계산 style key, CSS escape/지원하지 않는 background 함수,
+계획 밖 출력, mapping 밖 token/임의 로컬 URL/직접 이미지·CSS import는 명시 오류다. HTTP(S)/data
+참조도 호출자가 현재 프로젝트에서 모은 allow-list에 정확히 있어야 한다. 기존 URL 식별자가 있으면
+추가 생성자의 shadowing 가능성 때문에 거부한다. 현재 ProjectPlan에 CSS 산출물이 없으므로 CSS
+module 출력/import 지원을 가장하지 않는다. 별도 코드/소유권 검증과 snapshot byte 검증은 여전히 필요하다.
+
+CI opt-in `project-asset-build.test.ts`는 실제 변환기의 page/host TSX를 독립 fixture로 typecheck하고
+Vite base=./, assetsInlineLimit=0으로 빌드한다. 동일 dist를 `/`와 `/products/demo/`에 각각 mount한
+Chromium에서 img 두 개와 inline background의 image.decode·실제 SVG 요청을 확인한다. CSS module,
+실제 모델 출력, GUI Export ZIP의 최종 수용까지 검증했다는 뜻은 아니다.
