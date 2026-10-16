@@ -942,23 +942,75 @@ snapshot과 정확히 같아야 한다. agent는 이 **읽기 전용 snapshot의
 sourcePath를 다시 열지 않는다. 손상/누락/hash 불일치 시 코드 쓰기 전에 거부한다.
 요청 중 임의 수정도 hash 검사로 탐지한다. “불변”은 외부 writer가 물리적으로 수정 불가능하다는 주장이 아니다.
 
-### URL 재작성과 ZIP
+### 모듈 인식 URL 재작성과 ZIP
 
-agent는 로컬 자산을 `vsb-asset:<sha256>` URL token으로만 표현한다. 지원 위치는 img src의 정적
-문자열과 정적 CSS/style background-image의 url()이다. 동적 URL 조합, 로컬 자산 import,
-미등록 token, mapping에 없는 로컬 URL은 수용 오류다. 일반 텍스트에 대한 전역 replace는 하지 않는다.
-GUI가 AST/CSS URL 위치를 검사하여 token을 **현재 출력 filePath에서 프로젝트 assets/<hash>.<ext>로
-가는 POSIX 상대 URL**로 바꾼 후 출력 검증/hash/확정을 한다. 예: `login/pages/LoginPage.tsx`의
-PNG 참조는 `../../assets/<hash>.png`, `runtime/Host.tsx`에서는 `../assets/<hash>.png`다.
-URL 재작성 규약 버전을 입력 지문에 포함한다. 원본 IR sourcePath는 바꾸지 않는다.
+agent는 로컬 자산을 `vsb-asset:<sha256>` token으로만 표현한다. img src의 정적 문자열과
+정적 style/background-image의 url() 위치를 지원한다. agent가 임의의 로컬 asset import나
+동적 URL 조합을 만들거나 mapping에 없는 token/URL을 쓰면 거부한다. 이 제한은 **agent 입력**에
+대한 것이며 아래 GUI가 만드는 검증된 모듈 자산 참조까지 금지하는 뜻이 아니다.
 
-이미지 바이트는 generated/staging에 쓰지 않는다. 확정 코드의 상대 자산 URL은 프로젝트 ZIP
-layout 기준이며, 검증기는 mapping과 보존된 snapshot 바이트로 실제 해석을 확인한다. ZIP에는
-수용 기록의 바이트를 assets/에 한 번만 넣는다. preview를 제공할 때도 동일 mapping/snapshot을
-서빙해야 하며 아직 구현하지 않은 preview를 디스크 자산이 존재하는 것처럼 취급하지 않는다.
-Export 직전 현재 sourcePath의 바이트를 다시 읽어 snapshot과 비교하고, 바뀌거나 없어졌으면 stale로
-막는다. 검사 후에는 이미 보유한 검증 바이트로 ZIP을 만들어 다시 파일을 읽는 TOCTOU를 피한다.
-외부 URL은 이 로컬 바이트 보장의 대상이 아니며 독립 앱의 네트워크 의존성을 기록한다.
+브라우저의 `<img src="../../assets/…">`와 inline style의 url()은 TSX 파일 위치가 아니라
+`document.baseURI`에 상대적이다. 따라서 이전 초안의 **TSX-source-relative 문자열 치환은 폐기**한다.
+GUI는 AST에서 token을 찾아 충돌 없는 지역 바인딩을 생성하고 다음처럼 정적 모듈 참조로 바꾼다.
+예시의 hash는 실제 mapping 값으로 치환하며, `new URL`의 첫 인자는 리터럴이어야 한다.
+
+```tsx
+// login/pages/LoginPage.tsx — GUI가 추가한 binding
+const vsbAsset0 = new URL("../../assets/<sha256>.png", import.meta.url).href;
+// img src token → src={vsbAsset0}
+// inline background token → style={{ backgroundImage: `url("${vsbAsset0}")` }}
+```
+
+JSX 속성/inline style에는 위 바인딩의 **빌드가 해석한 URL 값**을 사용한다. token을 일반 텍스트에
+전역 replace하거나 `new URL(variable, import.meta.url)`로 바꾸지 않는다. 매핑을 공유하는 같은
+모듈의 참조는 바인딩 하나를 재사용한다. `runtime/Host.tsx`의 첫 인자라면 `../assets/<hash>.png`다.
+출력 code 검사/hash/확정은 변환 후 수행한다. 원본 IR sourcePath는 바꾸지 않는다.
+실제 CSS 모듈의 정적 url()은 CSS 파일 기준 상대 경로로 변환하고 번들러의 CSS module graph에서
+처리해야 한다. 미처리 public CSS로 복사하거나 TSX 문자열과 혼동하지 않는다. plan에 선언되지 않은
+CSS 출력은 여전히 거부하며 이 규칙이 임의의 추가 CSS 산출물 권한을 주지 않는다.
+
+ZIP의 **소스 트리**는 기존처럼 `<PageId>/pages|components/…`, `runtime/…`, `assets/<hash>.<ext>`다.
+GUI가 각 source 모듈에서 자산 파일까지의 POSIX 상대 경로를 계산하고 ZIP의 실제 바이트와 대조한다.
+자산 바이트는 생성 과정의 generated/staging에 쓰지 않고, Export 때 수용 sidecar의 snapshot에서
+ZIP assets/에 한 번만 넣는다. 코드와 자산은 같은 projectId/plan 소유이며 바인딩은 해당 출력의
+소유권을 따른다. 번들러가 나중에 만든 dist chunk/이미지는 build 산출물이지 새 Agent Ticket이 아니다.
+
+독립 앱은 ZIP 소스를 **asset-aware ES module bundler**로 빌드해야 한다. 첫 검증 기준은 Vite의
+정적 `new URL(literal, import.meta.url)` 변환이며, 테스트 앱은 `base: "./"`로 빌드하여 같은 dist를
+root와 nested prefix에 배포한다. 소비 앱이 명시 base를 쓰면 실제 배포 prefix와 일치시켜 다시
+빌드/검증한다. 첫 계약은 client-side ESM 빌드이며 SSR의 서버 file URL 해석까지 보장하지 않는다.
+테스트 mount는 trailing slash가 있는 entry URL이고 별도 SPA router/base 설정은 소비 앱에서 검증한다.
+`.tsx`를 그대로 복사하거나 asset 변환 없는 tsc 출력만으로 배포 성공이라 하지 않는다.
+ZIP은 이 소스 배치/빌드 요구를 export 안내에 담고 소비 앱의 package/router 설정을 덮어쓰지 않는다.
+preview도 snapshot 자산을 제공하는 같은 module-aware 빌드/VFS가 필요하다. 존재하지 않는
+workspace generated/assets 파일이나 source-relative 브라우저 문자열로 preview 성공을 가장하지 않는다.
+
+URL 정책 세대는 `assets-2`이며 templateVersion의 `project-runtime-1/assets-2`와 입력 지문에
+포함한다. 이전 source-relative 문자열 결과를 같은 지문의 current로 재사용하지 않는다.
+Export 직전 현재 sourcePath 바이트를 snapshot과 다시 비교하고 변경/누락이면 stale로 막는다.
+그 후 이미 검증한 보유 바이트로 ZIP을 만들어 다시 읽는 TOCTOU를 피한다. 외부 URL은 로컬
+바이트 보장 밖이며 네트워크 의존성을 기록한다.
+
+### 빌드 후 자산 수용 검사와 분리 fixture 근거
+
+필수 후속 수용 조건은 독립 앱 typecheck/build만이 아니라 **production dist의 실제 image load**다.
+자산 inline을 끈 빌드로 root `/`와 nested `/products/demo/` 각각에서 다음을 검사한다:
+
+- img.decode 성공, complete/naturalWidth/naturalHeight가 원본과 일치.
+- inline background 및 지원 CSS module의 computed URL을 Image로 decode하여 같은 크기 확인.
+- 실제 이미지 요청 HTTP 200, 배포 prefix 안의 build-emitted URL 사용, 외부 root fallback/404 없음.
+- asset 없는 경로/미등록 token/잘못된 base가 통과하지 않는 음성 사례. 허용되지 않은 CSS 파일도 거부.
+
+2026-10-16 분리된 `/tmp/390-asset-module-fixture`에서 product runtime 변경 없이 메커니즘을 확인했다.
+2×3 PNG(73 bytes, SHA-256 `949ff4d564a25629663895b0b6e070342836121696a0165d32e6e9e16f8f6e29`),
+`login/pages/LoginPage.tsx`의 정적 new URL, img/inline background와 imported CSS를 사용했다.
+TypeScript noEmit 검사, Vite 8.2.1 production build(`base:"./"`, `assetsInlineLimit:0`),
+Chromium/Playwright 실제 로드가 root/nested 두 서버 mount에서 통과했다. 두 mount는 해당 prefix만
+서빙하므로 nested 테스트가 root의 우연한 이미지 파일에 의존하지 않는다. 세 참조 모두 실제
+emitted PNG를 HTTP 200으로 읽고 2×3으로 decode했다. 이는 **선택한 빌드 메커니즘의 fixture 증거**이며
+제품 AST 변환기/실제 Export ZIP/에이전트 생성의 구현 완료나 검증은 아니다. 같은 dist에서
+이전 `../../assets/<source-hash>.png` 브라우저 문자열은 root/nested 모두 decode 실패함도 확인했다.
+미등록 token·잘못된 base·허용 밖 CSS의 제품 음성 수용 사례와 실제 end-to-end 검사는 후속 구현 PR에서 실행해야 한다.
 
 ### 프로젝트 provenance와 기존 parser 호환
 
@@ -976,7 +1028,7 @@ inputFingerprint, assets, outputs, committedRunId }`다. assets에는 mapping과
 `{ id, scope: "page" | "project", sourcePageId?, filePath, sha256, requestId, inputFingerprint }[]`다. scope=page는
 sourcePageId 필수, scope=project는 금지한다. 모든 경로는 같은 projectRoot 안의 plan 허용 목록과
 정확히 일치한다. SHA-256은 **재작성 후** 출력 바이트다. templateVersion의 첫 값은
-`project-runtime-1/assets-1`로 호스트 템플릿과 URL 정책 세대를 함께 식별한다. 추가 필드와 미지 protocol은 거부한다.
+`project-runtime-1/assets-2`로 호스트 템플릿과 URL 정책 세대를 함께 식별한다. 추가 필드와 미지 protocol은 거부한다.
 중간 wave의 outputs는 일부일 수 있으나 plan의 모든 ticket/artifact ID가 정확히 한 번 존재하고
 각 출력의 inputFingerprint·바이트·자산 검사가 통과해야만 프로젝트 current다. 재사용 출력도 해당
 범위의 지문을 다시 대조하며 기록에 없는 지문을 채워 넣지 않는다. 부족한 집합은 partial로 표시하고
@@ -1028,7 +1080,7 @@ S1에서는 widget instance가 없지만 S2 closure 계약을 제거하지 않�
 2. plan metadata 소실 없는 round-trip, entry/route 대응, 프로젝트 소유 산출물의 허용 경로/실패 시 ZIP 차단.
 3. modal A↔B 이동과 생성 DAG 비순환, widget의 명시 제외와 전체 검증 오류 차단.
 4. snapshot 생성 후 source 변경에도 agent 입력은 고정; 수용/Export에서 stale 거부. snapshot 변조/hash 불일치 거부.
-5. jpg/jpeg 동일 바이트 공유, 다른 바이트 분리, URL 위치별 재작성, ZIP에서 실제 자산 해석.
+5. jpg/jpeg 동일 바이트 공유, 다른 바이트 분리, 모듈 인식 재작성, ZIP 소스 build 후 root/nested 실제 이미지 로드.
 6. 기존 strict manifest/run parser로 구 기록 및 새 page/artifact 복구 기록 판독; sidecar 없음/손상/미지 버전,
    partial commit/구 GUI 복구/수동 변경은 unverified이며 원문을 버리지 않음.
 
