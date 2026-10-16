@@ -108,3 +108,24 @@ describe("additive project protocol 4", () => {
     expect(parseProjectTicketResponse(JSON.stringify(body), request).kind).toBe("malformed");
   });
 });
+
+describe('project protocol review regressions', () => {
+  it.each(['CON', 'NUL', 'COM1'])('rejects staging directory device name %s', requestId => {
+    const { project, plan, args } = setup();
+    const snapshot = buildProjectInputSnapshot(requestId, project, plan, []);
+    expect(() => buildProjectTicketRequest({ ...args, requestId, snapshotContent: snapshot.content, snapshotSha256: snapshot.sha256 })).toThrow();
+  });
+  it('directs a newer responder to update the GUI', () => {
+    const { request, body } = response();
+    expect(parseProjectTicketResponse(JSON.stringify({ ...body, protocol: 5 }), request)).toMatchObject({ kind: 'malformed', code: 'version-mismatch', message: expect.stringMatching(/GUI.*업데이트/) });
+  });
+  it('rejects a complete request exceeding PUT size even when its snapshot fits', () => {
+    const { project, plan, args } = setup();
+    plan.tickets[0].status = 'failed'; plan.tickets[0].error = '';
+    const initial = buildProjectInputSnapshot(args.requestId, project, plan, []);
+    plan.tickets[0].error = 'x'.repeat(32 * 1024 * 1024 - new TextEncoder().encode(initial.content).length - 16);
+    const snapshot = buildProjectInputSnapshot(args.requestId, project, plan, []);
+    expect(new TextEncoder().encode(snapshot.content).length).toBeLessThan(32 * 1024 * 1024);
+    expect(() => buildProjectTicketRequest({ ...args, snapshotContent: snapshot.content, snapshotSha256: snapshot.sha256 })).toThrow(/32 MiB/);
+  }, 30_000);
+});
