@@ -102,12 +102,13 @@ export function RenderNode({
       <div
         ref={ref}
         data-node-id={id}
-        style={{ ...buttonStyle(node, parentDirection), ...resizeAnchor }}
+        style={{ ...buttonStyle(node, parentDirection), ...(node.action ? { position: "relative" as const } : {}), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
         onDoubleClick={(event) => handleNodeDoubleClick(id, event)}
         onContextMenu={(event) => handleNodeContextMenu(id, event)}
       >
         {node.content}
+        {node.action && <span aria-hidden="true" data-relation-marker={id} className="pointer-events-none absolute right-0 top-0 rounded bg-primary-subtle px-1 text-xs text-content-strong">↗</span>}
         {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
       </div>
     );

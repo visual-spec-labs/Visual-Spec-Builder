@@ -42,6 +42,7 @@ import { measureSegments, segmentBadge } from "./measureDistance";
 import { buildNodeContextMenuEntries } from "./nodeContextMenuEntries";
 import { useNodeDrag } from "./useNodeDrag";
 
+import { ModalPreview } from "./ModalPreview";
 import { RenderNode } from "./CanvasNode";
 import { handleBackgroundClick } from "./canvasSelection";
 
@@ -58,12 +59,18 @@ import { handleBackgroundClick } from "./canvasSelection";
  */
 
 export function Canvas() {
+  const project = useEditorStore(state => state.spec);
+  const [modalPreview, setModalPreview] = useState(false);
   const activePageId = useEditorStore((state) => state.activePageId);
+  useEffect(() => setModalPreview(false), [activePageId]);
   const root = useEditorStore((state) => state.spec.pages[state.activePageId].root);
   const { screen: responsiveScreen, resolved, width: previewWidth } = useResponsiveScreen();
   const size = useMemo(() => ({ width: previewWidth, height: responsiveScreen.size.height }), [previewWidth, responsiveScreen.size.height]);
   const screenName = useEditorStore((state) => state.spec.pages[state.activePageId].name);
   const selectedId = useEditorStore((state) => state.selectedId);
+  const selectedNode = selectedId ? responsiveScreen.nodes[selectedId] : undefined;
+  const relation = selectedNode?.type === "button" ? selectedNode.action : undefined;
+  const relationTarget = relation && "target" in relation ? project.pages[relation.target] : undefined;
   const activeTool = useToolStore((state) => state.activeTool);
   const zoom = useViewStore((s) => s.zoom);
   const showGrid = useViewStore((s) => s.showGrid);
@@ -320,6 +327,8 @@ export function Canvas() {
         <div className="canvas-grid pointer-events-none absolute inset-0" />
       )}
 
+      {responsiveScreen.kind === "modal" && <button type="button" className="absolute right-3 top-3 z-10 rounded bg-surface px-3 py-1 text-content shadow-modal" onClick={() => setModalPreview(true)}>모달 미리보기</button>}
+      {modalPreview && responsiveScreen.kind === "modal" && <ModalPreview key={activePageId} project={project} pageId={activePageId} onClose={() => setModalPreview(false)} onNavigate={id => useEditorStore.getState().selectPage(id)} />}
       <main
         ref={mainRef}
         className={`absolute inset-0 overflow-auto p-8 [scrollbar-gutter:stable] ${cursorClass}`}
@@ -407,6 +416,16 @@ export function Canvas() {
             className="pointer-events-none absolute outline-2 outline-offset-1 outline-primary"
             style={selectionRect}
           />
+        )}
+
+        {selectionRect && relation && (
+          <button type="button" data-testid="relation-target" disabled={!relationTarget}
+            className="absolute z-10 rounded bg-surface px-2 py-1 text-xs text-content shadow-modal disabled:cursor-default"
+            style={{ left: selectionRect.left, top: selectionRect.top + selectionRect.height + 6 }}
+            onMouseDown={event => event.stopPropagation()}
+            onClick={event => { event.stopPropagation(); if (relationTarget && "target" in relation) useEditorStore.getState().selectPage(relation.target); }}>
+            {relation.type === "close" ? "모달 닫기" : `${relation.type === "navigate" ? "이동" : "모달"}: ${relationTarget?.name ?? "없는 대상"}`}
+          </button>
         )}
 
         {/*
