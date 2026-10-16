@@ -1142,3 +1142,28 @@ sourcePath 오름차순을 강제하므로 배열을 뒤집어 hash를 다시 �
 한다. 개별 base64 및 자산 합계는 먼저 검사하고, project/plan/metadata/JSON escaping까지 포함한
 최종 길이도 검사한다. parser 역시 hash 계산 전에 같은 한도를 검사한다. 초과 시 원본을 변경하거나
 자산을 버리지 않고 명시 오류로 중단한다. 저장 한도를 늘리거나 자동 축소하지 않는다.
+
+### 프로젝트 v4 pure wire 경계
+
+`PROJECT_TICKET_PROTOCOL_VERSION = 4`와 `buildProjectTicketRequest`/`validateProjectTicketRequest`/
+`parseProjectTicketResponse`를 별도로 추가한다. 기존 상수/함수/단일 화면 v3는 그대로다. builder는
+검증한 snapshot 문자열/hash/requestId와 **소유권 기록에서 가져온 projectRoot**, wave ticketIds를
+받는다. snapshot을 다시 검증하고 정확한 plan 티켓만 wave에 싣는다. 빈/중복 wave, GUI artifact,
+미완료 선행 dependency, Windows 장치명/탈출/대소문자 생성 경로·PageId 충돌은 거부한다.
+각 sourcePageId·instances·출력 경로는 plan에서 계산하며 외부 값을 신뢰해 덮어쓰지 않는다.
+
+request validator는 원본 snapshot 문자열과 기대 projectRoot를 따로 받아 완성된 요청을 재구성하고
+전체를 대조한다. 추가/누락/null/undefined 필드를 허용하지 않는다. 반환은 valid/request 또는
+valid:false/code/message다. code는 version-mismatch, malformed, duplicate-ticket, missing-ticket,
+unexpected-ticket, invalid-source, invalid-dependency, invalid-output-path, stale-input이다.
+내용 hash/요청 신원 검증 실패는 stale-input, sourcePageId 불일치는 invalid-source, 소유 폴더와
+파생 경로 불일치는 invalid-output-path, 나머지 필드 불일치는 malformed로 구분한다.
+
+response parser는 stale requestId를 먼저 무시한다. 현재 ID라면 protocol 4와 exact result shape,
+중복/미요청/누락 ID를 검사한다. failed는 trim 뒤 비지 않은 message가 필수다. 응답은
+kind:stale, kind:malformed/code/message, 또는 kind:results/results다. done은 파일 수용 성공을
+뜻하지 않고 후속 출력 검증으로 넘길 후보일 뿐이다. v3/v4 혼합 fallback은 없다.
+
+이 함수들은 소유권 레지스트리를 만들거나 status=done의 provenance를 인증하지 않는다. producer는
+기대 projectRoot와 상태를 기존 소유권/수용 기록으로 확정한 뒤 불변 snapshot을 create-only 저장하고
+잠금 안에서 dispatch해야 한다. 이 전달은 pure wire이며 기존 GUI/runner/스킬/Export를 아직 전환하지 않는다.
