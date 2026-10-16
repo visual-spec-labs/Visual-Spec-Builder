@@ -645,7 +645,7 @@ Ticket 형태 쪽은 [11의 예정 절](11-ticket-schema-freeze.md#ticket-v02--�
 
 | 항목 | 결정(2026-10-13) |
 |---|---|
-| 번호 | 티켓 요청 규약 v3 → **v4** |
+| 번호 | 프로젝트 요청 **v4 추가**. 2026-10-16 분리 초안이 공유 상수 일괄 변경 지시를 대체한다: `TICKET_PROTOCOL_VERSION = 3` 유지, `PROJECT_TICKET_PROTOCOL_VERSION = 4` 추가 |
 | 구 스킬(v3) | **버전 불일치로 거부**하고 `visual-spec skills`로 스킬을 업데이트하라고 안내한다 |
 | 신원·경로 | #281의 PageId 생성 자리(#357)와 `projectId`(#371)를 기준으로 한다 |
 | manifest·`run.json` | 수용 기록 `runtime/generation-manifest.json`의 `protocol`(2)과 복구 기록 `backups/<runId>/run.json`의 `protocol`(2)은 **바꾸지 않는다** |
@@ -886,21 +886,25 @@ run.json을 변경하지 않는다. #388의 정상 merge 재거절을 우회하�
 | 필드 | 형태 / 의미 |
 |---|---|
 | protocol | 상수 4 |
-| id | 현행 requestId 생성/문자 제한을 재사용하는 비어 있지 않은 문자열 |
+| id | 새 요청마다 생성하는 `[A-Za-z0-9_-]{1,128}` 문자열. snapshot/staging 경로 segment로 검증 |
 | project | 요청 시점 불변 ProjectSpec 전체. projectId 필수, 프로젝트 검증 통과 |
 | projectRoot | `generated/` 기준 기존 projectId 소유 outputDir. 페이지별 generatedRoot와 구별 |
-| allTickets | v0.2 ProjectTicket 전체 계획. ID/출처/의존/파일 자리의 허용 범위를 정함 |
+| plan | docs/11의 ProjectPlan 전체. ticket/route/entry/artifact/제외 범위의 정본 |
 | tickets | 이번 wave의 항목 배열. 아래 필드만 가진다 |
 | responsePath | 현행 `runtime/ticket-response.json` |
 | outputRoot | 현행 `staging/<id>` |
-| assets | 프로젝트에서 참조한 로컬 자산 snapshot 목록. 자산이 없으면 빈 배열 |
+| assets | 아래 정규 자산 mapping 목록. 자산이 없으면 빈 배열 |
+| inputSnapshotPath | `runtime/project-input-<id>.json` (작업공간 기준) |
+| inputSnapshotSha256 | 해당 불변 snapshot 파일 UTF-8 바이트의 SHA-256 |
 
 wave 항목은 `id`, `sourcePageId`, `componentName`, `kind`, `instances`, `filePath`, `outputPath`를
-필수로 가진다. 앞 다섯 값은 allTickets의 해당 항목과 정확히 일치한다.
+필수로 가진다. 앞 다섯 값은 plan.tickets의 해당 항목과 정확히 일치한다.
 `filePath = <projectRoot>/<sourcePageId>/pages|components/<componentName>.tsx`,
 `outputPath = <outputRoot>/<filePath>`이며 기존 Windows 이름/대소문자 충돌/루트 탈출 검사도 적용한다.
 `page`/`pageId`/페이지별 `generatedRoot`는 v4 최상위에 받지 않는다. project와 충돌하는 두 번째
-화면 snapshot을 두지 않는다. wave가 비어 있으면 요청을 쓰지 않는다.
+화면 snapshot을 두지 않는다. wave가 비어 있으면 요청을 쓰지 않는다. plan.artifacts는 GUI 소유이므로 wave/results에
+포함하지 않으며 에이전트가 그 파일을 쓰면 범위 밖 출력으로 거부한다. project.projectId와
+plan.projectId는 같아야 하고 routes/entry/제외 목록을 요청에서 재해석하지 않는다.
 
 ### 응답·수용 제안
 
@@ -915,35 +919,119 @@ results의 ID 집합은 wave와 정확히 같아야 한다. done만으로 성공
 `unexpected-ticket`, `invalid-source`, `invalid-dependency`, `invalid-output-path`, `stale-input`이다.
 실제 parser 반환 타입과 GUI 안내의 연결은 스키마/규약 PR에서 단위 테스트로 확정한다.
 
-### 로컬 자산과 Export 제안
+### 불변 입력 snapshot과 자산 mapping
 
-assets 항목은 `{ sourcePath, sha256, byteLength, zipPath }`이며 모두 필수다. sourcePath는 기존
-프로젝트가 명시 참조한 workspace assets 경계 안의 정규 상대 경로다. sha256은 실제 바이트의
-64자리 소문자 hex, byteLength는 0 이상 정수다. zipPath는 프로젝트 ZIP 내부
-`assets/<sha256><정규 확장자>`다. 파일 basename만으로 합치지 않는다. 동일 출력 이름에 다른
-바이트가 대응하면 거부하며 심볼릭 링크의 실제 경로도 승인된 경계 안인지 확인한다.
+assets 항목은 `{ sourcePath, sha256, byteLength, mediaType, zipPath }`이며 모두 필수다.
+sourcePath는 승인된 workspace assets 경계 안의 프로젝트가 실제 참조한 정규 상대 경로다.
+S1에서 제외한 widget만 참조하는 자산은 생성/ZIP mapping에서 제외하되 전체 IR 검증은 유지한다.
+실제 경로/symlink 경계 확인 후 바이트를 읽고 SHA-256(64자리 소문자 hex)과 byteLength를 계산한다.
+파일 확장자를 신뢰하지 않고 지원 이미지 타입을 판별한다. 동일 바이트는 동일 mediaType과
+정규 확장자를 사용한다: PNG .png, JPEG .jpg, GIF .gif, WebP .webp, AVIF .avif, BMP .bmp,
+ICO .ico, SVG .svg. 지원 타입 판별 실패/모순은 요청 전 오류이며 기존 SVG/외부 참조 정책을 완화하지 않는다.
+`a.jpg`와 `b.jpeg`의 바이트가 같으면 두 sourcePath가 하나의 `assets/<sha256>.jpg`로 대응한다.
+같은 파일명이라도 바이트가 다르면 별개다. 같은 hash인데 실제 바이트가 다르면 충돌 오류로 거부한다.
 
-요청 작성 때 읽은 자산 바이트와 hash를 snapshot에 묶는다. 응답 수용 직전 및 Export 직전에
-현재 참조 자산을 다시 읽어 같은 hash인지 확인한다. 내용이 달라지거나 파일이 없으면 stale/오류로
-막으며 이전 출력을 최신 완료라고 표시하지 않는다. GUI만 수용 기록을 쓴다는 규칙은 유지한다.
-동일 requestId의 요청 중 다른 프로젝트로 Save As하거나 취소/교체되면 자산까지 포함해 확정하지 않는다.
-외부 URL 내용은 이 로컬 hash 보장의 대상이 아니며 독립 앱의 네트워크 의존성을 기록한다.
+GUI는 요청을 쓰기 **전에** `runtime/project-input-<id>.json`을 create-only로 저장한다. 이 위치는
+기존 runtime .json allow-list 안이며 staging/generated에 이미지 파일을 쓰도록 권한을 넓히지 않는다.
+기존 파일이 있으면 정확히 같은 바이트인지 확인하고 다르면 요청을 중단한다. 재시도는 새 requestId다.
+이 snapshot은 `{ protocol: 1, requestId, projectId, project, plan, assets }`이고 assets 각 항목은
+위 mapping에 `dataBase64`를 추가한다. base64를 디코딩한 길이/hash/type을 모두 대조한다.
+UTF-8 JSON 직렬화는 객체 key를 사전순 정렬하고 배열 순서는 보존하며 공백 없이 쓴다.
+그 파일 바이트의 hash가 요청 inputSnapshotSha256다. request의 project/plan/assets(mapping만)는
+snapshot과 정확히 같아야 한다. agent는 이 **읽기 전용 snapshot의 바이트만** 읽으며 mutable
+sourcePath를 다시 열지 않는다. 손상/누락/hash 불일치 시 코드 쓰기 전에 거부한다.
+요청 중 임의 수정도 hash 검사로 탐지한다. “불변”은 외부 writer가 물리적으로 수정 불가능하다는 주장이 아니다.
 
-ZIP은 같은 projectId의 검증된 계획에 포함된 출력과 사용 자산만 포함하고 PageId 하위 구조를
-유지한다. 상대 import와 자산 URL은 ZIP 내부 실제 파일에 대응해야 한다. 경로 검사를 통과한
-것과 실제 typecheck/build/이동·모달 동작 검증은 별도 증거다.
+### URL 재작성과 ZIP
 
-### 구현 전에 남은 계약 검토
+agent는 로컬 자산을 `vsb-asset:<sha256>` URL token으로만 표현한다. 지원 위치는 img src의 정적
+문자열과 정적 CSS/style background-image의 url()이다. 동적 URL 조합, 로컬 자산 import,
+미등록 token, mapping에 없는 로컬 URL은 수용 오류다. 일반 텍스트에 대한 전역 replace는 하지 않는다.
+GUI가 AST/CSS URL 위치를 검사하여 token을 **현재 출력 filePath에서 프로젝트 assets/<hash>.<ext>로
+가는 POSIX 상대 URL**로 바꾼 후 출력 검증/hash/확정을 한다. 예: `login/pages/LoginPage.tsx`의
+PNG 참조는 `../../assets/<hash>.png`, `runtime/Host.tsx`에서는 `../assets/<hash>.png`다.
+URL 재작성 규약 버전을 입력 지문에 포함한다. 원본 IR sourcePath는 바꾸지 않는다.
 
-- 프로젝트 host/entry/route 파일을 어떤 티켓/소유권으로 생성·검증할지: 모든 프로젝트 티켓의
-  sourcePageId 필수 조건과 모순되지 않도록 별도 산출물 또는 소스 소유 티켓 방식을 확정한다.
-- 자산 hash snapshot을 기존 manifest protocol/run.json 번호를 바꾸지 않고 어떻게 보존할지:
-  기존 parser가 거부하지 않는 추가 구조와 구 기록의 확인 불가 판정을 검증해야 한다.
-- 자산을 에이전트가 읽는 snapshot 자리, ZIP URL 재작성, 같은 바이트의 확장자 차이 정책을 확정한다.
-- v4→실제 v3 스킬 쓰기 전 거부, v3→새 스킬 v3 응답 유지, v4 GUI의 v3 응답 거부를 각각 검사한다.
-- modal cycle·공유 modal/widget·무관한 화면 변경·rename/order·요청 중 편집·자산 바이트 변경을
-  전이 지문 회귀에 포함한다. S2 구현을 S1 fixture로 대신했다고 표시하지 않는다.
+이미지 바이트는 generated/staging에 쓰지 않는다. 확정 코드의 상대 자산 URL은 프로젝트 ZIP
+layout 기준이며, 검증기는 mapping과 보존된 snapshot 바이트로 실제 해석을 확인한다. ZIP에는
+수용 기록의 바이트를 assets/에 한 번만 넣는다. preview를 제공할 때도 동일 mapping/snapshot을
+서빙해야 하며 아직 구현하지 않은 preview를 디스크 자산이 존재하는 것처럼 취급하지 않는다.
+Export 직전 현재 sourcePath의 바이트를 다시 읽어 snapshot과 비교하고, 바뀌거나 없어졌으면 stale로
+막는다. 검사 후에는 이미 보유한 검증 바이트로 ZIP을 만들어 다시 파일을 읽는 TOCTOU를 피한다.
+외부 URL은 이 로컬 바이트 보장의 대상이 아니며 독립 앱의 네트워크 의존성을 기록한다.
 
-이 미해결 경계를 숨기거나 임의의 runtime fallback으로 메우지 않는다. 계약 리뷰 후 별도 스키마
-PR이 수용된 다음 compiler/GUI/스킬/Export를 구현한다. 실제 에이전트→ZIP→독립 앱 확인 전에는
-#265 완료가 아니다.
+### 프로젝트 provenance와 기존 parser 호환
+
+현재 manifest protocol 2와 backups/<runId>/run.json protocol 2의 **형태와 버전을 그대로 유지**한다.
+`normalizeEntry`가 미지 필드를 보존하지 않고 복구 parser가 필드/범위를 검사하므로, 새 provenance를
+그 객체에 덧붙여 저장하지 않는다. 새 GUI 전용 별도 파일을 사용한다:
+
+- 현재 수용 기록: `runtime/project-generation-<sha256(projectId UTF-8)>.json`.
+- 복구 보조 기록: `backups/<runId>/project-recovery.json`.
+- 직전 sidecar 원문 백업: `backups/<runId>/project-generation.json` (직전 기록이 있을 때만).
+
+수용 sidecar의 필수 필드는 `{ protocol: 1, projectId, projectRoot, plan, templateVersion,
+inputFingerprint, assets, outputs, committedRunId }`다. assets에는 mapping과 dataBase64를 모두
+보존하여 임시 입력 snapshot GC 뒤에도 확정 시점 바이트를 검증할 수 있다. outputs는
+`{ id, scope: "page" | "project", sourcePageId?, filePath, sha256, requestId, inputFingerprint }[]`다. scope=page는
+sourcePageId 필수, scope=project는 금지한다. 모든 경로는 같은 projectRoot 안의 plan 허용 목록과
+정확히 일치한다. SHA-256은 **재작성 후** 출력 바이트다. templateVersion의 첫 값은
+`project-runtime-1/assets-1`로 호스트 템플릿과 URL 정책 세대를 함께 식별한다. 추가 필드와 미지 protocol은 거부한다.
+중간 wave의 outputs는 일부일 수 있으나 plan의 모든 ticket/artifact ID가 정확히 한 번 존재하고
+각 출력의 inputFingerprint·바이트·자산 검사가 통과해야만 프로젝트 current다. 재사용 출력도 해당
+범위의 지문을 다시 대조하며 기록에 없는 지문을 채워 넣지 않는다. 부족한 집합은 partial로 표시하고
+프로젝트 ZIP을 막는다. 부분 성공 기록을 프로젝트 전체 완료 기록으로 표시하지 않는다.
+
+화면 티켓의 기존 manifest entry는 현행 필수 필드와 ticketProtocol=4로 기록한다. 가짜 PageId가
+필요한 프로젝트 산출물은 그 entry에 넣지 않고 sidecar에만 소유권을 기록한다. 새 프로젝트
+검증은 sidecar의 화면 출처/requestId와 기존 manifest의 동일 항목도 대조한다. 구 v3 writer가
+출력을 바꾸거나 기록을 지우면 새 GUI가 프로젝트 current로 승격하지 않는다. 구 GUI는 프로젝트
+생성/ZIP 기능을 제공하지 않으며, sidecar를 읽는 척하거나 프로젝트 산출물을 page 소유로 자동 덮어쓰지 않는다.
+
+확정은 기존 workspace 잠금 아래서 overwrite 검토→원본 백업→출력 검증/쓰기→기존 manifest 기록→
+sidecar 마지막 기록/재읽기 순서다. sidecar 교체는 읽은 revision에 대한 CAS로 하며
+충돌하면 덮어쓰지 않고 복구 확인 상태로 남긴다. 복구 보조 기록은 `{ protocol: 1, runId, sidecarPath,
+previousSidecarPath, previousSha256, writtenSha256 }`이며 직전 없음은 두 previous 필드의 null로만 표현한다.
+파일 복구 범위는 기존 run.json의 path/ticketId/previousRevision/backupPath/writtenRevision/
+previousEntry 형태로 기록한다. 프로젝트 artifact의 ticketId는 plan artifact ID, previousEntry는
+기존 manifest 항목이 없으면 null이다. 기존 run parser를 통과하도록 실제 parser 회귀를 필수로 둔다.
+sidecar 복구는 새 GUI가 보조 기록과 현재 hash를 대조한 경우에만 직전 원문을 복원/제거한다.
+
+sidecar 쓰기 실패·중간 crash·두 기록 불일치·구 GUI의 파일만 복구는 **unverified/복구 확인 필요**다.
+이전 성공 기록을 새 출력에 맞춰 추측하지 않는다. 기존 parser가 sidecar를 몰라도 run.json/manifest는
+계속 읽을 수 있지만, 그것만으로 v4 자산/프로젝트 provenance가 증명되지는 않는다. 오래된 기록에
+충분한 sidecar가 없으면 파일을 보존하고 unverified로 표시하여 프로젝트 Export/자동 덮어쓰기를 막는다.
+이 unverified 규칙은 v4 프로젝트 판정에 적용하며 기존 v3 단일 화면의 판정을 소급 변경하지 않는다.
+수동 변경 보호와 요청 세대/Save As 검사를 없애지 않으며, 취소된 요청의 snapshot은 완료 기록이 아니다.
+
+### 지문·예시·수용 조건
+
+전체 프로젝트 완료 지문은 projectId, pageOrder, 생성 대상 page/modal snapshot, plan,
+템플릿/URL 재작성 규약 버전, 정규 자산 mapping+바이트 hash를 포함한다. 개별 화면의 지문은
+그 화면과 도달 modal/포함 widget의 cycle-safe closure를 ID 순으로 정렬하여 계산한다.
+S1에서는 widget instance가 없지만 S2 closure 계약을 제거하지 않는다. navigate 대상의 본문만
+바뀌면 출발 화면을 무조건 stale로 만들지 않되 registry/프로젝트 계획은 재평가한다.
+모든 입력에 무효 관계가 있으면 생성/Export를 거부하며 widget을 검사에서 건너뛰지 않는다.
+
+서로 다른 원래 확장자가 같은 JPEG 바이트를 가리키는 mapping 형태 예시(아래 hash/길이는
+설명용 자리값이며 실제 요청 fixture는 실제 바이트에서 계산해야 한다):
+
+```json
+[
+  { "sourcePath": "assets/a.jpg", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "byteLength": 123, "mediaType": "image/jpeg", "zipPath": "assets/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.jpg" },
+  { "sourcePath": "assets/b.jpeg", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "byteLength": 123, "mediaType": "image/jpeg", "zipPath": "assets/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.jpg" }
+]
+```
+
+별도 스키마/구현 PR의 필수 검증:
+1. v3→새 스킬은 v3 응답, v4→실제 구 v3 스킬은 쓰기 전 거부, v4 GUI의 v3 응답 거부.
+2. plan metadata 소실 없는 round-trip, entry/route 대응, 프로젝트 소유 산출물의 허용 경로/실패 시 ZIP 차단.
+3. modal A↔B 이동과 생성 DAG 비순환, widget의 명시 제외와 전체 검증 오류 차단.
+4. snapshot 생성 후 source 변경에도 agent 입력은 고정; 수용/Export에서 stale 거부. snapshot 변조/hash 불일치 거부.
+5. jpg/jpeg 동일 바이트 공유, 다른 바이트 분리, URL 위치별 재작성, ZIP에서 실제 자산 해석.
+6. 기존 strict manifest/run parser로 구 기록 및 새 page/artifact 복구 기록 판독; sidecar 없음/손상/미지 버전,
+   partial commit/구 GUI 복구/수동 변경은 unverified이며 원문을 버리지 않음.
+
+이 초안은 여섯 기술 선택을 구체화한 리뷰 대상이며 승인 완료나 구현 완료가 아니다. 현재 런타임은
+변경하지 않는다. 선행 계약·별도 schema 정상 수용 뒤 compiler/GUI/스킬/Export를 구현하며,
+실제 에이전트→ZIP→독립 앱 확인 전에는 #265 완료가 아니다.
