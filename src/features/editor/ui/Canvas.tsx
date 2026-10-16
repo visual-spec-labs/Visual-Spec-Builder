@@ -328,9 +328,11 @@ export function Canvas() {
       )}
 
       {responsiveScreen.kind === "modal" && <button type="button" className="absolute right-3 top-3 z-10 rounded bg-surface px-3 py-1 text-content shadow-modal" onClick={() => setModalPreview(true)}>모달 미리보기</button>}
-      {modalPreview && responsiveScreen.kind === "modal" && <ModalPreview key={activePageId} project={project} pageId={activePageId} onClose={() => setModalPreview(false)} onNavigate={id => useEditorStore.getState().selectPage(id)} />}
+      {modalPreview && responsiveScreen.kind === "modal" && <ModalPreview key={activePageId} project={project} pageId={activePageId} editorSurface={mainRef} onClose={() => setModalPreview(false)} onNavigate={id => useEditorStore.getState().selectPage(id)} />}
       <main
         ref={mainRef}
+        tabIndex={-1}
+        data-testid="editor-canvas-surface"
         className={`absolute inset-0 overflow-auto p-8 [scrollbar-gutter:stable] ${cursorClass}`}
         onClick={handleBackgroundClick}
         onMouseMove={handleOverlayHover}

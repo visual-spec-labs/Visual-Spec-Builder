@@ -583,3 +583,19 @@ kind 변환도 하지 않는다. 기존 구조 오류 처리까지 넓히는 마
 사용자가 수행한 별도 편집을 옛 snapshot으로 되돌려서는 안 된다. 이 PR의 revision 조사 테스트는
 다른 페이지 유입 변경이 현재 direct-edit 지문에 잡히지 않는다는 근거만 확인하며, 아직 존재하지
 않는 삭제 확인 토큰 구현의 통과 근거가 아니다.
+
+### GUI 모달 미리보기 D6 회귀 보강 (#393 후속)
+
+미리보기 종료 시 원래 트리거가 DOM에서 제거됐으면 항상 존재하는 편집 캔버스 surface로
+포커스를 돌린다. surface는 `tabIndex=-1`이며 일반 Tab 순서에 추가하지 않는다. 복귀 포커스는
+`preventScroll`로 기존 위치를 보존한다. 모달 교체 중에는 최초 트리거를 유지한다.
+
+열기 전 document/body/캔버스의 overflow inline 값과 우선순위 및 scroll 위치를 보관하고,
+열린 동안 배경 스크롤을 잠근 뒤 종료 시 복원한다. 패널은 `overscroll-behavior: contain`으로
+경계에서 배경으로 휠 스크롤이 전달되지 않게 한다. 내부 중첩 scroller는 자신의 범위를 소모한
+뒤 패널에 전달할 수 있다. native dialog가 배경 스크롤을 자동으로 막는다고 가정하지 않는다.
+
+Chromium fixture는 실제 overflow/휠 입력으로 배경 잠금, 패널 경계, 종료 후 스크롤 재개,
+트리거 제거 후 fallback, 문서/Undo 불변을 검사한다. 중첩 overflow 검사는 브라우저 fixture가
+삽입한 내부 DOM으로 수행한다(현재 IR에 overflow 필드를 추가한 것이 아님). 이는 GUI 미리보기
+수용 검사이며 후속 생성 runtime/모바일 가상 키보드 검증까지 완료했다는 뜻은 아니다.

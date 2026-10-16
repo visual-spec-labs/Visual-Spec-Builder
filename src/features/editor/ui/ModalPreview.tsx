@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { Action, NodeId, ProjectSpec, ScreenSpec } from "@/features/editor/schema";
 import { resolveResponsiveScreen } from "@/features/editor/responsive/resolveResponsive";
 import type { Direction } from "./canvasLayout";
@@ -27,8 +27,8 @@ function PreviewNode({ screen, id, direction, action, rootStyle }: {
 }
 
 /** D6 preview uses the real browser host viewport, not the editable panel's preferred width. */
-export function ModalPreview({ project, pageId, onClose, onNavigate }: {
-  project: ProjectSpec; pageId: string; onClose: () => void; onNavigate: (id: string) => void;
+export function ModalPreview({ project, pageId, editorSurface, onClose, onNavigate }: {
+  project: ProjectSpec; pageId: string; editorSurface: RefObject<HTMLElement | null>; onClose: () => void; onNavigate: (id: string) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -39,12 +39,21 @@ export function ModalPreview({ project, pageId, onClose, onNavigate }: {
   useEffect(() => {
     const trigger = document.activeElement;
     const element = dialog.current;
+    const locked = [document.documentElement, document.body, editorSurface.current].filter((node): node is HTMLElement => node !== null)
+      .map(node => ({ node, value: node.style.getPropertyValue("overflow"), priority: node.style.getPropertyPriority("overflow"), left: node.scrollLeft, top: node.scrollTop }));
+    for (const { node } of locked) node.style.setProperty("overflow", "hidden");
     element?.showModal();
     return () => {
       element?.close();
-      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+      for (const { node, value, priority, left, top } of locked) {
+        if (value) node.style.setProperty("overflow", value, priority);
+        else node.style.removeProperty("overflow");
+        node.scrollTo(left, top);
+      }
+      const target = trigger instanceof HTMLElement && trigger.isConnected ? trigger : editorSurface.current;
+      target?.focus({ preventScroll: true });
     };
-  }, []);
+  }, [editorSurface]);
   useEffect(() => {
     const update = () => setView(viewport());
     window.addEventListener("resize", update);
@@ -83,7 +92,7 @@ export function ModalPreview({ project, pageId, onClose, onNavigate }: {
     }}
     style={{ position: "fixed", left: view.left, top: view.top, width: view.width, height: view.height, background: "rgba(0,0,0,0.4)" }}>
     <div className="flex h-full w-full items-center justify-center" style={{ padding: "calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))", boxSizing: "border-box" }}>
-      <div ref={panel} tabIndex={-1} data-testid="modal-preview-panel" style={{ width: screen.size.width, maxWidth: "100%", minHeight: `min(${screen.size.height}px, ${availableHeight})`, maxHeight: availableHeight, overflow: "auto" }}
+      <div ref={panel} tabIndex={-1} data-testid="modal-preview-panel" style={{ width: screen.size.width, maxWidth: "100%", minHeight: `min(${screen.size.height}px, ${availableHeight})`, maxHeight: availableHeight, overflow: "auto", overscrollBehavior: "contain" }}
         onFocusCapture={event => event.target.scrollIntoView({ block: "nearest", inline: "nearest" })}>
         <PreviewNode screen={screen} id={screen.root} action={run} rootStyle={{ width: "100%", height: "auto", minHeight: `min(${screen.size.height}px, ${availableHeight})`, flex: "none", boxSizing: "border-box" }} />
       </div>
