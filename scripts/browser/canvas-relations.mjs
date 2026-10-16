@@ -1,0 +1,92 @@
+// Real canvas/modal preview, deterministic document; no model invocation.
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { startBrowserWorkspace } from "./harness.mjs";
+const workspace = await mkdtemp(join(tmpdir(), "vs-canvas-relations-"));
+let runner;
+try {
+  for (const dir of ["specs", "runtime", "generated"]) await mkdir(join(workspace, dir), { recursive: true });
+  const project = JSON.parse(await readFile(new URL("../../test/fixtures/screen-relations-project.json", import.meta.url), "utf8"));
+  project.name = "CanvasRelations";
+  const modal = project.pages.resetPassword;
+  modal.nodes.root.box = { width: 12, height: 12 };
+  modal.responsive = { breakpoints: { desktop: { minWidthPx: 800 } }, overrides: { desktop: { title: { typography: { fontSize: 32 } } } } };
+  project.pages.secondModal = structuredClone(modal);
+  project.pages.secondModal.name = "SecondModal";
+  project.pageOrder.push("secondModal");
+  modal.nodes.replace = { ...structuredClone(modal.nodes.closeButton), name: "Replace", content: "다른 모달", action: { type: "openModal", target: "secondModal" } };
+  modal.nodes.root.children.push({ node: "replace" });
+  await writeFile(join(workspace, "specs/relations.json"), JSON.stringify(project));
+  runner = await startBrowserWorkspace(workspace);
+  const context = await runner.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await context.newPage(); page.setDefaultTimeout(15000);
+  const errors = []; page.on("pageerror", error => errors.push(error.message));
+  await page.goto(runner.url);
+  await page.getByRole("button").filter({ hasText: /CanvasRelations.*페이지/s }).click();
+  await page.evaluate(async () => { window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore; });
+  const state = () => page.evaluate(() => ({ spec: editor.getState().spec, past: editor.getState().history.past, future: editor.getState().history.future }));
+  const initial = await state();
+  assert.equal(await page.locator("[data-relation-marker]").count(), 2);
+  const button = page.locator('[data-node-id="loginButton"]');
+  const sizeBefore = await button.evaluate(el => [el.offsetWidth, el.offsetHeight]);
+  await page.getByRole("button", { name: "LoginButton", exact: true }).click();
+  assert.deepEqual(await button.evaluate(el => [el.offsetWidth, el.offsetHeight]), sizeBefore);
+  await page.getByTestId("relation-target").click();
+  assert.equal(await page.evaluate(() => editor.getState().activePageId), "dashboard");
+  assert.deepEqual(await state(), initial);
+  await page.evaluate(() => { editor.getState().selectPage("login"); editor.getState().select("forgotButton"); });
+  await page.getByTestId("relation-target").click();
+  assert.equal(await page.evaluate(() => editor.getState().activePageId), "resetPassword");
+  const trigger = page.getByRole("button", { name: "모달 미리보기", exact: true });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "ResetPasswordModal 모달 미리보기" });
+  const panel = page.getByTestId("modal-preview-panel");
+  const bounds = await panel.boundingBox();
+  assert.equal(Math.round(bounds.width), 480); assert.equal(Math.round(bounds.height), 320);
+  assert.equal(Math.round(bounds.x + bounds.width / 2), 720);
+  assert.equal(Math.round(bounds.y + bounds.height / 2), 500);
+  assert.equal(await dialog.locator('[data-preview-node="root"]').evaluate(el => el.offsetWidth), 480, "root.box does not override panel width");
+  assert.equal(await dialog.locator('[data-preview-node="title"]').evaluate(el => getComputedStyle(el).fontSize), "32px", "breakpoint uses 1440px host, not 480px panel");
+  await page.mouse.click(4, 500);
+  assert.equal(await dialog.count(), 1, "backdrop click keeps preview open");
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press("Tab");
+    assert.equal(await dialog.evaluate(el => el.contains(document.activeElement)), true);
+  }
+  await dialog.getByRole("button", { name: "다른 모달", exact: true }).click();
+  await page.getByRole("dialog", { name: "SecondModal 모달 미리보기" }).waitFor();
+  assert.equal(await page.locator("dialog[open]").count(), 1);
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog", { name: "SecondModal 모달 미리보기" }).waitFor({ state: "detached" });
+  await dialog.waitFor({ state: "detached" });
+  assert.equal(await trigger.evaluate(el => document.activeElement === el), true);
+  assert.deepEqual(await state(), initial);
+
+  await trigger.click();
+  await page.setViewportSize({ width: 360, height: 240 });
+  await page.waitForFunction(() => document.querySelector('[data-testid="modal-preview-panel"]').offsetWidth === 328);
+  const small = await panel.boundingBox();
+  assert.equal(Math.round(small.width), 328); assert.ok(small.height <= 208);
+  assert.ok(small.x >= 16 && small.y >= 16);
+  assert.equal(await dialog.locator('[data-preview-node="title"]').evaluate(el => getComputedStyle(el).fontSize), "20px");
+  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await dialog.waitFor({ state: "detached" });
+  assert.deepEqual(await state(), initial);
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => editor.getState().setNodeField("title", "box.height", 2000));
+  const longBefore = await state();
+  await trigger.click();
+  assert.equal(await panel.evaluate(el => el.scrollHeight > el.clientHeight), true, "long content scrolls internally");
+  await dialog.getByRole("button", { name: "닫기", exact: true }).focus();
+  assert.ok(await panel.evaluate(el => el.scrollTop) > 0);
+  await page.keyboard.press("Escape");
+  assert.deepEqual(await state(), longBefore);
+  assert.deepEqual(errors, []);
+  console.log("PASS canvas: markers/target navigation preserve document and Undo; modal host breakpoint, clamp, root sizing, backdrop, Tab/Escape/focus restoration, internal scroll; fixture only");
+} finally {
+  await runner?.close();
+  await rm(workspace, { recursive: true, force: true });
+}

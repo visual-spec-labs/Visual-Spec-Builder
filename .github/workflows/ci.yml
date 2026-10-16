@@ -170,6 +170,11 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/screen-relations-guard.mjs
 
+      - name: 캔버스 연결과 모달 미리보기 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/canvas-relations.mjs
+
       - name: 버튼 Interaction 편집·Undo·저장 (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium

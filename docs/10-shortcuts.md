@@ -302,3 +302,19 @@ Group도 부모가 한 겹 늘어나므로 `fill` 형제의 padding 등 flex 크
 - [`07-implementation-status.md`](07-implementation-status.md) — 각 기능의 실제 구현 상태
 - [`08-natural-language.md`](08-natural-language.md) — 자연어 변환 설계안
 - [`EDITOR_STORE_CONTRACT.md`](EDITOR_STORE_CONTRACT.md) — 스토어 계약
+
+## 화면 연결 표시와 모달 미리보기 (#265 S1-7)
+
+동작이 있는 버튼에는 작은 ↗ 표시가 붙는다. 선택하면 버튼 아래에 동작과 대상 화면 이름을
+표시한다. 대상 표시를 클릭하거나 Tab으로 집중한 뒤 Enter/Space를 누르면 그 화면을 편집한다.
+본문 버튼 클릭은 기존 선택 동작이다. close는 “모달 닫기”로 표시하며 편집 대상 이동은 없다.
+없는 대상은 비활성 표시한다. 대상 이동은 페이지 선택만 바꾸고 문서와 Undo 단계는 바꾸지 않는다.
+새 전역 단축키는 추가하지 않는다.
+
+modal 화면의 캔버스 우측 상단 **모달 미리보기**는 편집 화면과 분리된 읽기 전용 호스트 미리보기다.
+중앙 패널과 backdrop을 실제 브라우저 viewport에 표시한다. 호스트 폭으로 responsive breakpoint를
+선택하고 선호 패널 폭/최소 높이를 16px+safe-area 안에 clamp한다. root.box는 외곽 크기를 바꾸지
+않고 긴 내용은 내부 스크롤한다. native dialog를 사용하며 Tab/Shift+Tab 순환, Escape/닫기,
+단일 모달 교체를 지원한다. backdrop 클릭은 닫지 않는다. 닫은 뒤 원래 미리보기 버튼으로 focus를
+돌린다. preview 안 navigate는 해당 화면 편집으로 돌아간다. 편집/Undo에는 기록하지 않는다.
+이 미리보기는 생성된 앱이나 S1-9 런타임 수용 검증을 대신하지 않는다.
