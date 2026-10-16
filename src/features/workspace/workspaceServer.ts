@@ -77,8 +77,8 @@ import {
   projectRuntimeRecordKind,
   isCanonicalProjectRuntimePath,
 } from "./protocol";
-import { migrateToV03, migrateV01 } from "../editor/schema/migrate";
-import type { VisualSpec } from "../editor/schema/types";
+import { migrateToV04, migrateV01 } from "../editor/schema/migrate";
+import type { ProjectSpec, VisualSpec } from "../editor/schema/types";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
 import { projectFileName } from "./projectName";
 import { checkRequestOrigin } from "./requestOrigin";
@@ -329,7 +329,7 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
         const original = readFileSync(from.absolutePath, "utf8");
         if (original !== input.expectedText) { sendError(res, 409, "다른 곳에서 파일이 변경되었습니다. 목록을 새로 불러온 뒤 다시 시도하세요."); return; }
         const spec: unknown = JSON.parse(original);
-        const migrated = migrateToV03(spec);
+        const migrated = migrateToV04(spec);
         const isProject = typeof spec === "object" && spec !== null && "pages" in spec;
         const existingProjectId = isProject && typeof spec === "object" && spec !== null &&
           "projectId" in spec && typeof spec.projectId === "string" ? spec.projectId : undefined;
@@ -348,7 +348,7 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
         const requestedProjectId = typeof input.projectId === "string" ? input.projectId : existingProjectId ?? randomUUID();
         // 이름 변경은 저장 경계다. 화면 문서는 프로젝트 형태로 승격해 ID와
         // 새 이름을 함께 기록해야 다음 브라우저 문맥에서도 같은 프로젝트다.
-        const renamed = JSON.stringify(isProject ? { ...spec, name: requestedName, projectId: requestedProjectId } : {
+        const renamed = JSON.stringify(isProject ? { ...(migrated as ProjectSpec), name: requestedName, projectId: requestedProjectId } : {
           ...migrateV01({ ...(migrated as VisualSpec), screen: { ...(migrated as VisualSpec).screen, name: requestedName } }),
           projectId: requestedProjectId,
         }, null, 2);

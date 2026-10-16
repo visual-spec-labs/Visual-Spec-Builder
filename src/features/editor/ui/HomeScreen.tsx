@@ -627,6 +627,8 @@ function PreviewNode({
     return <div style={previewInputStyle(node, parentDirection, imageSrc)} data-preview-image={imageMark(node.background)}>{node.placeholder}</div>;
   }
 
+  if (node.type === "instance") return <div aria-label={node.name}>위젯 미리보기 준비 중</div>;
+
   return <div style={previewImageStyle(node, parentDirection, imageSrc)} data-preview-image={node.src === "" ? undefined : "1"} />;
 }
 

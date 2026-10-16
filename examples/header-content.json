@@ -1,5 +1,5 @@
 {
-  "version": "0.3",
+  "version": "0.4",
   "screen": {
     "name": "HeaderContentPage",
     "size": { "width": 1280, "height": 800 },

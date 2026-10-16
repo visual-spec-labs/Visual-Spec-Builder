@@ -37,6 +37,7 @@ const SECTIONS: Record<NodeType, readonly SectionId[]> = {
   image: ["content", "size", "effects"],
   button: ["interaction", "content", "size", "typography", "color", "background", "border"],
   input: ["content", "size", "typography", "color", "background", "border"],
+  instance: ["size"],
 };
 
 /** 이 타입의 노드에 띄울 섹션 목록. 순서가 곧 화면 순서다. */

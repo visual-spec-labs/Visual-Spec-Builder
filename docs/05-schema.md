@@ -1,4 +1,4 @@
-# 05. Visual Spec Schema — v0.3 (화면 문서 / 프로젝트 문서)
+# 05. Visual Spec Schema — v0.4 (화면 문서 / 프로젝트 문서)
 
 > 출처: ClickUp 팀 문서 `json 초안`
 > 정본은 [`src/features/editor/schema/visual-spec.schema.json`](../src/features/editor/schema/visual-spec.schema.json)이다.
@@ -15,22 +15,22 @@ JSON 형식으로 저장하기 위한 최소 스키마를 정의한다.
 Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 첫 번째 MVP 계약이다.
 
-## 버전 상태 — 두 최상위 타입이 같은 0.3을 쓴다
+## 버전 상태 — 두 최상위 타입이 같은 0.4를 쓴다
 
 정본 스키마 파일 하나에 최상위 타입이 둘 들어 있다. 한쪽이 다른 쪽을 대체한 것이 아니다.
 
 | | `VisualSpec` | `ProjectSpec` |
 |---|---|---|
 | 뜻 | 파일 1개 = 화면 1개 | 파일 1개 = 페이지 여러 개 |
-| `version` | `"0.3"` | `"0.3"` |
+| `version` | `"0.4"` | `"0.4"` |
 | 가르는 키 | `screen` | `pages` |
 | 정본에서의 위치 | **스키마 루트** | `$defs.ProjectSpec` |
 
 **버전 문자열은 IR 세대를 뜻한다(#127).** 0.2까지는 `VisualSpec`이 `"0.1"`, `ProjectSpec`이
 `"0.2"`였고 버전으로 둘을 갈랐다. 배경이 채우기 겹 배열로 바뀌면서(아래 Background) 둘 다
 `"0.3"`이 됐고, 화면 문서와 프로젝트 문서는 이제 키(`screen` / `pages`)로 가른다. 0.1·0.2 파일은
-앱이 열 때 `migrateToV03`로 자동 변환한다(검증 전에). 저장은 항상 0.3이다 — 자세한 것은
-[06의 v0.3 절](06-schema-freeze.md#v03--배경-채우기-겹-배열-2026-10-04-추가-127).
+앱이 열 때 `migrateToV04`로 자동 변환한다(검증 전에). 현재 저장 버전은 0.4다. v0.3의
+배경 표현 기록은 [06의 v0.3 절](06-schema-freeze.md#v03--배경-채우기-겹-배열-2026-10-04-추가-127)에 남긴다.
 
 `ProjectSpec`이 루트가 아니라 `$defs` 항목인 이유는 06의 v0.2 절 참고.
 
@@ -194,3 +194,15 @@ S1-4 전에는 GUI 페이지 삭제가 유입 action을 정리하지 않아 위 
 문서를 버리지 않지만 Save는 막힌다 — [06의 S1-2 절](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)을 참조한다.
 현재 modal/widget 또는 버튼 action이 있는 화면의 요청 전송·출력 수용·코드 Export는 임시 차단한다.
 JSON 가져오기·저장은 보존하며, 상세 범위와 해제 조건은 [06의 임시 차단](06-schema-freeze.md#s1-1-생성export-임시-차단)을 따른다.
+
+## IR v0.4 instance 노드 (#265 S2-1)
+
+`Node`에 `instance`가 추가됐다. 필수 `type`, `name`, `box`, `ref`와 선택 `visible`,
+`overrides`만 허용한다. `ref`는 같은 프로젝트의 widget `PageId`다. `overrides`는 원본
+widget의 직접 `NodeId`별 `content`/`color` 객체다. 호스트 반응형 값은 `visible`과
+`PartialBox`만 덮을 수 있다. 스키마는 닫힌 모양을 검사하며 ref의 존재·kind·순환·
+override 대상 및 합성 결과는 S2-2 프로젝트 의미 검증에서 검사한다.
+
+`migrateToV04`는 기존 0.1/0.2/0.3을 현재 버전으로 올린다. 구버전 문서에 이미
+`instance`가 있으면 버전을 유지하고 거부한다. 기존 `migrateToV03` 공개 함수는 과거
+0.3 변환 의미를 유지한다. 0.3 소비자에게 instance를 제거해 저장하지 않는다.

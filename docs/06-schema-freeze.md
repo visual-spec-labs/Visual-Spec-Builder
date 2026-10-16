@@ -4,8 +4,8 @@
 
 이 문서는 v0.1 계약이 무엇을 보장하고 무엇을 보장하지 않는지, 그리고 언제 바꿀 수 있는지를 적는다.
 
-> **현재 버전은 0.3이다 (2026-10-05 기준).** 정본 `src/features/editor/schema/visual-spec.schema.json`의
-> `VisualSpec`·`ProjectSpec` 모두 `version: "0.3"`이다. 동결은 v0.1에서 시작했고, 이후 변경은 아래
+> **현재 버전은 0.4다 (2026-10-16 기준).** 정본 `src/features/editor/schema/visual-spec.schema.json`의
+> `VisualSpec`·`ProjectSpec` 모두 `version: "0.4"`다. 동결은 v0.1에서 시작했고, 이후 변경은 아래
 > "변경 규칙" 절차를 거쳐 절 단위로 추가됐다 — [v0.2 — ProjectSpec](#v02--projectspec-2026-09-01-추가)(#60),
 > [v0.3 — 배경 채우기 겹 배열](#v03--배경-채우기-겹-배열-2026-10-04-추가-127)(#127),
 > 그리고 버전을 올리지 않은 선택 확장인 [반응형](#반응형-선택-확장--222-pr-제안)(#245)과
@@ -627,3 +627,18 @@ Open/Save/NL G3는 엄격하며 기존 오류 안내와 미검증 복구 사본 
 기존 `validateProjectSpec`의 결과/오류 순서는 유지하며 NL G3·Open·Save는 기존 함수를 계속 쓴다.
 상세 수명/비JSON 경계는 [스토어 계약](EDITOR_STORE_CONTRACT.md)의 GUI 후보 검증 캐시 절을 따른다.
 공개 barrel에 함수가 추가되어 배포 CLI 번들도 재생성한다. IR 버전/필드/오류 코드는 바꾸지 않는다.
+
+## IR v0.4 instance 확장 (#265 S2-1)
+
+0.4는 `Node.oneOf`에 `InstanceNode`를 추가한다. 구 0.3 소비자는 새 문서를 버전
+검사에서 거부해야 한다. `migrateToV04`는 올바른 구버전 화면/프로젝트 외곽에서만
+version을 승격하며, 승격 전에 0.1/0.2/0.3 문서의 `instance` 노드를 찾아 거부한다.
+기존 `migrateToV03`는 공개 호환 함수로 남지만 현재 Open·자동 저장 복원·작업공간 서버·
+CLI의 검증 입구는 `migrateToV04`를 호출한다. Open은 원본 파일을 다시 쓰지 않는다.
+
+`InstanceNode`는 leaf이고 `type/name/box/ref`가 필수다. `visible`과 직접 원본
+노드별 `content`/`color` overrides만 선택 허용한다. responsive instance override는
+`visible`과 `PartialBox`만 허용한다. 원본 참조와 합성의 의미 검증은 S2-2의 별도 PR이다.
+S2-1 기간에는 기존 Command v0.2의 createNode로 instance를 만들 수 없고, 기존
+티켓 compiler는 instance가 들어간 생성 요청을 명시적으로 거부한다. GUI의 제한된
+미리보기는 위젯 내용을 생성된 코드로 승격하지 않는다.

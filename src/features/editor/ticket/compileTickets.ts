@@ -98,6 +98,7 @@ function structuralKey(
     });
   }
 
+  if (node.type === "instance") throw new Error("Widget instance generation is not supported yet.");
   const nextVisiting = new Set(visiting).add(id);
   return JSON.stringify({
     t: "frame",
@@ -159,6 +160,9 @@ export function compileTickets(screen: ScreenSpec): Ticket[] {
 /** Internal shared planner; project generation also compares complete button actions. */
 export function compileScreenTickets(screen: ScreenSpec, compareActions: boolean): Ticket[] {
   const { root, nodes } = screen;
+  if (Object.values(nodes).some(node => node.type === "instance")) {
+    throw new Error("Widget instance generation is not supported yet.");
+  }
   const rootNode = nodes[root];
   if (rootNode === undefined || rootNode.type !== "frame") return [];
 

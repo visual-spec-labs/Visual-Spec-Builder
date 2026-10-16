@@ -26,7 +26,7 @@ description: Visual Spec의 스키마 계약·용어·범위·설계 근거를 �
 | `schema/visual-spec.schema.json` | Visual Spec IR 정본 스키마 |
 | `schema/command.schema.json` | 자연어 응답의 Command 배열 스키마 |
 | `schema/ticket.schema.json` | 구현 티켓 스키마 |
-| `docs/05-schema.md` | 스키마(현재 0.3)를 사람 말로 푼 규칙 |
+| `docs/05-schema.md` | 스키마(현재 0.4)를 사람 말로 푼 규칙 |
 | `docs/08-natural-language.md` · `docs/09-command-schema-freeze.md` | 자연어 경로 설계 · Command 계약 |
 | `docs/11-ticket-schema-freeze.md` · `docs/16-responsive-codegen-qa.md` | Ticket 계약 · 반응형 코드 생성 QA |
 | `examples/` · `examples/invalid/` | 예제 스펙 · 일부러 틀린 예 |

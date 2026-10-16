@@ -10,13 +10,13 @@ const FIRST_PAGE_ID: PageId = "page1";
 /**
  * 화면 문서(`VisualSpec`)를 페이지 1개짜리 프로젝트로 넓힌다.
  *
- * 이름은 v0.1 시절 그대로지만(공개 API라 유지한다) 입출력은 둘 다 0.3이다 —
- * 0.1 파일은 입구(store/loadSpec.ts)에서 `migrateToV03`를 먼저 거친 뒤 여기 온다.
+ * 이름은 v0.1 시절 그대로지만(공개 API라 유지한다) 입출력은 둘 다 0.4다 —
+ * 구버전 파일은 입구(store/loadSpec.ts)에서 `migrateToV04`를 먼저 거친 뒤 여기 온다.
  * 버리는 정보가 없다. `toVisualSpec`으로 되돌리면 원본과 같아진다.
  */
 export function migrateV01(spec: VisualSpec): ProjectSpec {
   return {
-    version: "0.3",
+    version: "0.4",
     name: spec.screen.name,
     pages: { [FIRST_PAGE_ID]: spec.screen },
     pageOrder: [FIRST_PAGE_ID],
@@ -25,10 +25,10 @@ export function migrateV01(spec: VisualSpec): ProjectSpec {
 
 /**
  * 페이지 하나를 화면 문서 모양으로 되돌린다.
- * Export "이 페이지만 내보내기"가 화면 문서 계약대로 떨어지게 한다. 버전은 0.3이다.
+ * Export "이 페이지만 내보내기"가 화면 문서 계약대로 떨어지게 한다. 버전은 0.4다.
  */
 export function toVisualSpec(page: ScreenSpec): VisualSpec {
-  return { version: "0.3", screen: page };
+  return { version: "0.4", screen: page };
 }
 
 /**
@@ -68,6 +68,23 @@ export function migrateToV03(input: unknown): unknown {
   }
 
   return input;
+}
+
+/** 현재 IR 입구. 0.4 전용 instance가 구버전 문서에 숨어 있으면 승격하지 않는다. */
+export function migrateToV04(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  if (input.version === "0.4") return input;
+  if (!["0.1", "0.2", "0.3"].includes(String(input.version))) return input;
+  const isScreen = (input.version === "0.1" || input.version === "0.3") && "screen" in input && !("pages" in input);
+  const isProject = (input.version === "0.2" || input.version === "0.3") && "pages" in input && !("screen" in input);
+  if (!isScreen && !isProject) return input;
+  if (isScreen && !isRecord(input.screen)) return input;
+  if (isProject && (!isRecord(input.pages) || !Array.isArray(input.pageOrder))) return input;
+  const screens = isScreen ? [input.screen] : Object.values(input.pages as Record<string, unknown>);
+  if (screens.some(screen => !isRecord(screen) || !isRecord(screen.nodes))) return input;
+  if (screens.some(screen => isRecord(screen) && isRecord(screen.nodes) && Object.values(screen.nodes).some(node => isRecord(node) && node.type === "instance"))) return input;
+  const v03 = migrateToV03(input);
+  return isRecord(v03) && v03.version === "0.3" ? { ...v03, version: "0.4" } : input;
 }
 
 function migrateScreen(screen: unknown): unknown {

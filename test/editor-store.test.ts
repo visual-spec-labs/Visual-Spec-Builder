@@ -328,7 +328,7 @@ describe("editorStore", () => {
       useEditorStore.getState().loadSpec(blankSpec);
 
       const { spec, activePageId, selectedId } = useEditorStore.getState();
-      expect(spec.version).toBe("0.3");
+      expect(spec.version).toBe("0.4");
       expect(spec.pageOrder).toHaveLength(1);
       expect(spec.pages[activePageId]).toEqual(blankSpec.screen);
       expect(selectedId).toBeNull();

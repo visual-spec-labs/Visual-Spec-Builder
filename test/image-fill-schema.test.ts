@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import login from "../examples/login-screen.json";
-import { migrateToV03, migrateV01, validateProjectSpec, validateVisualSpec, type VisualSpec } from "@/features/editor/schema";
+import { migrateToV03, migrateToV04, migrateV01, validateProjectSpec, validateVisualSpec, type VisualSpec } from "@/features/editor/schema";
 
 function withFill(fill: unknown) {
   const spec = structuredClone(login);
@@ -31,7 +31,7 @@ describe("image background contract (#235)", () => {
     (legacy.screen.nodes.root as { background: unknown }).background = { color: "#FFFFFF" };
     const before = JSON.stringify(legacy);
     const migrated = migrateToV03(legacy);
-    expect(validateVisualSpec(migrated).valid).toBe(true);
+    expect(validateVisualSpec(migrateToV04(migrated)).valid).toBe(true);
     expect(JSON.stringify(legacy)).toBe(before);
     expect((migrated as VisualSpec).screen.nodes.root).toMatchObject({ background: [{ type: "solid", color: "#FFFFFF" }] });
   });

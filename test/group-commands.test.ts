@@ -23,7 +23,7 @@ describe("단일 노드 Group / Ungroup (#225)", () => {
     expect(wrapper.type === "frame" && wrapper.children).toEqual([{ node: "cardA" }]);
     expect(wrapper.box).toEqual(original.nodes.cardA.box);
     expect(grouped.nodes.cardA).toBe(original.nodes.cardA);
-    expect(validateVisualSpec({ version: "0.3", screen: grouped }).valid).toBe(true);
+    expect(validateVisualSpec({ version: "0.4", screen: grouped }).valid).toBe(true);
     const ungrouped = applyTransaction(grouped, buildUngroupCommands(grouped, group.selectedId)!.commands);
     expect(ungrouped).toEqual(original);
     expect(JSON.stringify(original)).toBe(before);
@@ -88,12 +88,12 @@ describe("단일 노드 Group / Ungroup (#225)", () => {
       expect(resolved.nodes[groupId].visible !== false).toBe(resolved.nodes.cardA.visible !== false);
       expect(resolved.nodes.cardA).toEqual(resolveResponsiveScreen(originalScreen, width).nodes.cardA);
     }
-    expect(validateVisualSpec({ version: "0.3", screen: screen() }).valid).toBe(true);
+    expect(validateVisualSpec({ version: "0.4", screen: screen() }).valid).toBe(true);
     expect(store.getState().history.past).toHaveLength(1);
     store.getState().ungroupNode(groupId);
     expect(store.getState().spec).toEqual(original);
     expect(store.getState().history.past).toHaveLength(2);
-    expect(validateVisualSpec({ version: "0.3", screen: screen() }).valid).toBe(true);
+    expect(validateVisualSpec({ version: "0.4", screen: screen() }).valid).toBe(true);
     store.getState().undo(); expect(store.getState().spec).toEqual(grouped);
     store.getState().undo(); expect(store.getState().spec).toEqual(original);
     store.getState().redo(); expect(store.getState().spec).toEqual(grouped);
@@ -116,7 +116,7 @@ describe("단일 노드 Group / Ungroup (#225)", () => {
     for (const [id, node] of Object.entries(original.nodes)) {
       if (id !== "content" && id !== original.root) expect(result.nodes[id]).toBe(node);
     }
-    expect(validateVisualSpec({ version: "0.3", screen: result }).valid).toBe(true);
+    expect(validateVisualSpec({ version: "0.4", screen: result }).valid).toBe(true);
   });
   it("빈 frame 해제는 그 frame만 지우고 부모를 선택한다", () => {
     const original = screen();

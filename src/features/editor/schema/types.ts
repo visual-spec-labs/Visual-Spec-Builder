@@ -2,7 +2,7 @@
 /* 손으로 수정하지 마세요. 재생성: pnpm generate:types */
 
 export type NodeId = string;
-export type Node = FrameNode | TextNode | ImageNode | ButtonNode | InputNode;
+export type Node = FrameNode | TextNode | ImageNode | ButtonNode | InputNode | InstanceNode;
 /**
  * number | "auto" | "fill". number는 minimum 0, px로 해석. "fill"의 교차축 해석(align-self: stretch)은 docs/06-schema-freeze.md 참고.
  */
@@ -50,7 +50,8 @@ export type PageId = string;
 /**
  * 대상 nodes[id].type에 해당하는 override만 허용한다(validator 의미 검증).
  */
-export type NodeOverride = FrameOverride | TextOverride | ImageOverride | ButtonOverride | InputOverride;
+export type NodeOverride =
+  FrameOverride | TextOverride | ImageOverride | ButtonOverride | InputOverride | InstanceOverride;
 /**
  * 반응형 반경 부분값. 객체는 객체에서만 상속한다. 숫자에서 객체로 바꿀 때는 네 모서리가 필요하다.
  */
@@ -68,10 +69,10 @@ export type PartialRadius =
 export type ScreenKind = "page" | "modal" | "widget";
 
 /**
- * Visual Spec Schema v0.3 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 0.1 문서는 앱이 열 때 0.3으로 변환한다(schema/migrate.ts).
+ * Visual Spec Schema v0.4 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 구버전 문서는 앱이 열 때 0.4로 변환한다(schema/migrate.ts).
  */
 export interface VisualSpec {
-  version: "0.3";
+  version: "0.4";
   screen: ScreenSpec;
 }
 export interface ScreenSpec {
@@ -281,6 +282,23 @@ export interface InputNode {
   border?: Border;
 }
 /**
+ * 같은 프로젝트의 widget 화면을 참조하는 leaf. 참조/override 대상 검사는 프로젝트 문맥에서 한다.
+ */
+export interface InstanceNode {
+  type: "instance";
+  name: string;
+  visible?: boolean;
+  box: Box;
+  ref: PageId;
+  overrides?: {
+    [k: string]: InstanceContentOverride;
+  };
+}
+export interface InstanceContentOverride {
+  content?: string;
+  color?: Color;
+}
+/**
  * 생략하면 기존 단일 레이아웃이다. 기본 nodes 위에 minWidthPx 오름차순으로 희소 override를 누적한다. GUI·코드 생성 지원과는 별도 계약이다.
  */
 export interface Responsive {
@@ -392,12 +410,16 @@ export interface InputOverride {
   background?: Background;
   border?: PartialBorder;
 }
+export interface InstanceOverride {
+  visible?: boolean;
+  box?: PartialBox;
+}
 
 /**
- * Visual Spec v0.3 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 화면 문서와 같은 ScreenSpec이다. 버전은 IR 세대를 뜻하고, 화면 문서와는 버전이 아니라 키(screen / pages)로 구별한다. 0.2 문서는 앱이 열 때 0.3으로 변환한다.
+ * Visual Spec v0.4 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 화면 문서와 같은 ScreenSpec이다. 구버전 문서는 앱이 열 때 0.4로 변환한다.
  */
 export interface ProjectSpec {
-  version: "0.3";
+  version: "0.4";
   name: string;
   /**
    * GUI가 지정하는 프로젝트의 안정 신원. 편집·앱 안 이름 변경에서는 유지하고 Save As 복사에서는 새 값으로 바꾼다. 생략된 기존 문서는 앱이 열 때 ID를 부여한다.

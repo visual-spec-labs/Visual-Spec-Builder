@@ -84,6 +84,7 @@ const NODE_DEF_BY_TYPE: Record<Node["type"], string> = {
   image: "ImageNode",
   button: "ButtonNode",
   input: "InputNode",
+  instance: "InstanceNode",
 };
 
 /** store/path.ts의 setByPath가 "내려갈 수 있는 값"으로 보는 것과 같은 기준이다. */
@@ -208,6 +209,7 @@ export function isEditableScreenPath(screen: ScreenSpec, path: string): boolean 
  * radius가 이미 모서리별 객체면 허용하고, 숫자 하나면 막는다.
  */
 export function isEditableNodePath(node: Node, path: string): boolean {
+  if (node.type === "instance" && path !== "box.width" && path !== "box.height") return false;
   if (path.startsWith("action.")) return false;
   return isEditablePath(
     NODE_DEF_BY_TYPE[node.type],

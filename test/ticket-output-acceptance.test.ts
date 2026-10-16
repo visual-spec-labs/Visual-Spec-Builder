@@ -502,7 +502,7 @@ const unsupportedPages: [string, ScreenSpec][] = [
 
 describe("S1-1 relation generation boundary", () => {
   it.each(unsupportedPages)("preserves raw import but refuses transmission: %s", async (_name, page) => {
-    const spec = { version: "0.3" as const, screen: page };
+    const spec = { version: "0.4" as const, screen: page };
     expect(validateVisualSpec(spec).valid).toBe(true);
     expect(parseSpecJson(JSON.stringify(spec))).toEqual({ ok: true, spec });
     useEditorStore.getState().loadSpec(spec);
@@ -550,7 +550,7 @@ describe("S1-1 relation generation boundary", () => {
   it.each([undefined, "page"] as const)("ordinary page (%s) still completes real runner → acceptance → Export", async kind => {
     const page = relationPage();
     if (kind) page.kind = kind;
-    useEditorStore.getState().loadSpec({ version: "0.3", screen: page });
+    useEditorStore.getState().loadSpec({ version: "0.4", screen: page });
     compileCurrent();
     const run = runAllTickets();
     await tick();

@@ -122,7 +122,7 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
 
   it("검증에 실패하는 새 내용은 불러오지 않고 한 번만 알린다", async () => {
     await watch();
-    disk = { text: JSON.stringify({ version: "0.3", pages: {} }), revision: "rev-bad" };
+    disk = { text: JSON.stringify({ version: "0.4", pages: {} }), revision: "rev-bad" };
     await tick();
     expect(title()).toBe((base.pages.page1.nodes.headerTitle as { content: string }).content);
     expect(useAgentEditStore.getState().diskNotice).toMatchObject({ kind: "diskInvalid" });

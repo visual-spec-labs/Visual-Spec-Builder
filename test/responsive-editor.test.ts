@@ -129,7 +129,7 @@ describe("반응형 편집·미리보기 (#223)", () => {
     expect(applyCommand(screen, { type: "updateScreen", path: "responsive", value: screen.responsive })).toBe(screen);
     const value = { breakpoints: {}, overrides: { missing: {} } };
     expect(applyCommand(screen, { type: "updateScreen", path: "responsive", value })).toBe(screen);
-    expect(validateVisualSpec({ version: "0.3", screen }).valid).toBe(true);
+    expect(validateVisualSpec({ version: "0.4", screen }).valid).toBe(true);
   });
   it("prototype 이름은 없는 override로 취급하고 원형을 바꾸지 않는다", () => {
     const { screen } = setup();
@@ -176,7 +176,7 @@ it("표현 고정은 생략된 기본값도 고정하여 후속 기반 편집을
   expect(patch).toMatchObject({ visible: true, opacity: 1, blur: 0, background: [], border: { width: 0, align: "inside" } });
   root.visible = false; root.opacity = 0.2; root.blur = 4; root.background = [{ type: "solid", color: "#FF0000" }];
   const edited = { ...screen, responsive: { breakpoints: { tablet: { minWidthPx: 768 } }, overrides: { tablet: { root: patch } } } };
-  expect(validateVisualSpec({ version: "0.3", screen: edited }).valid).toBe(true);
+  expect(validateVisualSpec({ version: "0.4", screen: edited }).valid).toBe(true);
   expect(resolveResponsiveScreen(edited, 768).nodes.root).toMatchObject({ visible: true, opacity: 1, blur: 0, background: [] });
 });
 

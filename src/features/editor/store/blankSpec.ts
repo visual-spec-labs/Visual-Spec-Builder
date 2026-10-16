@@ -5,7 +5,7 @@ import type { VisualSpec } from "@/features/editor/schema";
  * 화면 크기는 seedSpec과 동일한 기본 데스크톱 캔버스(1440×900)를 따른다.
  */
 export const blankSpec: VisualSpec = {
-  version: "0.3",
+  version: "0.4",
   screen: {
     name: "Untitled",
     size: { width: 1440, height: 900 },
