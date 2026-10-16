@@ -11,7 +11,7 @@ vi.mock('@/features/editor/ui/agentRequestLock', () => ({ holdRequestLock: io.ho
 vi.mock('@/features/editor/ui/workspaceClient', () => ({
   readWorkspaceFileSnapshot: io.read, writeWorkspaceFile: io.write,
   listWorkspaceFiles: async (dir: string) => [...io.disk.keys()].filter(p => p.startsWith(dir+'/')).map(p => p.slice(dir.length+1)),
-  readWorkspaceTextFile: async (path: string) => { await io.beforeRead(); return io.disk.get(path) ?? null; },
+  readWorkspaceTextFile: async (path: string) => { if(await io.beforeRead() === null)return null; return io.disk.get(path) ?? null; },
 }));
 function input() {
   const project = {...structuredClone(fixture) as unknown as ProjectSpec, projectId:'dispatch'};
@@ -82,6 +82,18 @@ describe('project v4 dispatch under the shared request lease',()=>{
     const pending=requestProjectTicketBatch(input(),{cancelled:false});await vi.advanceTimersByTimeAsync(0);response(4,[]);await vi.advanceTimersByTimeAsync(1000);
     const outcome=await pending;expect(outcome).toMatchObject({kind:'response',result:{kind:'malformed',code:'missing-ticket'}});
     if(outcome.kind==='response')outcome.lock!.release();
+  });
+  it('keeps waiting after a transient null response read and retries the same request',async()=>{
+    let settled=false;const pending=requestProjectTicketBatch(input(),{cancelled:false}).then(result=>{settled=true;return result;});
+    await vi.advanceTimersByTimeAsync(0);response();io.beforeRead.mockResolvedValueOnce(null);
+    await vi.advanceTimersByTimeAsync(1000);expect(settled).toBe(false);expect(io.release).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);const outcome=await pending;
+    expect(outcome).toMatchObject({kind:'response',result:{kind:'results'}});if(outcome.kind==='response')outcome.lock.release();
+  });
+  it('a persistently unreadable listed response times out instead of becoming malformed',async()=>{
+    const pending=requestProjectTicketBatch(input(),{cancelled:false});await vi.advanceTimersByTimeAsync(0);response();io.beforeRead.mockResolvedValue(null);
+    await vi.advanceTimersByTimeAsync(AGENT_WAIT_WINDOW_MS+1000);
+    expect(await pending).toMatchObject({kind:'timeout'});expect(io.release).toHaveBeenCalledOnce();
   });
   it('settles timeout with v4 guidance and releases the lease',async()=>{
     const wait=createAgentRequestWait();const pending=requestProjectTicketBatch(input(),{cancelled:false},wait);

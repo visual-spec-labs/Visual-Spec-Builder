@@ -1286,6 +1286,11 @@ CSS custom property도 정적 URL 검사를 거치며 허용 외부 URL이라고
 
 ### v4 workspace dispatch와 lease 인계 (S1-9)
 
+v4 response GET이 null(일시 연결/HTTP 실패 또는 목록 조회 뒤 파일 소실)이면 parser에 빈 문자열을
+주지 않고 같은 요청의 대기 루프를 계속한다. 읽은 실제 본문이 빈 문자열/잘못된 JSON이면
+malformed로 처리한다. 목록 연결 상태와 기존 timeout/연장 정책은 그대로 유지하며 읽기 실패
+한 번으로 lease를 수용 호출자에게 인계하지 않는다.
+
 `requestProjectTicketBatch`는 호출 시 project/plan/wave를 복사한 뒤 기존 ticket 요청 잠금을
 획득한다. 잠금이 busy/unavailable이면 입력 저장도 요청 쓰기도 하지 않는다. 잠금 아래에서
 `prepareStoredProjectRequest`의 immutable 저장/readback을 완료하고 강제 renew와 현재 문서 세대를

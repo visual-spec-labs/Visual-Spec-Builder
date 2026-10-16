@@ -140,7 +140,7 @@ export async function requestProjectTicketBatch(
       prepared = await prepareStoredProjectRequest({ ...captured, isCurrent: () => !current.cancelled });
       const { request } = prepared;
       return { id: request.id, protocol: PROJECT_TICKET_PROTOCOL_VERSION, body: serializeProjectTicketRequest(request),
-        parse: (text: string | null) => parseProjectTicketResponse(text ?? "", request) };
+        parse: (text: string | null) => text === null ? { kind: "stale" as const } : parseProjectTicketResponse(text, request) };
     }, current, wait, true, true);
     if (outcome.kind !== "response") return outcome;
     // requireLease and retainLock guarantee both; never expose an unlocked acceptance candidate.
