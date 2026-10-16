@@ -53,6 +53,8 @@ commit point 전 실패/취소는 원래 lease가 살아 있을 때만 자기 by
 `restoreProjectOutputs`는 명시적 요청에서 새 lease를 얻고 run.json, project-recovery.json,
 현재 sidecar의 committedRunId/hash, 전체 출력 bytes와 backup hash를 모두 검증한다.
 현재 sidecar에서 해당 requestId의 전체 출력 목록과 run 범위가 정확히 일치해야 한다.
+이번 되돌리기에 포함하지 않는 이전 wave 출력도 첫 쓰기 전·metadata 쓰기 전·확정 시 다시
+검사한다. 외부 변경이 있으면 자기 쓰기만 보상하고 recoveryRequired를 유지한다.
 plan.json만 있거나 범위가 잘렸거나 파일/백업이 달라졌으면 변경하지 않는다.
 이전 manifest 항목만 현재 manifest에 합쳐 다른 프로젝트 registry/항목을 유지한다.
 복구 자체가 중단되면 같은 복구 lease 아래에서 accepted bytes로 보상한다.
@@ -84,7 +86,7 @@ protocol:2는 수락 완료 provenance가 아니다. 기존 protocol:1 inspector
 이 계약은 정상 클라이언트의 충돌·중단과 우발적 기록 변조를 방어한다. OS에서 sidecar와
 저널 hash까지 함께 고치는 악의적 writer의 인증을 제공하거나 직접 파일 쓰기를 잠그지 않는다.
 
-**남은 범위:** pending 기록이 없는 과거 미커밋 실패, 완료 sidecar 뒤 run.json 기록 실패,
+**남은 범위:** pending 기록이 없는 과거 미커밋 실패와
 이미 복구 완료한 실행의 idempotent 성공은 아직 별도다.
 plan.json만으로 새 lease의 복구 권한을 만들지 않는다. UI가 보존한 마지막 실행 handle로
 명시 복구할 수 있으며 실제 AI 실행 여부와 무관하다.
@@ -105,3 +107,12 @@ plan.json만으로 새 lease의 복구 권한을 만들지 않는다. UI가 보�
 바꾸지 않고 현재 문서의 복구 handle만 되살린다. 문서·신원·계획 세대가 바뀌면 결과를 버린다.
 이후 `마지막 프로젝트 적용 되돌리기`를 누르면 새 lease 아래 전체 복구 검증을 다시 수행한다.
 손상된 기록이나 입력 부재는 명시 오류이며 다른 프로젝트/실행을 추측하지 않는다.
+
+## 완료 sidecar 뒤 run.json 기록 실패
+
+현재 sidecar의 committedRunId·전체 출력 hash·manifest가 해당 실행을 증명하지만 run.json이
+없는 경우에는 쓰기 전에 저장한 pending-recovery.json과 hash가 일치하는 원본 manifest에서
+복구 범위를 재구성한다. 재구성 결과도 기존 복구의 닫힌 형태·전체 scope·requestId·출력 hash·
+보조 sidecar 기록·원본 백업 검사를 모두 통과해야 한다. plan.json만으로는 여전히 복구하지 않는다.
+범위가 잘렸거나 요청/백업이 다르면 쓰기 전에 거부한다. 이미 있는 run.json이 잘못됐을 때
+이를 무시하고 fallback하지 않는다. 현재 UI가 보존한 마지막 적용 handle에서 사용할 수 있다.

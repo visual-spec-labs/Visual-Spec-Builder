@@ -127,3 +127,27 @@ export async function findPendingProjectRecovery(projectId:string,isCurrent:()=>
   if(!isCurrent()||revision(await readProjectFile(projectGenerationPath(projectId),isCurrent))!==marker.revision)throw Error('확인 중 미완료 적용이 변경됐습니다.');
   return {runId:value.runId,context};
 }
+
+/** Recover a missing post-commit run record only when the caller has independently
+ * verified the current committed sidecar. The reconstructed record still passes the
+ * normal complete-scope, output, auxiliary-sidecar and backup checks in restore.
+ */
+export async function readCommittedProjectRun(runId:string,context:ProjectProvenanceContext,isCurrent:()=>boolean) {
+  const root=`backups/${runId}`;const journalFile=await readProjectFile(`${root}/pending-recovery.json`,isCurrent);
+  if(!journalFile)return null;
+  const value:unknown=JSON.parse(strictProjectText(journalFile.bytes));
+  if(!exact(value,['protocol','projectId','projectRoot','runId','requestId','files','retained','previousSidecarRevision','previousManifestRevision','writtenManifestRevision'])
+    ||value.protocol!==1||value.projectId!==context.snapshot.projectId||value.projectRoot!==context.projectRoot||value.runId!==runId
+    ||typeof value.requestId!=='string'||!isProjectTicketRequestId(value.requestId)||!Array.isArray(value.files)||!value.files.length||!Array.isArray(value.retained)
+    ||!(value.previousSidecarRevision===null||hash(value.previousSidecarRevision))||!hash(value.previousManifestRevision)||!hash(value.writtenManifestRevision))throw Error('완료 적용의 복구 저널이 유효하지 않습니다.');
+  const journal=value as unknown as ProjectRecoveryJournal;
+  const manifestFile=await readProjectFile(`${root}/generation-manifest.json`,isCurrent);
+  if(!manifestFile||manifestFile.revision!==journal.previousManifestRevision)throw Error('완료 적용의 manifest 백업 hash가 다릅니다.');
+  const manifest=parseGenerationManifest(strictProjectText(manifestFile.bytes));
+  if(manifest.protocol!==2||manifest.projects[journal.projectId]?.outputDir!==journal.projectRoot)throw Error('완료 적용의 이전 프로젝트 소유권이 다릅니다.');
+  const files=journal.files.map(file=>{
+    if(!exact(file,['path','ticketId','previousRevision','backupPath','writtenRevision'])||typeof file.path!=='string')throw Error('완료 적용의 파일 복구 범위가 유효하지 않습니다.');
+    return {...file,previousEntry:manifest.entries[file.path]??null};
+  });
+  return {protocol:2,phase:'committed',runId,requestId:journal.requestId,createdAt:'reconstructed-from-prewrite-journal',files};
+}

@@ -1,4 +1,4 @@
-import { isPendingProjectRecovery, recoverPendingProjectOutputs, type PendingProjectRecovery, type ProjectRecoveryJournal } from './projectPendingRecovery';
+import { isPendingProjectRecovery, recoverPendingProjectOutputs, readCommittedProjectRun, type PendingProjectRecovery, type ProjectRecoveryJournal } from './projectPendingRecovery';
 import type { TicketResultItem } from '@/features/editor/ticket/ticketProtocol';
 import { isProjectTicketRequestId, parseProjectTicketResponse, validateProjectTicketRequest } from '@/features/editor/ticket/projectTicketProtocol';
 import { parseProjectInputSnapshot } from '@/features/editor/ticket/projectInputSnapshot';
@@ -280,13 +280,16 @@ async function restoreProjectOutputsNow(runId:string,context:ProjectOutputPlan['
     if(marker&&isPendingProjectRecovery(strictProjectText(marker.bytes)))return await recoverPendingProjectOutputs({runId,context,marker,lock,owner,isCurrent});
     const runFile=await readProjectFile(`${root}/run.json`,isCurrent);
     const auxiliary=await readProjectFile(`${root}/project-recovery.json`,isCurrent);
-    if(!runFile||!auxiliary)return fail('실제 적용 범위/프로젝트 복구 기록이 없습니다. plan.json은 복구 권한이 아닙니다.');
-    const run=JSON.parse(strictProjectText(runFile.bytes));const recovery=JSON.parse(strictProjectText(auxiliary.bytes));
+    if(!auxiliary)return fail('프로젝트 복구 기록이 없습니다. plan.json은 복구 권한이 아닙니다.');
+    const evidence=await readProjectGenerationEvidence(context,isCurrent);
+    if(!evidence.record||!evidence.sidecarFile||evidence.record.committedRunId!==runId)return fail('현재 수용 기록이 이 실행을 증명하지 않습니다. 파일을 보존합니다.',true);
+    const run=runFile?JSON.parse(strictProjectText(runFile.bytes)):await readCommittedProjectRun(runId,context,isCurrent);
+    if(!run)return fail('실제 적용 범위/복구 저널이 없습니다. plan.json은 복구 권한이 아닙니다.');
+    const recovery=JSON.parse(strictProjectText(auxiliary.bytes));
     const exact=(value:unknown,keys:string[])=>!!value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).sort().join(',')===[...keys].sort().join(',');
     const hash=(value:unknown):value is string=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
     if(!exact(run,['protocol','phase','runId','requestId','createdAt','files'])||run.protocol!==2||!['committed','recovery'].includes(run.phase)||run.runId!==runId||!isProjectTicketRequestId(run.requestId)||typeof run.createdAt!=='string'||!Array.isArray(run.files))return fail('복구 범위 기록이 유효하지 않습니다.');
-    const evidence=await readProjectGenerationEvidence(context,isCurrent);
-    if(!evidence.record||!evidence.sidecarFile||evidence.record.committedRunId!==runId)return fail('현재 수용 기록이 이 실행을 증명하지 않습니다. 파일을 보존합니다.',true);
+
     if(!exact(recovery,['protocol','runId','sidecarPath','previousSidecarPath','previousSha256','writtenSha256'])||recovery.protocol!==1||recovery.runId!==runId||recovery.sidecarPath!==evidence.sidecarPath
       ||!hash(recovery.writtenSha256)||recovery.writtenSha256!==evidence.sidecarFile.revision
       || !((recovery.previousSidecarPath===null&&recovery.previousSha256===null)||(recovery.previousSidecarPath===`${root}/project-generation.json`&&hash(recovery.previousSha256))))return fail('sidecar 복구 근거가 현재 기록과 다릅니다.',true);
@@ -317,24 +320,31 @@ async function restoreProjectOutputsNow(runId:string,context:ProjectOutputPlan['
       ? writeWorkspaceFile(path,body.slice().buffer,'application/octet-stream',expected,owner)
       : deleteWorkspaceFile(path,expected,owner);
     const changed:typeof files=[];let manifestAttempted=false;let sidecarAttempted=false;let conflict=false;
+    const checkRetained=async()=>{
+      for(const output of evidence.record!.outputs)if(!paths.has(output.filePath)&&!await same(`generated/${output.filePath}`,output.sha256)) {
+        conflict=true;throw Error('복구 중 이전 wave의 유지 출력이 변경됐습니다. 외부 변경을 보존합니다.');
+      }
+    };
+
     try {
       await check();
       // The evidence reader checked all accepted outputs; pin metadata again immediately
       // before the first mutation so a later committed wave is never restored accidentally.
       if(!await same(evidence.sidecarPath,evidence.sidecarFile.revision)||!evidence.manifestFile||!await same(GENERATION_MANIFEST_PATH,evidence.manifestFile.revision))throw Error('복구 확인 뒤 수용 기록이 바뀌었습니다.');
+      await checkRetained();
       for(const item of files) {
         await check();changed.push(item);
         const saved=await mutate(`generated/${item.file.path}`,item.previous?.bytes??null,item.file.writtenRevision);
         if(!saved.ok){if(saved.status===409){changed.pop();conflict=true;}throw Error('파일 복구가 충돌하거나 실패했습니다.');}
         if(!await same(`generated/${item.file.path}`,item.file.previousRevision??WORKSPACE_MISSING_REVISION))throw Error('파일 복구 readback이 다릅니다.');
       }
-      await check();manifestAttempted=true;
+      await check();await checkRetained();manifestAttempted=true;
       const metadata=await writeWorkspaceFile(GENERATION_MANIFEST_PATH,restoredManifest,'application/json',undefined,owner);
       if(!metadata.ok||!await same(GENERATION_MANIFEST_PATH,revision(restoredManifest)))throw Error('이전 manifest 항목 복원을 확인하지 못했습니다.');
-      await check();sidecarAttempted=true;
+      await check();await checkRetained();sidecarAttempted=true;
       const restored=await mutate(evidence.sidecarPath,previousSidecar?.bytes??null,evidence.sidecarFile.revision);
       if(!restored.ok||!await same(evidence.sidecarPath,previousSidecar?.revision??WORKSPACE_MISSING_REVISION))throw Error('이전 sidecar 복원을 확인하지 못했습니다.');
-      await check();
+      await check();await checkRetained();
       return {restored:true,recoveryRequired:false,message:null};
     } catch(error) {
       // If restore itself fails, return to the accepted bytes while still holding this
