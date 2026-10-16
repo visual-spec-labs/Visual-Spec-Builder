@@ -26,6 +26,7 @@ import {
   ticketPlanStaleness,
 } from "@/features/editor/ui/ticketRunner";
 import { getWorkspaceRoot, isWorkspaceAvailable } from "@/features/editor/ui/workspaceClient";
+import { compileCurrentTicketPlan } from './openTicketPanel';
 
 const STATUS_LABEL: Record<TicketStatus, string> = {
   pending: "대기",
@@ -53,6 +54,10 @@ const STATUS_LABEL: Record<TicketStatus, string> = {
  * 패널은 Properties와 같은 우측 영역을 사용해 기존 Canvas/Toolbar 배치를 바꾸지 않는다.
  */
 export function TicketPanel() {
+  const project = useEditorStore(state=>state.spec);
+  const projectPlan = useTicketStore(state=>state.projectPlan);
+  const sourceProject = useTicketStore(state=>state.sourceProject);
+  const lastProjectRun = useTicketStore(state=>state.lastProjectRun);
   const pageId = useEditorStore((state) => state.activePageId);
   const page = useEditorStore((state) => state.spec.pages[state.activePageId]);
   const tickets = useTicketStore((state) => state.tickets);
@@ -70,7 +75,6 @@ export function TicketPanel() {
   const overwriteReview = useTicketStore((state) => state.overwriteReview);
   const lastRun = useTicketStore((state) => state.lastRun);
   const restoreMessage = useTicketStore((state) => state.restoreMessage);
-  const compile = useTicketStore((state) => state.compile);
   const markStatus = useTicketStore((state) => state.markStatus);
   const close = useTicketStore((state) => state.close);
 
@@ -96,7 +100,8 @@ export function TicketPanel() {
   }, []);
 
   // ticketRunner.isTicketPlanStale과 같은 판정이다 — 여기서는 렌더가 따라오도록 구독값으로 계산한다.
-  const staleness = ticketPlanStaleness(
+  const staleness = projectPlan ? (sourceDocumentId!==documentId||sourceProject!==project ? 'screen'
+    : sourceProjectIdentity!==projectIdentity ? 'project' : null) : ticketPlanStaleness(
     { sourcePageId, sourcePage, sourceDocumentId, sourceProjectIdentity },
     { activePageId: pageId, page, documentId, projectIdentity },
   );
@@ -112,7 +117,7 @@ export function TicketPanel() {
           <h2 className="text-xs font-semibold tracking-wide text-content-muted uppercase">
             구현 티켓
           </h2>
-          <p className="truncate text-xs text-content-muted">{page.name}</p>
+          <p className="truncate text-xs text-content-muted">{projectPlan ? `${project.name} · 프로젝트 전체` : page.name}</p>
         </div>
         {workspaceAvailable === true && (
           <button
@@ -130,7 +135,7 @@ export function TicketPanel() {
             // 진행 중이던 웨이브를 먼저 멈춘다 — 그러지 않아도 sourcePage 참조가
             // 바뀌어 응답이 무시되긴 하지만(ticketRunner.ts), 곧바로 멈추는 편이 낫다.
             cancelTicketRun();
-            compile(pageId, page);
+            compileCurrentTicketPlan();
           }}
           className="rounded-control border border-line px-2 py-1 text-xs text-content hover:bg-hover"
         >
@@ -162,6 +167,7 @@ export function TicketPanel() {
       )}
 
       <div className="flex-1 overflow-auto p-3">
+        {projectPlan && projectPlan.excludedPages.length > 0 && <p className="mb-2 text-xs text-content-muted">재사용 위젯 {projectPlan.excludedPages.length}개는 이번 생성에서 제외됩니다. 문서에는 보존됩니다.</p>}
         {tickets.length === 0 ? (
           <p className="text-sm text-content-muted">
             생성할 구현 티켓이 없습니다. 캔버스에 화면을 구성한 뒤 다시 생성하세요.
@@ -176,6 +182,7 @@ export function TicketPanel() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-content-strong">
                         {ticket.componentName}
+                        {projectPlan && 'sourcePageId' in ticket && <span className="block text-xs font-normal text-content-muted">{String(ticket.sourcePageId)}</span>}
                       </p>
                       <p className="text-xs text-content-muted">
                         {ticket.kind === "page" ? "Page" : "Component"} · 인스턴스{" "}
@@ -217,6 +224,7 @@ export function TicketPanel() {
                   <label className="mt-2 flex items-center gap-2 text-xs text-content-muted">
                     상태
                     <select
+                      disabled={!!projectPlan && running}
                       value={ticket.status}
                       onChange={(event) =>
                         markStatus(ticket.id, event.target.value as TicketStatus)
@@ -224,7 +232,7 @@ export function TicketPanel() {
                       className="min-w-0 flex-1 rounded-control border border-line bg-surface px-2 py-1 text-content"
                     >
                       {Object.entries(STATUS_LABEL).map(([status, label]) => (
-                        <option key={status} value={status}>
+                        <option key={status} value={status} disabled={!!projectPlan && (status==='done'||status==='in-progress')}>
                           {label}
                         </option>
                       ))}
@@ -245,9 +253,12 @@ export function TicketPanel() {
 
       {/* 마지막 적용 되돌리기(#282). 적용이 쓴 바이트가 그대로인 파일만 백업으로 돌려놓는다 —
           그 뒤 다시 고친 파일은 더 새로운 수정이라 건드리지 않는다. */}
-      {(lastRun !== null && !running) || restoreMessage !== null ? (
+      {projectPlan && lastProjectRun && !running && <div className="border-t border-line px-3 py-2 text-xs text-content-muted">
+        <button type="button" onClick={()=>void restoreLastRun()} className="underline hover:text-content">마지막 프로젝트 적용 되돌리기</button>
+      </div>}
+      {(!projectPlan && lastRun !== null && !running) || restoreMessage !== null ? (
         <div className="flex flex-col gap-1 border-t border-line px-3 py-2 text-xs text-content-muted">
-          {lastRun !== null && !running && (
+          {!projectPlan && lastRun !== null && !running && (
             <span>
               마지막 적용이 파일 {lastRun.paths.length}개를 바꿨습니다(백업: <code>{lastRun.backupRoot}/</code>).{" "}
               <button type="button" onClick={() => void restoreLastRun()} className="underline hover:text-content">
@@ -304,7 +315,7 @@ export function TicketPanel() {
         ) : running ? (
           <AgentWaitStatus
             progress={wait}
-            instruction={buildTicketAgentInstruction()}
+            instruction={buildTicketAgentInstruction(projectPlan ? 4 : 3)}
             requestPath={TICKET_REQUEST_PATH}
             responsePath={TICKET_RESPONSE_PATH}
             workspaceRoot={workspaceRoot}

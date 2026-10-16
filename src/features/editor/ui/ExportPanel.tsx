@@ -14,6 +14,7 @@ import { isExportTargetCurrent, useExportStore } from "@/features/editor/store/e
 import { downloadGeneratedBundle, type GeneratedLocation } from "@/features/editor/ui/exportGeneratedCode";
 import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
 import { openTicketPanel } from "@/features/editor/ui/openTicketPanel";
+import { ProjectExportPanel } from './ProjectExportPanel';
 
 function IssueRow({ issue }: { issue: VerifyIssue }) {
   const where = issue.line === undefined ? issue.file : `${issue.file}:${issue.line}`;
@@ -125,6 +126,11 @@ function FreshnessSummary({ freshness, location }: { freshness: FreshnessReport;
  * TicketPanel과 같은 우측 영역을 쓴다 — 기존 배치를 바꾸지 않는다.
  */
 export function ExportPanel() {
+  const project=useEditorStore(state=>state.spec);
+  return Object.values(project.pages).some(hasUnsupportedScreenRelations)?<ProjectExportPanel/>:<LegacyExportPanel/>;
+}
+
+function LegacyExportPanel() {
   const page = useEditorStore((state) => state.spec.pages[state.activePageId]);
   const status = useExportStore((state) => state.status);
   const files = useExportStore((state) => state.files);

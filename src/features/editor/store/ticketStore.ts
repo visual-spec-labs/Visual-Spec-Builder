@@ -1,7 +1,10 @@
 import { create } from "zustand";
 
 import type { OverwriteReview, RegenerationRunSummary } from "@/features/editor/export/overwriteGuard";
-import type { PageId, ScreenSpec } from "@/features/editor/schema";
+import type { PageId, ScreenSpec, ProjectSpec } from "@/features/editor/schema";
+import { compileProjectTickets } from "@/features/editor/ticket/compileProjectTickets";
+import type { ProjectPlan } from "@/features/editor/ticket/types";
+import type { ProjectProvenanceContext } from "@/features/editor/export/projectGenerationProvenance";
 import { compileTickets } from "@/features/editor/ticket/compileTickets";
 import { useDocumentStore } from "./documentStore";
 import { useEditorStore } from "./editorStore";
@@ -10,6 +13,9 @@ import type { Ticket, TicketStatus } from "@/features/editor/ticket/types";
 import type { AgentWaitProgress } from "@/features/editor/ui/agentRequestWait";
 
 interface TicketState {
+  projectPlan: ProjectPlan | null;
+  sourceProject: ProjectSpec | null;
+  lastProjectRun: { runId: string; context: ProjectProvenanceContext; documentId: number; projectIdentity: number } | null;
   tickets: Ticket[];
   sourcePageId: PageId | null;
   /** 컴파일 시점 참조. 현재 page 참조와 달라지면 UI가 오래된 계획임을 알린다. */
@@ -64,6 +70,7 @@ interface TicketState {
    */
   generation: number;
   compile: (pageId: PageId, page: ScreenSpec) => void;
+  compileProject: (project: ProjectSpec) => void;
   markStatus: (id: string, status: TicketStatus) => void;
   close: () => void;
 }
@@ -84,6 +91,9 @@ interface TicketState {
  * 쓰이는 것과 같은 이유).
  */
 export const useTicketStore = create<TicketState>((set) => ({
+  projectPlan: null,
+  sourceProject: null,
+  lastProjectRun: null,
   tickets: [],
   sourcePageId: null,
   sourcePage: null,
@@ -101,6 +111,8 @@ export const useTicketStore = create<TicketState>((set) => ({
   generation: 0,
   compile: (pageId, page) =>
     set((state) => ({
+      projectPlan: null,
+      sourceProject: null,
       tickets: compileTickets(page),
       sourcePageId: pageId,
       sourcePage: page,
@@ -116,7 +128,16 @@ export const useTicketStore = create<TicketState>((set) => ({
       restoreMessage: null,
       generation: state.generation + 1,
     })),
+  compileProject: (project) => {
+    const plan = compileProjectTickets(project);
+    set(state=>({projectPlan:plan,sourceProject:project,tickets:plan.tickets,
+      sourcePageId:null,sourcePage:null,sourceDocumentId:useEditorStore.getState().documentId,
+      sourceProjectIdentity:useDocumentStore.getState().projectIdentity,isOpen:true,running:false,
+      runError:null,runErrorRetryable:false,wait:null,acceptanceWarning:null,overwriteReview:null,
+      restoreMessage:null,generation:state.generation+1}));
+  },
   markStatus: (id, status) =>
-    set((state) => ({ tickets: markTicketStatus(state.tickets, id, status) })),
+    set((state) => state.projectPlan && (state.running || status === 'done' || status === 'in-progress')
+      ? state : ({ tickets: markTicketStatus(state.tickets, id, status) })),
   close: () => set({ isOpen: false }),
 }));

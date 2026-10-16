@@ -15,7 +15,7 @@ function literal(value: unknown): string | null {
  * Bare package imports remain dependencies for later build/Export checks. Local imports
  * must resolve to a TSX ticket in this project plan, never another project's same name.
  */
-export async function validateProjectModuleImports(source: string, modulePath: string, ownedModulePaths: readonly string[]): Promise<void> {
+export async function validateProjectModuleImports(source: string, modulePath: string, ownedModulePaths: readonly string[], onPackage?: (name:string)=>void): Promise<void> {
   if (!ownedModulePaths.includes(modulePath)) throw Error('계획에 없는 프로젝트 모듈입니다.');
   const { parse } = await import('@babel/parser');
   const ast = parse(source, {sourceType:'module',plugins:['jsx','typescript']});
@@ -29,7 +29,7 @@ export async function validateProjectModuleImports(source: string, modulePath: s
       const packageName = specifier.startsWith('@') ? parts.slice(0,2).join('/') : parts[0];
       if (!/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/i.test(packageName)
         || parts.some(part=>!part||part==='.'||part==='..') || /[:]/.test(specifier)) throw Error('별칭·절대·URL import는 허용하지 않습니다.');
-      return;
+      onPackage?.(packageName);return;
     }
     const parts = modulePath.split('/').slice(0,-1);
     for (const part of specifier.split('/')) {

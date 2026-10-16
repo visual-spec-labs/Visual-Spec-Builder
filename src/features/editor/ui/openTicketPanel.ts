@@ -3,6 +3,13 @@ import { useExportStore } from "@/features/editor/store/exportStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
 import { togglePropsPanel } from "@/features/editor/ui/panelToggle";
+import { hasUnsupportedScreenRelations } from '@/features/editor/ticket/screenRelationsGuard';
+
+export function compileCurrentTicketPlan():void {
+  const {spec,activePageId}=useEditorStore.getState();
+  if(Object.values(spec.pages).some(hasUnsupportedScreenRelations))useTicketStore.getState().compileProject(spec);
+  else useTicketStore.getState().compile(activePageId,spec.pages[activePageId]);
+}
 
 /**
  * 구현 티켓 패널을 열고 현재 페이지로 (다시) 컴파일한다. `MenuBar`("구현
@@ -18,7 +25,6 @@ import { togglePropsPanel } from "@/features/editor/ui/panelToggle";
  * 의도한 동작이다.
  */
 export function openTicketPanel(): void {
-  const { spec, activePageId } = useEditorStore.getState();
   const view = useViewStore.getState();
   if (!view.showPanels) view.togglePanels();
   // 전체 토글만 켜고 개별 접힘(#287)을 안 풀면, 패널이 32px 레일로 접힌 채
@@ -27,5 +33,5 @@ export function openTicketPanel(): void {
   // 저장된 폭을 Canvas 최소 폭 기준으로 보정한다(#287 리뷰 4차 대응).
   if (view.propsCollapsed) togglePropsPanel();
   if (useExportStore.getState().isOpen) useExportStore.getState().close();
-  useTicketStore.getState().compile(activePageId, spec.pages[activePageId]);
+  compileCurrentTicketPlan();
 }

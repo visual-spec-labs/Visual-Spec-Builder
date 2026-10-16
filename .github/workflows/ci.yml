@@ -165,7 +165,7 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/command-v02.mjs
 
-      - name: 화면 관계 생성·Export 임시 차단 (fixture, 실제 모델 없음)
+      - name: 프로젝트 v4 생성·수락·ZIP Export (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/screen-relations-guard.mjs

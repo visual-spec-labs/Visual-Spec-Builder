@@ -62,6 +62,7 @@ import {
   readyTickets,
 } from "@/features/editor/ticket/ticketStatus";
 import type { Ticket } from "@/features/editor/ticket/types";
+import { runProjectTickets, cancelProjectTicketRun, answerProjectOverwrite, extendProjectTicketWait, restoreLastProjectRun, isProjectTicketPlanCurrent } from './projectTicketRunner';
 
 /** 진행 중인 웨이브의 취소 토큰. 없으면(null) 아무 웨이브도 돌고 있지 않다. */
 let activeCancel: TicketCancelToken | null = null;
@@ -140,6 +141,7 @@ export function ticketPlanStaleness(
  * 자동 이어가기, 다른 호출자)도 낡은 `sourcePage`를 요청 파일에 그대로 쓴다.
  */
 export function isTicketPlanStale(): boolean {
+  if (useTicketStore.getState().projectPlan) return !isProjectTicketPlanCurrent();
   const { activePageId, spec, documentId } = useEditorStore.getState();
   return ticketPlanStaleness(useTicketStore.getState(), {
     activePageId, page: spec.pages[activePageId], documentId, projectIdentity: useDocumentStore.getState().projectIdentity,
@@ -425,6 +427,7 @@ async function runWave(waveTickets: Ticket[], chain: boolean): Promise<void> {
 
 /** 준비된 티켓 전부를 한 웨이브로 보내고, 응답이 오면 다음 웨이브로 자동으로 이어간다. */
 export async function runAllTickets(): Promise<void> {
+  if (useTicketStore.getState().projectPlan) return runProjectTickets();
   if (useTicketStore.getState().running) return;
   const wave = readyTickets(useTicketStore.getState().tickets);
   if (wave.length === 0) return;
@@ -433,6 +436,7 @@ export async function runAllTickets(): Promise<void> {
 
 /** 티켓 하나만 웨이브 크기 1로 보낸다 — 끝나도 다음 웨이브로 이어가지 않는다. */
 export async function runOneTicket(id: string): Promise<void> {
+  if (useTicketStore.getState().projectPlan) return runProjectTickets(id);
   if (useTicketStore.getState().running) return;
   const { tickets } = useTicketStore.getState();
   const ticket = tickets.find((candidate) => candidate.id === id);
@@ -445,6 +449,7 @@ export async function runOneTicket(id: string): Promise<void> {
  * 요청의 결과를 받지 않는 것이지, 외부 에이전트를 멈추는 것은 아니다(docs/26).
  */
 export function cancelTicketRun(): void {
+  cancelProjectTicketRun();
   activePromotion?.release();
   activeRestoreAbort?.abort();
   if (activeCancel !== null) activeCancel.cancelled = true;
@@ -457,6 +462,7 @@ export function cancelTicketRun(): void {
  * 보존한다. 기다리는 확인이 없으면 아무 일도 하지 않는다.
  */
 export function answerOverwriteReview(answer: OverwriteAnswer): void {
+  if (answerProjectOverwrite(answer)) return;
   activeReview?.(answer);
 }
 
@@ -466,6 +472,7 @@ export function answerOverwriteReview(answer: OverwriteAnswer): void {
  * 대기로 돌아간다 — 그 파일은 이제 이번 계획의 결과가 아니다.
  */
 export async function restoreLastRun(): Promise<void> {
+  if (useTicketStore.getState().projectPlan) return restoreLastProjectRun();
   const { lastRun, running, generation } = useTicketStore.getState();
   if (lastRun === null || running) return;
   useTicketStore.setState({ running: true, restoreMessage: null });
@@ -502,5 +509,6 @@ export async function restoreLastRun(): Promise<void> {
  * 누를 때만 생긴다. 끝난 요청이면 false.
  */
 export function extendTicketWait(): boolean {
+  if (useTicketStore.getState().projectPlan) return extendProjectTicketWait();
   return activeWait?.extend() ?? false;
 }
