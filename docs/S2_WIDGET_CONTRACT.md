@@ -12,8 +12,12 @@ VisualSpec와 ProjectSpec의 정본 version은 모두 `0.4`다. 새 `instance`�
 0.3으로 저장하는 암묵 downgrade는 없다. 원본 파일은 Open만으로 다시 쓰지 않는다.
 
 `migrateToV04(unknown)`는 기존 `migrateToV03`로 0.1/0.2의 배경 형식을 먼저 보존 변환한 뒤,
-올바른 화면/프로젝트 외곽 형태의 0.3 문서 version만 0.4로 올린다. 그 밖의 값과 잘못된 필드는
-검증기가 거부하도록 보존한다. 이미 0.4인 값은 그대로 반환한다. 입력을 변이하지 않는다.
+올바른 화면/프로젝트 외곽 형태의 0.3 문서 version만 0.4로 올린다. **승격 전에 구버전
+문서에 0.4 전용 instance 노드가 있는지 검사하며, 있으면 원본 버전을 유지해 거부한다.**
+이 검사는 0.3뿐 아니라 migrateToV03 이전의 0.1/0.2 입력에도 적용한다. 외곽 형태만 보고
+버전을 올려 구버전에서 무효인 새 타입을 유효하게 만들지 않는다. 그 밖의 잘못된 필드는
+검증기가 거부하도록 보존한다. 기존 migrateToV03의 배경 변환 계약을 임의로 넓히지 않는다.
+이미 0.4인 값은 그대로 반환한다. 입력을 변이하지 않는다.
 기존 공개 `migrateToV03`의 0.3 변환 의미는 유지하고, 현재 문서 입구가 새 함수를 호출한다.
 Open·자동 저장 복원·작업공간 서버·CLI 계약 번들에서 같은 현재 버전 검증을 사용한다.
 기존 생성 출력의 provenance를 새 IR에 맞게 조작하지 않는다. 버전 변경으로 입력 지문이
@@ -29,7 +33,9 @@ instance는 호스트 트리에서 leaf이며, ref는 **같은 프로젝트**의
 
 `overrides`는 직접 원본 widget의 NodeId를 키로 하고, 값은 선택 `content:string`,
 `color:Color`만 가진 닫힌 객체다. 빈 객체는 아무 override도 하지 않는다. 대상은 Text/Button만
-허용한다. 없는 노드·frame/image/input/instance 대상·점 경로로 nested instance 내부 접근은
+허용한다. 원본 타입에 합성한 결과도 기존 노드 제약을 만족해야 한다. 특히 Text의 빈
+content는 허용하되 Button의 content는 기존 minLength:1을 유지하므로 빈 문자열 override를
+`instance-override-invalid`로 거부한다. 없는 노드·frame/image/input/instance 대상·점 경로로 nested instance 내부 접근은
 거부한다. 색·내용 이외의 변경과 임의 부분 객체 병합은 이 계약의 범위 밖이다.
 
 호스트의 responsive 규칙은 instance의 **visible과 PartialBox만** 변경할 수 있다.
@@ -44,7 +50,12 @@ overrides를 breakpoint별로 바꾸거나 instance에 layout/색/배경 속성�
 - `instance-ref-missing`: ref가 pages에 없다.
 - `instance-ref-kind`: ref가 widget이 아니다.
 - `instance-cycle`: widget 포함 그래프의 직접/간접 순환이다. 기존 로컬 children cycle과 구분한다.
-- `instance-override-invalid`: 직접 대상이 없거나 Text/Button이 아니거나 허용 범위가 아니다.
+- `instance-override-invalid`: 직접 대상이 없거나 Text/Button이 아니거나, 합성 결과가 해당
+  원본 노드의 제약을 위반한다(예: Button의 빈 content).
+
+허용하지 않은 override 속성·값 타입·Color 형식처럼 닫힌 JSON Schema에서 먼저 실패하는
+항목은 기존 `schema` 코드다. 이를 의미 검증 코드로 바꾸려고 검증 순서나 기존 오류 매핑을
+교체하지 않는다. schema 통과 뒤에만 위 instance 의미 검증을 실행한다.
 
 여러 page가 같은 widget을 참조하는 DAG는 유효하다. navigate/openModal 그래프의 순환과
 instance 포함 그래프의 순환을 혼동하지 않는다. 독립 VisualSpec은 외부 ref의 존재·종류를
