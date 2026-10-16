@@ -70,7 +70,7 @@ describe('atomic project wave acceptance',()=>{
   });
   it.each(['output','manifest','sidecar'])('compensates cancellation after %s mutation under the original lease',async stage=>{
     const args=setup();const plan=await planProjectOutputs(args);const manifestBefore=text(GENERATION_MANIFEST_PATH);
-    io.hook.mockImplementation((path:string)=>{if((stage==='output'&&path.startsWith('generated/'))||(stage==='manifest'&&path===GENERATION_MANIFEST_PATH)||(stage==='sidecar'&&path===plan.evidence.sidecarPath))io.current=false;});
+    io.hook.mockImplementation((path:string)=>{if((stage==='output'&&path.startsWith('generated/'))||(stage==='manifest'&&path===GENERATION_MANIFEST_PATH)||(stage==='sidecar'&&path===plan.evidence.sidecarPath&&io.disk.has(path)&&JSON.parse(text(path)).protocol===1))io.current=false;});
     const result=await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent});
     expect(result).toMatchObject({committed:false,recoveryRequired:false});
     expect([...io.disk.keys()].filter(path=>path.startsWith('generated/'))).toEqual([]);
@@ -220,7 +220,7 @@ it.each(['before', 'output', 'manifest', 'sidecar'].flatMap(stage=>['change','de
   io.writes=[];
   if(stage==='before')mutate();
   else io.hook.mockImplementation((path:string)=>{
-    if((stage==='output'&&path.startsWith('generated/'))||(stage==='manifest'&&path===GENERATION_MANIFEST_PATH)||(stage==='sidecar'&&path===first.evidence.sidecarPath))mutate();
+    if((stage==='output'&&path.startsWith('generated/'))||(stage==='manifest'&&path===GENERATION_MANIFEST_PATH)||(stage==='sidecar'&&path===first.evidence.sidecarPath&&io.disk.has(path)&&JSON.parse(text(path)).protocol===1))mutate();
   });
   expect(await commitProjectOutputs(second,{}, {lock,isCurrent:args.isCurrent})).toMatchObject({committed:false,recoveryRequired:true});
   expect(mode==='delete'?io.disk.has(retained):text(retained)).toBe(mode==='delete'?false:'external edit');
@@ -232,5 +232,40 @@ it('rechecks newly written outputs after manifest before sidecar promotion',asyn
   const args=setup();const plan=await planProjectOutputs(args);const path='generated/'+plan.targets[0].path;
   io.hook.mockImplementation((written:string)=>{if(written===GENERATION_MANIFEST_PATH)io.disk.set(path,encode('external edit'));});
   expect(await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent})).toMatchObject({committed:false,recoveryRequired:true});
-  expect(text(path)).toBe('external edit');expect(io.disk.has(plan.evidence.sidecarPath)).toBe(false);
+  expect(text(path)).toBe('external edit');expect(JSON.parse(text(plan.evidence.sidecarPath))).toMatchObject({protocol:2,phase:'pending'});
+});
+
+it.each(['fence','output','manifest'])('recovers an uncommitted %s failure with a fresh lease and durable fence',async stage=>{
+  const args=setup();const plan=await planProjectOutputs(args);const before=text(GENERATION_MANIFEST_PATH);
+  io.hook.mockImplementation((path:string)=>{if((stage==='fence'&&path===plan.evidence.sidecarPath)||(stage==='output'&&path.startsWith('generated/'))||(stage==='manifest'&&path===GENERATION_MANIFEST_PATH))io.lease=false;});
+  expect(await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent})).toMatchObject({committed:false,recoveryRequired:true});
+  expect(JSON.parse(text(plan.evidence.sidecarPath))).toMatchObject({protocol:2,phase:'pending',runId:plan.runId});
+  await expect(planProjectOutputs(prepare('new-wave',args.prepared.request.project,args.prepared.request.plan))).rejects.toThrow(/먼저 복구/);
+  io.hook.mockReset();io.lease=true;
+  expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:true,recoveryRequired:false});
+  expect([...io.disk.keys()].filter(path=>path.startsWith('generated/'))).toEqual([]);
+  expect(io.disk.has(plan.evidence.sidecarPath)).toBe(false);expect(text(GENERATION_MANIFEST_PATH)).toBe(before);
+});
+it.each(['journal','output','manifest','fence'])('preserves all bytes when pending recovery %s is altered',async mode=>{
+  const args=setup();const plan=await planProjectOutputs(args);
+  io.hook.mockImplementation((path:string)=>{if(path===GENERATION_MANIFEST_PATH)io.lease=false;});
+  expect((await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent})).recoveryRequired).toBe(true);
+  io.hook.mockReset();io.lease=true;
+  const path=mode==='journal'?`backups/${plan.runId}/pending-recovery.json`:mode==='output'?'generated/'+plan.targets[0].path:mode==='manifest'?GENERATION_MANIFEST_PATH:plan.evidence.sidecarPath;
+  if(mode==='fence') {const marker=JSON.parse(text(path));marker.runId='another-run';io.disk.set(path,encode(JSON.stringify(marker)));}
+  else io.disk.set(path,encode('external bytes'));
+  const before=[...io.disk];
+  expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:false,recoveryRequired:true});
+  expect([...io.disk]).toEqual(before);
+});
+it('resumes an explicitly retried pending recovery after a second lease loss',async()=>{
+  const args=setup();const plan=await planProjectOutputs(args);expect(plan.targets.length).toBeGreaterThan(1);
+  io.hook.mockImplementation((path:string)=>{if(path===GENERATION_MANIFEST_PATH)io.lease=false;});
+  expect((await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent})).recoveryRequired).toBe(true);
+  io.lease=true;io.hook.mockImplementation((path:string)=>{if(path.startsWith('generated/'))io.lease=false;});
+  expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:false,recoveryRequired:true});
+  expect(JSON.parse(text(plan.evidence.sidecarPath)).phase).toBe('pending');
+  io.hook.mockReset();io.lease=true;
+  expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:true,recoveryRequired:false});
+  expect([...io.disk.keys()].filter(path=>path.startsWith('generated/'))).toEqual([]);
 });
