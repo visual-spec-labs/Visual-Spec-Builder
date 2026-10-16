@@ -1175,6 +1175,21 @@ kind:stale, kind:malformed/code/message, 또는 kind:results/results다. done은
 한다면 그 결과의 크기를 다시 검사해야 한다. snapshot이 들어가도 wave metadata가 더해진 request는
 초과할 수 있다. v4 응답보다 새 버전이면 GUI 업데이트, 오래된 응답이면 스킬 갱신을 안내한다.
 
+### 불변 입력의 workspace 저장 준비
+
+`prepareStoredProjectRequest`는 await 이전에 문서/plan/wave/출력 폴더를 복사하고 전체 plan 문맥을
+검증한다. 기존 strict workspace reader로 자산을 수집하여 snapshot을 만들고 v4 wave를 검증한 뒤,
+`expectedRevision=missing`으로 snapshot만 쓴다. 성공 또는 409 충돌 뒤에는 저장 파일을 다시 읽어
+정확한 UTF-8 문자열과 hash를 대조해야 요청 객체를 반환한다. 409라도 바이트가 다르면 덮어쓰지
+않고 중단한다. 다른 전송 실패는 기존 파일이 있더라도 성공으로 바꾸지 않는다.
+
+모든 I/O 전후에 문서 세대/취소를 확인한다. 저장 중 취소되면 미사용 immutable snapshot이 남을 수
+있지만 요청을 반환하거나 request 파일을 쓰지는 않는다. runtime DELETE 제한을 우회해 지우지 않는다.
+이 함수는 소유권 폴더/수용 상태를 발급하거나 잠금을 대신하지 않는다. 호출자는 manifest에서 검증한
+projectRoot와 provenance로 확인한 티켓 상태를 전달하고, 반환 뒤 실제 dispatch 전에 현재 세대와
+request 잠금을 재확인해야 한다. 수용/Export에서는 현재 소스 자산과 snapshot을 다시 대조한다.
+아직 기존 GUI/스킬 dispatch를 v4로 전환한 것은 아니다.
+
 ### 프로젝트 지문과 provenance 읽기 경계 (S1-9)
 
 `projectGenerationFingerprints`는 전체 snapshot/관계를 기존 검증기로 확인한 후 지문을 계산한다.
@@ -1198,3 +1213,10 @@ partial이다. page와 project artifact 전체가 정확히 갖춰져야 current
 이 단계는 순수 읽기/판정 API다. workspace I/O, 잠금 아래 sidecar-last 확정·복구, AST 자산
 재작성, 실제 생성 runtime 및 GUI Export 연결은 후속이며 current 결과만으로 ZIP 빌드/실제 이미지
 decode 수용 조건까지 완료한 것으로 세지 않는다.
+
+#399 판정 보강: sidecar는 먼저 **기록된 plan**의 허용 경로·티켓 identity와 실제 파일/manifest를
+대조한다. 과거 plan의 inventory/DAG 모순도 거부한다. 그 근거가 정상인 뒤 현재 plan/지문과
+비교하므로 컴포넌트 이름·파일명·티켓 신원 변경은 stale로 표시한다. 손상 경로나 누락/변경 파일은
+여전히 unverified다. reader는 현재 plan 경로만이 아니라 검증된 과거 record의 출력도 읽어야 한다.
+v4 requestId 검사와 출력 경로 검사는 wire/provenance가 공유하며 CON/NUL/COM1 같은 staging
+예약어 기록을 matching manifest만으로 current로 승격하지 않는다.

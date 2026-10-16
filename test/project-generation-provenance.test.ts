@@ -27,6 +27,26 @@ function setup() {
   return { snapshot, context, record, files, manifest, inspect };
 }
 describe('project provenance read boundary', () => {
+  it('classifies a valid old filename/plan as stale after a component rename', () => {
+    const s = setup();
+    const changed = structuredClone(s.snapshot);
+    changed.project.pages.login.name = 'RenamedLogin';
+    changed.plan = compileProjectTickets(changed.project);
+    const context = projectProvenanceContext(changed, 'output');
+    expect(inspectProjectGeneration({ text: JSON.stringify(s.record), context, files: s.files, manifest: s.manifest }).state).toBe('stale');
+    // Corruption in the historical evidence must still take precedence.
+    s.record.outputs[0].filePath = '../outside.tsx';
+    expect(inspectProjectGeneration({ text: JSON.stringify(s.record), context, files: s.files, manifest: s.manifest }).state).toBe('unverified');
+  });
+  it.each(['CON', 'NUL', 'COM1'])('rejects impossible v4 request ID %s even with matching manifest', requestId => {
+    const s = setup();
+    for (const output of s.record.outputs) {
+      output.requestId = requestId;
+      if (output.scope === 'page') s.manifest.entries[output.filePath].requestId = requestId;
+    }
+    expect(s.inspect().state).toBe('unverified');
+  });
+
   it('requires the complete page/artifact output set for current', () => {
     const s = setup(); expect(s.inspect()).toMatchObject({ state: 'current', missingIds: [] });
     const removed = s.record.outputs.pop()!;
@@ -55,6 +75,11 @@ describe('project provenance read boundary', () => {
     s.files.delete(path); expect(s.inspect().state).toBe('unverified');
     const t = setup(); t.manifest.entries[path].ticketProtocol = 3; expect(t.inspect().state).toBe('unverified');
     delete t.manifest.entries[path]; expect(t.inspect().state).toBe('unverified');
+  });
+  it('rejects contradictory historical dependency evidence before reporting stale', () => {
+    const s = setup(); s.record = structuredClone(s.record);
+    s.record.plan.tickets[0].dependsOn = [s.record.plan.tickets[0].id];
+    expect(s.inspect(JSON.stringify(s.record)).state).toBe('unverified');
   });
   it('does not derive missing fingerprints from current project', () => {
     const s = setup(); s.record.inputFingerprint = '0'.repeat(64);
