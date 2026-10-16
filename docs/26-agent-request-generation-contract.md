@@ -1284,6 +1284,25 @@ xlinkHref, xlink:href는 정적/동적 여부와 무관하게 지원 밖이므�
 CSS custom property도 정적 URL 검사를 거치며 허용 외부 URL이라고 이 지원 범위를 넓히지 않는다.
 
 
+### v4 workspace dispatch와 lease 인계 (S1-9)
+
+`requestProjectTicketBatch`는 호출 시 project/plan/wave를 복사한 뒤 기존 ticket 요청 잠금을
+획득한다. 잠금이 busy/unavailable이면 입력 저장도 요청 쓰기도 하지 않는다. 잠금 아래에서
+`prepareStoredProjectRequest`의 immutable 저장/readback을 완료하고 강제 renew와 현재 문서 세대를
+재확인한 뒤 `serializeProjectTicketRequest`의 크기 검증된 compact JSON만 보낸다.
+기존 v3의 관계 차단과 응답 parser는 유지하고 대기/연장/timeout/취소 루프만 공유한다.
+
+v4 응답은 정확한 wave/parser를 거쳐야 하며 구버전으로 fallback하지 않는다. 응답 GET 중
+취소/문서 세대 변경/lease 손실/만료가 생기면 수용 후보를 반환하지 않는다. response에는 보존한
+request/snapshot과 아직 보유한 lease를 함께 돌려준다. malformed response도 호출자가 오류를
+표시한 뒤 finally에서 lease를 해제해야 한다. 다른 종료 경로는 내부에서 해제하며 wait도 settle한다.
+입력 준비 중 취소는 immutable 입력만 남길 수 있고 generated/문서/status를 바꾸지 않는다.
+
+호출자는 provenance로 검증한 status와 manifest 소유 projectRoot를 제공해야 한다. 이 API가
+소유권을 새로 발급하거나 done을 확정하지 않는다. 현재 자산 재대조·원자적 수용/복구와 실제 GUI
+producer/Export 연결은 별도 단계이며 이 전달에서 완료로 표시하지 않는다. 가상 시간 fixture는
+실제 모델 실행이나 실제 180초 경과 검증이 아니다.
+
 ### 직전 sidecar 부재 복구를 위한 조건부 제거
 
 초기 byte 저장 단계의 runtime DELETE 금지에서 **정규 project-generation-<64자리 소문자 hash>.json**
@@ -1296,3 +1315,7 @@ missing token·owner 생략은 428, 바뀐 hash/lease는 409이며 queue 안에�
 이는 byte 저장 primitive이며 lease/hash 자체가 복구 provenance를 증명하지 않는다. 새 GUI의
 복구 caller는 project-recovery 보조 기록과 run.json, 현재 출력/sidecar hash를 검증한 뒤에만
 직전 없음인 sidecar 제거를 호출해야 한다. 이 전달은 해당 caller나 자동 복구 완료가 아니다.
+
+sidecar PUT도 owner를 제공하면 기존 generated/manifest와 같은 ticket lease fence를
+실제 write 시점에 적용한다. 잃은 owner는 같은 hash를 제시해도 쓰지 못한다. 기존 CAS-only
+저장 API는 보존하지만 새 수용/복구 caller는 PUT에도 owner를 반드시 제공한다.

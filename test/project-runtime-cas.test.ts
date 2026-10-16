@@ -103,6 +103,16 @@ describe("project sidecar recovery removal", () => {
     expect(await lease("POST","new")).toBe(200);
     expect(await remove(sidecar,revision,"old")).toBe(409);expect((await get(sidecar)).text).toBe("same bytes");
   });
+  it("fences provenance PUT when the caller supplies a lease owner", async () => {
+    await put(sidecar,"original","missing");const revision=(await get(sidecar)).revision!;
+    expect(await lease("POST","current")).toBe(200);
+    const save = async (owner:string) => {
+      const result=await fetch(`${origin}/__vs/file/runtime/${sidecar}`,{method:"PUT",body:"updated",headers:{origin,[expectedHeader]:revision,[ownerHeader]:owner}});
+      await result.text();return result.status;
+    };
+    expect(await save("lost")).toBe(409);expect((await get(sidecar)).text).toBe("original");
+    expect(await save("current")).toBe(200);
+  });
   it("serializes matching deletes and keeps other runtime paths forbidden", async () => {
     await put(sidecar,"one","missing");const revision=(await get(sidecar)).revision!;
     expect(await lease("POST","restore")).toBe(200);

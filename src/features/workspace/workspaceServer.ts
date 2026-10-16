@@ -849,7 +849,8 @@ export function createWorkspaceMiddleware(workspaceRoot: string): Middleware {
         const owner = req.headers[WORKSPACE_REQUEST_OWNER_HEADER];
         // Fence promotion at the actual write, including delayed request bodies and expired tabs.
         const promotion = owner !== undefined && (resolved.relativePath.startsWith("generated/") ||
-          resolved.relativePath === "runtime/generation-manifest.json");
+          resolved.relativePath === "runtime/generation-manifest.json" ||
+          projectRuntimeRecordKind(resolved.relativePath) === "provenance");
         const lockKind = promotion ? "ticket" : requestLockKindForPath(resolved.relativePath);
         if (lockKind !== undefined && !holdsRequestLock(root, lockKind, typeof owner === "string" ? owner : undefined)) {
           sendError(res, 409, "다른 탭에서 보낸 요청이 아직 응답을 기다리고 있거나, 이 요청의 잠금이 만료됐습니다.");
