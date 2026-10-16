@@ -10,8 +10,14 @@ describe('GUI project runtime artifacts', () => {
     expect(routes).toContain('export const entryPageId = "login"');
     expect(routes).toContain('new Map<string, ComponentType<ScreenActions>>');
     expect(routes).not.toContain('notificationWidget');
+    expect(routes).toContain('export const modalNames');
+    expect(routes).toContain('["otherModal", "OtherModal"]');
     for (const ticket of context.snapshot.plan.tickets.filter(t => t.kind === 'page')) expect(routes).toContain(`../${ticket.sourcePageId}/pages/${ticket.componentName}`);
     expect(context.snapshot).toEqual(before);
+  });
+  it('uses the modal ID for a whitespace-only screen name', () => {
+    const routes = renderProjectRuntime(runtimeFixture('   ')).get('owned/runtime/Routes.ts')!;
+    expect(routes).toContain('["otherModal", "otherModal"]');
   });
   it('revalidates context rather than trusting a mutable plan', () => {
     const context = runtimeFixture(); context.snapshot.plan.entryPageId = 'missing';

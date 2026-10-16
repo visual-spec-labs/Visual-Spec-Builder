@@ -985,7 +985,7 @@ ZIP은 이 소스 배치/빌드 요구를 export 안내에 담고 소비 앱의 
 preview도 snapshot 자산을 제공하는 같은 module-aware 빌드/VFS가 필요하다. 존재하지 않는
 workspace generated/assets 파일이나 source-relative 브라우저 문자열로 preview 성공을 가장하지 않는다.
 
-URL 정책 세대는 `assets-2`이며 templateVersion의 `project-runtime-1/assets-2`와 입력 지문에
+URL 정책 세대는 `assets-2`이며 templateVersion의 `project-runtime-2/assets-2`와 입력 지문에
 포함한다. 이전 source-relative 문자열 결과를 같은 지문의 current로 재사용하지 않는다.
 Export 직전 현재 sourcePath 바이트를 snapshot과 다시 비교하고 변경/누락이면 stale로 막는다.
 그 후 이미 검증한 보유 바이트로 ZIP을 만들어 다시 읽는 TOCTOU를 피한다. 외부 URL은 로컬
@@ -1028,7 +1028,7 @@ inputFingerprint, assets, outputs, committedRunId }`다. assets에는 mapping과
 `{ id, scope: "page" | "project", sourcePageId?, filePath, sha256, requestId, inputFingerprint }[]`다. scope=page는
 sourcePageId 필수, scope=project는 금지한다. 모든 경로는 같은 projectRoot 안의 plan 허용 목록과
 정확히 일치한다. SHA-256은 **재작성 후** 출력 바이트다. templateVersion의 첫 값은
-`project-runtime-1/assets-2`로 호스트 템플릿과 URL 정책 세대를 함께 식별한다. 추가 필드와 미지 protocol은 거부한다.
+`project-runtime-2/assets-2`로 호스트 템플릿과 URL 정책 세대를 함께 식별한다. 추가 필드와 미지 protocol은 거부한다.
 중간 wave의 outputs는 일부일 수 있으나 plan의 모든 ticket/artifact ID가 정확히 한 번 존재하고
 각 출력의 inputFingerprint·바이트·자산 검사가 통과해야만 프로젝트 current다. 재사용 출력도 해당
 범위의 지문을 다시 대조하며 기록에 없는 지문을 채워 넣지 않는다. 부족한 집합은 partial로 표시하고
@@ -1302,3 +1302,10 @@ request/snapshot과 아직 보유한 lease를 함께 돌려준다. malformed res
 소유권을 새로 발급하거나 done을 확정하지 않는다. 현재 자산 재대조·원자적 수용/복구와 실제 GUI
 producer/Export 연결은 별도 단계이며 이 전달에서 완료로 표시하지 않는다. 가상 시간 fixture는
 실제 모델 실행이나 실제 180초 경과 검증이 아니다.
+
+#402 후속 경계: 모달 ID가 바뀌면 panel 자체에 preventScroll focus하고 scroll을 (0,0)으로 초기화한다. 첫 control이 아래에
+있어도 도입부를 숨기지 않으며 이후 Tab/focus 이동은 기존 내부 scroll 규칙을 따른다.
+접근성 이름은 snapshot의 modal screen name(trim 뒤 비어 있으면 ID)이며 교체 시 갱신한다.
+템플릿 정책을 project-runtime-2/assets-2로 올려 이전 runtime 출력이 current로 남지 않게 한다.
+과거 plan의 routes 순서는 해당 page root ticket 순서의 부분열이어야 한다. routes만 재정렬한
+모순된 기록은 unverified이며 정상 과거 plan과 현재 문서 pageOrder 차이는 계속 stale이다.
