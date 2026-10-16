@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, expect, it } from "vitest";
-import { readSmokeResponse, smokeFailure } from "./helpers/smokeDiagnostics";
+import { probeSmokeStatus, readSmokeResponse, smokeFailure } from "./helpers/smokeDiagnostics";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PNPM_CLI = process.env.npm_execpath;
@@ -49,14 +49,10 @@ async function waitForGui(child: ReturnType<typeof spawn>, workspacePath: string
       const match = output.match(/Local:\s+(https?:\/\/\S+)/);
       if (match !== null) {
         const baseUrl = match[1].replace(/\/$/, "");
-        const statusResponse = await fetch(`${baseUrl}/__vs/status`)
-          .catch((error: unknown) => { lastProbe = error instanceof Error ? error.message : String(error); return undefined; });
-        // Keep the original readiness rule: retry only unavailable/non-OK status probes.
-        // Once HTTP is OK, body/JSON/assertion failures must fail immediately.
-        const statusBody = statusResponse ? await statusResponse.text() : undefined;
-        if (statusResponse) lastProbe = `HTTP ${statusResponse.status} ${statusResponse.statusText}: ${baseUrl}/__vs/status\n${statusBody?.slice(0, 8192)}`;
-        if (statusResponse?.ok && statusBody !== undefined) {
-          const status = JSON.parse(statusBody) as { ok: boolean; root: string; dirs: string[] };
+        const probe = await probeSmokeStatus(`${baseUrl}/__vs/status`, deadline - Date.now());
+        lastProbe = probe.diagnostic;
+        if (probe.ready) {
+          const status = JSON.parse(probe.body) as { ok: boolean; root: string; dirs: string[] };
           expect(status.ok).toBe(true);
           expect(status.root).toBe(workspacePath);
           expect(status.dirs).toContain("specs");
