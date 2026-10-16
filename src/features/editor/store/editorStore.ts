@@ -186,11 +186,12 @@ export interface EditorState {
    * 패널이 호출한다.
    *
    * #40 리뷰(GAMMJ, PR #102): setNodeField와 같은 이유로 이것도 Command
-   * Engine(updateScreen)을 거치고 history에 쌓인다 — 시그니처는 그대로다.
+   * Engine(updateScreen)을 거치고 history에 쌓인다.
    * 안 그러면 "노드 편집 → 해상도 변경 → undo"가 둘 다 되돌리는 놀람이 있었다.
    * `continueEdit`도 setNodeField와 같다(#121) — 기본 false.
+   * 검증된 변경을 커밋하면 true, 거부·no-op이면 false를 반환한다.
    */
-  setPageField: (pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => void;
+  setPageField: (pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => boolean;
   /** 반응형 블록은 전체 검증 후 기존 updateScreen 한 번으로 적용한다. */
   setResponsive: (pageId: PageId, value: Responsive, continueEdit?: boolean) => string | null;
   /**
@@ -480,16 +481,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       );
       return next ?? state;
     }),
-  setPageField: (pageId, path, value, continueEdit = false) =>
-    set((state) => {
-      const next = applied(
-        state,
-        pageId,
-        { type: "updateScreen", path, value },
-        continueEdit,
-      );
-      return next ?? state;
-    }),
+  setPageField: (pageId, path, value, continueEdit = false) => {
+    const next = applied(get(), pageId, { type: "updateScreen", path, value }, continueEdit);
+    if (!next) return false;
+    set(next);
+    return true;
+  },
   setResponsive: (pageId, value, continueEdit = false) => {
     const state = get();
     const page = state.spec.pages[pageId];
@@ -498,7 +495,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const result = validateVisualSpec({ version: "0.3", screen: { ...page, responsive: value } });
     if (!result.valid) return result.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n");
     const next = applied(state, pageId, { type: "updateScreen", path: "responsive", value }, continueEdit);
-    if (next) set(next);
+    if (!next) return useResponsiveViewStore.getState().error ?? "반응형 변경을 적용하지 못했습니다.";
+    set(next);
     return null;
   },
   addPage: () =>

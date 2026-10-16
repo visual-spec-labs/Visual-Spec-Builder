@@ -145,7 +145,9 @@ async function openDocument() {
 }
 let discardedDrafts = 0;
 async function selectPage(name) {
-  await button(name).first().click();
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Match the complete page-button contract; duplicate names require an explicit fixture choice.
+  await button(new RegExp(`^${escaped}, 화면 종류: (?:page|modal|widget)$`)).click();
   await page.waitForFunction((name) => document.querySelector('[data-testid="responsive-artboard"]') !== null && name, name);
 }
 // 브라우저에서 실행한다(tickets 단계가 window.tickets에 ticketStore를 둔 뒤). 실행 상태와 티켓별 상태를 읽는다.
