@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, expect, it } from "vitest";
+import { probeSmokeStatus, readSmokeResponse, smokeFailure } from "./helpers/smokeDiagnostics";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PNPM_CLI = process.env.npm_execpath;
@@ -21,47 +22,56 @@ function runPnpm(cwd: string, args: string[], timeout = 60_000): string {
   if (PNPM_CLI === undefined) {
     throw new Error("패키지 smoke는 pnpm test에서 실행해야 합니다(npm_execpath 없음).");
   }
-  return execFileSync(process.execPath, [PNPM_CLI, ...args], {
-    cwd,
-    encoding: "utf8",
-    env: cleanEnv(),
-    timeout,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  try {
+    return execFileSync(process.execPath, [PNPM_CLI, ...args], {
+      cwd,
+      encoding: "utf8",
+      env: cleanEnv(),
+      timeout,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    const detail = error as { stdout?: string; stderr?: string };
+    throw new Error(`pnpm ${args.join(" ")} failed in ${cwd}\nstdout:\n${detail.stdout ?? ""}\nstderr:\n${detail.stderr ?? ""}`, { cause: error });
+  }
 }
 
-async function waitForGui(child: ReturnType<typeof spawn>, workspacePath: string): Promise<string> {
+async function waitForGui(child: ReturnType<typeof spawn>, workspacePath: string, dependencyVersions: string): Promise<string> {
   let output = "";
   child.stdout?.on("data", (chunk: Buffer) => { output += chunk.toString(); });
   child.stderr?.on("data", (chunk: Buffer) => { output += chunk.toString(); });
 
-  const deadline = Date.now() + 45_000;
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`GUI 프로세스가 ${child.exitCode}로 끝남:\n${output}`);
-    const match = output.match(/Local:\s+(https?:\/\/\S+)/);
-    if (match !== null) {
-      const baseUrl = match[1].replace(/\/$/, "");
-      const statusResponse = await fetch(`${baseUrl}/__vs/status`).catch(() => undefined);
-      if (statusResponse?.ok) {
-        const status = await statusResponse.json() as { ok: boolean; root: string; dirs: string[] };
-        expect(status.ok).toBe(true);
-        expect(status.root).toBe(workspacePath);
-        expect(status.dirs).toContain("specs");
-        const appResponse = await fetch(`${baseUrl}/`);
-        expect(appResponse.ok).toBe(true);
-        expect(await appResponse.text()).toContain("/src/main.tsx");
-        const sourceResponse = await fetch(`${baseUrl}/src/main.tsx`);
-        expect(sourceResponse.ok).toBe(true);
-        expect(await sourceResponse.text()).toContain("createRoot");
-        const faviconResponse = await fetch(`${baseUrl}/favicon.svg`);
-        expect(faviconResponse.ok).toBe(true);
-        expect(faviconResponse.headers.get("content-type")).toContain("image/svg+xml");
-        return baseUrl;
+  let lastProbe = "No status response received";
+  try {
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline) {
+      if (child.exitCode !== null) throw new Error(`GUI 프로세스가 ${child.exitCode}로 끝남`);
+      const match = output.match(/Local:\s+(https?:\/\/\S+)/);
+      if (match !== null) {
+        const baseUrl = match[1].replace(/\/$/, "");
+        const probe = await probeSmokeStatus(`${baseUrl}/__vs/status`, deadline - Date.now());
+        lastProbe = probe.diagnostic;
+        if (probe.ready) {
+          const status = JSON.parse(probe.body) as { ok: boolean; root: string; dirs: string[] };
+          expect(status.ok).toBe(true);
+          expect(status.root).toBe(workspacePath);
+          expect(status.dirs).toContain("specs");
+          const appResponse = await fetch(`${baseUrl}/`);
+          expect(await readSmokeResponse(appResponse, `${baseUrl}/`)).toContain("/src/main.tsx");
+          const sourceResponse = await fetch(`${baseUrl}/src/main.tsx`);
+          expect(await readSmokeResponse(sourceResponse, `${baseUrl}/src/main.tsx`)).toContain("createRoot");
+          const faviconResponse = await fetch(`${baseUrl}/favicon.svg`);
+          await readSmokeResponse(faviconResponse, `${baseUrl}/favicon.svg`);
+          expect(faviconResponse.headers.get("content-type")).toContain("image/svg+xml");
+          return baseUrl;
+        }
       }
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 150));
     }
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, 150));
+    throw new Error(`GUI 서버 시작 대기 시간 초과:\n${lastProbe}`);
+  } catch (error) {
+    throw smokeFailure(error, output, dependencyVersions);
   }
-  throw new Error(`GUI 서버 시작 대기 시간 초과:\n${output}`);
 }
 
 afterEach(() => {
@@ -82,6 +92,8 @@ it("실제 tarball을 새 production 소비 폴더에 설치해 CLI 리소스와
   mkdirSync(consumerDir, { recursive: true });
   writeFileSync(join(consumerDir, "package.json"), JSON.stringify({ name: "smoke-consumer", private: true }));
   runPnpm(consumerDir, ["add", "--prod", "--prefer-offline", tarball], 90_000);
+
+  const dependencyVersions = runPnpm(consumerDir, ["list", "--prod", "--depth", "2", "--json"]);
 
   const packageRoot = join(consumerDir, "node_modules", "visual-spec");
   const packageCli = join(packageRoot, "bin", "visual-spec.mjs");
@@ -108,7 +120,7 @@ it("실제 tarball을 새 production 소비 폴더에 설치해 CLI 리소스와
     stdio: ["ignore", "pipe", "pipe"],
   });
   try {
-    await waitForGui(child, join(consumerDir, ".visual-spec"));
+    await waitForGui(child, join(consumerDir, ".visual-spec"), dependencyVersions);
   } finally {
     child.kill();
     await new Promise<void>((resolveExit) => {
