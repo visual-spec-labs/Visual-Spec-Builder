@@ -61,6 +61,8 @@ function coherentPlan(plan: ProjectPlan): boolean {
   if (roots.length !== pages.size || new Set(roots.map(ticket => ticket.sourcePageId)).size !== pages.size) return false;
   if (new Set(plan.routes.map(route => route.pageId)).size !== plan.routes.length || !plan.routes.some(route => route.pageId === plan.entryPageId)) return false;
   if (plan.routes.some(route => !roots.some(root => root.id === route.ticketId && root.sourcePageId === route.pageId))) return false;
+  const routeIds = new Set(plan.routes.map(route => route.ticketId));
+  if (canonicalJson(plan.routes.map(route => route.ticketId)) !== canonicalJson(roots.filter(root => routeIds.has(root.id)).map(root => root.id))) return false;
   if (plan.excludedPages.some(page => pages.has(page.pageId)) || new Set(plan.excludedPages.map(page => page.pageId)).size !== plan.excludedPages.length) return false;
   const expected = { "project:routes": roots.map(root => root.id), "project:host": ["project:routes"], "project:entry": ["project:host"] };
   return plan.artifacts.length === 3 && plan.artifacts.every(artifact => canonicalJson(artifact.dependsOn) === canonicalJson(expected[artifact.id]));

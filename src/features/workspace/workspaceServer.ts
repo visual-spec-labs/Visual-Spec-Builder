@@ -82,7 +82,7 @@ import type { VisualSpec } from "../editor/schema/types";
 import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
 import { projectFileName } from "./projectName";
 import { checkRequestOrigin } from "./requestOrigin";
-import { acquireRequestLock, holdsRequestLock, releaseRequestLock, renewRequestLock, writeIfLockHeld } from "./requestLock";
+import { acquireRequestLock, holdsRequestLock, releaseRequestLock, renewRequestLock, writeIfLockHeld, writeTicketRecord } from "./requestLock";
 import {
   isInsideWorkspace,
   matchWorkspaceRoute,
@@ -427,9 +427,16 @@ function handleDelete(req: IncomingMessage, res: ServerResponse, workspaceRoot: 
       }
       const owner = req.headers[WORKSPACE_REQUEST_OWNER_HEADER];
       if (owner !== undefined) {
-        if (typeof owner !== "string" || !writeIfLockHeld(workspaceRoot, "ticket", owner, () => unlinkSync(absolutePath))) {
+        let revisionChanged = false;
+        if (typeof owner !== "string" || !writeIfLockHeld(workspaceRoot, "ticket", owner, () => {
+          // Other server processes do not share withWorkspaceMutation's queue.
+          // Compare again inside the disk mutex used by every sidecar PUT.
+          if (currentRevision(absolutePath) !== expected) { revisionChanged = true; return; }
+          unlinkSync(absolutePath);
+        })) {
           sendError(res, 409, "복구 잠금을 잃어 지우지 않았습니다."); return;
         }
+        if (revisionChanged) { sendError(res, 409, "삭제 잠금을 기다리는 사이 파일이 바뀌었습니다."); return; }
       } else unlinkSync(absolutePath);
       sendJson(res, 200, { ok: true, path: relativePath });
     } catch (error) {
@@ -555,7 +562,15 @@ function handleWrite(
           return;
         }
       }
-      if (guardWrite) {
+      if (projectRecord === "provenance") {
+        let revisionChanged = false;
+        const owner = req.headers[WORKSPACE_REQUEST_OWNER_HEADER];
+        const written = writeTicketRecord(workspaceRoot, typeof owner === "string" ? owner : undefined, () => {
+          if (req.headers[WORKSPACE_EXPECTED_REVISION_HEADER] !== currentRevision(absolutePath)) { revisionChanged = true; return; }
+          writeFileAtomic(absolutePath, body);
+        });
+        if (!written || revisionChanged) { sendError(res, 409, "프로젝트 기록 잠금 또는 기대 버전이 바뀌어 쓰지 않았습니다."); return; }
+      } else if (guardWrite) {
         if (!guardWrite(() => writeFileAtomic(absolutePath, body))) {
           sendError(res, 409, "본문을 받는 사이 이 요청의 잠금이 풀리거나 다른 탭으로 넘어갔습니다. 요청 파일을 쓰지 않았습니다.");
           return;

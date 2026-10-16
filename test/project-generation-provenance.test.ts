@@ -27,6 +27,14 @@ function setup() {
   return { snapshot, context, record, files, manifest, inspect };
 }
 describe('project provenance read boundary', () => {
+  it('rejects reordered historical routes but keeps a coherent old plan stale', () => {
+    const s = setup(); const corrupt = structuredClone(s.record); corrupt.plan.routes.reverse();
+    expect(s.inspect(JSON.stringify(corrupt)).state).toBe('unverified');
+    const changed = structuredClone(s.snapshot); changed.project.pageOrder = ['dashboard', ...changed.project.pageOrder.filter(id => id !== 'dashboard')];
+    changed.plan = compileProjectTickets(changed.project);
+    const context = projectProvenanceContext(changed, 'output');
+    expect(inspectProjectGeneration({text:JSON.stringify(s.record),context,files:s.files,manifest:s.manifest}).state).toBe('stale');
+  });
   it('classifies a valid old filename/plan as stale after a component rename', () => {
     const s = setup();
     const changed = structuredClone(s.snapshot);

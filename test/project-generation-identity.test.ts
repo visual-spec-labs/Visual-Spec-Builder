@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProjectSpec, ButtonNode, TextNode, FrameNode } from "@/features/editor/schema";
 import { compileProjectTickets } from "@/features/editor/ticket/compileProjectTickets";
 import { createProjectAssetSnapshot, type ProjectInputSnapshot } from "@/features/editor/ticket/projectInputSnapshot";
-import { projectGenerationFingerprints, projectGenerationPath } from "@/features/editor/export/projectGenerationIdentity";
+import { PROJECT_TEMPLATE_VERSION, projectGenerationFingerprints, projectGenerationPath } from "@/features/editor/export/projectGenerationIdentity";
 import fixture from "./fixtures/screen-relations-project.json";
 function project() { return { ...structuredClone(fixture) as unknown as ProjectSpec, projectId: 'identity' }; }
 function snapshot(p = project()): ProjectInputSnapshot { return { protocol: 1, requestId: 'test', projectId: p.projectId!, project: p, plan: compileProjectTickets(p), assets: [] }; }
@@ -40,7 +40,7 @@ describe('project generation identity', () => {
   });
   it('includes policy generation and project identity', () => {
     const s = snapshot(); const before = projectGenerationFingerprints(s);
-    const next = projectGenerationFingerprints(s, 'project-runtime-2/assets-2');
+    const next = projectGenerationFingerprints(s, `${PROJECT_TEMPLATE_VERSION}-next`);
     expect(next.project).not.toBe(before.project); expect(next.pages.login).not.toBe(before.pages.login);
     s.project.projectId = 'copy'; s.projectId = 'copy'; s.plan = compileProjectTickets(s.project);
     expect(projectGenerationFingerprints(s).pages.login).not.toBe(before.pages.login);
