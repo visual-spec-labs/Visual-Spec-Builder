@@ -206,3 +206,31 @@ it('reports a restore CAS conflict and preserves the intervening manual edit',as
   expect(await restoreProjectOutputs(plan.runId,plan.context,args.isCurrent)).toMatchObject({restored:false,recoveryRequired:true});
   expect(text(second)).toBe('intervening manual edit');
 });
+
+it.each(['before', 'output', 'manifest', 'sidecar'].flatMap(stage=>['change','delete'].map(mode=>({stage,mode}))))('rejects retained output $mode at $stage and preserves external bytes',async({stage,mode})=>{
+  const args=setup();const first=await planProjectOutputs(args);
+  expect((await commitProjectOutputs(first,{}, {lock,isCurrent:args.isCurrent})).committed).toBe(true);
+  const record=JSON.parse(text(first.evidence.sidecarPath));const next=structuredClone(args.prepared.request.plan);
+  for(const ticket of next.tickets)if(record.outputs.some((output:{id:string})=>output.id===ticket.id))ticket.status='done';
+  const second=await planProjectOutputs(prepare('second',args.prepared.request.project,next));
+  const retained='generated/'+record.outputs[0].filePath;
+  expect(second.targets.some(target=>'generated/'+target.path===retained)).toBe(false);
+  const manifestBefore=text(GENERATION_MANIFEST_PATH);const sidecarBefore=text(first.evidence.sidecarPath);
+  const mutate=()=>{if(mode==='delete')io.disk.delete(retained);else io.disk.set(retained,encode('external edit'));};
+  io.writes=[];
+  if(stage==='before')mutate();
+  else io.hook.mockImplementation((path:string)=>{
+    if((stage==='output'&&path.startsWith('generated/'))||(stage==='manifest'&&path===GENERATION_MANIFEST_PATH)||(stage==='sidecar'&&path===first.evidence.sidecarPath))mutate();
+  });
+  expect(await commitProjectOutputs(second,{}, {lock,isCurrent:args.isCurrent})).toMatchObject({committed:false,recoveryRequired:true});
+  expect(mode==='delete'?io.disk.has(retained):text(retained)).toBe(mode==='delete'?false:'external edit');
+  expect(text(GENERATION_MANIFEST_PATH)).toBe(manifestBefore);expect(text(first.evidence.sidecarPath)).toBe(sidecarBefore);
+  for(const target of second.targets)expect(io.disk.has('generated/'+target.path)).toBe(false);
+  if(stage==='before')expect(io.writes.some(path=>path.startsWith('generated/')||path===GENERATION_MANIFEST_PATH||path===first.evidence.sidecarPath)).toBe(false);
+});
+it('rechecks newly written outputs after manifest before sidecar promotion',async()=>{
+  const args=setup();const plan=await planProjectOutputs(args);const path='generated/'+plan.targets[0].path;
+  io.hook.mockImplementation((written:string)=>{if(written===GENERATION_MANIFEST_PATH)io.disk.set(path,encode('external edit'));});
+  expect(await commitProjectOutputs(plan,{}, {lock,isCurrent:args.isCurrent})).toMatchObject({committed:false,recoveryRequired:true});
+  expect(text(path)).toBe('external edit');expect(io.disk.has(plan.evidence.sidecarPath)).toBe(false);
+});

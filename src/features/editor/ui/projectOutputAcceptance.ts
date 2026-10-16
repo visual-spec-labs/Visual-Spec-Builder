@@ -103,7 +103,7 @@ export async function planProjectOutputs(args: {
     outputs:context.outputs.flatMap(output=>nextOutputs.has(output.id)?[nextOutputs.get(output.id)!]:[]),committedRunId:runId};
   const sidecarText = JSON.stringify(sidecar); const manifestText = JSON.stringify(withManifestUpdates(evidence.manifest,updates));
   assertSize(sidecarText);assertSize(manifestText);
-  return {requestId:request.id,runId,context,targets,review,results:response.results,sidecarText,manifestText,evidence};
+  return {requestId:request.id,runId,context,outputs:sidecar.outputs,targets,review,results:response.results,sidecarText,manifestText,evidence};
 }
 export type ProjectOutputPlan = Awaited<ReturnType<typeof planProjectOutputs>>;
 
@@ -131,7 +131,7 @@ export function commitProjectOutputs(plan:ProjectOutputPlan, decisions:Readonly<
 async function commitProjectOutputsNow(plan:ProjectOutputPlan, decisions:Readonly<Record<string,OverwriteDecision>>, {lock,isCurrent}:{lock:HeldRequestLock;isCurrent:()=>boolean}):Promise<ProjectOutputAcceptance> {
   const root=backupRoot(plan.runId);const files:ProjectRunFile[]=plan.targets.map(target=>({path:target.path,ticketId:target.ticketId,
     previousRevision:target.current?.revision??null,backupPath:target.current?`${root}/files/${target.path}`:null,writtenRevision:revision(target.next),previousEntry:target.record}));
-  const attempted:ProjectRunFile[]=[];let manifestAttempted=false;let sidecarAttempted=false;
+  const attempted:ProjectRunFile[]=[];let manifestAttempted=false;let sidecarAttempted=false;let outputConflict=false;
   const failed=(message:string,recoveryRequired=false):ProjectOutputAcceptance=>({committed:false,runId:plan.runId,recoveryRequired,message,results:plan.results.map(item=>({...item,status:'failed',message}))});
   const assertCurrent=async()=>{if(!isCurrent()||!await lock.renew(true)||!isCurrent())throw Error('취소되거나 프로젝트 요청 잠금을 잃었습니다.');};
   const expectedRevision=(file:{revision:string}|null)=>file?.revision??WORKSPACE_MISSING_REVISION;
@@ -140,6 +140,13 @@ async function commitProjectOutputsNow(plan:ProjectOutputPlan, decisions:Readonl
   const checkSource=async()=>{
     const current=await readCurrentProjectContext({requestId:plan.requestId,project:plan.context.snapshot.project,plan:plan.context.snapshot.plan,projectRoot:plan.context.projectRoot,isCurrent});
     if(current.fingerprints.project!==plan.context.fingerprints.project)throw Error('수용 중 현재 자산 바이트가 바뀌었습니다.');
+  };
+  const retained=plan.outputs.filter(output=>!plan.targets.some(target=>target.path===output.filePath));
+  const checkOutputs=async(outputs:ProjectOutputPlan['outputs'])=>{
+    for(const output of outputs)if(!await sameFile(`generated/${output.filePath}`,output.sha256)) {
+      outputConflict=true;
+      throw Error(`수용 근거의 생성 출력이 변경되거나 삭제됐습니다: ${output.filePath}`);
+    }
   };
   const previousSidecar=plan.evidence.sidecarFile;
   const restore=(path:string,previous:{bytes:Uint8Array;revision:string}|null,writtenRevision:string)=>previous
@@ -201,6 +208,8 @@ async function commitProjectOutputsNow(plan:ProjectOutputPlan, decisions:Readonl
     await assertCurrent();
     for(const target of plan.targets)if(!await sameFile(`generated/${target.path}`,expectedRevision(target.current)))throw Error('검토 뒤 생성 파일이 바뀌었습니다.');
     if(!await sameFile(GENERATION_MANIFEST_PATH,expectedRevision(plan.evidence.manifestFile)) || !await sameFile(plan.evidence.sidecarPath,expectedRevision(previousSidecar)))throw Error('검토 뒤 수용 기록이 바뀌었습니다.');
+    await checkOutputs(retained);
+    await assertCurrent();
     for(const file of files) {
       const target=plan.targets.find(target=>target.path===file.path)!;
       if(target.ownership==='unchanged')continue;
@@ -214,16 +223,16 @@ async function commitProjectOutputsNow(plan:ProjectOutputPlan, decisions:Readonl
     manifestAttempted=true;
     const manifestSaved=await writeWorkspaceFile(GENERATION_MANIFEST_PATH,plan.manifestText,'application/json',undefined,plan.requestId);
     if(!manifestSaved.ok || !await sameFile(GENERATION_MANIFEST_PATH,revision(plan.manifestText)))throw Error('프로젝트 manifest 기록을 확인하지 못했습니다.');
-    await assertCurrent();sidecarAttempted=true;
+    await assertCurrent();await checkOutputs(plan.outputs);await assertCurrent();sidecarAttempted=true;
     const sidecarSaved=await writeWorkspaceFile(plan.evidence.sidecarPath,plan.sidecarText,'application/json',expectedRevision(previousSidecar),plan.requestId);
     if(!sidecarSaved.ok || !await sameFile(plan.evidence.sidecarPath,revision(plan.sidecarText)))throw Error('프로젝트 sidecar 기록을 확인하지 못했습니다.');
-    await assertCurrent();
+    await assertCurrent();await checkOutputs(plan.outputs);await assertCurrent();
   } catch(error) {
     const message=error instanceof Error?error.message:'프로젝트 수용에 실패했습니다.';
-    if(!attempted.length&&!manifestAttempted&&!sidecarAttempted)return failed(message);
+    if(!attempted.length&&!manifestAttempted&&!sidecarAttempted)return failed(message,outputConflict);
     let restored=false;try{restored=await compensate();}catch{/* Preserve bytes and report unresolved scope. */}
     try{await immutableText(`${root}/run.json`,JSON.stringify(runRecord('recovery',manifestAttempted?files:attempted)));}catch{return failed(`${message} 복구 범위 기록에 실패했습니다. 백업 ${root}를 보존하세요.`,true);}
-    return failed(`${message}${restored?' 이번 적용을 되돌렸습니다.':' 복구 확인이 필요합니다.'}`,!restored);
+    return failed(`${message}${restored?' 이번 적용을 되돌렸습니다.':' 복구 확인이 필요합니다.'}${outputConflict?' 외부 출력 변경은 보존했으며 확인이 필요합니다.':''}`,!restored||outputConflict);
   }
   // Commit point follows sidecar readback and the final cancellation/lease check. Stop
   // during immutable bookkeeping prevents later waves, not an already committed run.
