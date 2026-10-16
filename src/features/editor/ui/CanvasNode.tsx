@@ -1,12 +1,12 @@
 import { useEffect, useRef, type RefObject } from "react";
-import type { NodeId, ScreenSpec } from "@/features/editor/schema";
+import type { NodeId, ProjectSpec, ScreenSpec } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useMeasureStore } from "@/features/editor/store/measureStore";
 import type { Direction } from "./canvasLayout";
 import { handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu } from "./canvasSelection";
 import { ResizeHandles } from "./CanvasResizeHandles";
 import { buttonStyle, frameStyle, imageStyle, inputStyle, textStyle } from "./nodeStyles";
-import { boxStyle } from "./canvasLayout";
+import { WidgetInstance } from "./WidgetInstance";
 
 /** 스펙 트리의 DOM 렌더링과 선택 노드 실측. 이벤트 해석은 canvasSelection에 위임한다. */
 /**
@@ -40,10 +40,14 @@ function useReportMeasuredSize(
 }
 
 export function RenderNode({
+  project,
+  width,
   screen,
   id,
   parentDirection,
 }: {
+  project: ProjectSpec;
+  width: number;
   screen: ScreenSpec;
   id: NodeId;
   /** 부모 프레임의 레이아웃 방향. 최상위 노드는 부모가 없어 undefined. */
@@ -131,7 +135,9 @@ export function RenderNode({
     );
   }
 
-  if (node.type === "instance") return <div ref={ref} data-node-id={id} aria-label={node.name} style={{ ...boxStyle(node.box, parentDirection), ...resizeAnchor }} onClick={(event) => handleNodeClick(id, event)}>위젯 미리보기 준비 중</div>;
+  if (node.type === "instance") return <WidgetInstance project={project} instance={node} width={width} direction={parentDirection} hostRef={ref} hostNodeId={id} onClick={(event) => handleNodeClick(id, event)} onDoubleClick={(event) => handleNodeDoubleClick(id, event)} onContextMenu={(event) => handleNodeContextMenu(id, event)}>
+    {selected && !screen.responsive && <ResizeHandles id={id} box={node.box} />}
+  </WidgetInstance>;
   return (
     <div
       ref={ref}
@@ -143,6 +149,8 @@ export function RenderNode({
     >
       {node.children.map((child) => (
         <RenderNode
+          project={project}
+          width={width}
           screen={screen}
           key={child.node}
           id={child.node}

@@ -28,7 +28,8 @@
           { "$ref": "visual-spec#/$defs/TextNode" },
           { "$ref": "visual-spec#/$defs/ImageNode" },
           { "$ref": "visual-spec#/$defs/ButtonNode" },
-          { "$ref": "visual-spec#/$defs/InputNode" }
+          { "$ref": "visual-spec#/$defs/InputNode" },
+          { "$ref": "visual-spec#/$defs/InstanceNode" }
         ] },
         "index": { "type": "integer", "minimum": 0 }
       }

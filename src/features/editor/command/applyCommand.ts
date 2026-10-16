@@ -112,7 +112,6 @@ function insertChildReference(
 }
 
 function applyCreateNode(screen: ScreenSpec, command: CreateNodeCommand): ApplyResult {
-  if (command.node.type === "instance") return noOp(screen, "위젯 instance Command는 아직 지원되지 않습니다");
   const { nodes } = screen;
   const parent = nodes[command.parentId];
   if (parent === undefined) {

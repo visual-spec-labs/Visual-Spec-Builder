@@ -9,6 +9,12 @@ GUI 관계 배치도 no-op/프로젝트 후보 오류 시 전부 거부한다. �
 
 ## 정본과 공개 표면
 
+2026-10-16 #265 S2 위젯 배치: 기존 `createNode`의 `node`에 IR 0.4 `InstanceNode`를
+추가했다. 명령 종류·필드·Transaction 봉투는 그대로 v0.2다. 프로젝트 전체 G3에서
+ref 종류·순환·override를 검사하고, 실패하면 원본과 Undo 기록을 유지한다. 구 0.3
+소비자는 IR 스키마에서 instance를 거부한다. 위젯 추출·분리는 여러 화면을 바꾸므로
+이 화면 단위 Command로 표현하지 않으며 별도 프로젝트 명령 계약에서 다룬다.
+
 런타임 정본은 `src/features/editor/command/command.schema.json`이다. `createNode`,
 `updateNode`, `deleteNode`, `moveNode`, `setLayout`, `updateScreen`, `removeNodeAction` 7종과
 버전이 있는 `Transaction`을 v0.2로 고정한다.

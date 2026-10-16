@@ -3,6 +3,7 @@ import type { Action, NodeId, ProjectSpec, ScreenSpec } from "@/features/editor/
 import { resolveResponsiveScreen } from "@/features/editor/responsive/resolveResponsive";
 import type { Direction } from "./canvasLayout";
 import { buttonStyle, frameStyle, imageStyle, inputStyle, textStyle } from "./nodeStyles";
+import { WidgetInstance } from "./WidgetInstance";
 
 function viewport() {
   const visual = window.visualViewport;
@@ -11,8 +12,8 @@ function viewport() {
 }
 
 /** Read-only rendering: preview events never enter editor selection/drag/Undo paths. */
-function PreviewNode({ screen, id, direction, action, rootStyle }: {
-  screen: ScreenSpec; id: NodeId; direction?: Direction; action: (action?: Action) => void; rootStyle?: CSSProperties;
+function PreviewNode({ project, width, screen, id, direction, action, rootStyle }: {
+  project: ProjectSpec; width: number; screen: ScreenSpec; id: NodeId; direction?: Direction; action: (action?: Action) => void; rootStyle?: CSSProperties;
 }) {
   const node = screen.nodes[id];
   if (!node || node.visible === false) return null;
@@ -21,9 +22,9 @@ function PreviewNode({ screen, id, direction, action, rootStyle }: {
   if (node.type === "image") return <div {...props} role="img" aria-label={node.name} style={imageStyle(node, direction)} />;
   if (node.type === "input") return <input {...props} aria-label={node.name} placeholder={node.placeholder} style={inputStyle(node, direction)} />;
   if (node.type === "button") return <button {...props} type="button" style={buttonStyle(node, direction)} onClick={() => action(node.action)}>{node.content}</button>;
-  if (node.type === "instance") return <div {...props} aria-label={node.name}>위젯 미리보기 준비 중</div>;
+  if (node.type === "instance") return <WidgetInstance project={project} instance={node} width={width} direction={direction} onAction={action} />;
   return <div {...props} style={{ ...frameStyle(node, direction), ...rootStyle }}>
-    {node.children.map(child => <PreviewNode key={child.node} screen={screen} id={child.node} direction={node.layout.direction} action={action} />)}
+    {node.children.map(child => <PreviewNode key={child.node} project={project} width={width} screen={screen} id={child.node} direction={node.layout.direction} action={action} />)}
   </div>;
 }
 
@@ -95,7 +96,7 @@ export function ModalPreview({ project, pageId, editorSurface, onClose, onNaviga
     <div className="flex h-full w-full items-center justify-center" style={{ padding: "calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))", boxSizing: "border-box" }}>
       <div ref={panel} tabIndex={-1} data-testid="modal-preview-panel" style={{ width: screen.size.width, maxWidth: "100%", minHeight: `min(${screen.size.height}px, ${availableHeight})`, maxHeight: availableHeight, overflow: "auto", overscrollBehavior: "contain" }}
         onFocusCapture={event => event.target.scrollIntoView({ block: "nearest", inline: "nearest" })}>
-        <PreviewNode screen={screen} id={screen.root} action={run} rootStyle={{ width: "100%", height: "auto", minHeight: `min(${screen.size.height}px, ${availableHeight})`, flex: "none", boxSizing: "border-box" }} />
+        <PreviewNode project={project} width={view.layoutWidth} screen={screen} id={screen.root} action={run} rootStyle={{ width: "100%", height: "auto", minHeight: `min(${screen.size.height}px, ${availableHeight})`, flex: "none", boxSizing: "border-box" }} />
       </div>
     </div>
     <button type="button" className="absolute right-2 top-2 rounded bg-surface px-2 py-1 text-content" onClick={onClose}>미리보기 닫기</button>

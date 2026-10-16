@@ -396,7 +396,7 @@ export function Canvas() {
             transform: `scale(${scale})`,
           }}
         >
-          <RenderNode screen={resolved} id={root} />
+          <RenderNode project={project} width={previewWidth} screen={resolved} id={root} />
         </div>
 
         {/*

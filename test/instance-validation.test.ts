@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCachedProjectValidator, validateProjectSpec, validateVisualSpec, type ProjectSpec } from '@/features/editor/schema';
 import fixture from './fixtures/screen-relations-project.json';
 import { preparePageRemoval } from '@/features/editor/store/pageRemoval';
+import { useEditorStore } from '@/features/editor/store/editorStore';
 
 function project() {
   const value = structuredClone(fixture) as unknown as ProjectSpec;
@@ -95,5 +96,25 @@ describe('IR 0.4 widget instance semantics', () => {
     expect(codes(value)).toEqual([]);
     value.pages.notificationWidget.nodes.title = structuredClone(value.pages.notificationWidget.nodes.root);
     expect(codes(value)).toContain('instance-override-invalid');
+  });
+
+  it('commits a valid instance with one Undo step and rejects an invalid ref unchanged', () => {
+    const value = project();
+    const page = value.pages.login;
+    delete page.nodes.sharedCard;
+    const root = page.nodes.root;
+    if (root.type !== 'frame') throw Error('fixture root');
+    root.children = root.children.filter(child => child.node !== 'sharedCard');
+    const store = useEditorStore.getState();
+    store.loadSpec(value);
+    const before = useEditorStore.getState();
+    store.insertNode('root', 'invalid', { type: 'instance', name: 'Bad', box: { width: 100, height: 80 }, ref: 'absent' });
+    expect(useEditorStore.getState().spec).toBe(before.spec);
+    expect(useEditorStore.getState().history).toBe(before.history);
+    store.insertNode('root', 'valid', { type: 'instance', name: 'Good', box: { width: 100, height: 80 }, ref: 'notificationWidget' });
+    expect(useEditorStore.getState().spec.pages.login.nodes.valid).toHaveProperty('ref', 'notificationWidget');
+    expect(useEditorStore.getState().history.past).toHaveLength(1);
+    store.undo();
+    expect(useEditorStore.getState().spec).toBe(before.spec);
   });
 });

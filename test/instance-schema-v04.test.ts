@@ -82,11 +82,11 @@ describe('IR 0.4 instance schema boundary', () => {
     }
   });
 
-  it('keeps unsupported instance creation out of Command v0.2', () => {
+  it('creates an instance through Command v0.2 and validates the project ref', () => {
     const instance = projectWithInstance().pages.login.nodes.sharedCard;
-    expect(validateCommand({ type: 'createNode', parentId: 'root', id: 'new', node: instance }).valid).toBe(false);
+    expect(validateCommand({ type: 'createNode', parentId: 'root', id: 'new', node: instance }).valid).toBe(true);
     const screen = projectWithInstance().pages.login;
-    expect(applyCommand(screen as any, { type: 'createNode', parentId: 'root', id: 'new', node: instance })).toBe(screen);
+    expect(applyCommand(screen as any, { type: 'createNode', parentId: 'root', id: 'new', node: instance })).not.toBe(screen);
   });
 
   it('blocks project generation while any widget instance is unsupported', () => {
@@ -103,6 +103,9 @@ describe('IR 0.4 instance schema boundary', () => {
     const instance = page.nodes.sharedCard;
     expect(isEditableNodePath(instance, 'box.width')).toBe(true);
     expect(isEditableNodePath(instance, 'box.height')).toBe(true);
+    expect(isEditableNodePath(instance, 'name')).toBe(true);
+    expect(isEditableNodePath(instance, 'visible')).toBe(true);
+    expect(isEditableNodePath(instance, 'overrides')).toBe(true);
     expect(isEditableNodePath(instance, 'ref')).toBe(false);
   });
 
