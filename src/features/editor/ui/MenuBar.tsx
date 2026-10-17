@@ -11,7 +11,7 @@ import { formatDocumentTitle } from "@/features/editor/ui/documentTitle";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
-import { insertControl } from "@/features/editor/ui/insertControl";
+import { insertControl, insertWidget } from "@/features/editor/ui/insertControl";
 import { MenuList, type MenuEntry } from "@/features/editor/ui/menu";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openExportPanel } from "@/features/editor/ui/openExportPanel";
@@ -113,6 +113,7 @@ export function MenuBar() {
   const INSERT_MENU: MenuEntry[] = [
     { kind: "action", label: "버튼", onSelect: () => insertControl("button") },
     { kind: "action", label: "입력 필드", onSelect: () => insertControl("input") },
+    ...widgetInsertEntries(),
   ];
 
   const VIEW_MENU: MenuEntry[] = [
@@ -235,6 +236,20 @@ export function MenuBar() {
       <ThemeToggle />
     </header>
   );
+}
+
+/** Read the current project when the menu opens, including widgets just created. */
+export function widgetInsertEntries(): MenuEntry[] {
+  const { spec } = useEditorStore.getState();
+  const widgets = spec.pageOrder.filter((id) => spec.pages[id]?.kind === "widget");
+  if (widgets.length === 0) return [];
+  return [
+    { kind: "separator" },
+    ...widgets.map((id): MenuEntry => ({
+      kind: "action", label: `위젯: ${spec.pages[id].name} (${id})`,
+      onSelect: () => insertWidget(id),
+    })),
+  ];
 }
 
 function MenuButton({

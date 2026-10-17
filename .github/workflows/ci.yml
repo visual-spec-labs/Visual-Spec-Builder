@@ -215,6 +215,11 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/widget-extract-detach.mjs
 
+      - name: 위젯 삽입·컨텍스트 메뉴 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/widget-menu.mjs
+
       - name: 화면 관계 삭제·확인·Undo·저장 (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium

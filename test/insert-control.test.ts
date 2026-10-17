@@ -6,7 +6,10 @@ import { blankSpec } from "@/features/editor/store/blankSpec";
 import { createNode } from "@/features/editor/store/createNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
-import { insertControl } from "@/features/editor/ui/insertControl";
+import { insertControl, insertWidget } from "@/features/editor/ui/insertControl";
+import { widgetInsertEntries } from "@/features/editor/ui/MenuBar";
+import fixture from "./fixtures/screen-relations-project.json";
+import type { ProjectSpec } from "@/features/editor/schema";
 
 const page = () => {
   const { spec, activePageId } = useEditorStore.getState();
@@ -60,5 +63,30 @@ describe("Insert → Button/Input", () => {
     expect(Object.values(page().nodes).filter((node) => node.type === "input")).toHaveLength(1);
     expect(Object.values(firstPage.nodes)).toHaveLength(1);
     expect(useToolStore.getState().activeTool).toBe("hand");
+  });
+});
+
+describe("Insert → Widget", () => {
+  beforeEach(() => useEditorStore.getState().loadSpec(structuredClone(fixture) as unknown as ProjectSpec));
+
+  it("offers each shared widget and inserts an instance into the selected frame with one Undo step", () => {
+    const entries = widgetInsertEntries();
+    const widget = entries.find((entry) => entry.kind === "action" && entry.label.includes("notificationWidget"));
+    expect(widget?.kind).toBe("action");
+    if (widget?.kind !== "action") return;
+    const before = useEditorStore.getState().spec;
+    widget.onSelect();
+    const { spec, selectedId, activePageId } = useEditorStore.getState();
+    expect(spec.pages[activePageId].nodes[selectedId!]).toMatchObject({ type: "instance", ref: "notificationWidget" });
+    expect(validateProjectSpec(spec).valid).toBe(true);
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().spec).toEqual(before);
+  });
+
+  it("ignores missing and non-widget references", () => {
+    const before = useEditorStore.getState().spec;
+    insertWidget("missing");
+    insertWidget("login");
+    expect(useEditorStore.getState().spec).toBe(before);
   });
 });
