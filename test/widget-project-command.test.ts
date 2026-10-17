@@ -4,6 +4,7 @@ import { validateProjectSpec, type ProjectSpec } from '@/features/editor/schema'
 import fixture from './fixtures/screen-relations-project.json';
 import { useEditorStore } from '@/features/editor/store/editorStore';
 import { resolveResponsiveScreen } from '@/features/editor/responsive/resolveResponsive';
+import { compileProjectTickets } from '@/features/editor/ticket/compileProjectTickets';
 
 function project() {
   const value = structuredClone(fixture) as unknown as ProjectSpec;
@@ -18,6 +19,57 @@ function project() {
 }
 
 describe('project widget commands', () => {
+  it('extracts a widget and places it on a second page atomically with one Undo snapshot', () => {
+    const before = project();
+    before.projectId = 'cross-page-widget-test';
+    const command = { version: '0.1' as const, type: 'extractAndPlaceWidget' as const,
+      pageId: 'login', nodeId: 'card', widgetId: 'sharedCard', name: 'Shared card', targetPageId: 'dashboard' };
+    const result = applyWidgetProjectCommand(before, command);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.spec.pages.login.nodes.card).toMatchObject({ type: 'instance', ref: 'sharedCard' });
+    const dashboard = result.spec.pages.dashboard;
+    const instances = Object.values(dashboard.nodes).filter(node => node.type === 'instance' && node.ref === 'sharedCard');
+    expect(instances).toHaveLength(1);
+    expect(validateProjectSpec(result.spec).valid).toBe(true);
+    const plan = compileProjectTickets(result.spec);
+    const roots = plan.tickets.filter(ticket => ticket.widgetRoot && ticket.sourcePageId === 'sharedCard');
+    expect(roots).toHaveLength(1);
+    for (const pageId of ['login', 'dashboard']) {
+      expect(plan.tickets.some(ticket => ticket.sourcePageId === pageId && ticket.dependsOn.includes(roots[0].id))).toBe(true);
+    }
+    expect(before.pages.dashboard.nodes).not.toHaveProperty('instance-1');
+    useEditorStore.getState().loadSpec(before);
+    const loaded = useEditorStore.getState().spec;
+    const committed = useEditorStore.getState().applyNlWidgetProjectCommand(command);
+    expect(committed.ok).toBe(true);
+    expect(useEditorStore.getState().history.past).toHaveLength(1);
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().spec).toEqual(loaded);
+  });
+
+  it('rejects a missing, modal or same-page destination without partial extraction', () => {
+    const before = project();
+    const command = { version: '0.1' as const, type: 'extractAndPlaceWidget' as const,
+      pageId: 'login', nodeId: 'card', widgetId: 'sharedCard', name: 'Shared card', targetPageId: 'dashboard' };
+    for (const targetPageId of ['missing', 'resetPassword', 'login']) {
+      expect(applyWidgetProjectCommand(before, { ...command, targetPageId }).ok).toBe(false);
+      expect(before.pages.sharedCard).toBeUndefined();
+      expect(before.pages.login.nodes.card.type).toBe('frame');
+    }
+  });
+
+  it('does not carry host-only visibility to the new destination instance', () => {
+    const before = project();
+    before.pages.login.nodes.card.visible = false;
+    const result = applyWidgetProjectCommand(before, { version: '0.1', type: 'extractAndPlaceWidget',
+      pageId: 'login', nodeId: 'card', widgetId: 'sharedCard', name: 'Shared card', targetPageId: 'dashboard' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.spec.pages.login.nodes.card.visible).toBe(false);
+    const instance = Object.values(result.spec.pages.dashboard.nodes).find(node => node.type === 'instance' && node.ref === 'sharedCard');
+    expect(instance?.visible).toBeUndefined();
+  });
   it('moves base visibility to the host so a responsive instance can reveal the source', () => {
     const before=project();
     before.pages.login.nodes.card.visible=false;

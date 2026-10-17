@@ -161,8 +161,11 @@ GUI 내부 프로젝트 명령은 별도 `WidgetProjectCommand` v0.1로 시작�
 `detachInstance`는 `{version:"0.1",type:"detachInstance",pageId,nodeId}`이고,
 원본 widget을 호스트에 새 ID로 복사한 뒤 instance를 로컬 wrapper frame으로 바꾼다.
 두 동작 모두 원본 프로젝트를 먼저, 후보 프로젝트를 마지막에 검증하고 한 Undo snapshot으로
-커밋한다. 실패와 취소는 원본·history를 유지한다. GUI 전용 명령이며 외부 NL protocol 2의
-명령 종류나 버전은 바꾸지 않는다. 추출 시 호스트의 visible/box responsive 표현은 instance에,
+커밋한다. 실패와 취소는 원본·history를 유지한다. 외부 NL protocol 2는 화면 Command 0.2를 그대로 두되,
+선택 프레임 추출과 다른 page root 배치를 원자화하는 `projectCommand` 갈래
+`{version:"0.1",type:"extractAndPlaceWidget",pageId,nodeId,widgetId,name,targetPageId}`만 별도로 허용한다.
+`commands`와 혼합하거나 임의 필드를 추가하면 거부한다. 대상은 기존의 다른 kind=page여야 한다.
+추출 시 호스트의 visible/box responsive 표현은 instance에,
 원본 내부 표현은 widget에 둔다. 분리 시 호스트 wrapper와 원본 노드의 breakpoint를 폭으로
 결합하고 새 ID를 배정하며 명시 instance color는 원본 responsive color보다 우선한다.
 

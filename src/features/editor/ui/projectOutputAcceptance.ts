@@ -58,7 +58,9 @@ export async function planProjectOutputs(args: {
   const evidence = await readProjectGenerationEvidence(context, isCurrent);
   if(evidence.sidecarFile&&isPendingProjectRecovery(strictProjectText(evidence.sidecarFile.bytes)))throw Error('미커밋 프로젝트 적용을 먼저 복구하세요.');
   const expected = new Map(context.outputs.map(output => [output.id, output]));
+  const replacingIds = new Set(request.tickets.map(ticket => ticket.id));
   const retained = (evidence.record?.outputs ?? []).filter(output => {
+    if (replacingIds.has(output.id)) return false;
     const definition = expected.get(output.id);
     return definition && output.filePath === definition.filePath && output.inputFingerprint === definition.inputFingerprint
       && output.scope === definition.scope && output.sourcePageId === definition.sourcePageId;

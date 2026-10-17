@@ -1,7 +1,7 @@
 import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
 import { create } from "zustand";
 import { buildGroupCommands, buildUngroupCommands } from "@/features/editor/command/groupCommands";
-import { applyWidgetProjectCommand } from "@/features/editor/command/widgetProjectCommand";
+import { applyWidgetProjectCommand, type WidgetProjectCommand, type WidgetProjectResult } from "@/features/editor/command/widgetProjectCommand";
 
 import {
   applyTransaction,
@@ -215,6 +215,8 @@ export interface EditorState {
   extractWidget: (id: NodeId) => void;
   /** Replace an instance with local copies of its source tree in one snapshot. */
   detachInstance: (id: NodeId) => void;
+  /** Apply an external cross-page widget request only after full project validation. */
+  applyNlWidgetProjectCommand: (command: Extract<WidgetProjectCommand, { type: "extractAndPlaceWidget" }>) => WidgetProjectResult;
   /**
    * 스펙 전체를 교체하고 선택을 해제한다(New/Open).
    * 화면 문서를 받으면 페이지 1개짜리 프로젝트로 넓힌다. 그래서 화면 문서 파일도
@@ -474,6 +476,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return { spec: result.spec, selectedId: result.selectedId, focusRootId: null,
       history: pushHistory(state.history, makeSnapshot(result.spec, state.activePageId)) };
   }),
+  applyNlWidgetProjectCommand: (command) => {
+    let result: WidgetProjectResult = { ok: false, message: "활성 화면이 요청과 다릅니다." };
+    set((state) => {
+      if (state.activePageId !== command.pageId) return state;
+      result = applyWidgetProjectCommand(state.spec, command);
+      if (!result.ok) return state;
+      return { spec: result.spec, selectedId: result.selectedId, focusRootId: null,
+        history: pushHistory(state.history, makeSnapshot(result.spec, state.activePageId)) };
+    });
+    return result;
+  },
   setNodeField: (id, path, value, continueEdit = false) =>
     set((state) => {
       // #40: setByPath를 직접 부르는 대신 updateNode Command를 만들어

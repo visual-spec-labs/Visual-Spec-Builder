@@ -55,6 +55,7 @@
 import type { CommandValidationIssue } from "@/features/editor/command/validate";
 import { validateTransaction } from "@/features/editor/command/validate";
 import { COMMAND_VERSION, type Command } from "@/features/editor/command/types";
+import type { WidgetProjectCommand } from "@/features/editor/command/widgetProjectCommand";
 import type { NodeId, PageId, ScreenSpec, ProjectSpec, ScreenKind } from "@/features/editor/schema";
 import { RUNTIME_DIR } from "@/features/workspace/protocol";
 
@@ -174,14 +175,16 @@ export function buildNlRequest(input: BuildNlRequestInput): NlRequest {
  * - `malformed` — JSON이 아니거나 모양이 규약과 다르다.
  * - `agentError` — 에이전트가 "못 하겠다"고 명시적으로 답했다.
  * - `invalid` — Command 배열이 G1(Command 스키마)을 통과하지 못했다.
- * - `commands` — 통과. G2·G3로 넘긴다.
+ * - `commands` — 화면 Command가 통과했다. G2·G3로 넘긴다.
+ * - `projectCommand` — 닫힌 위젯 추출·다른 페이지 배치 명령. 프로젝트 검증으로 넘긴다.
  */
 export type NlResponseResult =
   | { kind: "stale" }
   | { kind: "malformed"; message: string }
   | { kind: "agentError"; message: string }
   | { kind: "invalid"; issues: CommandValidationIssue[] }
-  | { kind: "commands"; commands: Command[] };
+  | { kind: "commands"; commands: Command[] }
+  | { kind: "projectCommand"; command: Extract<WidgetProjectCommand, { type: "extractAndPlaceWidget" }> };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -224,6 +227,19 @@ export function parseNlResponse(
 
   if (typeof body.error === "string" && body.error !== "") {
     return { kind: "agentError", message: body.error };
+  }
+
+  if (Object.hasOwn(body, "projectCommand")) {
+    const command = body.projectCommand;
+    const fields = ["version", "type", "pageId", "nodeId", "widgetId", "name", "targetPageId"];
+    if (body.commandVersion !== COMMAND_VERSION || Object.hasOwn(body, "commands") || !isRecord(command)
+      || Object.keys(command).length !== fields.length || fields.some((key) => !Object.hasOwn(command, key))
+      || command.version !== "0.1" || command.type !== "extractAndPlaceWidget"
+      || [command.pageId, command.nodeId, command.widgetId, command.name, command.targetPageId]
+        .some((value) => typeof value !== "string" || value.trim() === "")) {
+      return { kind: "malformed", message: "프로젝트 위젯 명령 형식이 올바르지 않습니다." };
+    }
+    return { kind: "projectCommand", command: command as Extract<WidgetProjectCommand, { type: "extractAndPlaceWidget" }> };
   }
 
   // G1 — Command 배열의 형태 검사(#153). Transaction 모양으로 감싸서 넘긴다.

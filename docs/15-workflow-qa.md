@@ -9,7 +9,8 @@
 해당 ticket의 명시된 widgetRoot 의존성으로 제한했다. 다른 화면의 계획된 TSX도
 선언된 의존성이 없으면 거부하는 회귀를 추가했다. 이 검사는 fixture 소스 기반이다.
 
-공유 위젯 GUI 배치·추출·detach, NL 읽기 문맥과 Command 재정의, v5 티켓 계획·수용,
+공유 위젯 GUI 배치·추출·detach, NL 읽기 문맥·Command 재정의·선택 프레임을 다른 페이지에도
+배치하는 원자 프로젝트 응답, v5 티켓 계획·수용,
 ZIP의 위젯·자산 포함을 fixture로 확인했다. 별도 합성 TSX로 만든 앱의 typecheck,
 production build와 Chromium의 두 인스턴스·이동 동작도 확인했다. 이 코드는 실제
 모델 출력이 아니다. 이전 환경의 최소 MODEL_READY 요청은 HTTP CONNECT 403으로

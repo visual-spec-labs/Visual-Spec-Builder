@@ -90,7 +90,8 @@ commands를 만들지 않는다. 그 밖의 버전 불일치는 요청 protocol�
 
 - `destinations`의 kind=widget PageId만 새 instance의 `ref`로 사용한다. `createNode`의 `node`는 완전한 `InstanceNode`(`type:"instance"`, `name`, `box`, `ref`, 선택 `visible`/`overrides`)이며 frame 자식으로 만든다. 없는 원본이나 다른 프로젝트 이름을 추측하지 않는다. 현재 화면과 그 `widgets` 목록 밖의 원본 노드 내용은 알 수 없다.
 - 현재 화면의 기존 instance에서 내용/글자색을 재정의하려면 `widgets`에서 ref와 정확히 일치하는 원본을 찾는다. 직접 원본 Text/Button NodeId만 `overrides`의 키로 사용하고, 값은 `content`/`color`만 쓴다. `updateNode`의 `path:"overrides"`에 기존 재정의까지 보존한 **완전한 맵**을 전달한다. 반응형/배치·action·image 변경을 재정의에 넣지 않는다. 원본 정보가 없는 구 요청에는 추측 대신 오류로 답한다.
-- 위젯 원본 자체를 바꾸려면 현재 `pageId`가 그 widget인 요청에서 해당 화면의 로컬 노드 Command로 편집한다. 다른 화면의 instance 요청에서 원본을 직접 수정하지 않는다. 새 widget 화면 생성과 extract/detach는 화면 로컬 Command 0.2로 표현할 수 없으므로 GUI 명시 동작을 안내한다.
+- 위젯 원본 자체를 바꾸려면 현재 `pageId`가 그 widget인 요청에서 해당 화면의 로컬 노드 Command로 편집한다. 다른 화면의 instance 요청에서 원본을 직접 수정하지 않는다.
+- **선택한 프레임을 위젯으로 만들고 다른 페이지에도 넣기**는 아래의 단일 `projectCommand`만 쓴다. `scope.kind`는 `node`, `scope.nodeId`는 현재 `page.nodes`의 루트 아닌 frame이어야 한다. `destinations`에서 요청 대상 이름과 유일하게 일치하는 kind=page의 `pageId`를 `targetPageId`로 쓴다. 중복 이름·없는 대상·프레임 선택 없음은 error로 답한다. `widgetId`는 `destinations`의 모든 PageId와 달라야 하며 새 ID를 명시한다. 다른 페이지의 노드 구조는 추측하지 않는다. GUI가 대상 페이지 root 아래에 인스턴스를 배치한다. 이 응답에 `commands`를 섞지 않는다. 분리는 GUI 명시 동작으로 남는다.
 - GUI가 응답 Command를 현재 프로젝트 전체에 다시 적용해 참조·순환·override 무결성을 검증한다. 검증 실패를 우회해 스펙 파일을 직접 변경하지 않는다.
 
 ## 응답 만들기 — Command 배열
@@ -272,6 +273,12 @@ Command 7종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
 ```json
 { "protocol": 2, "commandVersion": "0.2", "requestId": "<요청의 id 값>", "commands": [ /* Command 배열 */ ] }
 ```
+
+**프레임을 위젯으로 추출하고 다른 페이지에도 배치** — 한 프로젝트 명령이며 `commands`는 생략한다.
+```json
+{ "protocol": 2, "commandVersion": "0.2", "requestId": "<요청의 id 값>", "projectCommand": { "version": "0.1", "type": "extractAndPlaceWidget", "pageId": "login", "nodeId": "card", "widgetId": "sharedCard", "name": "Shared card", "targetPageId": "dashboard" } }
+```
+GUI는 응답 대기 중 프로젝트 변경을 거부하고, 원본·대상·새 widget을 한 후보 프로젝트에서 검증한 뒤 한 Undo 단계로 커밋한다. 다른 프로젝트 명령 종류나 임의 필드는 거부한다.
 
 **못 하겠을 때** — 표현할 수 없는 요구(예: `onClick` 동작, `component` 타입, 새 페이지
 생성)이거나 요청이 모호하면 `commands` 대신 `error`를 쓴다. `commands: []`는 쓰지 않는다 —
@@ -479,8 +486,8 @@ Command 9개, 3종(`updateScreen`·`setLayout`·`createNode`)으로 만든다.
 7.2):
 
 - 새 **페이지** 생성 — `applyCommand`는 페이지 한 장(`ScreenSpec`) 단위만 안다
-- 비활성 페이지 대상 요청·"전체 프로젝트" 범위 — 대상은 항상 `pageId`가 가리키는 활성
-  페이지 하나뿐이다
+- 비활성 페이지의 임의 노드 편집·"전체 프로젝트" 범위 — 위의 `extractAndPlaceWidget`만
+  선택한 활성 프레임을 원본으로 삼아 다른 페이지 root에 배치할 수 있다
 - 계획 미리보기·승인 — 받은 Command는 바로 적용된다(Undo로 대응)
 - `radial`(원형) 그라디언트·이미지 채우기 배경, 사진 위에 겹쳐 놓는 오버레이 — 채우기 겹은
   `solid`·`linear` 둘뿐이고 이미지 노드 위에 다른 노드를 겹쳐 놓는 배치도 없다. 이미지 노드가
