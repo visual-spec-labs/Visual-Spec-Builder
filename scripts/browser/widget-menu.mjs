@@ -36,6 +36,9 @@ try {
   await page.locator('[data-node-id="card"]').click({ button: 'right' });
   await page.getByRole('menuitem', { name: '원본 위젯으로 이동' }).click();
   assert.equal(await page.evaluate(async () => (await import('/src/features/editor/store/editorStore.ts')).useEditorStore.getState().activePageId), 'widget-1');
+  await page.getByRole('button', { name: '삽입' }).click();
+  assert.equal(await page.getByRole('menuitem', { name: /위젯: Card \(widget-1\)/ }).count(), 0);
+  await page.getByRole('button', { name: '삽입' }).click();
   await page.evaluate(async () => (await import('/src/features/editor/store/editorStore.ts')).useEditorStore.getState().selectPage('login'));
   await page.locator('[data-node-id="card"]').click({ button: 'right' });
   await page.getByRole('menuitem', { name: '인스턴스 분리' }).click();

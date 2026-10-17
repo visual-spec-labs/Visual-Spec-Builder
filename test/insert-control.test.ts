@@ -88,4 +88,9 @@ describe("Insert → Widget", () => {
     insertWidget("login");
     expect(useEditorStore.getState().spec).toBe(before);
   });
+
+  it("does not offer the active widget as a self-reference", () => {
+    useEditorStore.getState().selectPage("notificationWidget");
+    expect(widgetInsertEntries().some((entry) => entry.kind === "action" && entry.label.includes("notificationWidget"))).toBe(false);
+  });
 });

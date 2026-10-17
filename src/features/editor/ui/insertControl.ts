@@ -27,8 +27,11 @@ export function insertWidget(ref: PageId): void {
 }
 
 /** Read the current project when the menu opens, including widgets just created. */
-export function widgetInsertEntries(spec: ProjectSpec = useEditorStore.getState().spec): MenuEntry[] {
-  const widgets = spec.pageOrder.filter((id) => spec.pages[id]?.kind === "widget");
+export function widgetInsertEntries(
+  spec: ProjectSpec = useEditorStore.getState().spec,
+  activePageId: PageId = useEditorStore.getState().activePageId,
+): MenuEntry[] {
+  const widgets = spec.pageOrder.filter((id) => id !== activePageId && spec.pages[id]?.kind === "widget");
   if (widgets.length === 0) return [];
   return [
     { kind: "separator" },
