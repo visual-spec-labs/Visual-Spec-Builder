@@ -738,8 +738,9 @@ navigate는 effective kind=page, openModal은 modal만 대상으로 삼는다. �
 첫 항목을 고르지 않고 후보 PageId로 재지정을 요청하는 error 응답을 만든다. 없는 이름/ID를 만들거나
 다른 화면을 수정해서 대상을 맞추지 않는다. close는 target 없이 현재 modal/widget 문맥에서만 쓴다.
 
-수정 범위는 여전히 요청의 활성 pageId와 그 page.nodes다. 다른 화면의 NodeId, pageId 명령 확장,
-프로젝트 전체 변경은 허용하지 않는다. 응답 대기 중 문서/화면 변경 거부와 최종 **현재 프로젝트** G3를
+일반 Command의 수정 범위는 여전히 요청의 활성 pageId와 그 page.nodes다. 다른 화면의 NodeId,
+pageId 명령 확장, 임의 프로젝트 전체 변경은 허용하지 않는다. 아래 S2의 단일 프로젝트 명령만
+선택 프레임을 추출해 기존 다른 페이지 root에 배치한다. 응답 대기 중 문서/화면 변경 거부와 최종 **현재 프로젝트** G3를
 그대로 유지한다. 카탈로그는 검증 우회용 allow-list나 최신성 보장이 아니다. 삭제/종류 변경된 대상은
 기존 현재 프로젝트 검증에서 거부한다. 카탈로그의 이름을 바꾸어도 프로젝트가 바뀌지 않는다.
 
@@ -755,7 +756,12 @@ navigate는 effective kind=page, openModal은 modal만 대상으로 삼는다. �
 instance의 `overrides`를 만들 때 에이전트는 이 목록에서 직접 원본 Text/Button NodeId와
 content/color를 확인한다. 새 instance의 ref는 `destinations`의 widget PageId를 쓴다.
 
-protocol 2·Command 0.2와 응답 형식은 그대로다. 구 요청에서 `widgets`가 없으면 원본의
-NodeId를 추측하지 않는다. 화면 로컬 Command로 새 widget 화면을 만들거나 여러 화면을
-원자적으로 추출·detach할 수 없으므로 그 동작은 GUI에 남긴다. 현재 프로젝트 전체 G3와
-요청 이후 변경 거부가 최종 수용을 결정한다. fixture 검증은 실제 모델 실행을 뜻하지 않는다.
+구 요청에서 `widgets`가 없으면 원본의 NodeId를 추측하지 않는다. 화면 로컬 Command 0.2는
+다른 페이지를 편집하지 않는다. 단, protocol 2 응답의 선택 `projectCommand`로
+`extractAndPlaceWidget` 한 종류를 받는다. 현재 선택한 루트 아닌 frame의 `pageId`·`nodeId`,
+새 `widgetId`·`name`, 기존의 다른 kind=page `targetPageId`를 명시한다. `commands`와 함께 쓰지
+않으며 필드 추가·다른 명령 종류를 거부한다. GUI가 원본을 추출한 뒤 대상 페이지 root에
+instance를 추가해 **최종 프로젝트 전체를 검증하고 한 Undo 단계로** 커밋한다. 대상 화면의
+노드 트리를 에이전트에 노출하거나 에이전트가 부모 NodeId를 추측하게 하지 않는다.
+대기 중 문서·화면 변경 거부는 그대로다. 분리와 임의 여러 페이지 편집은 GUI에 남긴다.
+fixture 검증은 실제 모델 실행을 뜻하지 않는다.

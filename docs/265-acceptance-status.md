@@ -10,7 +10,7 @@
 | 삽입 메뉴와 캔버스 컨텍스트 위젯 동작 | 구현·fixture 검증 | #422; `test/insert-control.test.ts`, `test/node-context-menu-entries.test.ts`, `scripts/browser/widget-menu.mjs`; 원본 이동·분리 포함 |
 | 공유 widget 프로젝트 티켓, v5 응답, 코드·ZIP | 구현·fixture 검증 | #420; `examples/shared-widget-project.json`은 두 화면이 한 위젯을 참조한다. `test/project-widget-generation.test.ts`, `test/project-widget-runtime-build.test.ts`; ticket별 import는 같은 source와 명시된 widgetRoot 의존성만 허용한다(`test/project-module-import-scope.test.ts`, 수용·ZIP 회귀). 실제 모델 산출물 검증과 별개 |
 | 자연어 현재 화면의 widget 편집과 프로젝트 검증 | 구현·fixture 검증 | #421; 읽기 전용 widget 원본 문맥, 활성 화면 Command와 프로젝트 G3: `test/nl-destinations.test.ts`, `scripts/browser/nl-widgets.mjs` |
-| S2-8 한 요청에서 위젯 추출 후 다른 화면에 배치 | 미구현 | NL protocol 2/Command 0.2는 활성 화면 한 장의 편집만 표현한다(`docs/08-natural-language.md`, `docs/09-command-schema-freeze.md`). 새 프로젝트 범위 응답·원자 적용 계약이 필요하다. |
+| S2-8 한 요청에서 위젯 추출 후 다른 화면에 배치 | 구현·fixture 검증 | 선택 frame과 대상 page를 명시하는 단일 `projectCommand`; `test/nl-protocol.test.ts`, `test/widget-project-command.test.ts`, `scripts/browser/nl-widgets.mjs`의 두 번째 요청에서 원자 적용·Undo 확인. 실제 모델 응답은 미검증. |
 | 실제 AI 생성·수용·ZIP·독립 앱·브라우저 | 미검증 | 이전 환경의 최소 MODEL_READY 호출은 HTTP CONNECT 403, 새 환경의 `codex exec --ephemeral` read-only와 workspace-write 최소 호출은 모델 전 `failed to initialize in-process app-server client: Read-only file system (os error 30)`으로 종료. fixture 및 합성 코드는 실제 모델 결과가 아님 |
 
 테스트 개수·CI·해당 PR 링크는 각 PR 설명의 실행 기록을 따른다. 환경의 모델 연결이 허용될 때 실제 AI 항목을 별도로 실행하고 성공 근거를 기록한다.

@@ -12,6 +12,9 @@ try {
   project.name='Widget NL Flow';
   project.pages.login.nodes.shared={type:'instance',name:'Shared',box:{width:200,height:80},ref:'notificationWidget'};
   project.pages.login.nodes.root.children.push({node:'shared'});
+  const root=project.pages.login.nodes.root;
+  project.pages.login.nodes.card={...structuredClone(root),name:'Card',box:{width:200,height:100},children:[]};
+  root.children.push({node:'card'});
   await writeFile(join(workspace,'specs/flow.json'),JSON.stringify(project));
   runner=await startBrowserWorkspace(workspace);
   const context=await runner.newContext({viewport:{width:1440,height:1000}});
@@ -37,6 +40,42 @@ try {
   assert.equal(await page.evaluate(()=>editor.getState().history.past.length),1);
   await page.evaluate(()=>editor.getState().undo());
   assert.deepEqual(await page.evaluate(()=>editor.getState().spec),before);
+  await page.evaluate(()=>editor.getState().select('card'));
+  await prompt.fill('이 카드를 위젯으로 만들어서 대시보드에도 넣어 줘');await prompt.press('Enter');
+  let next;
+  for(let i=0;i<250;i++){
+    try{
+      next=JSON.parse(await readFile(join(workspace,'runtime/nl-request.json'),'utf8'));
+      if(next.id!==req.id)break;
+    }catch(error){if(error.code!=='ENOENT')throw error;}
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  assert.ok(next?.id!==req.id);assert.equal(next.scope.nodeId,'card');
+  assert.ok(next.destinations.some(item=>item.pageId==='dashboard'&&item.kind==='page'));
+  const projectCommand={version:'0.1',type:'extractAndPlaceWidget',pageId:'login',nodeId:'card',widgetId:'sharedCard',name:'Shared card',targetPageId:'dashboard'};
+  await page.evaluate(()=>editor.getState().select('title'));
+  await writeFileAtomic(join(workspace,'runtime/nl-response.json'),JSON.stringify({protocol:next.protocol,commandVersion:next.commandVersion,requestId:next.id,projectCommand}));
+  await page.getByText('위젯 명령의 원본 요소가 요청 범위와 다릅니다.').waitFor();
+  assert.deepEqual(await page.evaluate(()=>editor.getState().spec),before);
+  await page.evaluate(()=>editor.getState().select('card'));
+  await prompt.fill('이 카드를 위젯으로 만들어서 대시보드에도 넣어 줘');await prompt.press('Enter');
+  let retry;
+  for(let i=0;i<250;i++){
+    try{
+      retry=JSON.parse(await readFile(join(workspace,'runtime/nl-request.json'),'utf8'));
+      if(retry.id!==next.id)break;
+    }catch(error){if(error.code!=='ENOENT')throw error;}
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  assert.ok(retry?.id!==next.id);
+  await writeFileAtomic(join(workspace,'runtime/nl-response.json'),JSON.stringify({protocol:retry.protocol,commandVersion:retry.commandVersion,requestId:retry.id,projectCommand}));
+  await page.waitForFunction(()=>editor.getState().spec.pages.login.nodes.card.type==='instance');
+  const after=await page.evaluate(()=>editor.getState().spec);
+  assert.equal(after.pages.sharedCard.kind,'widget');
+  assert.equal(Object.values(after.pages.dashboard.nodes).filter(node=>node.type==='instance'&&node.ref==='sharedCard').length,1);
+  assert.equal(await page.evaluate(()=>editor.getState().history.past.length),1);
+  await page.evaluate(()=>editor.getState().undo());
+  assert.deepEqual(await page.evaluate(()=>editor.getState().spec),before);
   assert.deepEqual(errors,[]);
-  console.log('PASS S2 NL widget source context, G3 override, Undo; fixture response only');
+  console.log('PASS S2 NL widget context, override and cross-page extraction, atomic Undo; fixture response only');
 } finally {try{await runner?.close();}finally{await rm(workspace,{recursive:true,force:true});}}

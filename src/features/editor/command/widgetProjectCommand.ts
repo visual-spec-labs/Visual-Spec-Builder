@@ -2,10 +2,11 @@ import { collectSubtreeIds } from './applyCommand';
 import { generateNodeId, generateNodeIds } from '@/features/editor/store/nodeId';
 import { validateProjectSpec, type NodeId, type PageId, type ProjectSpec, type Responsive, type ScreenSpec } from '@/features/editor/schema';
 
-/** GUI-only project command envelope. Screen-local external Transactions remain v0.2. */
+/** Project command envelope. External NL accepts only extractAndPlaceWidget; screen Transactions remain v0.2. */
 export type WidgetProjectCommand =
   | { version: '0.1'; type: 'extractWidget'; pageId: PageId; nodeId: NodeId; widgetId: PageId; name: string }
-  | { version: '0.1'; type: 'detachInstance'; pageId: PageId; nodeId: NodeId };
+  | { version: '0.1'; type: 'detachInstance'; pageId: PageId; nodeId: NodeId }
+  | { version: '0.1'; type: 'extractAndPlaceWidget'; pageId: PageId; nodeId: NodeId; widgetId: PageId; name: string; targetPageId: PageId };
 
 export type WidgetProjectResult = { ok: true; spec: ProjectSpec; selectedId: NodeId } | { ok: false; message: string };
 const fail = (message: string): WidgetProjectResult => ({ ok: false, message });
@@ -111,10 +112,33 @@ function detach(project: ProjectSpec, command: Extract<WidgetProjectCommand, { t
   return checked({ ...project, pages: { ...project.pages, [command.pageId]: page } }, command.nodeId);
 }
 
+/** One project transaction: extract the source, then place the same widget on a second page. */
+function extractAndPlace(project: ProjectSpec, command: Extract<WidgetProjectCommand, { type: 'extractAndPlaceWidget' }>): WidgetProjectResult {
+  if (command.targetPageId === command.pageId) return fail('다른 대상 페이지를 선택하세요.');
+  const target = own(project.pages, command.targetPageId) ? project.pages[command.targetPageId] : undefined;
+  if (!target || (target.kind ?? 'page') !== 'page') return fail('위젯을 배치할 페이지가 유효하지 않습니다.');
+  const extraction = extract(project, { version: '0.1', type: 'extractWidget', pageId: command.pageId,
+    nodeId: command.nodeId, widgetId: command.widgetId, name: command.name });
+  if (!extraction.ok) return extraction;
+  const destination = structuredClone(extraction.spec.pages[command.targetPageId]);
+  const root = destination.nodes[destination.root];
+  const sourceInstance = extraction.spec.pages[command.pageId].nodes[command.nodeId];
+  if (root.type !== 'frame' || sourceInstance.type !== 'instance') return fail('배치할 페이지 루트를 찾을 수 없습니다.');
+  const id = generateNodeId('instance', destination.nodes);
+  destination.nodes[id] = { type: 'instance', name: command.name,
+    box: structuredClone(sourceInstance.box), ref: command.widgetId };
+  root.children.push({ node: id });
+  return checked({ ...extraction.spec, pages: { ...extraction.spec.pages, [command.targetPageId]: destination } }, command.nodeId);
+}
+
 /** Never mutates the input; all cross-page edits are validated before the caller can commit. */
 export function applyWidgetProjectCommand(project: ProjectSpec, command: WidgetProjectCommand): WidgetProjectResult {
   if (command.version !== '0.1') return fail('위젯 프로젝트 명령 버전이 다릅니다.');
   const before = validateProjectSpec(project);
   if (!before.valid) return fail('원본 프로젝트가 유효하지 않습니다.');
-  return command.type === 'extractWidget' ? extract(project, command) : detach(project, command);
+  switch (command.type) {
+    case 'extractWidget': return extract(project, command);
+    case 'detachInstance': return detach(project, command);
+    case 'extractAndPlaceWidget': return extractAndPlace(project, command);
+  }
 }

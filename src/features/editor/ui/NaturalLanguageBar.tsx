@@ -16,6 +16,7 @@ import {
 import { NL_REQUEST_PATH, NL_RESPONSE_PATH, type NlScopeKind } from "@/features/editor/nl/nlProtocol";
 import type { Command } from "@/features/editor/command/types";
 import { runTransactionGates } from "@/features/editor/command/transactionGate";
+import { applyWidgetProjectCommand } from "@/features/editor/command/widgetProjectCommand";
 import { changedBackgroundNodes } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
 import { buildNlAgentInstruction } from "@/features/editor/ui/agentHandoff";
@@ -213,6 +214,26 @@ export function NaturalLanguageBar() {
       current.activePageId !== pageId
     ) {
       setFeedback({ kind: "error", message: "문서나 화면이 바뀌었습니다. 변경된 상태에서 다시 요청하세요." });
+      return;
+    }
+    if (result.kind === "projectCommand") {
+      if (result.command.pageId !== pageId || scope.kind !== "node" || scope.nodeId !== result.command.nodeId
+        || current.selectedId !== result.command.nodeId) {
+        setFeedback({ kind: "error", message: "위젯 명령의 원본 요소가 요청 범위와 다릅니다." });
+        return;
+      }
+      const preview = applyWidgetProjectCommand(current.spec, result.command);
+      if (!preview.ok) {
+        setFeedback({ kind: "error", message: preview.message });
+        return;
+      }
+      const committed = current.applyNlWidgetProjectCommand(result.command);
+      if (!committed.ok) {
+        setFeedback({ kind: "error", message: committed.message });
+        return;
+      }
+      setInstruction("");
+      setFeedback({ kind: "success", message: `위젯 “${result.command.name}”을 만들고 대상 페이지에도 배치했습니다.`, spec: committed.spec });
       return;
     }
     const preview = runTransactionGates(current.spec, pageId, result.commands);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 
 import {
   buildNlRequest,
@@ -79,6 +80,31 @@ describe("요청·응답 경로는 미들웨어 화이트리스트를 통과한�
 });
 
 describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
+  it("keeps the installed skill's cross-page response example parseable", () => {
+    const skill = readFileSync(new URL("../skills/visual-spec-nl-response/SKILL.md", import.meta.url), "utf8");
+    const example = skill.split("\n").find((line) => line.startsWith('{ "protocol": 2') && line.includes('"projectCommand"'));
+    expect(example).toBeDefined();
+    const response = example!.replace("<요청의 id 값>", "req-1");
+    expect(parseNlResponse(response, "req-1").kind).toBe("projectCommand");
+  });
+  const projectCommand = { version: "0.1", type: "extractAndPlaceWidget", pageId: "login",
+    nodeId: "card", widgetId: "sharedCard", name: "Shared card", targetPageId: "dashboard" };
+  it("accepts one closed cross-page widget command without local commands", () => {
+    const body = { protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2", requestId: "req-1", projectCommand };
+    expect(parseNlResponse(responseText(body), "req-1")).toEqual({ kind: "projectCommand", command: projectCommand });
+    expect(parseNlResponse(responseText({ ...body, requestId: "old" }), "req-1")).toEqual({ kind: "stale" });
+  });
+
+  it("rejects mixed, unknown and malformed project edits before touching a document", () => {
+    const body = { protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2", requestId: "req-1", projectCommand };
+    for (const broken of [
+      { ...body, commands: [] },
+      { ...body, projectCommand: { ...projectCommand, unexpected: true } },
+      { ...body, projectCommand: { ...projectCommand, targetPageId: "" } },
+      { ...body, projectCommand: { ...projectCommand, type: "detachInstance" } },
+      { ...body, commandVersion: "0.1" },
+    ]) expect(parseNlResponse(responseText(broken), "req-1").kind).toBe("malformed");
+  });
   it("파일이 아직 없으면 stale 이다 — 계속 기다린다", () => {
     expect(parseNlResponse(null, "req-1")).toEqual({ kind: "stale" });
   });
