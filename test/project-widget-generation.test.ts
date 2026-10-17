@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FrameNode, ProjectSpec, TextNode } from '@/features/editor/schema';
+import { validateProjectSpec, type FrameNode, type ProjectSpec, type TextNode } from '@/features/editor/schema';
 import { compileProjectTickets, validateProjectPlanContext } from '@/features/editor/ticket/compileProjectTickets';
 import { buildProjectInputSnapshot, createProjectAssetSnapshot, projectAssetPaths } from '@/features/editor/ticket/projectInputSnapshot';
 import { buildProjectTicketRequest, parseProjectTicketResponse, validateProjectTicketRequest } from '@/features/editor/ticket/projectTicketProtocol';
@@ -9,6 +9,7 @@ import { sha256Hex } from '@/features/editor/export/contentHash';
 import { ticketComponentKey } from '@/features/editor/export/generationIdentity';
 import type { GenerationManifest } from '@/features/editor/export/generationManifest';
 import fixture from './fixtures/screen-relations-project.json';
+import sharedExample from '../examples/shared-widget-project.json';
 
 function project() {
   const p = { ...structuredClone(fixture) as unknown as ProjectSpec, projectId: 'shared-project' };
@@ -26,6 +27,17 @@ function project() {
 const snapshot = (p: ProjectSpec) => buildProjectInputSnapshot('wave', p, compileProjectTickets(p), []);
 
 describe('project v5 shared widget generation boundary', () => {
+  it('ships a valid two-page shared widget example planned as one component', () => {
+    const p = sharedExample as unknown as ProjectSpec;
+    expect(validateProjectSpec(p).valid).toBe(true);
+    const plan = compileProjectTickets(p);
+    const root = plan.tickets.filter(ticket => ticket.widgetRoot);
+    expect(root).toHaveLength(1);
+    expect(root[0].sourcePageId).toBe('notificationWidget');
+    for (const source of ['login', 'dashboard']) {
+      expect(plan.tickets.some(ticket => ticket.sourcePageId === source && ticket.dependsOn.includes(root[0].id))).toBe(true);
+    }
+  });
   it('plans one shared root with cross-screen dependencies and versioned response', () => {
     const p = project(); const plan = compileProjectTickets(p);
     expect(validateProjectPlanContext(plan, p).valid).toBe(true);
