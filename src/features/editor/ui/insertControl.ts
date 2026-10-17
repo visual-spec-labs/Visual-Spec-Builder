@@ -1,4 +1,4 @@
-import type { PageId } from "@/features/editor/schema";
+import type { PageId, ProjectSpec } from "@/features/editor/schema";
 import { createNode } from "@/features/editor/store/createNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
@@ -27,8 +27,7 @@ export function insertWidget(ref: PageId): void {
 }
 
 /** Read the current project when the menu opens, including widgets just created. */
-export function widgetInsertEntries(): MenuEntry[] {
-  const { spec } = useEditorStore.getState();
+export function widgetInsertEntries(spec: ProjectSpec = useEditorStore.getState().spec): MenuEntry[] {
   const widgets = spec.pageOrder.filter((id) => spec.pages[id]?.kind === "widget");
   if (widgets.length === 0) return [];
   return [

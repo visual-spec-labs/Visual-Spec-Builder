@@ -40,8 +40,17 @@ try {
   await page.locator('[data-node-id="card"]').click({ button: 'right' });
   await page.getByRole('menuitem', { name: '인스턴스 분리' }).click();
   assert.equal(await page.evaluate(async () => (await import('/src/features/editor/store/editorStore.ts')).useEditorStore.getState().spec.pages.login.nodes.card.type), 'frame');
+  await page.getByRole('button', { name: '삽입' }).click();
+  await page.getByRole('menuitem', { name: /위젯: Card \(widget-1\)/ }).waitFor();
+  await page.evaluate(async () => {
+    const editor = (await import('/src/features/editor/store/editorStore.ts')).useEditorStore;
+    editor.getState().undo(); // detach
+    editor.getState().undo(); // insert
+    editor.getState().undo(); // extract: the widget no longer exists
+  });
+  await page.getByRole('menuitem', { name: /위젯: Card \(widget-1\)/ }).waitFor({ state: 'detached' });
   assert.deepEqual(errors, []);
-  console.log('PASS widget insert, context extract/detach, source navigation (fixture; no real AI)');
+  console.log('PASS widget insert, context extract/detach, source navigation, open-menu Undo (fixture; no real AI)');
 } finally {
   try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); }
 }

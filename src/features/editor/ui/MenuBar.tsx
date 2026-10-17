@@ -66,6 +66,9 @@ function handleOpen() {
 export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const rootRef = useRef<HTMLElement>(null);
+  // Undo/Redo can add or remove widget pages while Insert stays open. Subscribe
+  // only during that menu; the common closed state does not rerender on edits.
+  const insertSpec = useEditorStore((s) => openMenu === "insert" ? s.spec : null);
 
   // 제목에 필요한 작은 조각만 구독한다. spec 전체를 구독하면 속성 하나를 고칠
   // 때마다 메뉴바까지 다시 렌더되는 기존 주석의 문제가 되살아난다.
@@ -113,7 +116,7 @@ export function MenuBar() {
   const INSERT_MENU: MenuEntry[] = [
     { kind: "action", label: "버튼", onSelect: () => insertControl("button") },
     { kind: "action", label: "입력 필드", onSelect: () => insertControl("input") },
-    ...widgetInsertEntries(),
+    ...widgetInsertEntries(insertSpec ?? undefined),
   ];
 
   const VIEW_MENU: MenuEntry[] = [
