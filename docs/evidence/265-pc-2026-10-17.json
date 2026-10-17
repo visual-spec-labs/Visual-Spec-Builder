@@ -7,28 +7,33 @@
     "codexCli": "0.160.0",
     "model": "Codex CLI default; model identifier not captured",
     "node": "24.12.0",
-    "pnpm": "10.33.0"
+    "pnpm": "10.33.0",
+    "command": "codex exec --sandbox workspace-write --skip-git-repo-check --ephemeral -C <QA_WORKSPACE> --color never --json -"
   },
   "modelWaves": [
     {
       "requestId": "02a0e3d3-a66a-4821-a816-a068963b71f8",
       "ticketCount": 8,
-      "exitCode": 0
+      "exitCode": 0,
+      "elapsedSeconds": 98
     },
     {
       "requestId": "6ed33c9e-b932-49bf-9065-87249f84be08",
       "ticketCount": 2,
-      "exitCode": 0
+      "exitCode": 0,
+      "elapsedSeconds": 114
     },
     {
       "requestId": "ac278a4f-850c-4c21-b823-f6c65437b06a",
       "ticketCount": 2,
-      "exitCode": 0
+      "exitCode": 0,
+      "elapsedSeconds": 95
     },
     {
       "requestId": "21ffbb15-930d-4546-b4f5-fe80e80ab79e",
       "ticketCount": 2,
-      "exitCode": 0
+      "exitCode": 0,
+      "elapsedSeconds": 119
     }
   ],
   "guiAcceptance": {
@@ -184,5 +189,7 @@
       "modal close",
       "widget ref on login and dashboard"
     ]
-  }
+  },
+  "totalModelProcessSeconds": 426,
+  "combinedGuiEvidence": "265-pc-combined-gui.json"
 }
