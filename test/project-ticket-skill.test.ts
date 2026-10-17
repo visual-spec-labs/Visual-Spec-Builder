@@ -21,6 +21,7 @@ describe('shipped project skill executable examples (not AI execution)',()=>{
     }
     expect(widgetContract).toContain('widgetRoot');
     expect(widgetContract).toContain('직접 원본 Text/Button');
+    expect(widgetContract).toContain('응답은 정확히 `{ "protocol": 5');
   });
   it('parses both shipped response examples with ticketId and rejects the ambiguous request-side id key',()=>{
     const request:Pick<ProjectTicketRequest,'id'|'tickets'|'protocol'>={protocol:4,id:'v4-example',tickets:[{id:'home:Home',sourcePageId:'home',componentName:'Home',kind:'page',instances:['root'],filePath:'my-app/home/pages/Home.tsx',outputPath:'staging/v4-example/my-app/home/pages/Home.tsx'}]};

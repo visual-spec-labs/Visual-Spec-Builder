@@ -11,6 +11,8 @@ import { PROJECT_TEMPLATE_VERSION, projectGenerationFingerprints, structuralProj
 export interface ProjectOutputProvenance {
   id: string; scope: "page" | "project"; sourcePageId?: string; filePath: string;
   sha256: string; requestId: string; inputFingerprint: string;
+  /** Exact request protocol for this file. Older records omit it and use their plan protocol. */
+  ticketProtocol?: 4 | 5;
 }
 export interface ProjectGenerationProvenance {
   protocol: 1; projectId: string; projectRoot: string; plan: ProjectPlan; templateVersion: string;
@@ -115,10 +117,12 @@ export function inspectProjectGeneration(args: {
     for (const output of record.outputs) {
       const keys = ["id", "scope", "filePath", "sha256", "requestId", "inputFingerprint"];
       if (output?.scope === "page") keys.push("sourcePageId");
+      if (Object.hasOwn(output ?? {}, "ticketProtocol")) keys.push("ticketProtocol");
       if (!exact(output, keys) || typeof output.id !== "string" || seen.has(output.id)
         || typeof output.sha256 !== "string" || !hashPattern.test(output.sha256)
         || typeof output.inputFingerprint !== "string" || !hashPattern.test(output.inputFingerprint)
-        || typeof output.requestId !== "string" || !isProjectTicketRequestId(output.requestId)) return unverified("출력 수용 기록이 손상되거나 중복됩니다.");
+        || typeof output.requestId !== "string" || !isProjectTicketRequestId(output.requestId)
+        || (output.ticketProtocol !== undefined && (output.scope !== "page" || (output.ticketProtocol !== 4 && output.ticketProtocol !== 5)))) return unverified("출력 수용 기록이 손상되거나 중복됩니다.");
       seen.add(output.id);
       const target = expected.get(output.id);
       if (!target || output.scope !== target.scope || output.sourcePageId !== target.sourcePageId || output.filePath !== target.filePath) return unverified("계획 밖 출력 또는 출처/경로 불일치입니다.");
@@ -128,7 +132,7 @@ export function inspectProjectGeneration(args: {
         const entry = manifest?.entries[output.filePath];
         const ticket = record.plan.tickets.find(ticket => ticket.id === output.id)!;
         if (manifest?.protocol !== 2 || manifest.projects[record.projectId]?.outputDir !== record.projectRoot
-          || !entry || entry.ticketProtocol !== projectTicketProtocol(record.plan) || entry.projectId !== record.projectId || entry.pageId !== output.sourcePageId
+          || !entry || entry.ticketProtocol !== (output.ticketProtocol ?? projectTicketProtocol(record.plan)) || entry.projectId !== record.projectId || entry.pageId !== output.sourcePageId
           || entry.ticketId !== output.id || entry.requestId !== output.requestId || entry.contentHash !== `sha256:${output.sha256}`
           || entry.inputFingerprint !== output.inputFingerprint || entry.componentKey !== ticketComponentKey(ticket)
           || entry.componentName !== ticket.componentName || entry.inputScope !== "page") return unverified("기존 manifest와 프로젝트 수용 기록이 다릅니다.");

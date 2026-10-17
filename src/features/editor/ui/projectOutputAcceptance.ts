@@ -1,6 +1,6 @@
 import { isPendingProjectRecovery, recoverPendingProjectOutputs, readCommittedProjectRun, type PendingProjectRecovery, type ProjectRecoveryJournal } from './projectPendingRecovery';
 import type { TicketResultItem } from '@/features/editor/ticket/ticketProtocol';
-import { isProjectTicketRequestId, parseProjectTicketResponse, validateProjectTicketRequest } from '@/features/editor/ticket/projectTicketProtocol';
+import { isProjectTicketRequestId, parseProjectTicketResponse, projectTicketProtocol, validateProjectTicketRequest } from '@/features/editor/ticket/projectTicketProtocol';
 import { parseProjectInputSnapshot } from '@/features/editor/ticket/projectInputSnapshot';
 import { contentHash, sha256Hex } from '@/features/editor/export/contentHash';
 import { PROJECT_TEMPLATE_VERSION, projectGenerationPath } from '@/features/editor/export/projectGenerationIdentity';
@@ -62,7 +62,7 @@ export async function planProjectOutputs(args: {
     const definition = expected.get(output.id);
     return definition && output.filePath === definition.filePath && output.inputFingerprint === definition.inputFingerprint
       && output.scope === definition.scope && output.sourcePageId === definition.sourcePageId;
-  });
+  }).map(output => output.scope === 'page' ? {...output,ticketProtocol:output.ticketProtocol ?? projectTicketProtocol(evidence.record!.plan)} : output);
   // A caller cannot manufacture accepted dependency statuses by marking tickets done.
   for (const ticket of request.plan.tickets) if (ticket.status === 'done' && !retained.some(output => output.id === ticket.id)) throw Error('done 티켓의 현재 수용 근거가 없습니다. 다시 컴파일하세요.');
   const nextOutputs = new Map(retained.map(output => [output.id, output]));
@@ -75,7 +75,7 @@ export async function planProjectOutputs(args: {
     await validateProjectModuleImports(strictProjectText(file.bytes),ticket.filePath.slice(context.projectRoot.length+1),ownedModulePaths);
     const transformed = await rewriteProjectAssetModule({source:strictProjectText(file.bytes), modulePath:ticket.filePath.slice(context.projectRoot.length+1), ownedModulePaths, assets:context.snapshot.assets, externalUrls:allowedExternalImages});
     candidates.set(ticket.filePath, transformed.code);
-    nextOutputs.set(ticket.id, {...expected.get(ticket.id)!,sha256:revision(transformed.code),requestId:request.id});
+    nextOutputs.set(ticket.id, {...expected.get(ticket.id)!,sha256:revision(transformed.code),requestId:request.id,ticketProtocol:request.protocol});
   }
   if (context.snapshot.plan.tickets.every(ticket => nextOutputs.has(ticket.id))) {
     for (const [path, source] of renderProjectRuntime(context)) {

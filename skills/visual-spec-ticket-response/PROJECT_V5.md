@@ -100,7 +100,7 @@ manifest/sidecar/backup을 읽어서 자체 소유권 결정을 내리지도 않
 typecheck/build를 실행하되 staging에 임의 helper/artifact를 추가하지 않는다. 수행하지 않은
 컴파일·브라우저·실제 AI 품질 검증을 통과로 보고하지 않는다.
 
-응답은 정확히 `{ "protocol": 4, "requestId": "현재 id", "results": [...] }`다. 각 wave ID가
+응답은 정확히 `{ "protocol": 5, "requestId": "현재 id", "results": [...] }`다. 각 wave ID가
 정확히 한 번 있고 각 항목은 정확히 `{ ticketId, status, message? }`다. 요청 항목의 `id`를
 응답에서는 **ticketId**로 옮긴다. status는 done/failed, optional message 외 추가 필드는 없다. failed에는
 비어 있지 않은 message가 필수다. artifact ID나 다음 wave를 results에 넣지 않는다.

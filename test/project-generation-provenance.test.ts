@@ -84,6 +84,15 @@ describe('project provenance read boundary', () => {
     const t = setup(); t.manifest.entries[path].ticketProtocol = 3; expect(t.inspect().state).toBe('unverified');
     delete t.manifest.entries[path]; expect(t.inspect().state).toBe('unverified');
   });
+  it('binds each retained page to its original request protocol without accepting artifact protocols',()=>{
+    const s=setup();
+    s.record.outputs[0].ticketProtocol=4;
+    expect(s.inspect().state).toBe('current');
+    s.record.outputs[0].ticketProtocol=5;
+    expect(s.inspect().state).toBe('unverified');
+    const t=setup();t.record.outputs.at(-1)!.ticketProtocol=4;
+    expect(t.inspect().state).toBe('unverified');
+  });
   it('rejects contradictory historical dependency evidence before reporting stale', () => {
     const s = setup(); s.record = structuredClone(s.record);
     s.record.plan.tickets[0].dependsOn = [s.record.plan.tickets[0].id];
