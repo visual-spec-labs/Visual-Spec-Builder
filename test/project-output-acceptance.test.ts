@@ -1,4 +1,5 @@
 import { findPendingProjectRecovery } from '@/features/editor/ui/projectPendingRecovery';
+import { posix } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectSpec } from '@/features/editor/schema';
 import { compileProjectTickets } from '@/features/editor/ticket/compileProjectTickets';
@@ -124,6 +125,15 @@ describe('atomic project wave acceptance',()=>{
   it.each(['../../../other-project/pages/Home','../../unplanned/Helper','/tmp/outside','@/private'])('rejects an import outside the project plan: %s',async source=>{
     const args=setup();io.disk.set(args.prepared.request.tickets[0].outputPath,encode(`import Other from ${JSON.stringify(source)}; export default()=> <Other/>`));
     await expect(planProjectOutputs(args)).rejects.toThrow();expect(io.writes).toEqual([]);
+  });
+  it('rejects a planned module from another page without a ticket dependency',async()=>{
+    const args=setup();
+    const source=args.prepared.request.tickets.find(ticket=>ticket.sourcePageId==='login')!;
+    const target=args.prepared.request.tickets.find(ticket=>ticket.sourcePageId==='dashboard')!;
+    const relative=posix.relative(posix.dirname(source.filePath),target.filePath);
+    io.disk.set(source.outputPath,encode(`import Other from ${JSON.stringify(relative.startsWith('.')?relative:'./'+relative)}; export default()=> <Other/>`));
+    await expect(planProjectOutputs(args)).rejects.toThrow(/import|의존|티켓/);
+    expect(io.writes).toEqual([]);
   });
 });
 

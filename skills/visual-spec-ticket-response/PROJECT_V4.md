@@ -70,7 +70,7 @@
 - 반복 이미지가 서로 다르면 image src를 동적 prop으로 바꾸지 않는다. 각 variant의 JSX에
   정적 token을 두고 variant key로 분기한다. background도 각 분기의 정적 style을 JSX에 직접
   둔다. 이미지가 없는 구조/텍스트/callback props는 그대로 재사용한다.
-- import는 **최종 생성 자리 기준** 상대 경로이며 계획에 있는 같은 projectRoot의 TSX만
+- import는 **최종 생성 자리 기준** 상대 경로이며 계획에 있는 **같은 sourcePageId**의 TSX만
   참조한다. dependency 파일은 `.visual-spec/generated/<계획에서 도출한 filePath>`에서 읽기만
   한다. 없는 export/props를 추측하지 않고 failed로 보고한다. 다른 프로젝트의 같은 이름을
   가져오거나 이번 wave 밖의 코드를 만들지 않는다.
