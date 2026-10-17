@@ -1,6 +1,7 @@
 import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
 import { create } from "zustand";
 import { buildGroupCommands, buildUngroupCommands } from "@/features/editor/command/groupCommands";
+import { applyWidgetProjectCommand } from "@/features/editor/command/widgetProjectCommand";
 
 import {
   applyTransaction,
@@ -210,6 +211,10 @@ export interface EditorState {
    */
   removePage: (id: PageId, expected?: { spec: ProjectSpec; documentId: number }) => void;
   removeNodeAction: (id: NodeId) => void;
+  /** Extract a selected frame as a shared widget in one project snapshot. */
+  extractWidget: (id: NodeId) => void;
+  /** Replace an instance with local copies of its source tree in one snapshot. */
+  detachInstance: (id: NodeId) => void;
   /**
    * 스펙 전체를 교체하고 선택을 해제한다(New/Open).
    * 화면 문서를 받으면 페이지 1개짜리 프로젝트로 넓힌다. 그래서 화면 문서 파일도
@@ -453,6 +458,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
   removeNodeAction: (id) => set((state) => applied(state, state.activePageId, { type: "removeNodeAction", id }) ?? state),
+  extractWidget: (id) => set((state) => {
+    const node = state.spec.pages[state.activePageId]?.nodes[id];
+    const result = applyWidgetProjectCommand(state.spec, { version: "0.1", type: "extractWidget", pageId: state.activePageId, nodeId: id,
+      widgetId: generateNodeId("widget", state.spec.pages), name: node?.name || "Widget" });
+    if (!result.ok) { useResponsiveViewStore.getState().reportError(result.message); return state; }
+    useResponsiveViewStore.getState().reportError(null);
+    return { spec: result.spec, selectedId: result.selectedId, focusRootId: null,
+      history: pushHistory(state.history, makeSnapshot(result.spec, state.activePageId)) };
+  }),
+  detachInstance: (id) => set((state) => {
+    const result = applyWidgetProjectCommand(state.spec, { version: "0.1", type: "detachInstance", pageId: state.activePageId, nodeId: id });
+    if (!result.ok) { useResponsiveViewStore.getState().reportError(result.message); return state; }
+    useResponsiveViewStore.getState().reportError(null);
+    return { spec: result.spec, selectedId: result.selectedId, focusRootId: null,
+      history: pushHistory(state.history, makeSnapshot(result.spec, state.activePageId)) };
+  }),
   setNodeField: (id, path, value, continueEdit = false) =>
     set((state) => {
       // #40: setByPath를 직접 부르는 대신 updateNode Command를 만들어
