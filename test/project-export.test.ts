@@ -115,6 +115,19 @@ it('rejects a recorded current output that imports an unrelated page at ZIP time
   io.disk.set(request.tickets[0].outputPath,bytes(`export default function ${nextTicket.componentName}(){return <div/>}`));
   await expect(planProjectOutputs({prepared:{request,snapshot},results:[{ticketId:nextTicket.id,status:'done'}],runId:'scope-next-run',isCurrent:()=>io.current})).rejects.toThrow(/import|계획/);
   await expect(prepareProjectBundle(input())).rejects.toThrow(/계획/);
+  const repairPlan=structuredClone(plan);
+  const repairTicket=repairPlan.tickets.find(ticket=>ticket.id===login.id)!;
+  for(const ticket of repairPlan.tickets)ticket.status=ticket.id===repairTicket.id?'pending':'done';
+  const repairSnapshot=buildProjectInputSnapshot('scope-repair',project,repairPlan,projectAssetPaths(project).map(path=>createProjectAssetSnapshot(path,io.disk.get(path)!)));
+  const repairRequest=buildProjectTicketRequest({requestId:'scope-repair',projectRoot:'owned',snapshotContent:repairSnapshot.content,snapshotSha256:repairSnapshot.sha256,ticketIds:[repairTicket.id]});
+  io.disk.set(repairSnapshot.path,bytes(repairSnapshot.content));
+  io.disk.set(repairRequest.tickets[0].outputPath,bytes(`export default function ${repairTicket.componentName}(){return <div/>}`));
+  const repair=await planProjectOutputs({prepared:{request:repairRequest,snapshot:repairSnapshot},results:[{ticketId:repairTicket.id,status:'done'}],runId:'scope-repair-run',isCurrent:()=>io.current});
+  expect(repair.targets.some(target=>target.ticketId===repairTicket.id)).toBe(true);
+  const decisions=Object.fromEntries(repair.review.items.map(item=>[item.path,'overwrite' as const]));
+  expect((await commitProjectOutputs(repair,decisions,{lock,isCurrent:()=>io.current})).committed).toBe(true);
+  expect((await inspectProjectExport(input())).evidence.inspection.state).toBe('current');
+  await expect(prepareProjectBundle(input())).resolves.toHaveProperty('zip');
 });
 it('keeps verified unaffected outputs through v4 to v5 and back without rewriting their protocol history',async()=>{
   await generate(true,'initial');
