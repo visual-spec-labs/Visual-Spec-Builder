@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import fixture from "./fixtures/screen-relations-project.json";
-import type { ProjectSpec } from "@/features/editor/schema";
-import { buildDestinationCatalog, buildNlRequest, parseNlResponse } from "@/features/editor/nl/nlProtocol";
+import type { FrameNode, ProjectSpec } from "@/features/editor/schema";
+import { buildDestinationCatalog, buildNlRequest, buildWidgetSourceCatalog, parseNlResponse } from "@/features/editor/nl/nlProtocol";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 const project = () => structuredClone(fixture) as unknown as ProjectSpec;
 const editor = () => useEditorStore.getState();
@@ -67,5 +67,32 @@ describe("NL read-only destination catalog", () => {
       expect(editor().applyGuardedTransaction("login", [{ type: "updateNode", id: "loginButton", path: "action", value }]).ok).toBe(false);
       expect(editor().spec).toBe(before.spec);
     }
+  });
+  it('includes only referenced widget sources as read-only context and preserves their snapshot', () => {
+    const spec=project();
+    spec.pages.login.nodes.shared={type:'instance',name:'Shared',box:{width:200,height:80},ref:'notificationWidget'};
+    (spec.pages.login.nodes.root as FrameNode).children.push({node:'shared'});
+    const request=buildNlRequest({...input(spec),project:spec});
+    expect(request.widgets?.map(item=>item.pageId)).toEqual(['notificationWidget']);
+    expect(request.widgets?.[0].screen.nodes.title).toEqual(spec.pages.notificationWidget.nodes.title);
+    spec.pages.notificationWidget.nodes.title.name='Changed';
+    expect(request.widgets?.[0].screen.nodes.title.name).not.toBe('Changed');
+    expect(buildWidgetSourceCatalog(spec,spec.pages.dashboard)).toEqual([]);
+    expect(request).not.toHaveProperty('project');
+  });
+  it('uses the current project G3 for NL instance overrides and rejects stale source IDs', () => {
+    const spec=project();
+    spec.pages.login.nodes.shared={type:'instance',name:'Shared',box:{width:200,height:80},ref:'notificationWidget'};
+    (spec.pages.login.nodes.root as FrameNode).children.push({node:'shared'});
+    editor().loadSpec(spec);
+    const before=editor().spec;
+    const command={type:'updateNode' as const,id:'shared',path:'overrides',value:{title:{content:'Custom',color:'#445566'}}};
+    const response=JSON.stringify({protocol:2,commandVersion:'0.2',requestId:'request',commands:[command]});
+    expect(parseNlResponse(response,'request').kind).toBe('commands');
+    expect(editor().applyGuardedTransaction('login',[command]).ok).toBe(true);
+    expect(editor().history.past).toHaveLength(1);
+    editor().undo();expect(editor().spec).toBe(before);
+    expect(editor().applyGuardedTransaction('login',[{...command,value:{missing:{content:'x'}}}]).ok).toBe(false);
+    expect(editor().spec).toBe(before);
   });
 });

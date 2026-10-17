@@ -56,6 +56,7 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 | `pageId` | 대상 페이지 id (참고용 — Command 자체에는 페이지 개념이 없다) |
 | `page` | 대상 페이지의 **현재 스펙 전체**(`ScreenSpec` — `name`·`size`·`root`·`nodes`). 노드 id와 현재 값은 전부 여기서 읽는다. **추측하지 않는다** |
 | `destinations` | 선택 읽기 전용 목록: `{pageId, name, kind}`. kind는 생략 해석을 끝낸 page/modal/widget. 다른 화면 nodes나 편집 권한이 아니다 |
+| `widgets` | 선택 읽기 전용 목록: 현재 화면의 instance에서 전이적으로 참조하는 `{pageId,screen}` widget 원본. 다른 화면으로 Command 대상을 넓히지 않는다 |
 | `responsePath` | 응답을 써야 할 경로. **`.visual-spec/` 기준 상대 경로다** — 값은 `runtime/nl-response.json`이고 실제 파일은 `.visual-spec/runtime/nl-response.json`이다. 프로젝트 루트 기준으로 해석해 `runtime/`을 새로 만들지 않는다. 다른 값이 오면 쓰지 말고 사용자에게 알린다 |
 
 `scope.kind === "node"`면 요청은 그 노드(와 필요하면 그 자손)만 겨냥한다. `page.nodes`에서
@@ -84,6 +85,13 @@ commands를 만들지 않는다. 그 밖의 버전 불일치는 요청 protocol�
   `{pageId:"resetPassword",name:"비밀번호 찾기",kind:"modal"}`에는 value를
   `{type:"openModal",target:"resetPassword"}`로 전체 교체한다. 제거는 removeNodeAction이고
   close는 현재 화면이 modal/widget일 때 target 없는 전체 `{type:"close"}`다.
+
+## 공유 widget 편집 (S2)
+
+- `destinations`의 kind=widget PageId만 새 instance의 `ref`로 사용한다. `createNode`의 `node`는 완전한 `InstanceNode`(`type:"instance"`, `name`, `box`, `ref`, 선택 `visible`/`overrides`)이며 frame 자식으로 만든다. 없는 원본이나 다른 프로젝트 이름을 추측하지 않는다. 현재 화면과 그 `widgets` 목록 밖의 원본 노드 내용은 알 수 없다.
+- 현재 화면의 기존 instance에서 내용/글자색을 재정의하려면 `widgets`에서 ref와 정확히 일치하는 원본을 찾는다. 직접 원본 Text/Button NodeId만 `overrides`의 키로 사용하고, 값은 `content`/`color`만 쓴다. `updateNode`의 `path:"overrides"`에 기존 재정의까지 보존한 **완전한 맵**을 전달한다. 반응형/배치·action·image 변경을 재정의에 넣지 않는다. 원본 정보가 없는 구 요청에는 추측 대신 오류로 답한다.
+- 위젯 원본 자체를 바꾸려면 현재 `pageId`가 그 widget인 요청에서 해당 화면의 로컬 노드 Command로 편집한다. 다른 화면의 instance 요청에서 원본을 직접 수정하지 않는다. 새 widget 화면 생성과 extract/detach는 화면 로컬 Command 0.2로 표현할 수 없으므로 GUI 명시 동작을 안내한다.
+- GUI가 응답 Command를 현재 프로젝트 전체에 다시 적용해 참조·순환·override 무결성을 검증한다. 검증 실패를 우회해 스펙 파일을 직접 변경하지 않는다.
 
 ## 응답 만들기 — Command 배열
 

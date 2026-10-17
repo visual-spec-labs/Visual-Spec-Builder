@@ -93,12 +93,30 @@ export interface NlDestination {
   readonly kind: ScreenKind;
 }
 
-/** Snapshot metadata only. Never exposes other pages' mutable node trees. */
+/** Destination metadata never exposes unrelated page/modal node trees. */
 export function buildDestinationCatalog(project: ProjectSpec): NlDestination[] {
   return project.pageOrder.flatMap((pageId) => {
     const page = project.pages[pageId];
     return page ? [{ pageId, name: page.name, kind: page.kind ?? "page" }] : [];
   });
+}
+
+export interface NlWidgetSource { readonly pageId: PageId; readonly screen: ScreenSpec }
+
+/** A bounded read-only snapshot of widget sources reached by the active screen. */
+export function buildWidgetSourceCatalog(project: ProjectSpec, page: ScreenSpec): NlWidgetSource[] {
+  const visited = new Set<string>();
+  const pending = Object.values(page.nodes).flatMap(node => node.type === 'instance' ? [node.ref] : []);
+  while (pending.length) {
+    const id = pending.pop()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const screen = Object.hasOwn(project.pages, id) ? project.pages[id] : undefined;
+    if (screen?.kind !== 'widget') continue;
+    pending.push(...Object.values(screen.nodes).flatMap(node => node.type === 'instance' ? [node.ref] : []));
+  }
+  return project.pageOrder.filter(id => visited.has(id) && project.pages[id].kind === 'widget')
+    .map(pageId => ({ pageId, screen: structuredClone(project.pages[pageId]) }));
 }
 
 export interface NlRequest {
@@ -117,6 +135,8 @@ export interface NlRequest {
   responsePath: string;
   /** Optional protocol-2 request context; does not expand mutation scope. */
   destinations?: readonly NlDestination[];
+  /** Only widget sources transitively referenced by the active page; read-only context. */
+  widgets?: readonly NlWidgetSource[];
 }
 
 export interface BuildNlRequestInput {
@@ -131,6 +151,7 @@ export interface BuildNlRequestInput {
 
 /** 요청 파일에 쓸 객체를 만든다. 순수 함수 — 파일을 쓰지 않는다. */
 export function buildNlRequest(input: BuildNlRequestInput): NlRequest {
+  const widgets = input.project ? buildWidgetSourceCatalog(input.project, input.page) : [];
   return {
     protocol: NL_PROTOCOL_VERSION,
     commandVersion: COMMAND_VERSION,
@@ -141,6 +162,7 @@ export function buildNlRequest(input: BuildNlRequestInput): NlRequest {
     page: input.page,
     responsePath: NL_RESPONSE_PATH,
     ...(input.project ? { destinations: buildDestinationCatalog(input.project) } : {}),
+    ...(widgets.length ? { widgets } : {}),
   };
 }
 
