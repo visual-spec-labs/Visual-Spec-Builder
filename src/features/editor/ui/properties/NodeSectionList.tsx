@@ -15,6 +15,8 @@ import { LayoutSection } from "./LayoutSection";
 import { hasShadow, sectionsFor, type NodeType, type SectionId } from "./nodeSections";
 import { SizeSection } from "./SizeSection";
 import { TypographySection } from "./TypographySection";
+import { DesignStylesSection } from "./DesignStylesSection";
+import { StateStylesSection } from "./StateStylesSection";
 
 /**
  * 노드 타입에 맞는 속성 섹션들을 표(nodeSections.ts)대로 늘어놓는다.
@@ -65,6 +67,8 @@ export function NodeSectionList({
       {sectionsFor(type).map((id) => (
         <div key={id}>{renderSection(id, type, selectedId, breakpoint !== null, pageId)}</div>
       ))}
+      <DesignStylesSection />
+      {(type === "button" || type === "input") && <StateStylesSection />}
     </>
   );
 }

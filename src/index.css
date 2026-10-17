@@ -6,5 +6,31 @@
 /* Design tokens (Primitive → Semantic → Component) */
 @import "./styles/tokens/index.css";
 
+.vs-control-node:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.vs-control-node[data-vs-hover-background]:hover:not(:active):not(:focus-visible) {
+  background-image: none !important;
+  background-color: var(--vs-hover-background) !important;
+}
+.vs-control-node[data-vs-hover-color]:hover:not(:active):not(:focus-visible) { color: var(--vs-hover-color) !important; }
+.vs-control-node[data-vs-hover-border]:hover:not(:active):not(:focus-visible) { border-color: var(--vs-hover-border-color) !important; }
+
+.vs-control-node[data-vs-focus-background]:focus-visible {
+  background-image: none !important;
+  background-color: var(--vs-focus-background) !important;
+}
+.vs-control-node[data-vs-focus-color]:focus-visible { color: var(--vs-focus-color) !important; }
+.vs-control-node[data-vs-focus-border]:focus-visible { border-color: var(--vs-focus-border-color) !important; }
+
+.vs-control-node[data-vs-pressed-background]:active {
+  background-image: none !important;
+  background-color: var(--vs-pressed-background) !important;
+}
+.vs-control-node[data-vs-pressed-color]:active { color: var(--vs-pressed-color) !important; }
+.vs-control-node[data-vs-pressed-border]:active { border-color: var(--vs-pressed-border-color) !important; }
+
 /* 캔버스 격자 오버레이 */
 @import "./styles/canvas-grid.css";
