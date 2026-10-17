@@ -642,3 +642,12 @@ CLI의 검증 입구는 `migrateToV04`를 호출한다. Open은 원본 파일을
 S2-1 기간에는 기존 Command v0.2의 createNode로 instance를 만들 수 없고, 기존
 티켓 compiler는 instance가 들어간 생성 요청을 명시적으로 거부한다. GUI의 제한된
 미리보기는 위젯 내용을 생성된 코드로 승격하지 않는다.
+
+### S2-2 참조와 override 검증
+
+프로젝트 검증은 스키마 통과 후 `instance-ref-missing`, `instance-ref-kind`,
+`instance-cycle`, `instance-override-invalid`를 검사한다. 직접/간접 widget 포함 순환은
+막고 여러 호스트의 공유 DAG는 허용한다. override의 키는 참조 widget의 직접 Text/Button
+노드여야 하며 Button content는 빈 문자열이 될 수 없다. 금지 속성·색 형식 등 닫힌
+형태 오류는 먼저 기존 `schema` 코드로 반환한다. 독립 화면 검증은 외부 참조의 존재를
+판정하지 않는다. GUI 후보 검증과 캐시 검증도 프로젝트 전체 의미 검사를 매번 수행한다.
