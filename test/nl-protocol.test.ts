@@ -58,7 +58,7 @@ describe("buildNlRequest", () => {
     });
 
     expect(request).toMatchObject({
-      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2",
+      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.3",
       id: "req-1",
       instruction: "간격을 24로 해줘",
       pageId: "home",
@@ -92,6 +92,7 @@ describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
   it("accepts one closed cross-page widget command without local commands", () => {
     const body = { protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2", requestId: "req-1", projectCommand };
     expect(parseNlResponse(responseText(body), "req-1")).toEqual({ kind: "projectCommand", command: projectCommand });
+    expect(parseNlResponse(responseText({ ...body, commandVersion: "0.3" }), "req-1")).toEqual({ kind: "projectCommand", command: projectCommand });
     expect(parseNlResponse(responseText({ ...body, requestId: "old" }), "req-1")).toEqual({ kind: "stale" });
   });
 
@@ -111,7 +112,7 @@ describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
 
   it("requestId 가 다르면 stale 이다 — 낡은 응답을 이번 답으로 쓰지 않는다", () => {
     const text = responseText({
-      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2",
+      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.3",
       requestId: "req-0",
       commands: [gapCommand],
     });
@@ -121,7 +122,7 @@ describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
 
   it("낡은 응답에 담긴 오류도 이번 요청의 실패로 보여주지 않는다", () => {
     const text = responseText({
-      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2",
+      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.3",
       requestId: "req-0",
       error: "못 하겠습니다",
     });
@@ -151,7 +152,7 @@ describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
 
   it("에이전트가 못 하겠다고 답하면 그 문장을 그대로 낸다", () => {
     const text = responseText({
-      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2",
+      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.3",
       requestId: "req-1",
       error: "어떤 노드를 말하는지 모르겠습니다.",
     });
@@ -163,7 +164,7 @@ describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
   });
 
   it("commands 가 없으면 G1에서 걸린다", () => {
-    const text = responseText({ protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2", requestId: "req-1" });
+    const text = responseText({ protocol: NL_PROTOCOL_VERSION, commandVersion: "0.3", requestId: "req-1" });
     const result = parseNlResponse(text, "req-1");
 
     expect(result.kind).toBe("invalid");
@@ -172,7 +173,7 @@ describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
 
   it("Command 스키마를 어기면 G1에서 걸린다 — 없는 type", () => {
     const text = responseText({
-      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2",
+      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.3",
       requestId: "req-1",
       commands: [{ type: "deleteEverything" }],
     });
@@ -182,7 +183,7 @@ describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
 
   it("빈 배열도 G1에서 걸린다 — Transaction 은 최소 하나를 요구한다", () => {
     const text = responseText({
-      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2",
+      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.3",
       requestId: "req-1",
       commands: [],
     });
@@ -192,7 +193,7 @@ describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
 
   it("규약과 스키마를 모두 지키면 Command 배열을 그대로 돌려준다", () => {
     const text = responseText({
-      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2",
+      protocol: NL_PROTOCOL_VERSION, commandVersion: "0.3",
       requestId: "req-1",
       commands: [gapCommand],
     });

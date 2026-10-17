@@ -1,4 +1,4 @@
-import type { Layout, Node, NodeId } from "@/features/editor/schema";
+import type { Color, Layout, Node, NodeId, StyleId, Typography } from "@/features/editor/schema";
 
 /**
  * 런타임 정본은 command.schema.json이다(#153).
@@ -13,8 +13,8 @@ import type { Layout, Node, NodeId } from "@/features/editor/schema";
  * GUI 이벤트와 자연어 Agent가 공유하는 편집 명령(PRD 1차 11·16장,
  * component-architecture.md §3.3 vsb-command-engine). 노드 5종 + 페이지 1종.
  *
- * 둘 다 IR(ScreenSpec)을 직접 건드리지 않고 이 Command만 만든다 — 만든
- * Command를 실제로 적용하는 건 applyCommand뿐이다. 드래그로 옮기든
+ * 화면 편집은 IR(ScreenSpec)을 직접 건드리지 않고 이 Command만 만든다.
+ * 화면 Command는 applyCommand가, 프로젝트 스타일 Command는 project transaction gate가 적용한다. 드래그로 옮기든
  * "버튼을 오른쪽으로 옮겨줘"라고 하든 같은 moveNode Command가 나와야 한다는
  * 게 이 타입의 존재 이유다.
  *
@@ -31,7 +31,16 @@ export type Command =
   | MoveNodeCommand
   | SetLayoutCommand
   | UpdateScreenCommand
-  | RemoveNodeActionCommand;
+  | RemoveNodeActionCommand
+  | CreateColorStyleCommand
+  | DeleteColorStyleCommand
+  | CreateTypographyStyleCommand
+  | DeleteTypographyStyleCommand
+  | UpdateColorStyleCommand
+  | UpdateTypographyStyleCommand
+  | ApplyColorStyleCommand
+  | ApplyTypographyStyleCommand;
+export type ScreenCommand = Exclude<Command, CreateColorStyleCommand | DeleteColorStyleCommand | CreateTypographyStyleCommand | DeleteTypographyStyleCommand | UpdateColorStyleCommand | UpdateTypographyStyleCommand | ApplyColorStyleCommand | ApplyTypographyStyleCommand>;
 
 export interface CreateNodeCommand {
   type: "createNode";
@@ -93,12 +102,44 @@ export interface UpdateScreenCommand {
  * 하나의 트랜잭션으로 묶는다." history.pushHistory를 트랜잭션당 한 번만
  * 부르면 이 묶음 전체가 Undo 한 번에 되돌아간다.
  */
-export const COMMAND_VERSION = "0.2" as const;
-export const COMMAND_TYPES = ["createNode", "updateNode", "deleteNode", "moveNode", "setLayout", "updateScreen", "removeNodeAction"] as const satisfies readonly Command["type"][];
+export const COMMAND_VERSION = "0.3" as const;
+export const COMMAND_TYPES = ["createNode", "updateNode", "deleteNode", "moveNode", "setLayout", "updateScreen", "removeNodeAction", "createColorStyle", "updateColorStyle", "deleteColorStyle", "applyColorStyle", "createTypographyStyle", "updateTypographyStyle", "deleteTypographyStyle", "applyTypographyStyle"] as const satisfies readonly Command["type"][];
 
 export interface RemoveNodeActionCommand {
   type: "removeNodeAction";
   id: NodeId;
+}
+
+export interface UpdateColorStyleCommand {
+  type: "updateColorStyle";
+  id: StyleId;
+  name: string;
+  value: Color;
+}
+
+export interface CreateColorStyleCommand { type: "createColorStyle"; id: StyleId; name: string; value: Color }
+export interface DeleteColorStyleCommand { type: "deleteColorStyle"; id: StyleId }
+export interface CreateTypographyStyleCommand { type: "createTypographyStyle"; id: StyleId; name: string; value: Typography }
+export interface DeleteTypographyStyleCommand { type: "deleteTypographyStyle"; id: StyleId }
+
+export interface UpdateTypographyStyleCommand {
+  type: "updateTypographyStyle";
+  id: StyleId;
+  name: string;
+  value: Typography;
+}
+
+export interface ApplyColorStyleCommand {
+  type: "applyColorStyle";
+  id: StyleId;
+  nodeId: NodeId;
+  target: string;
+}
+
+export interface ApplyTypographyStyleCommand {
+  type: "applyTypographyStyle";
+  id: StyleId;
+  nodeId: NodeId;
 }
 
 export interface Transaction {

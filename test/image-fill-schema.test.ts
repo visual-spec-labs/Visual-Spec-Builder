@@ -30,8 +30,8 @@ describe("image background contract (#235)", () => {
     (legacy as { version: string }).version = "0.1";
     (legacy.screen.nodes.root as { background: unknown }).background = { color: "#FFFFFF" };
     const before = JSON.stringify(legacy);
-    const migrated = migrateToV03(legacy);
-    expect(validateVisualSpec(migrateToV04(migrated)).valid).toBe(true);
+    const migrated = migrateToV04(migrateToV03(legacy));
+    expect(validateVisualSpec(migrated).valid).toBe(true);
     expect(JSON.stringify(legacy)).toBe(before);
     expect((migrated as VisualSpec).screen.nodes.root).toMatchObject({ background: [{ type: "solid", color: "#FFFFFF" }] });
   });

@@ -40,24 +40,24 @@ function legacyScreens(): { name: string; screen: { nodes: Record<string, Legacy
   ] as { name: string; screen: { nodes: Record<string, LegacyNode> } }[];
 }
 
-describe("migrateToV03 — 옛 문서", () => {
+describe("v0.1/v0.2 → v0.4 migrations", () => {
   it("옛 문서는 새 검증기를 그대로는 통과하지 못한다 — 입구의 변환이 필요한 이유", () => {
     expect(validateVisualSpec(legacyDashboard).valid).toBe(false);
     expect(validateProjectSpec(legacyTwoPage).valid).toBe(false);
   });
 
-  it("0.1 화면 문서를 변환하면 0.3으로 유효하다", () => {
-    const migrated = migrateToV03(legacyDashboard);
+  it("0.1 화면 문서를 두 단계 변환하면 0.4로 유효하다", () => {
+    const migrated = migrateToV04(migrateToV03(legacyDashboard));
 
-    expect(validateVisualSpec(migrateToV04(migrated))).toEqual({ valid: true, issues: [] });
-    expect((migrated as VisualSpec).version).toBe("0.3");
+    expect(validateVisualSpec(migrated)).toEqual({ valid: true, issues: [] });
+    expect((migrated as VisualSpec).version).toBe("0.4");
   });
 
-  it("0.2 프로젝트 문서를 변환하면 0.3으로 유효하다", () => {
-    const migrated = migrateToV03(legacyTwoPage);
+  it("0.2 프로젝트 문서를 두 단계 변환하면 0.4로 유효하다", () => {
+    const migrated = migrateToV04(migrateToV03(legacyTwoPage));
 
-    expect(validateProjectSpec(migrateToV04(migrated))).toEqual({ valid: true, issues: [] });
-    expect((migrated as ProjectSpec).version).toBe("0.3");
+    expect(validateProjectSpec(migrated)).toEqual({ valid: true, issues: [] });
+    expect((migrated as ProjectSpec).version).toBe("0.4");
   });
 
   it("{ color }를 solid 한 겹 배열로 바꾸고 나머지는 그대로 둔다", () => {
@@ -78,13 +78,13 @@ describe("migrateToV03 — 옛 문서", () => {
     expect(legacyTwoPage).toEqual(before);
   });
 
-  it("examples/의 0.3 예제는 옛 예제를 이 함수로 변환한 결과와 같다", () => {
-    expect(migrateToV04(legacyDashboard)).toEqual(dashboardCardsExample);
-    expect(migrateToV04(legacyCardEffects)).toEqual(cardEffectsExample);
-    expect(migrateToV04(legacyTwoPage)).toEqual(twoPageExample);
+  it("examples/의 0.4 예제는 두 단계 마이그레이션 결과와 같다", () => {
+    expect(migrateToV04(migrateToV03(legacyDashboard))).toEqual(dashboardCardsExample);
+    expect(migrateToV04(migrateToV03(legacyCardEffects))).toEqual(cardEffectsExample);
+    expect(migrateToV04(migrateToV03(legacyTwoPage))).toEqual(twoPageExample);
   });
 
-  it("이미 0.3인 문서는 그대로 돌려준다", () => {
+  it("0.4 문서는 0.3 마이그레이션이 바꾸지 않는다", () => {
     expect(migrateToV03(dashboardCardsExample)).toBe(dashboardCardsExample);
     expect(migrateToV03(twoPageExample)).toBe(twoPageExample);
   });
@@ -144,6 +144,20 @@ describe("migrateToV03 — 아는 모양이 아니면 건드리지 않는다", (
 
   it.each([null, 3, "text", [1, 2]])("객체가 아닌 입력(%j)은 그대로 돌려준다", (input) => {
     expect(migrateToV03(input)).toBe(input);
+  });
+});
+
+describe("migrateToV04", () => {
+  it("업그레이드 가능한 0.3 화면·프로젝트 문서는 형태를 보존해 0.4로 올린다", () => {
+    expect(migrateToV04(dashboardCardsExample)).toEqual({ ...dashboardCardsExample, version: "0.4" });
+    expect(migrateToV04(twoPageExample)).toEqual({ ...twoPageExample, version: "0.4" });
+  });
+
+  it("알 수 없는 버전과 깨진 루트는 그대로 둔다", () => {
+    const unknown = { version: "0.9", screen: {} };
+    const malformed = { version: "0.3", other: true };
+    expect(migrateToV04(unknown)).toBe(unknown);
+    expect(migrateToV04(malformed)).toBe(malformed);
   });
 });
 

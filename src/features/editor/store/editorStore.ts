@@ -24,19 +24,24 @@ import {
   dryRunTransaction,
   type TransactionGateResult,
 } from "@/features/editor/command/transactionGate";
-import type { Command } from "@/features/editor/command/types";
-import { migrateV01, validateVisualSpec, validateProjectSpec, createCachedProjectValidator } from "@/features/editor/schema";
+import type { Command, ScreenCommand } from "@/features/editor/command/types";
+import { migrateV01, validateVisualSpec, validateProjectSpec, createCachedProjectValidator, withoutStyleRefs } from "@/features/editor/schema";
 import type {
   Node,
   Responsive,
   NodeId,
   PageId,
   ProjectSpec,
+  Color,
+  StyleId,
   ScreenSpec,
+  Typography,
   VisualSpec,
+  ValidationIssue,
 } from "@/features/editor/schema";
 
 import { preparePageRemoval } from "./pageRemoval";
+import { linkColorStyle, linkTypographyStyle, unlinkStyle, updateColorStyle as updateColorStyleValues, updateTypographyStyle as updateTypographyStyleValues } from "../schema/styleEdits";
 
 import { blankSpec } from "./blankSpec";
 import { generateNodeId } from "./nodeId";
@@ -81,6 +86,10 @@ export interface EditorSnapshot {
   spec: ProjectSpec;
   activePageId: PageId;
 }
+
+export type ProjectEditResult =
+  | { ok: true }
+  | { ok: false; issues: ValidationIssue[] };
 
 /** `setNodeFields`가 한 번에 적용할 노드 필드 변경 하나. */
 export interface NodeFieldPatch {
@@ -235,6 +244,21 @@ export interface EditorState {
   /** Save As establishes a distinct project identity without adding an undo step. */
   setProjectId: (projectId: string) => void;
   /**
+   * Atomically apply a prepared whole-project edit. This is the shared commit path
+   * for changes that can touch multiple pages (for example, shared style updates):
+   * validate the complete candidate, then publish it with exactly one Undo step.
+   * A rejected candidate leaves spec and history untouched.
+   */
+  applyProjectEdit: (candidate: ProjectSpec, continueEdit?: boolean) => ProjectEditResult;
+  createColorStyle: (name: string, value: Color, pageId: PageId, nodeId: NodeId, target: string) => StyleId | null;
+  applyColorStyle: (id: StyleId, pageId: PageId, nodeId: NodeId, target: string) => ProjectEditResult;
+  updateColorStyle: (id: StyleId, name: string, value: Color) => ProjectEditResult;
+  deleteColorStyle: (id: StyleId) => ProjectEditResult;
+  createTypographyStyle: (name: string, value: Typography, pageId: PageId, nodeId: NodeId) => StyleId | null;
+  applyTypographyStyle: (id: StyleId, pageId: PageId, nodeId: NodeId) => ProjectEditResult;
+  updateTypographyStyle: (id: StyleId, name: string, value: Typography) => ProjectEditResult;
+  deleteTypographyStyle: (id: StyleId) => ProjectEditResult;
+  /**
    * 새 노드를 활성 페이지의 parentId(frame) 자식 목록 끝에 추가하고 선택한다(Import).
    * parentId가 없거나 frame이 아니면 아무 것도 하지 않는다 — 호출자가
    * resolveImportParent 등으로 유효한 frame id를 먼저 골라서 넘겨야 한다.
@@ -340,6 +364,39 @@ function asPageOrder(ids: PageId[]): ProjectSpec["pageOrder"] {
   return ids as ProjectSpec["pageOrder"];
 }
 
+type ProjectCommit = Pick<EditorState, "spec" | "history">;
+type PreparedProjectCommit =
+  | { ok: true; commit: ProjectCommit | null }
+  | { ok: false; issues: ValidationIssue[] };
+
+// Only a committed transaction can be continued. Rejected attempts invalidate
+// eligibility without changing the document/history or emitting a store update.
+// Weak keys also isolate documents, Undo/Redo and externally replaced histories.
+const continuableHistories = new WeakSet<EditorState["history"]>();
+
+function prepareProjectCommit(
+  state: EditorState,
+  candidate: ProjectSpec,
+  historyPageId: PageId,
+  continueEdit = false,
+  trackContinuation = true,
+): PreparedProjectCommit {
+  const canContinue = continueEdit && continuableHistories.has(state.history);
+  continuableHistories.delete(state.history);
+  if (candidate === state.spec) return { ok: true, commit: null };
+
+  const validation = validateGuiCandidate(candidate);
+  if (!validation.valid) return { ok: false, issues: validation.issues };
+
+  const snapshotPageId = candidate.pages[historyPageId] ? historyPageId : candidate.pageOrder[0];
+
+  const history = canContinue
+    ? replacePresent(state.history, makeSnapshot(candidate, snapshotPageId))
+    : pushHistory(state.history, makeSnapshot(candidate, snapshotPageId));
+  if (trackContinuation) continuableHistories.add(history);
+  return { ok: true, commit: { spec: candidate, history } };
+}
+
 /**
  * Command 하나를 pageId 페이지에 적용하고 그 결과를 history에 한 단계로 얹는다.
  * setNodeField·setPageField·insertNode·removeNode·moveNode가 전부 이 순서를
@@ -362,7 +419,7 @@ function asPageOrder(ids: PageId[]): ProjectSpec["pageOrder"] {
 function applied(
   state: EditorState,
   pageId: PageId,
-  command: Command,
+  command: ScreenCommand,
   continueEdit = false,
 ): Pick<EditorState, "spec" | "history"> | null {
   return appliedTransaction(state, pageId, [command], continueEdit);
@@ -372,23 +429,19 @@ function applied(
  * Command 여러 개를 한 페이지 사본에 먼저 적용하고 최종 결과만 history에 얹는다.
  * Zustand의 set 콜백 한 번 안에서 호출되므로 중간 화면은 구독자에게 보이지 않는다.
  */
-// Only a committed transaction can be continued. Rejected attempts invalidate
-// eligibility without changing the document/history or emitting a store update.
-// Weak keys also isolate documents, Undo/Redo and externally replaced histories.
-const continuableHistories = new WeakSet<EditorState["history"]>();
-
 const validateGuiCandidate = createCachedProjectValidator();
-
 function appliedTransaction(
   state: EditorState,
   pageId: PageId,
-  commands: Command[],
+  commands: ScreenCommand[],
   continueEdit = false,
 ): Pick<EditorState, "spec" | "history"> | null {
-  const canContinue = continueEdit && continuableHistories.has(state.history);
-  continuableHistories.delete(state.history);
+  const reject = (): null => {
+    continuableHistories.delete(state.history);
+    return null;
+  };
   const page = state.spec.pages[pageId];
-  if (page === undefined) return null;
+  if (page === undefined) return reject();
 
   const relationEdit = commands.some((c) => c.type === "removeNodeAction"
     || (c.type === "updateNode" && (c.path === "action" || c.path.startsWith("action.")))
@@ -397,25 +450,26 @@ function appliedTransaction(
   const trial = relationEdit ? dryRunTransaction(page, commands) : null;
   if (trial && trial.noOps.length > 0) {
     useResponsiveViewStore.getState().reportError(trial.noOps.map((op) => op.reason).join("\n"));
-    return null;
+    return reject();
   }
   const nextPage = trial?.screen ?? applyTransaction(page, commands);
-  if (nextPage === page) return null;
+  if (nextPage === page) return reject();
   if (page.responsive || nextPage.responsive) {
-    const validation = validateVisualSpec({ version: "0.4", screen: nextPage });
+    const validation = validateVisualSpec({ version: "0.4", screen: withoutStyleRefs(nextPage) });
     if (!validation.valid) {
       useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
-      return null;
+      return reject();
     }
     useResponsiveViewStore.getState().reportError(null);
   }
 
   const spec = withPage(state.spec, pageId, nextPage);
-  const validation = validateGuiCandidate(spec);
-  if (!validation.valid) {
-    useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
-    return null;
+  const prepared = prepareProjectCommit(state, spec, pageId, continueEdit);
+  if (!prepared.ok) {
+    useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+    return reject();
   }
+  if (prepared.commit === null) return reject();
   useResponsiveViewStore.getState().reportError(null);
   // #131 리뷰(wook3964, PR #142): 지금 호출부는 전부 활성 페이지를 넘겨서 둘이
   // 같지만, 타입도 런타임도 그걸 강제하지 않는다. 비활성 페이지 편집이 생겨도
@@ -423,13 +477,7 @@ function appliedTransaction(
   // 기록한다. history가 실제 변경을 보여 주도록 편집 대상 pageId를 유지한다.
   // 스냅숏의 activePageId는 `state.activePageId`가 아니라 편집이 일어난 `pageId`다.
   // 이 단계로 undo/redo하면 바뀐 내용이 눈앞에 있어야 한다(#131, PR #142).
-  const next = makeSnapshot(spec, pageId);
-
-  const history = canContinue
-    ? replacePresent(state.history, next)
-    : pushHistory(state.history, next);
-  continuableHistories.add(history);
-  return { spec, history };
+  return prepared.commit;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -503,7 +551,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
   setNodeFields: (patches, continueEdit = false) =>
     set((state) => {
-      const commands: Command[] = patches.map(({ id, path, value }) => ({
+      const commands: ScreenCommand[] = patches.map(({ id, path, value }) => ({
         type: "updateNode",
         id,
         path,
@@ -552,13 +600,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         pageOrder: asPageOrder([...state.spec.pageOrder, id]),
       };
 
-      const result = validateProjectSpec(spec);
-      if (!result.valid) { useResponsiveViewStore.getState().reportError(result.issues.map((issue) => issue.message).join("\n")); return state; }
+      const prepared = prepareProjectCommit(state, spec, id, false, false);
+      if (!prepared.ok) { useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n")); return state; }
+      if (prepared.commit === null) return state;
+      useResponsiveViewStore.getState().reportError(null);
       return {
-        spec,
+        ...prepared.commit,
         // #131: 페이지까지 옮기는 액션이라 스냅숏을 직접 만든다 — undo하면
         // 이 페이지가 사라지므로 activePageId도 함께 되돌아가야 한다.
-        history: pushHistory(state.history, makeSnapshot(spec, id)),
         activePageId: id,
         selectedId: null,
         focusRootId: null,
@@ -577,9 +626,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const removedAt = state.spec.pageOrder.indexOf(id);
       const activePageId = isActive
         ? spec.pageOrder[Math.min(removedAt, spec.pageOrder.length - 1)] : state.activePageId;
+      const committed = prepareProjectCommit(state, spec, activePageId, false, false);
+      if (!committed.ok) {
+        useResponsiveViewStore.getState().reportError(committed.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+        return state;
+      }
+      if (committed.commit === null) return state;
       useResponsiveViewStore.getState().reportError(null);
       return {
-        spec, history: pushHistory(state.history, makeSnapshot(spec, activePageId)), activePageId,
+        ...committed.commit, activePageId,
         selectedId: isActive ? null : state.selectedId,
         focusRootId: isActive ? null : state.focusRootId,
       };
@@ -612,6 +667,80 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     };
   }),
+  applyProjectEdit: (candidate, continueEdit = false) => {
+    const state = get();
+    const prepared = prepareProjectCommit(state, candidate, state.activePageId, continueEdit);
+    if (!prepared.ok) {
+      useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+      return { ok: false, issues: prepared.issues };
+    }
+    if (prepared.commit !== null) {
+      const activePageId = prepared.commit.history.present.activePageId;
+      const page = candidate.pages[activePageId];
+      set({
+        ...prepared.commit,
+        activePageId,
+        selectedId: activePageId === state.activePageId && state.selectedId !== null && page.nodes[state.selectedId]
+          ? state.selectedId : null,
+        focusRootId: activePageId === state.activePageId && state.focusRootId !== null && page.nodes[state.focusRootId]
+          ? state.focusRootId : null,
+      });
+      useResponsiveViewStore.getState().reportError(null);
+    }
+    return { ok: true };
+  },
+  createColorStyle: (name, value, pageId, nodeId, target) => {
+    const state = get();
+    const id = `color-${createProjectIdentity()}` as StyleId;
+    const candidate: ProjectSpec = {
+      ...state.spec,
+      styles: { ...state.spec.styles, colors: { ...state.spec.styles?.colors, [id]: { name, value } } },
+    };
+    const result = get().applyProjectEdit(linkColorStyle(candidate, pageId, nodeId, target, id));
+    return result.ok ? id : null;
+  },
+  applyColorStyle: (id, pageId, nodeId, target) => {
+    const state = get();
+    return get().applyProjectEdit(linkColorStyle(state.spec, pageId, nodeId, target, id));
+  },
+  updateColorStyle: (id, name, value) => {
+    const state = get();
+    return get().applyProjectEdit(updateColorStyleValues(state.spec, id, name, value));
+  },
+  deleteColorStyle: (id) => {
+    const state = get();
+    const candidate = unlinkStyle(state.spec, "colors", id);
+    const colors = { ...candidate.styles?.colors };
+    delete colors[id];
+    const { colors: _colors, ...styles } = candidate.styles ?? {};
+    return get().applyProjectEdit({ ...candidate, styles: { ...styles, ...(Object.keys(colors).length ? { colors } : {}) } });
+  },
+  createTypographyStyle: (name, value, pageId, nodeId) => {
+    const state = get();
+    const id = `text-${createProjectIdentity()}` as StyleId;
+    const candidate: ProjectSpec = {
+      ...state.spec,
+      styles: { ...state.spec.styles, typography: { ...state.spec.styles?.typography, [id]: { name, value } } },
+    };
+    const result = get().applyProjectEdit(linkTypographyStyle(candidate, pageId, nodeId, id));
+    return result.ok ? id : null;
+  },
+  applyTypographyStyle: (id, pageId, nodeId) => {
+    const state = get();
+    return get().applyProjectEdit(linkTypographyStyle(state.spec, pageId, nodeId, id));
+  },
+  updateTypographyStyle: (id, name, value) => {
+    const state = get();
+    return get().applyProjectEdit(updateTypographyStyleValues(state.spec, id, name, value));
+  },
+  deleteTypographyStyle: (id) => {
+    const state = get();
+    const candidate = unlinkStyle(state.spec, "typography", id);
+    const typography = { ...candidate.styles?.typography };
+    delete typography[id];
+    const { typography: _typography, ...styles } = candidate.styles ?? {};
+    return get().applyProjectEdit({ ...candidate, styles: { ...styles, ...(Object.keys(typography).length ? { typography } : {}) } });
+  },
   loadSpec: (spec) => {
     useResponsiveViewStore.getState().reset();
     const project = ensureProjectIdentity("screen" in spec ? migrateV01(spec) : spec);
@@ -634,17 +763,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const project = typeof spec.projectId === "string" && spec.projectId.length > 0
         ? spec
         : { ...spec, projectId: state.spec.projectId ?? createProjectIdentity() };
-      const validation = validateProjectSpec(project);
-      if (!validation.valid) { useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => issue.message).join("\n")); return state; }
       const activePageId = project.pages[state.activePageId] ? state.activePageId : project.pageOrder[0];
       const page = project.pages[activePageId];
+      const prepared = prepareProjectCommit(state, project, activePageId, false, false);
+      if (!prepared.ok) { useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n")); return state; }
+      if (prepared.commit === null) return state;
+      useResponsiveViewStore.getState().reportError(null);
       return {
-        spec: project,
+        ...prepared.commit,
         documentId: project.projectId !== state.spec.projectId ? state.documentId + 1 : state.documentId,
         activePageId,
         selectedId: activePageId === state.activePageId && state.selectedId !== null && page.nodes[state.selectedId] ? state.selectedId : null,
         focusRootId: activePageId === state.activePageId && state.focusRootId !== null && page.nodes[state.focusRootId] ? state.focusRootId : null,
-        history: pushHistory(state.history, makeSnapshot(project, activePageId)),
       };
     }),
   insertNode: (parentId, id, node) =>
@@ -759,8 +889,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const parent = nodes[parentId];
       if (parent === undefined || parent.type !== "frame") return state;
 
+      const sourceNodes = sameProject ? entry.nodes : Object.fromEntries(Object.entries(entry.nodes).map(([id, node]) => {
+        if (!("styleRefs" in node)) return [id, node];
+        const { styleRefs: _styleRefs, ...literalNode } = node;
+        return [id, literalNode];
+      }));
+
       const built = buildDuplicateCommands(
-        entry.nodes,
+        sourceNodes,
         entry.rootId,
         nodes,
         parentId,
@@ -807,10 +943,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   applyGuardedTransaction: (pageId, commands) => {
     const state = get();
     const result = runTransactionGates(state.spec, pageId, commands);
-    if (result.ok) {
-      const spec = withPage(state.spec, pageId, result.screen);
-      set({ spec, history: pushHistory(state.history, makeSnapshot(spec, pageId)) });
-    }
+    if (!result.ok) { continuableHistories.delete(state.history); return result; }
+    const spec = result.spec;
+    const prepared = prepareProjectCommit(state, spec, pageId, false, false);
+    if (!prepared.ok) return { ok: false, failure: { kind: "invalid", issues: prepared.issues } };
+    if (prepared.commit !== null) set(prepared.commit);
     return result;
   },
 }));

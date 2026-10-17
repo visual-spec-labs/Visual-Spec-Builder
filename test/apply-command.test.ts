@@ -8,7 +8,7 @@ import {
   buildDuplicateCommands,
   findParentId,
 } from "@/features/editor/command/applyCommand";
-import type { Command } from "@/features/editor/command/types";
+import type { Command, ScreenCommand } from "@/features/editor/command/types";
 import { validateVisualSpec } from "@/features/editor/schema";
 import type { FrameNode, ScreenSpec, VisualSpec } from "@/features/editor/schema";
 import { getByPath } from "@/features/editor/store/path";
@@ -636,7 +636,7 @@ describe("applyCommand — setLayout", () => {
 
 describe("applyTransaction", () => {
   it("여러 Command를 순서대로 적용한다", () => {
-    const commands: Command[] = [
+    const commands: ScreenCommand[] = [
       { type: "updateNode", id: "cardA", path: "layout.gap", value: 1 },
       { type: "deleteNode", id: "cardB" },
       {

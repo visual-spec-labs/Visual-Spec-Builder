@@ -76,6 +76,9 @@ const types = [
   rootTypes.trimEnd(),
   ...(rootHasPageId ? [] : [takeDeclaration(projectTypes, "type", "PageId")]),
   takeDeclaration(projectTypes, "interface", "ProjectSpec"),
+  ...["ProjectStyles", "ColorStyle", "TypographyStyle"].map((name) =>
+    takeDeclaration(projectTypes, "interface", name),
+  ),
 ].join("\n\n");
 
 await writeFile(outputPath, `${types}\n`, "utf8");

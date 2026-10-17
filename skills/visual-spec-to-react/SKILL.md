@@ -400,6 +400,12 @@ dynamic-subset, family `Pretendard`)을 다른 배포본으로 바꾸지 않는�
 | 모든 생성 노드 | `data-node-id="<Visual Spec node id>"`를 추가해 캔버스 실측과 연결한다 |
 | `visible: false` | 모든 폭에서 false일 때만 제외한다. 폭에 따라 보이면 DOM 유지 + 아래 반응형 display 규칙 |
 
+### button/input 상태 스타일 (`states`)
+
+`ButtonNode`와 `InputNode`의 `states.hover`, `states.pressed`, `states.focus`는 base 스타일에 덧씌우는 속성별 선택값이다. `background`는 단색이더라도 기존 base background 전체를 교체해야 하므로 해당 상태에 `bg-none`을 함께 출력해 base gradient/image도 지운다. 예를 들어 `states.hover.background: "#123456"`는 `hover:bg-none hover:bg-[#123456]`로 낸다. 글자색은 `hover:text-[#123456]`, 테두리색은 `hover:border-[#123456]`이다. `pressed`는 `active:` 변형, `focus`는 `focus-visible:` 변형을 쓴다.
+
+상태 값은 있는 속성만 출력한다. 여러 상태가 동시에 적용되면 각 속성에서 `pressed > focus > hover > base`가 이기도록 모든 해당 변형을 함께 출력한다. 키보드 focus-visible 윤곽선은 상태 테두리색이 있어도 제거하지 않는다. `disabled` 등 정본에 없는 상태와 layout·크기·타이포그래피 상태 변화는 생성하지 않는다.
+
 `fill`의 주축/교차축 판단: 부모 `layout.direction`이 `row`면 width가 주축, `column`이면 height가
 주축이다. 위의 flex 속성은 **flex 부모의 직계 자식에만** 적용한다. grid 자식은 flex grow/shrink/basis를
 사용하지 않고 grid track 안에서 Fixed/Hug/Fill의 width·height 제약을 따로 옮긴다. root의 box 값은

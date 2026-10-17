@@ -1,12 +1,10 @@
 # 사용자 화면의 공용 스타일·폰트·상태 지원 범위 (#290)
 
-상태: **결정 반영 · 2026-10-13 리더 결정으로 Q1~Q7 권고와 G1~G6 구현 게이트 채택(Q7은 결정 시점만 지정, 버전 번호 미확정). 기능·스키마는 미구현**
+상태: **#290 채택 범위 구현 완료 · IR v0.4 · 2026-10-16**
 (최초 Draft 2026-10-10, [#360](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/360)에서 결정).
 이 문서는 사용자가 만든 화면의 디자인 시스템을 **어디까지 지원할지**와 **후속 구현 순서**를 기록한다.
-승인 근거와 승인 범위는 [6절](#6-결정-기록)에 있다. 채택된 것은 방향과 단계별 게이트 기준이며, 각 단계의
-스키마·Command·Ticket 계약 PR의 동결 절차와 기능 구현 PR은 별도다. 보류 단계(추가 폰트·CSS 변수)는
-착수 가능한 단계가 아니다.
-정본 스키마·Command·Ticket·코드 생성 스킬·GUI 코드는 바꾸지 않는다.
+승인 근거와 승인 범위는 [6절](#6-결정-기록)에 있다. 2-0부터 2-4까지의 채택 범위와 계약 갱신을 이 작업 브랜치에서 구현했다. 보류 단계(추가 폰트·CSS 변수)는 착수 가능한 단계가 아니다.
+정본 스키마 v0.4, 마이그레이션, GUI·프로젝트 편집, standalone 변환, 상태 렌더·생성 지침을 구현했다. 추가 폰트와 CSS 변수 출력은 Q5·Q3에 따라 보류한다.
 최신 소스 대조 기준: develop `87b1be7`(2026-10-13, #376·#378·#379 병합 후. 결정 반영 당시는 `694f2d6`). 최초 초안은 develop
 `0733ae1e65f837f47cdba5b18310750ed70c7662`(#356·#350·#349 통합)과
 [#290](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/290) 본문(2026-10-10 확인)을 대조했다.
@@ -118,9 +116,10 @@ MCP의 Chromium 154(Windows)에서 두 표기를 CDP `CSS.getPlatformFontsForNod
   문자열이 아니게 되어 0.4급 변경이 된다. 값을 남기면 연결 정보를 모르는 소비자도 같은 모양을 그린다.
 - 대신 "스타일 값과 노드 사본이 어긋난 상태"를 막아야 한다. 스타일 변경·연결·해제는 프로젝트 전체 후보를
   검증한 뒤 한 번에 커밋하고, 검증기가 연결된 속성의 사본이 스타일 값과 같은지 검사한다(Q1의 선행 조건).
-  이는 #265 D5의 "프로젝트 후보 검증 → 단일 history 커밋"과 같은 요구다. #265 S1-2의 프로젝트 검증은
-  [PR #366](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/366)으로 병합됐고, 모든 쓰기 경로의
-  원자 커밋은 아직 없으므로 5절 2-0으로 둔다.
+  이는 #265 D5의 "프로젝트 후보 검증 → 단일 history 커밋"과 같은 요구다. #265 S1-2(#366)와 S1-4
+  ([PR #383](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/383))가 병합되어 2-0을 시작할 선행 조건이
+  충족됐다. 2026-10-16부터 공통 프로젝트 후보 커밋 API와 GUI·자연어·붙여넣기 경로 연결을 구현했고,
+  현재 develop `486ec6a` 기준으로 2-0을 완료했다.
 - 반응형 override와 #265 D8의 instance `color` override는 **초기 리터럴만 허용하고 기본 스타일 연결은
   유지**한다(Q4). override가 연결된 속성을 덮으면 그 폭/인스턴스에서는 스타일과 별개 값이 된다.
 
@@ -301,9 +300,9 @@ solid/gradient/image/mixed base, inside/center/outside, 8가지 활성 조합(�
 | 공용 위젯 | #265 D8/D9: widget을 프로젝트 PageId로 공유, instance는 2차(S2-1, IR 0.4 계획) | 공용 컴포넌트를 여기서 설계하지 않는다. 색·글자 스타일은 프로젝트 단위라 위젯과 페이지가 같은 스타일을 함께 쓸 수 있다(위젯 원본 노드의 연결은 일반 노드와 같다) |
 | instance override 색 | #265 D8: Text/Button의 `color` 리터럴 덮어쓰기 | Q4 결론: override는 초기 리터럴만, 기본 연결은 유지. 스타일 연결 override는 instance·스타일 둘 다 구현된 뒤 별도 검토 |
 | 버튼 동작과 상태 | #265 D3: 초기 action은 native `<button type="button">`에만 | 상태 스타일(2-3)을 #265 S1 뒤로 두고 같은 button부터 시작한다 |
-| 프로젝트 단위 원자 커밋 | #265 D5·§5: 프로젝트 후보 전체 검증 후 한 번에 커밋. S1-2 프로젝트 검증은 [PR #366](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/366) 병합 | 스타일 값 변경(연결된 모든 속성 일괄 수정)과 G1이 같은 장치를 필요로 한다. 모든 쓰기 경로의 원자 커밋을 2-0으로 두고 **#265 S1-4 완료를 2-0의 선행**으로 한다(S1-4 전에는 [06](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)의 자동 저장 복원 예외가 있다). 공통 장치 범위는 #265 S1-3/S1-4와 조율한다 |
+| 프로젝트 단위 원자 커밋 | #265 D5·§5: 프로젝트 후보 전체 검증 후 한 번에 커밋. S1-2는 [PR #366](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/366), S1-3은 [PR #382](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/382), S1-4는 [PR #383](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/383)으로 병합 | 스타일 값 변경(연결된 모든 속성 일괄 수정)과 G1이 같은 장치를 필요로 한다. 2-0은 `applyProjectEdit`와 기존 GUI·NL·붙여넣기·페이지 변경 경로가 공통 프로젝트 검증·history 커밋 준비기를 쓰도록 2026-10-16 완료했다 |
 | IR 버전 | #265: S1은 0.3 선택 확장([PR #355](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/355) 병합), S2 instance는 0.4 계획 | Q7 결론: 색·글자 스타일과 상태를 0.3 선택 확장으로 낼지와 0.4 경계는 #265 계약과 함께 확정하며 버전 번호를 선점하지 않는다. 정본 스키마 동시 수정을 피하려고 2-1은 #265 S1-1 뒤에 둔다(충족) |
-| Command 버전 | #265 D10(2026-10-13 리더 확정, [24 결정 요약](24-screen-relations-design.md#결정-요약--리더-승인2026-10-13)·[09 예정 절](09-command-schema-freeze.md#command-v02-예정--265-d10)): action 제거 전용 `removeNodeAction` + Command v0.2. 세부 필드는 S1-3 계약 PR | 스타일 연결·해제·공용 스타일 편집 Command의 버전은 2-2 계약 PR에서 [09](09-command-schema-freeze.md) 절차로 판단한다. v0.2 계약 PR과 같은 계약을 동시에 고치지 않도록 순서를 조율하며 번호를 선점하지 않는다 |
+| Command 버전 | #265 D10은 `removeNodeAction`을 포함한 Command v0.2를 확정했다. #290은 여기에 스타일 create/update/delete/apply를 추가해 Command v0.3으로 올렸다 | GUI·자연어 모두 project gate에서 스타일 Command를 적용하고 후보 전체를 검증한다 |
 | Ticket·요청 규약 | #265 D11(2026-10-13 리더 확정, [11 예정 절](11-ticket-schema-freeze.md#ticket-v02--티켓-요청-규약-v4-예정--265-d11)·[26 예정 절](26-agent-request-generation-contract.md#티켓-요청-규약-v4-예정--265-d11)): `compileTickets(screen)` 호환 진입점 유지 + 프로젝트 단위 컴파일, Ticket v0.2(`sourcePageId`) + 티켓 요청 규약 v4. 현재 규약은 v3 | 스타일 2단계는 리터럴 생성이라 Ticket 계약을 바꾸지 않는다. 상태(2-4)는 계약이 아니라 `structuralKey` 구조 비교에 `states`를 더한다(S1-8의 action 정규화와 같은 함수). 폰트 snapshot(G4)은 Q5 보류이며, 채택 시 v4 포함 여부를 #265·#281과 공동 결정한다 |
 | focus·접근성 | #285 후속 3: 기본 focus 표시 보존 규칙과 키보드 검증(미구현 — 스킬에 규칙 없음) | 상태 1단계(1-1)로 같은 작업을 가리킨다. G6이 focus-visible 보존을 요구하므로 2-3의 선행이다(중복 이슈를 만들지 않는다) |
 | 이미지 alt·입력 label | #285 후속 1: `ImageNode.alt`, `InputNode.inputType`·`label`(미구현 — 정본에 필드 없음) | 아이콘(SVG 이미지)의 의미도 같은 alt를 따른다. 여기서 다시 정하지 않는다 |
@@ -323,7 +322,7 @@ PR #380 리뷰로 2-0·2-1·2-3·2-4의 선행·완료 조건과 G4 범위를 �
 | #265 위젯·instance | D8은 직접 Text/Button의 content·color 리터럴 override. Q4는 override 리터럴만·기본 연결 유지 | 일치. D8의 팀 설계 상태는 24 §8을 따르며 여기서 확정하지 않는다 |
 | #265 IR 버전 | S1 0.3 선택 확장(#355 병합), S2 instance 0.4 계획. Q7은 번호를 선점하지 않고 #265 계약과 함께 확정 | 일치. 2-1·2-3 착수 전 #265 계약과 함께 판단(Q7 버전 번호는 미확정 항목으로 남음) |
 | #265 Command·Ticket 버전 | D10 Command v0.2, D11 Ticket v0.2·티켓 요청 규약 v4(현재 `TICKET_PROTOCOL_VERSION` 3). 스타일 2단계는 리터럴 생성 | 충돌 없음. 스타일 Command 버전은 2-2 계약 PR, 폰트 snapshot은 Q5 재개 시 공동 결정 |
-| #265 원자 커밋 | S1-2 프로젝트 검증 병합(#366). 모든 쓰기 경로의 원자 커밋은 아직 없음. S1-4 전에는 자동 저장 복원만 관계 코드를 예외로 받고 Save·NL G3는 엄격(24 §5, 06) | 2-0으로 기록. 2-0은 S1-4 완료 뒤 착수. 공통 장치 범위는 #265 S1-3/S1-4와 조율 |
+| #265 원자 커밋 | S1-2 프로젝트 검증(#366), S1-3 Command v0.2(#382), S1-4 참조 조작(#383) 병합 | 2-0 선행 충족. 공통 후보 검증·단일 history 커밋 구현 중 |
 | #265 생성 범위 | D11 프로젝트 compile의 입력 지문은 호스트 + 도달 가능한 modal·포함 widget 전이 집합(24 §6·§7 S1-8/9) | G4 snapshot 범위를 같은 생성 닫힘으로 둔다 |
 | #265 임시 차단 | S1-1은 지원 전 kind/action 문서의 생성·Export를 차단하고 S1-8/9에서 해제(06 S1-1 절) | 2-3은 states가 있는 문서의 생성·Export에 같은 방식의 임시 가드를 둔다. 2-1은 프로젝트 문맥 변환을 함께 넣거나 연결 문서의 standalone 변환·Export 임시 가드를 둔다 |
 | #285 focus·alt | 후속 3(focus 보존)·후속 1(alt·label) 모두 미구현. G6은 focus-visible 보존과 키보드 회귀를 요구 | 일치. 1-1을 2-3의 선행으로 둔다 |
@@ -345,11 +344,11 @@ PR이다. **보류 단계는 착수 가능한 단계가 아니며**, 재개하�
 | 1-2 | `system-ui` 범위 안내와 generic 키워드 생성 규칙 검토(다른 브라우저 실측 포함) | 제안(결정 범위 밖) | 0 | 브라우저별 실측과 스킬·GUI 안내 | 없음. 스킬·GUI 안내 |
 | 1-3 | 문서 색 모음(ColorField) | 제안(결정 범위 밖) | 없음 | GUI 이슈에서 정함 | 없음 |
 | 1-4 | 이미지 자산 목록·재사용·미사용 표시 | 제안(결정 범위 밖) | 없음 | GUI 이슈에서 정함 | 없음 |
-| 2-0 | 원자 프로젝트 편집 기반 — GUI·NL·붙여넣기 등 모든 쓰기 경로의 후보 `ProjectSpec` 검증·단일 history 커밋 | 채택(G1 선행) · 미착수 | #265 S1-2 프로젝트 검증(#366, 충족). **#265 S1-4 완료.** S1-4 전에는 [06](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)의 자동 저장 복원 예외로 관계 코드만 남은 문서가 복원되므로, 그 상태에 모든 쓰기 경로의 엄격 검증을 적용하면 남은 관계 오류 때문에 무관한 편집까지 막힌다. #265 S1-3/S1-4(D5)와 공통 장치 범위·담당 조율 | 검증 실패 시 무변경, 성공 시 Undo 한 단계. 모든 쓰기 경로 회귀 | 편집 경로. Command 계약이 바뀌면 09 리뷰 |
-| 2-1 | 색·글자 스타일 **스키마 단독 PR**(Q1·Q2) | 채택 · 미착수 | 2-0. G1의 색 겹/stop 재정렬 정책(연결 해제 또는 안정 ID) 결정. G3 안정 ID 문법·유일성·rename·copy 충돌 규칙. Q7 버전을 #265 계약과 함께 판단. #265 S1-1(#355, 충족) | 06 절차의 별도 스키마 PR 승인, `generate:types`·예제·05/06 갱신, 연결 사본 일치 검증. G2 변환은 2-2이므로 프로젝트 문맥 변환(G2 A)을 함께 넣거나, 스타일 연결이 있는 문서의 standalone 변환(`toVisualSpec`)·Export를 막는 임시 가드(2-2에서 해제)를 둔다 — 카탈로그 없이 연결을 내보내거나 새로 유효해진 문서에서 변환이 실패하지 않게 | 정본·생성 타입·05/06·예제. 편집 경로가 늘면 09 리뷰 |
-| 2-2 | 스타일 Command·GUI·NL — G1 직접 편집 atomic unlink/update·Typography 묶음·명시적 공용 스타일 편집, G2 standalone 변환 | 채택 · 미착수 | 2-1. 스타일 Command 계약(09 절차, #265 D10 v0.2 계약 PR과 순서 조율). G2 변환 경계(C) 호출부 조사 | G1: Undo 한 번, 실패 시 무변경, Typography 부분 수정 시 전체 연결 해제. G2: 리터럴 물질화·연결만 제거·원본 보존·누락 카탈로그 실패·action/ref 유지 회귀 | Command 버전 판단(번호 선점 안 함) |
-| 2-3 | 상태 스타일 **스키마 단독 PR**(button/input × hover·pressed·focus, 배경·글자색·테두리 색)(Q6) | 채택 · 미착수 | 1-1, #265 S1(action), 2-2 이후(채택 순서: 스타일 → 상태), Q7 버전 판단 | 06 절차의 별도 스키마 PR 승인, solid 한 겹 상태 배경 검증. 렌더·생성 매핑은 2-4이므로 `states`가 있는 문서의 생성·Export 임시 가드(2-4에서 해제)를 둔다 — [06 S1-1 임시 차단](06-schema-freeze.md#s1-1-생성export-임시-차단)처럼 요청 전 차단·Export unsupported로, 상태 외형을 무시한 결과가 성공으로 보이지 않게 | 정본·05/06·09 |
-| 2-4 | G6 전체 배경 교체·shadow 테두리·동시 상태 미리보기·생성 매핑 | 채택 · 미착수 | 2-3 | G6 회귀: 8가지 활성 조합, solid/gradient/image/mixed base, inside/center/outside, 반응형 base, 상태 해제, 키보드 focus 가시성·좌표 불변. Ticket 컴파일: `compileTickets`의 `structuralKey`(현재 button/input은 base `typography`·`color`·`background`·`border`만 비교)에 `states`를 포함하고, 상태만 다른 형제 컨트롤이 한 컴포넌트 티켓으로 합쳐지지 않는 테스트. 2-3 임시 가드 해제 | 스킬·Ticket 구조 비교 |
+| 2-0 | 원자 프로젝트 편집 기반 — GUI·NL·붙여넣기 등 모든 쓰기 경로의 후보 `ProjectSpec` 검증·단일 history 커밋 | **완료(2026-10-16, develop `486ec6a` 기준)** | #265 S1-2(#366)·S1-3(#382)·S1-4(#383) 완료 | 검증 실패 시 무변경, 성공 시 Undo 한 단계. 다중 페이지 후보·GUI·NL·붙여넣기 회귀 | 편집 경로. Command 계약이 바뀌면 09 리뷰 |
+| 2-1 | 색·글자 스타일 스키마(Q1·Q2) | **완료(2026-10-16, IR v0.4)** | 2-0, #265 S1-1 완료, G1 literal path 및 background 배열 직접 수정 정책, G3 stable ID 확정 | schema·생성 타입·migration·예제·05/06, 연결 사본 정합성 검증, standalone guard·프로젝트 변환 | 정본·types·예제·migration |
+| 2-2 | 스타일 GUI·프로젝트 편집·자연어 Command 경로·G2 standalone 변환 | **완료(2026-10-16)** | 2-1 | 스타일 create/update/delete/apply Command, 원자 project gate·history, 직접 수정 unlink, Typography 묶음, 프로젝트 검증 후 standalone literal 변환. 회귀 테스트 포함 | Command v0.3, project gate |
+| 2-3 | 상태 스타일 스키마(button/input × hover·pressed·focus)(Q6) | **완료(2026-10-16, IR v0.4)** | 2-2, Q7 v0.4 확정 | 상태별 background/color/borderColor schema·검증·UI, 상태 배경 전체 교체 의미 | 정본·types |
+| 2-4 | G6 상태 렌더·동시 상태·생성 매핑·Ticket 구조 식별 | **완료(2026-10-16)** | 2-3 | 동시 상태 우선순위와 focus-visible 유지, 상태가 포함된 Ticket 구조 구분, 생성 스킬 지침, 상태 조합 테스트 | Canvas·CSS·Ticket·skill |
 | 3-1 | 프로젝트 폰트 목록 스키마 PR·작업공간 `woff2` 공급 | **보류(Q5) — 착수 불가** | 재개 조건: 수요 확인과 채택 결정. 이후 #280 실측 도구 확장, G4·G5 충족, 티켓 요청 규약 버전을 #265·#281과 공동 결정 | G4: snapshot·stale·Export byte 일치. G5: 경로·형식·직렬화·로딩 실패와 측정 무효 구분 | 정본·티켓 요청 규약/validator·로컬 계약·스킬·작업공간·Export |
 | 3-2 | 사용자 스타일의 CSS 변수(`--vs-`) 생성 | **보류(Q3) — 착수 불가** | 재개 조건: 별도 결정. 이후 2-2 완료, G3의 CSS 인코딩·namespace·scope 확정 | G3의 생성·재로드 fixture | Export 구성(`styles/` 추가 여부)·README 통합 안내 |
 | 보류 | disabled·다른 상태·상태의 크기/배치/글자 변경(Q6), 아이콘 라이브러리·spacing 토큰·사용자 테마 | 보류 | 폼 바인딩 epic 판단 등 | — | — |
@@ -382,18 +381,18 @@ PR이다. **보류 단계는 착수 가능한 단계가 아니며**, 재개하�
 | Q4 | 반응형 override·instance override가 스타일 연결을 가질 수 있는가 | 초기에는 리터럴만 허용하고 기본 스타일 연결은 유지한다 | override 연결은 합성·해제 규칙을 늘린다. #265 D8의 리터럴 override와 맞는다 | 채택 |
 | Q5 | 프로젝트 폰트 추가와 공급원·허용 형식·라이선스 안내 | 수요 확인 전 보류. 채택 시 첫 공급은 작업공간 `woff2` 파일 + 검증·Export 동봉·라이선스 안내. 원격 CSS URL은 별도 결정 | #280 계약을 유지하며, 공급하려면 Ticket snapshot·경로 검증(G4·G5)이 먼저 필요하다(방향 4) | 채택 — 추가 폰트(3-1)는 **보류** |
 | Q6 | 상태 스타일의 대상·상태 집합과 바꿀 수 있는 속성 | button/input × hover·pressed·focus, 배경·글자색·테두리 색부터. 초기 상태 배경은 solid 한 겹. 레이아웃/크기/타이포 변경과 다른 상태(disabled 등)는 보류 | 상태 전환 때 배치가 흔들리지 않고 #265 button action과 같은 대상부터 맞춘다(방향 3) | 채택 |
-| Q7 | 색·글자 스타일과 상태를 0.3 선택 확장으로 낼 것인가, 0.4로 낼 것인가 | #265 S1-1 이후 선택 확장 여부와 0.4 경계를 #265 계약과 함께 확정한다. 번호를 선점하지 않는다 | 새 도구의 기존 문서 읽기만 호환이며 구 validator는 새 필드를 거부한다(24 §5) | 결정 시점 지정 · 번호 미확정 — 2-1·2-3 착수 전 #265 계약과 함께 확정([open-questions](open-questions.md)에 미확정 항목으로 남김) |
+| Q7 | 색·글자 스타일과 상태를 0.3 선택 확장으로 낼 것인가, 0.4로 낼 것인가 | IR v0.4로 확정. 이전 문서는 0.4로 순차 마이그레이션한다 | 스타일·상태 필드의 명시적 버전 경계를 두고 구 문서 렌더를 보존한다 | 해결(2026-10-16, #290) |
 
 Q 결론만으로 구현을 시작하지 않는다. 해당 단계의 아래 게이트 기준을 충족해야 그 단계를 병합한다.
 
 | 게이트 | 채택한 닫기 기준(요약) | 적용 단계 | 상태 |
 |---|---|---|---|
-| G1 | 일반 직접 편집은 관련 연결 해제 + 값 변경을 Undo 한 번으로. Typography 일부 수정도 전체 연결 해제하되 다른 값 유지. 명시적 공용 스타일 편집만 전체 연결 갱신. GUI/NL/붙여넣기에 후보 ProjectSpec 검증과 실패 시 무변경. 색 겹/stop 재정렬은 연결 해제 또는 안정 ID 정책을 스키마 전에 확정 | 2-0·2-1·2-2 | 기준 채택 · 미충족(겹/stop 정책은 2-1 전 결정) |
-| G2 | 검증된 복사본에 리터럴을 물질화한 뒤 스타일 연결만 제거, 원본/history 보존. 재가져오기 시 연결 손실 안내. 누락 카탈로그/불일치는 실패. action/ref 제거가 아니며 관계가 남은 standalone은 24의 프로젝트 문맥 요구 유지 | 2-2(2-1은 문맥 변환 또는 임시 가드) | 기준 채택 · 미충족 |
-| G3 | 표시 이름과 안정 ID 분리, rename 시 ID 유지, import/copy 충돌과 참조 갱신 검증. CSS 변수 인코딩·namespace·scope는 해당 단계 전 별도 확정 | 2-1·2-2(ID), 3-2(CSS) | ID 부분 기준 채택 · 미충족. CSS 부분은 **보류(Q3)** |
+| G1 | 일반 직접 편집은 관련 연결 해제 + 값 변경을 Undo 한 번으로. Typography 일부 수정도 전체 연결 해제하되 다른 값 유지. 명시적 공용 스타일 편집만 전체 연결 갱신. GUI/NL/붙여넣기에 후보 ProjectSpec 검증과 실패 시 무변경. 색 겹/stop 재정렬은 연결 해제 또는 안정 ID 정책을 스키마 전에 확정 | 2-0·2-1·2-2 | 완료 — literal path 연결, 전체 background/gradient stops 직접 편집 시 해당 연결을 해제 |
+| G2 | 검증된 복사본에 리터럴을 물질화한 뒤 스타일 연결만 제거, 원본/history 보존. 재가져오기 시 연결 손실 안내. 누락 카탈로그/불일치는 실패. action/ref 제거가 아니며 관계가 남은 standalone은 24의 프로젝트 문맥 요구 유지 | 2-2(2-1은 문맥 변환 또는 임시 가드) | 완료 |
+| G3 | 표시 이름과 안정 ID 분리, rename 시 ID 유지, import/copy 충돌과 참조 갱신 검증. CSS 변수 인코딩·namespace·scope는 해당 단계 전 별도 확정 | 2-1·2-2(ID), 3-2(CSS) | ID 기준 완료 — stable ID 유지/rename, 복사 시 연결 정리. CSS 부분은 **보류(Q3)** |
 | G4 | 추가 폰트 채택 시 요청의 생성 닫힘(호스트 + 도달 가능한 modal·포함 widget) 전체의 family/weight·공급원·파일 매핑·byte hash snapshot, 요청 후 변경 시 stale, Export byte 일치. 요청별 staging/수용 보존, 차기 규약은 #265/#281과 공동 결정 | 3-1 | 기준 채택 · **보류(Q5) — 착수 불가** |
 | G5 | `woff2` 경로·루트 탈출·symlink·형식·크기·누락 및 CSS/HTML 직렬화 검증. 로딩 실패 fallback과 #280 측정 무효 구분. 공급 미해결 생성 차단. 라이선스 안내를 재배포 허가로 간주하지 않음 | 3-1 | 기준 채택 · **보류(Q5) — 착수 불가** |
-| G6 | 상태 배경은 전체 Background 교체로 base image/gradient 잔여 제거. 테두리는 기존 stroke/shadow 합성 규칙 유지. 속성별 pressed > focus > hover > base, focus-visible 표시 보존. 8개 동시 상태 조합·반응형 base·상태 해제·키보드 focus 회귀 검증 | 2-3·2-4 | 기준 채택 · 미충족 |
+| G6 | 상태 배경은 전체 Background 교체로 base image/gradient 잔여 제거. 테두리는 기존 stroke/shadow 합성 규칙 유지. 속성별 pressed > focus > hover > base, focus-visible 표시 보존. 8개 동시 상태 조합·반응형 base·상태 해제·키보드 focus 회귀 검증 | 2-3·2-4 | 완료 |
 
 "기준 채택"은 게이트의 닫기 기준을 정했다는 뜻이며 게이트를 통과했다는 뜻이 아니다. 각 게이트는 적용
 단계의 PR이 기준을 충족하고 해당 계약 절차의 승인을 받을 때 닫힌다. 문서 병합과 CI 성공은 그 승인을 대신하지 않는다.
@@ -447,3 +446,7 @@ Q 결론만으로 구현을 시작하지 않는다. 해당 단계의 아래 게�
   선행·완료 조건을 보강했다: 2-0 선행을 #265 S1-4 완료로, 2-1에 standalone 변환 문맥 변환 또는 임시 가드, 2-3에 states 생성·Export
   임시 가드, 2-4에 Ticket `structuralKey`의 states 비교, G4 snapshot 범위를 요청의 생성 닫힘으로, Q7 상태를 "결정 시점 지정, 번호 미확정"으로.
   develop `87b1be7`(#378 D10·D11 반영)과 4절·4.1을 다시 대조했다.
+- **2026-10-16, #290 2-0 완료** — develop을 `b8a01c2`에서 `486ec6a`로 갱신한 뒤 #265 S1-2(#366)·S1-3(#382)·S1-4(#383) 선행 병합을 확인했다.
+  다중 페이지 `ProjectSpec` 후보 검증·단일 Undo 커밋 API `applyProjectEdit`를 추가하고, 기존 GUI Command·자연어·페이지 추가/삭제·외부 문서 갱신 경로도 공통 검증·history 준비기를 사용하도록 정리했다. 잘못된 후보는 spec/history를 보존한다. 131개 집중 테스트, typecheck, lint가 통과했다. 스키마·Command 계약 승인과 후속 기능 구현은 별도 단계다.
+
+- **2026-10-16, #290 기능 구현** — ProjectSpec 스타일 카탈로그·styleRefs 검증, 명시적 프로젝트 스타일 편집과 직접 편집 unlink, standalone literal 변환, Button/Input 상태 스타일, 캔버스 상태 렌더·focus 표시, 상태별 Ticket 분리와 codegen 지침을 구현했다. Q7을 IR v0.4로 확정했다. 추가 폰트(Q5)와 CSS 변수 출력(Q3)은 승인된 범위대로 보류한다.

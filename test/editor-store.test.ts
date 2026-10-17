@@ -1179,6 +1179,128 @@ describe("editorStore", () => {
       expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
     });
   });
+
+  describe("applyProjectEdit — whole-project atomic commits (#290 2-0)", () => {
+    it("여러 페이지 후보를 한 번에 검증·커밋하고 Undo 한 번으로 되돌린다", () => {
+      const store = useEditorStore.getState();
+      store.addPage();
+      const beforeSpec = useEditorStore.getState().spec;
+      const beforeHistory = useEditorStore.getState().history;
+      const candidate = structuredClone(beforeSpec);
+      const [firstPageId, secondPageId] = candidate.pageOrder;
+      candidate.pages[firstPageId].name = "첫 페이지 변경";
+      candidate.pages[secondPageId].name = "둘째 페이지 변경";
+      const committedSpecs: unknown[] = [];
+      const unsubscribe = useEditorStore.subscribe((next, previous) => {
+        if (next.spec !== previous.spec) committedSpecs.push(next.spec);
+      });
+
+      expect(useEditorStore.getState().applyProjectEdit(candidate)).toEqual({ ok: true });
+      unsubscribe();
+      expect(useEditorStore.getState().spec).toBe(candidate);
+      expect(committedSpecs).toEqual([candidate]);
+      expect(useEditorStore.getState().history.past).toHaveLength(beforeHistory.past.length + 1);
+      expect(useEditorStore.getState().history.present.spec).toBe(candidate);
+
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().spec).toBe(beforeSpec);
+      expect(useEditorStore.getState().history.past).toHaveLength(beforeHistory.past.length);
+    });
+
+    it("무효한 프로젝트 후보는 spec과 history를 모두 보존한다", () => {
+      const before = useEditorStore.getState();
+      const candidate = structuredClone(before.spec);
+      const firstPageId = candidate.pageOrder[0];
+      candidate.pages[firstPageId].kind = "modal";
+
+      const result = useEditorStore.getState().applyProjectEdit(candidate);
+
+      expect(result).toMatchObject({ ok: false, issues: [{ code: "first-page-kind" }] });
+      expect(useEditorStore.getState().spec).toBe(before.spec);
+      expect(useEditorStore.getState().history).toBe(before.history);
+    });
+
+    it("형태가 깨진 후보도 예외 대신 검증 오류로 거부한다", () => {
+      const before = useEditorStore.getState();
+      const candidate = { ...before.spec, pages: undefined } as unknown as typeof before.spec;
+
+      expect(() => useEditorStore.getState().applyProjectEdit(candidate)).not.toThrow();
+      expect(useEditorStore.getState().spec).toBe(before.spec);
+      expect(useEditorStore.getState().history).toBe(before.history);
+    });
+  });
+
+  describe("shared design styles (#290 2-2)", () => {
+    it("edits a responsive page containing a linked project style", () => {
+      const state = useEditorStore.getState();
+      const pageId = state.activePageId;
+      const title = state.spec.pages[pageId].nodes.headerTitle;
+      if (title.type !== "text") throw new Error("seed needs a title");
+      const id = state.createColorStyle("Brand", title.color, pageId, "headerTitle", "color");
+      expect(id).not.toBeNull();
+      const candidate = structuredClone(useEditorStore.getState().spec);
+      candidate.pages[pageId].responsive = { breakpoints: {}, overrides: {} };
+      expect(useEditorStore.getState().applyProjectEdit(candidate).ok).toBe(true);
+
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 16);
+      expect(useEditorStore.getState().spec.pages[pageId].nodes.cardA).toMatchObject({ layout: { gap: 16 } });
+      expect(useEditorStore.getState().spec.pages[pageId].nodes.headerTitle).toMatchObject({ styleRefs: { colors: { color: id } } });
+    });
+
+    it("deletes the last color and typography styles and detaches their references", () => {
+      const state = useEditorStore.getState();
+      const pageId = state.activePageId;
+      const title = state.spec.pages[pageId].nodes.headerTitle;
+      if (title.type !== "text") throw new Error("seed needs a title");
+      const colorId = state.createColorStyle("Brand", title.color, pageId, "headerTitle", "color");
+      const typographyId = useEditorStore.getState().createTypographyStyle("Heading", title.typography, pageId, "headerTitle");
+      expect(colorId).not.toBeNull();
+      expect(typographyId).not.toBeNull();
+      expect(useEditorStore.getState().deleteColorStyle(colorId!).ok).toBe(true);
+      expect(useEditorStore.getState().spec.styles?.colors?.[colorId!]).toBeUndefined();
+      expect(useEditorStore.getState().deleteTypographyStyle(typographyId!).ok).toBe(true);
+      expect(useEditorStore.getState().spec.styles?.typography?.[typographyId!]).toBeUndefined();
+      expect(useEditorStore.getState().spec.pages[pageId].nodes.headerTitle).not.toHaveProperty("styleRefs");
+      expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+    });
+    it("a shared color update changes linked literal snapshots across pages in one Undo step", () => {
+      const state = useEditorStore.getState();
+      const pageId = state.activePageId;
+      const texts = Object.entries(state.spec.pages[pageId].nodes).filter(([, node]) => node.type === "text");
+      const [firstId, first] = texts[0];
+      const [secondId] = texts[1];
+      if (first.type !== "text") throw new Error("seed needs text nodes");
+      const id = useEditorStore.getState().createColorStyle("Brand Primary", first.color, pageId, firstId, "color");
+      expect(id).not.toBeNull();
+      useEditorStore.getState().applyColorStyle(id!, pageId, secondId, "color");
+      const historyBefore = useEditorStore.getState().history;
+
+      expect(useEditorStore.getState().updateColorStyle(id!, "Brand Primary", "#123456").ok).toBe(true);
+      const after = useEditorStore.getState();
+      expect(after.spec.pages[pageId].nodes[firstId]).toMatchObject({ color: "#123456", styleRefs: { colors: { color: id } } });
+      expect(after.spec.pages[pageId].nodes[secondId]).toMatchObject({ color: "#123456", styleRefs: { colors: { color: id } } });
+      expect(after.history.past).toHaveLength(historyBefore.past.length + 1);
+      after.undo();
+      expect(useEditorStore.getState().spec.pages[pageId].nodes[firstId]).toMatchObject({ color: first.color, styleRefs: { colors: { color: id } } });
+    });
+
+    it("a direct typography field edit unlinks the whole style and preserves the other five fields", () => {
+      const state = useEditorStore.getState();
+      const pageId = state.activePageId;
+      const [nodeId, node] = Object.entries(state.spec.pages[pageId].nodes).find(([, value]) => value.type === "text")!;
+      if (node.type !== "text") throw new Error("seed needs a text node");
+      const id = useEditorStore.getState().createTypographyStyle("Heading", node.typography, pageId, nodeId);
+      expect(id).not.toBeNull();
+      const nextFontSize = node.typography.fontSize + 2;
+      useEditorStore.getState().setNodeField(nodeId, "typography.fontSize", nextFontSize);
+      const changed = useEditorStore.getState().spec.pages[pageId].nodes[nodeId];
+      expect(changed).toMatchObject({ typography: { ...node.typography, fontSize: nextFontSize } });
+      expect("styleRefs" in changed ? changed.styleRefs?.typography : undefined).toBeUndefined();
+      useEditorStore.getState().undo();
+      const restored = useEditorStore.getState().spec.pages[pageId].nodes[nodeId];
+      expect("styleRefs" in restored ? restored.styleRefs?.typography : undefined).toBe(id);
+    });
+  });
 });
 
 describe("applyGuardedTransaction — 신뢰할 수 없는 Command 배열, 전부-또는-전무(#154)", () => {

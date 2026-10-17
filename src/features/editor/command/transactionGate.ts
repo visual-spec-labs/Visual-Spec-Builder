@@ -1,8 +1,9 @@
 import type { PageId, ProjectSpec, ScreenSpec } from "@/features/editor/schema";
 import { validateProjectSpec, type ValidationIssue } from "@/features/editor/schema";
+import { linkColorStyle, linkTypographyStyle, unlinkDirectEditStyle, unlinkStyle, updateColorStyle, updateTypographyStyle } from "@/features/editor/schema/styleEdits";
 
 import { applyCommandWithReason } from "./applyCommand";
-import type { Command } from "./types";
+import type { Command, ScreenCommand } from "./types";
 
 /**
  * Command 배열을 스토어에 닿기 전에 통과시키는 관문 셋 중 G2·G3
@@ -60,7 +61,7 @@ export type TransactionFailure =
   | { kind: "invalid"; issues: ValidationIssue[] };
 
 export type TransactionGateResult =
-  | { ok: true; screen: ScreenSpec }
+  | { ok: true; screen: ScreenSpec; spec: ProjectSpec }
   | { ok: false; failure: TransactionFailure };
 
 /**
@@ -81,12 +82,70 @@ export function runTransactionGates(
   pageId: PageId,
   commands: readonly Command[],
 ): TransactionGateResult {
-  const screen = spec.pages[pageId];
-  if (screen === undefined) {
+  if (spec.pages[pageId] === undefined) {
     return { ok: false, failure: { kind: "pageNotFound", pageId } };
   }
-
-  const { screen: nextScreen, noOps } = dryRunTransaction(screen, commands);
+  let candidate = spec;
+  const noOps: NoOpCommand[] = [];
+  for (const [index, command] of commands.entries()) {
+    let next = candidate;
+    switch (command.type) {
+      case "createColorStyle":
+        if (candidate.styles?.colors?.[command.id]) break;
+        next = { ...candidate, styles: { ...candidate.styles, colors: { ...candidate.styles?.colors, [command.id]: { name: command.name, value: command.value } } } };
+        break;
+      case "createTypographyStyle":
+        if (candidate.styles?.typography?.[command.id]) break;
+        next = { ...candidate, styles: { ...candidate.styles, typography: { ...candidate.styles?.typography, [command.id]: { name: command.name, value: command.value } } } };
+        break;
+      case "deleteColorStyle": {
+        if (!candidate.styles?.colors?.[command.id]) break;
+        next = unlinkStyle(candidate, "colors", command.id);
+        const colors = { ...next.styles?.colors };
+        delete colors[command.id];
+        const styles = { ...next.styles };
+        if (Object.keys(colors).length) styles.colors = colors; else delete styles.colors;
+        if (Object.keys(styles).length) next = { ...next, styles }; else { const { styles: _styles, ...withoutStyles } = next; next = withoutStyles; }
+        break;
+      }
+      case "deleteTypographyStyle": {
+        if (!candidate.styles?.typography?.[command.id]) break;
+        next = unlinkStyle(candidate, "typography", command.id);
+        const typography = { ...next.styles?.typography };
+        delete typography[command.id];
+        const styles = { ...next.styles };
+        if (Object.keys(typography).length) styles.typography = typography; else delete styles.typography;
+        if (Object.keys(styles).length) next = { ...next, styles }; else { const { styles: _styles, ...withoutStyles } = next; next = withoutStyles; }
+        break;
+      }
+      case "updateColorStyle":
+        next = updateColorStyle(candidate, command.id, command.name, command.value);
+        break;
+      case "updateTypographyStyle":
+        next = updateTypographyStyle(candidate, command.id, command.name, command.value);
+        break;
+      case "applyColorStyle":
+        next = linkColorStyle(candidate, pageId, command.nodeId, command.target, command.id);
+        break;
+      case "applyTypographyStyle":
+        next = linkTypographyStyle(candidate, pageId, command.nodeId, command.id);
+        break;
+      default: {
+        const screenBase = command.type === "updateNode"
+          ? unlinkDirectEditStyle(candidate, pageId, command.id, command.path)
+          : candidate;
+        const screen = screenBase.pages[pageId];
+        const result = applyCommandWithReason(screen, command);
+        if (result.reason !== undefined) noOps.push({ index, command, reason: result.reason });
+        else if (result.screen !== screen || screenBase !== candidate) next = { ...screenBase, pages: { ...screenBase.pages, [pageId]: result.screen } };
+        break;
+      }
+    }
+    if (next === candidate && (command.type === "createColorStyle" || command.type === "deleteColorStyle" || command.type === "createTypographyStyle" || command.type === "deleteTypographyStyle" || command.type === "updateColorStyle" || command.type === "updateTypographyStyle" || command.type === "applyColorStyle" || command.type === "applyTypographyStyle")) {
+      noOps.push({ index, command, reason: "스타일 항목 또는 대상 노드를 찾을 수 없거나 값이 이미 같습니다" });
+    }
+    candidate = next;
+  }
 
   if (noOps.length > 0) {
     return { ok: false, failure: { kind: "noOp", noOps } };
@@ -96,11 +155,10 @@ export function runTransactionGates(
   // 한 Command 안의 경로 방어(#146)로는 못 잡는, 여러 Command에 걸친 조합이
   // 여기서 잡힌다. withPage(editorStore.ts)와 같은 일이지만 store 의존성을
   // 새로 만들지 않으려고 한 줄을 그대로 여기 쓴다.
-  const trialSpec: ProjectSpec = { ...spec, pages: { ...spec.pages, [pageId]: nextScreen } };
-  const result = validateProjectSpec(trialSpec);
+  const result = validateProjectSpec(candidate);
   if (!result.valid) {
     return { ok: false, failure: { kind: "invalid", issues: result.issues } };
   }
 
-  return { ok: true, screen: nextScreen };
+  return { ok: true, screen: candidate.pages[pageId], spec: candidate };
 }

@@ -61,7 +61,7 @@ function describe(error: ErrorObject): string {
     case "maxItems":
       return `배열 길이가 허용 범위를 벗어났습니다 (${error.keyword}: ${params.limit}).`;
     case "oneOf":
-      return "Command 7종 중 어느 형식과도 일치하지 않습니다.";
+      return "정의된 Command 형식 중 어느 것과도 일치하지 않습니다.";
     default:
       return `Command 스키마 규칙(${error.keyword})을 위반했습니다.`;
   }

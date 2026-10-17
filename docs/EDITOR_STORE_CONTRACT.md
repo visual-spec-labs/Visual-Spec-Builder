@@ -36,6 +36,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `selectPage` | `(id: PageId) => void` | 캔버스에 띄울 페이지 전환 | **트리**가 호출 |
 | `setNodeField` | `(id: NodeId, path: string, value: unknown, continueEdit?: boolean) => void` | 노드 값 하나 변경 | **패널 · 캔버스(드래그)**가 호출 |
 | `setNodeFields` | `(patches: readonly NodeFieldPatch[], continueEdit?: boolean) => void` | 여러 노드 필드를 **한 번의 렌더·Undo 단계**로 변경(#149) | 정렬·배분·크기 맞추기·다중 선택 기능이 호출 |
+| `applyProjectEdit` | `(candidate: ProjectSpec, continueEdit?: boolean) => ProjectEditResult` | 전체 프로젝트 후보를 검증하고 통과할 때 한 번에 커밋. 거부 시 `spec`·`history`를 보존 | 여러 페이지를 함께 바꾸는 공용 스타일 등의 편집 |
 | `setPageField` | `(pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => void` | 페이지 이름 · 크기(해상도) 변경 | **패널**이 호출 |
 | `addPage` | `() => void` | 빈 페이지를 끝에 추가하고 이동 | **트리**가 호출 |
 | `removePage` | `(id: PageId) => void` | 페이지 삭제(#131부터 되돌릴 수 있다) | **트리**가 호출 |
@@ -48,11 +49,24 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 | `redo` | `() => void` | 되돌린 편집을 한 단계 다시 실행(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Shift+Z · Ctrl+Y, #118) |
 | `applyGuardedTransaction` | `(pageId: PageId, commands: readonly Command[]) => TransactionGateResult` | 출처를 신뢰할 수 없는 Command 배열을 G2(dry-run)·G3(결과 검증) 관문에 통과시킨 뒤 **전부-또는-전무**로 커밋(#154) | 자연어 편집 등 **LLM이 만든 Command** 경로 전용 — GUI는 안 쓴다 |
 
+### `applyProjectEdit` — 프로젝트 전체 후보의 원자 커밋 (#290 2-0)
+
+여러 페이지나 여러 노드에 걸친 GUI 편집은 현재 `ProjectSpec`에서 불변 후보를 만든 뒤
+`applyProjectEdit(candidate)`로 제출한다. 스토어는 `validateProjectSpec`으로 프로젝트 전체를 검사하고,
+성공한 후보만 한 번의 상태 갱신과 Undo 단계로 반영한다. 실패하면 오류 이슈를 돌려주고 현재 `spec`·`history`는
+그대로 둔다. 활성 페이지가 후보에서 삭제된 경우에는 후보의 첫 페이지로 이동하고 선택을 정리한다.
+
+`continueEdit`은 기존 입력 편집과 같은 타이핑 burst를 한 단계로 병합할 때만 넘긴다. Command를 이미 쓰는
+단일 페이지 GUI 편집은 `appliedTransaction`을, 자연어 입력은 `applyGuardedTransaction`을 사용하며 두 경로도
+같은 프로젝트 후보 검증·history 커밋 준비기를 공유한다. 페이지 추가·삭제와 외부 문서 갱신도 그 준비기를 써서
+전체 프로젝트 검증과 snapshot 생성을 일관되게 처리한다. `loadSpec`·Undo/Redo·파일 rename·projectId 설정은
+편집 커밋이 아니라 문서 수명주기 동작이다.
+
 ### setNodeField·setNodeFields·setPageField·removeNode·moveNode·insertNode는 Command Engine을 거친다 (#40, #101, #110, #131, #149)
 
 기존 단일 편집 함수의 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`·`PageProperties.tsx`, 트리의 "표시" 토글·삭제 버튼·드래그)는 바뀌지 않는다. 내부에서는 `command/applyCommand.ts`의 `updateNode`·`updateScreen`·`deleteNode`·`moveNode`·`createNode` Command를 만들어 적용한다. `setNodeFields`는 여러 `updateNode` Command를 `applyTransaction`으로 먼저 한 페이지 사본에 적용한 뒤, 최종 결과만 Zustand `set` 한 번과 history 한 단계로 커밋한다. 따라서 중간 노드만 바뀐 화면은 구독자에게 보이지 않는다.
 
-`setNodeFields`의 patch는 입력 순서대로 적용한다. 없는 노드나 허용되지 않은 경로처럼 `applyCommand`가 no-op으로 판정한 patch는 건너뛰고 나머지는 적용하며, 전부 no-op이거나 배열이 비었으면 spec 참조와 history를 그대로 둔다. **이름이 `applyTransaction`이어도 전부 성공하거나 전부 실패하는 원자적 트랜잭션은 아니다.** 유효하지 않은 patch가 섞이면 신호 없이 부분 적용되는 것이 현재 계약이다. `continueEdit`은 `setNodeField`와 같은 계약이라, 다중 선택 입력을 연속 타이핑할 때 두 번째 batch부터 직전 단계에 병합할 수 있다.
+`setNodeFields`의 patch는 입력 순서대로 적용한다. 없는 노드나 허용되지 않은 경로처럼 `applyCommand`가 no-op으로 판정한 patch는 건너뛰고 나머지는 적용하며, 전부 no-op이거나 배열이 비었으면 spec 참조와 history를 그대로 둔다. no-op patch 하나가 batch 전체를 취소하지는 않는다. 다만 만들어진 페이지와 프로젝트 후보를 검증했을 때 스키마·참조 오류가 남으면 후보 전체를 버리고 spec·history를 보존한다. `continueEdit`은 `setNodeField`와 같은 계약이라, 다중 선택 입력을 연속 타이핑할 때 두 번째 batch부터 직전 단계에 병합할 수 있다.
 
 이 배치 계약에는 `insertNode`·`removeNode`·`moveNode`를 넣지 않았다. 이 액션들은 `selectedId`를 새 노드로 옮기거나 삭제된 선택을 해제하는 규칙까지 동반해 단순 필드 patch와 결과 계약이 다르다. 여러 구조 변경을 한 동작으로 묶을 실제 기능이 생기면 선택 상태까지 포함한 별도 API로 정한다.
 

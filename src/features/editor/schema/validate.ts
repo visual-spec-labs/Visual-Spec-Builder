@@ -31,7 +31,10 @@ export type IssueCode =
   | "instance-ref-missing"
   | "instance-ref-kind"
   | "instance-cycle"
-  | "instance-override-invalid";
+  | "instance-override-invalid"
+  | "style-reference-invalid"
+  | "style-value-mismatch"
+  | "style-name-duplicate";
 
 export interface ValidationIssue {
   code: IssueCode;
@@ -388,6 +391,11 @@ export function validateVisualSpec(input: unknown): ValidationResult {
       ...validateScreenReferences(screen, "/screen"),
       ...validateGradientStops(screen, "/screen"),
       ...validateResponsive(screen, "/screen"),
+      ...Object.entries(screen.nodes).flatMap(([nodeId, node]) => !("styleRefs" in node) || node.styleRefs === undefined ? [] : [{
+        code: "style-reference-invalid" as const,
+        path: `/screen/nodes/${escapeJsonPointer(nodeId)}/styleRefs`,
+        message: "독립 화면 문서에는 프로젝트 카탈로그가 없으므로 스타일 연결을 저장할 수 없습니다.",
+      }]),
     ];
     return { valid: issues.length === 0, issues };
   } catch {
@@ -437,6 +445,60 @@ function validatePageOrder(project: ProjectSpec): ValidationIssue[] {
     }
   }
 
+  return issues;
+}
+
+function colorValueAtTarget(node: Record<string, unknown>, target: string): unknown {
+  if (target === "color") return node.color;
+  if (target === "border.color") return (node.border as Record<string, unknown> | undefined)?.color;
+  if (target === "shadow.color") return (node.shadow as Record<string, unknown> | undefined)?.color;
+  const match = /^background\.(\d+)\.(?:color|stops\.(\d+)\.color)$/.exec(target);
+  if (!match || !Array.isArray(node.background)) return undefined;
+  const fill = node.background[Number(match[1])] as Record<string, unknown> | undefined;
+  if (!fill) return undefined;
+  if (match[2] === undefined) return fill.color;
+  const stops = fill.stops;
+  return Array.isArray(stops) ? (stops[Number(match[2])] as Record<string, unknown> | undefined)?.color : undefined;
+}
+
+function validateProjectStyles(project: ProjectSpec): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const colors = project.styles?.colors ?? {};
+  const typography = project.styles?.typography ?? {};
+  for (const [kind, entries] of [["colors", colors], ["typography", typography]] as const) {
+    const names = new Set<string>();
+    for (const [id, style] of Object.entries(entries)) {
+      const normalized = style.name.trim().toLocaleLowerCase();
+      if (names.has(normalized)) issues.push({ code: "style-name-duplicate", path: `/styles/${kind}/${escapeJsonPointer(id)}/name`, message: "같은 종류의 스타일 표시 이름은 중복할 수 없습니다." });
+      names.add(normalized);
+    }
+  }
+
+  for (const [pageId, page] of Object.entries(project.pages)) {
+    for (const [nodeId, rawNode] of Object.entries(page.nodes)) {
+      const node = rawNode as unknown as Record<string, unknown>;
+      const refs = node.styleRefs as { colors?: Record<string, string>; typography?: string } | undefined;
+      if (!refs) continue;
+      for (const [target, id] of Object.entries(refs.colors ?? {})) {
+        const path = `/pages/${escapeJsonPointer(pageId)}/nodes/${escapeJsonPointer(nodeId)}/styleRefs/colors/${escapeJsonPointer(target)}`;
+        const style = colors[id];
+        if (!style || typeof colorValueAtTarget(node, target) !== "string") {
+          issues.push({ code: "style-reference-invalid", path, message: "색 스타일 연결의 카탈로그 항목 또는 대상 색 속성이 없습니다." });
+        } else if (colorValueAtTarget(node, target) !== style.value) {
+          issues.push({ code: "style-value-mismatch", path, message: "연결된 색 스타일 값과 노드 리터럴이 다릅니다." });
+        }
+      }
+      if (refs.typography !== undefined) {
+        const path = `/pages/${escapeJsonPointer(pageId)}/nodes/${escapeJsonPointer(nodeId)}/styleRefs/typography`;
+        const style = typography[refs.typography];
+        if (!style || typeof node.typography !== "object" || node.typography === null) {
+          issues.push({ code: "style-reference-invalid", path, message: "글자 스타일 연결의 카탈로그 항목 또는 타이포그래피 대상이 없습니다." });
+        } else if (JSON.stringify(node.typography) !== JSON.stringify(style.value)) {
+          issues.push({ code: "style-value-mismatch", path, message: "연결된 글자 스타일 값과 노드 리터럴이 다릅니다." });
+        }
+      }
+    }
+  }
   return issues;
 }
 
@@ -502,7 +564,7 @@ function validateProject(input: unknown, cache?: ScreenValidationCache, schemaCh
     }
 
     const project = input as ProjectSpec;
-    const issues = validatePageOrder(project);
+    const issues = [...validatePageOrder(project), ...validateProjectStyles(project)];
 
     for (const [pageId, page] of Object.entries(project.pages)) {
       const pagePath = `/pages/${escapeJsonPointer(pageId)}`;
