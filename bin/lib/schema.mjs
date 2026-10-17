@@ -727,23 +727,27 @@ function toVisualSpec(page) {
 		screen: page
 	};
 }
-/** Validate the source project, then detach style links on an immutable page copy. */
-function toStandaloneVisualSpec(project, pageId) {
-	const validation = validateProjectSpec(project);
-	if (!validation.valid) throw new Error(`유효하지 않은 프로젝트라 화면을 내보낼 수 없습니다: ${validation.issues.map((issue) => issue.message).join("; ")}`);
-	const page = project.pages[pageId];
-	if (!page) throw new Error(`페이지 '${pageId}'가 프로젝트에 없습니다.`);
+/** Copy a project page for screen-only checks; style links remain in the project. */
+function withoutStyleRefs(page) {
 	const nodes = Object.fromEntries(Object.entries(page.nodes).map(([id, node]) => {
 		if (!("styleRefs" in node)) return [id, node];
 		const { styleRefs: _styleRefs, ...literalNode } = node;
 		return [id, literalNode];
 	}));
 	return {
+		...page,
+		nodes
+	};
+}
+/** Validate the source project, then detach style links on an immutable page copy. */
+function toStandaloneVisualSpec(project, pageId) {
+	const validation = validateProjectSpec(project);
+	if (!validation.valid) throw new Error(`유효하지 않은 프로젝트라 화면을 내보낼 수 없습니다: ${validation.issues.map((issue) => issue.message).join("; ")}`);
+	const page = project.pages[pageId];
+	if (!page) throw new Error(`페이지 '${pageId}'가 프로젝트에 없습니다.`);
+	return {
 		version: "0.4",
-		screen: {
-			...page,
-			nodes
-		}
+		screen: withoutStyleRefs(page)
 	};
 }
 /**
@@ -836,4 +840,4 @@ function mapValues(record, map) {
 	return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, map(value)]));
 }
 //#endregion
-export { VisualSpecValidationError, assertVisualSpec, createCachedProjectValidator, isScreenRelationIssue, migrateToV03, migrateToV04, migrateV01, toStandaloneVisualSpec, toVisualSpec, validateProjectSpec, validateVisualSpec, visual_spec_schema_default as visualSpecJsonSchema };
+export { VisualSpecValidationError, assertVisualSpec, createCachedProjectValidator, isScreenRelationIssue, migrateToV03, migrateToV04, migrateV01, toStandaloneVisualSpec, toVisualSpec, validateProjectSpec, validateVisualSpec, visual_spec_schema_default as visualSpecJsonSchema, withoutStyleRefs };
