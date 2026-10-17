@@ -1,0 +1,1878 @@
+{
+  "method": "실제 GUI 아트보드 DOM 대 지정한 생성 결과(..\\qa-364-claude\\export\\untitled), 스펙 ..\\qa-364-claude\\ws\\.visual-spec\\specs\\real-flow.json",
+  "environment": {
+    "platform": "win32",
+    "node": "v24.12.0",
+    "chromium": "151.0.7922.34",
+    "devicePixelRatio": 1,
+    "editorWindow": {
+      "width": 1920,
+      "height": 1080
+    },
+    "fontCss": [
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css"
+    ],
+    "fontCssSha256": "a9d3417e168d008424337e8ee2df7b54ff082a57ed61e28421db681437cd67a2",
+    "fontFilesFetched": 26,
+    "fontRequestsServed": 41,
+    "fontFailures": [],
+    "fontFilesServed": {
+      "gui": 27,
+      "generated": 14,
+      "shared": 14
+    },
+    "fontSha256": {
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css": "a9d3417e168d008424337e8ee2df7b54ff082a57ed61e28421db681437cd67a2",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.88.woff2": "70e3b386d655370b331c3d74563593b497f8cbd569a465eeedcaadf36ad4a8c7",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.86.woff2": "bb688932d922f92fad8d3c1a7318420d58f74b726d692768ce651651b34cc271",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.91.woff2": "231cc8c05ecc16b9904dde4291484423616610609988496a0d1a6b6ca9a42eb1",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.90.woff2": "8644478b432791ec91667ddfbf7c2d96e890cd482b3d490073bc4e01ffaa8f5c",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.91.woff2": "220e6c5456d8b93c11ef3336ebe02989ef6e11803df83d52e23d9b39a94cefaa",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.88.woff2": "55e0a35cbd30c1001d6b7d562e01a432ef254d9a70029206f1b08d1404f369d3",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.90.woff2": "3d9f4df81d2aa8c5b8349bc09c4114e0dbfb147c939d44fcba3b1d423e0f7b79",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.91.woff2": "64b3d232bd9880e6e60c4ccecdfb5c905e82d681826641a9a847f704dee6049d",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.83.woff2": "bed3fe67c9e69eaef2933f992d6d241c7da64e5ae0d7ced2dfd7e439b665e12d",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.82.woff2": "5cbdbd3b94066e20b7c0b7ff5b3e2717bb2be9061fc56fc5f3d8d90ca27d14e8",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.83.woff2": "3365575a5a057f54f08537deba085c511604ffe3add2d9178638d7ac7bf8f820",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.89.woff2": "83a14f747ce9273567a4cf60c7d79f848477233964f1f43018b98cd41a9acede",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Bold.subset.90.woff2": "7c20f4d0111a555585c3170129f3c2c14a4df51d60fb21051ea62d02fb8a30f9",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.89.woff2": "e52e0586866384527e11b1dcb1ca81b015efc0f856ec296f7c3aca791abc25d8",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.88.woff2": "ad2f2e703cb9c6245a18e46098577850cf03b6e3b49a4dfeaefa468f39e65d1e",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.90.woff2": "70dae695052c82dc0c5eab663296384c7b0e0a77c42688b16d06a90d789ce5fe",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.87.woff2": "a5e2300a6b7f7fbe63a4cd4b98277aa5937f7dc2e5904e1d38abe6ffa4c7411f",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Bold.subset.91.woff2": "eb04583ef826448aceed4446ee2e96d8c7a76a6b1490694e2576ac7471bb844a",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.87.woff2": "d4d00dd65be038b2464815aaec20af0aeffff4f8e871f26a7c2832685440d5dc",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.84.woff2": "72e05b2a23e68c321ce8e3562a9fceceba1f74e462d8dbbd71903285fd6db44c",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-SemiBold.subset.86.woff2": "838952077a4e4560ef7b915ad3abc3211ee162c3b263980bafede5baf9cc8117",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.81.woff2": "bf71db66d1bf8819c0c2282c77321199fbc6156498c8a2f12c40fc33004d4c68",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.58.woff2": "0a19048db2f4cc1ee7b6cc8750fb5bc19910b065f888049b511830633b5f3262",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.80.woff2": "3d70d3e408eeed99e3ad5c58e44407fd97b9d314f9277a89c2a035c65ab690e6",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Medium.subset.86.woff2": "33afef6170bb0cf564a2f0e22b1dbb31c809ca7ae71bad1063ef217bd1fd2aa0",
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2-dynamic-subset/Pretendard-Regular.subset.85.woff2": "ec955254be711fc2b3e9f4ba86bfcf836a0046c5f945505895b8f1c6310c5241"
+    },
+    "fontLock": null
+  },
+  "summary": {
+    "pass": 1,
+    "expected-fail": 0,
+    "fail": 0,
+    "unexpected-pass": 0,
+    "invalid": 0
+  },
+  "results": [
+    {
+      "case": "회원가입",
+      "page": "page1",
+      "pageFile": "Screen",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "verdict": "pass",
+      "measurements": {
+        "gui": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "addressDetailInput::placeholder",
+            "addressDetailLabel",
+            "addressInput::placeholder",
+            "addressLabel",
+            "birthDateInput::placeholder",
+            "birthDateLabel",
+            "emailInput::placeholder",
+            "emailLabel",
+            "intro",
+            "nameInput::placeholder",
+            "nameLabel",
+            "passwordConfirmInput::placeholder",
+            "passwordConfirmLabel",
+            "passwordInput::placeholder",
+            "passwordLabel",
+            "phoneInput::placeholder",
+            "phoneLabel",
+            "privacyNotice",
+            "signupButton",
+            "title"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 390,
+            "height": 844,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/loaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 390,
+              "height": 1262
+            },
+            "title": {
+              "x": 20,
+              "y": 56,
+              "width": 350,
+              "height": 36,
+              "lines": 1
+            },
+            "intro": {
+              "x": 20,
+              "y": 124,
+              "width": 350,
+              "height": 44,
+              "lines": 2
+            },
+            "form": {
+              "x": 20,
+              "y": 200,
+              "width": 350,
+              "height": 836
+            },
+            "nameField": {
+              "x": 20,
+              "y": 200,
+              "width": 350,
+              "height": 80
+            },
+            "nameLabel": {
+              "x": 20,
+              "y": 200,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "nameInput": {
+              "x": 20,
+              "y": 228,
+              "width": 350,
+              "height": 52
+            },
+            "emailField": {
+              "x": 20,
+              "y": 308,
+              "width": 350,
+              "height": 80
+            },
+            "emailLabel": {
+              "x": 20,
+              "y": 308,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "emailInput": {
+              "x": 20,
+              "y": 336,
+              "width": 350,
+              "height": 52
+            },
+            "phoneField": {
+              "x": 20,
+              "y": 416,
+              "width": 350,
+              "height": 80
+            },
+            "phoneLabel": {
+              "x": 20,
+              "y": 416,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "phoneInput": {
+              "x": 20,
+              "y": 444,
+              "width": 350,
+              "height": 52
+            },
+            "passwordField": {
+              "x": 20,
+              "y": 524,
+              "width": 350,
+              "height": 80
+            },
+            "passwordLabel": {
+              "x": 20,
+              "y": 524,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "passwordInput": {
+              "x": 20,
+              "y": 552,
+              "width": 350,
+              "height": 52
+            },
+            "passwordConfirmField": {
+              "x": 20,
+              "y": 632,
+              "width": 350,
+              "height": 80
+            },
+            "passwordConfirmLabel": {
+              "x": 20,
+              "y": 632,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "passwordConfirmInput": {
+              "x": 20,
+              "y": 660,
+              "width": 350,
+              "height": 52
+            },
+            "addressField": {
+              "x": 20,
+              "y": 740,
+              "width": 350,
+              "height": 80
+            },
+            "addressLabel": {
+              "x": 20,
+              "y": 740,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "addressInput": {
+              "x": 20,
+              "y": 768,
+              "width": 350,
+              "height": 52
+            },
+            "addressDetailField": {
+              "x": 20,
+              "y": 848,
+              "width": 350,
+              "height": 80
+            },
+            "addressDetailLabel": {
+              "x": 20,
+              "y": 848,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "addressDetailInput": {
+              "x": 20,
+              "y": 876,
+              "width": 350,
+              "height": 52
+            },
+            "birthDateField": {
+              "x": 20,
+              "y": 956,
+              "width": 350,
+              "height": 80
+            },
+            "birthDateLabel": {
+              "x": 20,
+              "y": 956,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "birthDateInput": {
+              "x": 20,
+              "y": 984,
+              "width": 350,
+              "height": 52
+            },
+            "privacyNotice": {
+              "x": 20,
+              "y": 1068,
+              "width": 350,
+              "height": 54,
+              "lines": 3
+            },
+            "signupButton": {
+              "x": 20,
+              "y": 1154,
+              "width": 350,
+              "height": 52,
+              "lines": 1
+            }
+          },
+          "placeholders": {
+            "nameInput": {
+              "text": "이름을 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400",
+              "lines": 1
+            },
+            "emailInput": {
+              "text": "example@email.com",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400",
+              "lines": 1
+            },
+            "phoneInput": {
+              "text": "010-0000-0000",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400",
+              "lines": 1
+            },
+            "passwordInput": {
+              "text": "8자 이상 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400",
+              "lines": 1
+            },
+            "passwordConfirmInput": {
+              "text": "비밀번호를 다시 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400",
+              "lines": 1
+            },
+            "addressInput": {
+              "text": "주소를 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400",
+              "lines": 1
+            },
+            "addressDetailInput": {
+              "text": "동·호수 등 상세 주소를 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400",
+              "lines": 1
+            },
+            "birthDateInput": {
+              "text": "YYYY-MM-DD",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400",
+              "lines": 1
+            }
+          },
+          "images": {},
+          "shell": {
+            "width": 390,
+            "height": 1262,
+            "scrollHeight": 1262
+          },
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "title": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "intro": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "nameLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "emailLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "phoneLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "passwordLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "passwordConfirmLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "addressLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "addressDetailLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "birthDateLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "privacyNotice": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "signupButton": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "nameInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "emailInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "phoneInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "passwordInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "passwordConfirmInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "addressInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "addressDetailInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "birthDateInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        },
+        "generated": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "addressDetailInput::placeholder",
+            "addressDetailLabel",
+            "addressInput::placeholder",
+            "addressLabel",
+            "birthDateInput::placeholder",
+            "birthDateLabel",
+            "emailInput::placeholder",
+            "emailLabel",
+            "intro",
+            "nameInput::placeholder",
+            "nameLabel",
+            "passwordConfirmInput::placeholder",
+            "passwordConfirmLabel",
+            "passwordInput::placeholder",
+            "passwordLabel",
+            "phoneInput::placeholder",
+            "phoneLabel",
+            "privacyNotice",
+            "signupButton",
+            "title"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 390,
+            "height": 844,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 390,
+              "height": 844
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 390,
+              "height": 1262
+            },
+            "title": {
+              "x": 20,
+              "y": 56,
+              "width": 350,
+              "height": 36,
+              "lines": 1
+            },
+            "intro": {
+              "x": 20,
+              "y": 124,
+              "width": 350,
+              "height": 44,
+              "lines": 2
+            },
+            "form": {
+              "x": 20,
+              "y": 200,
+              "width": 350,
+              "height": 836
+            },
+            "nameField": {
+              "x": 20,
+              "y": 200,
+              "width": 350,
+              "height": 80
+            },
+            "nameLabel": {
+              "x": 20,
+              "y": 200,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "nameInput": {
+              "x": 20,
+              "y": 228,
+              "width": 350,
+              "height": 52
+            },
+            "emailField": {
+              "x": 20,
+              "y": 308,
+              "width": 350,
+              "height": 80
+            },
+            "emailLabel": {
+              "x": 20,
+              "y": 308,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "emailInput": {
+              "x": 20,
+              "y": 336,
+              "width": 350,
+              "height": 52
+            },
+            "phoneField": {
+              "x": 20,
+              "y": 416,
+              "width": 350,
+              "height": 80
+            },
+            "phoneLabel": {
+              "x": 20,
+              "y": 416,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "phoneInput": {
+              "x": 20,
+              "y": 444,
+              "width": 350,
+              "height": 52
+            },
+            "passwordField": {
+              "x": 20,
+              "y": 524,
+              "width": 350,
+              "height": 80
+            },
+            "passwordLabel": {
+              "x": 20,
+              "y": 524,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "passwordInput": {
+              "x": 20,
+              "y": 552,
+              "width": 350,
+              "height": 52
+            },
+            "passwordConfirmField": {
+              "x": 20,
+              "y": 632,
+              "width": 350,
+              "height": 80
+            },
+            "passwordConfirmLabel": {
+              "x": 20,
+              "y": 632,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "passwordConfirmInput": {
+              "x": 20,
+              "y": 660,
+              "width": 350,
+              "height": 52
+            },
+            "addressField": {
+              "x": 20,
+              "y": 740,
+              "width": 350,
+              "height": 80
+            },
+            "addressLabel": {
+              "x": 20,
+              "y": 740,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "addressInput": {
+              "x": 20,
+              "y": 768,
+              "width": 350,
+              "height": 52
+            },
+            "addressDetailField": {
+              "x": 20,
+              "y": 848,
+              "width": 350,
+              "height": 80
+            },
+            "addressDetailLabel": {
+              "x": 20,
+              "y": 848,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "addressDetailInput": {
+              "x": 20,
+              "y": 876,
+              "width": 350,
+              "height": 52
+            },
+            "birthDateField": {
+              "x": 20,
+              "y": 956,
+              "width": 350,
+              "height": 80
+            },
+            "birthDateLabel": {
+              "x": 20,
+              "y": 956,
+              "width": 350,
+              "height": 20,
+              "lines": 1
+            },
+            "birthDateInput": {
+              "x": 20,
+              "y": 984,
+              "width": 350,
+              "height": 52
+            },
+            "privacyNotice": {
+              "x": 20,
+              "y": 1068,
+              "width": 350,
+              "height": 54,
+              "lines": 3
+            },
+            "signupButton": {
+              "x": 20,
+              "y": 1154,
+              "width": 350,
+              "height": 52,
+              "lines": 1
+            }
+          },
+          "placeholders": {
+            "nameInput": {
+              "text": "이름을 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400"
+            },
+            "emailInput": {
+              "text": "example@email.com",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400"
+            },
+            "phoneInput": {
+              "text": "010-0000-0000",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400"
+            },
+            "passwordInput": {
+              "text": "8자 이상 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400"
+            },
+            "passwordConfirmInput": {
+              "text": "비밀번호를 다시 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400"
+            },
+            "addressInput": {
+              "text": "주소를 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400"
+            },
+            "addressDetailInput": {
+              "text": "동·호수 등 상세 주소를 입력하세요",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400"
+            },
+            "birthDateInput": {
+              "text": "YYYY-MM-DD",
+              "color": "rgb(17, 24, 39)",
+              "opacity": "0.6",
+              "fontFamily": "Pretendard",
+              "fontSize": "14px",
+              "fontWeight": "400"
+            }
+          },
+          "images": {},
+          "shell": {
+            "width": 390,
+            "height": 1262,
+            "scrollHeight": 1262,
+            "documentScrollHeight": 1262
+          },
+          "documentScrollHeight": 1262,
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "title": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "intro": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "nameLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "emailLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "phoneLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "passwordLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "passwordConfirmLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "addressLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "addressDetailLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "birthDateLabel": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "privacyNotice": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "signupButton": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "nameInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "emailInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "phoneInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "passwordInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "passwordConfirmInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "addressInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "addressDetailInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "birthDateInput::placeholder": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        }
+      },
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 1262
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 1262
+        }
+      },
+      "shell": {
+        "gui": {
+          "width": 390,
+          "height": 1262,
+          "scrollHeight": 1262
+        },
+        "generated": {
+          "width": 390,
+          "height": 1262,
+          "scrollHeight": 1262,
+          "documentScrollHeight": 1262
+        }
+      },
+      "documentScrollHeight": 1262,
+      "nodesCompared": 30,
+      "zoomCheck": {
+        "canvasZoomPercent": 75,
+        "maxDelta": 0
+      },
+      "maxDelta": 0,
+      "lines": {
+        "title": [
+          1,
+          1
+        ],
+        "intro": [
+          2,
+          2
+        ],
+        "nameLabel": [
+          1,
+          1
+        ],
+        "emailLabel": [
+          1,
+          1
+        ],
+        "phoneLabel": [
+          1,
+          1
+        ],
+        "passwordLabel": [
+          1,
+          1
+        ],
+        "passwordConfirmLabel": [
+          1,
+          1
+        ],
+        "addressLabel": [
+          1,
+          1
+        ],
+        "addressDetailLabel": [
+          1,
+          1
+        ],
+        "birthDateLabel": [
+          1,
+          1
+        ],
+        "privacyNotice": [
+          3,
+          3
+        ],
+        "signupButton": [
+          1,
+          1
+        ]
+      },
+      "placeholders": {
+        "gui": {
+          "nameInput": {
+            "text": "이름을 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lines": 1
+          },
+          "emailInput": {
+            "text": "example@email.com",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lines": 1
+          },
+          "phoneInput": {
+            "text": "010-0000-0000",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lines": 1
+          },
+          "passwordInput": {
+            "text": "8자 이상 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lines": 1
+          },
+          "passwordConfirmInput": {
+            "text": "비밀번호를 다시 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lines": 1
+          },
+          "addressInput": {
+            "text": "주소를 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lines": 1
+          },
+          "addressDetailInput": {
+            "text": "동·호수 등 상세 주소를 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lines": 1
+          },
+          "birthDateInput": {
+            "text": "YYYY-MM-DD",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lines": 1
+          }
+        },
+        "generated": {
+          "nameInput": {
+            "text": "이름을 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400"
+          },
+          "emailInput": {
+            "text": "example@email.com",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400"
+          },
+          "phoneInput": {
+            "text": "010-0000-0000",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400"
+          },
+          "passwordInput": {
+            "text": "8자 이상 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400"
+          },
+          "passwordConfirmInput": {
+            "text": "비밀번호를 다시 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400"
+          },
+          "addressInput": {
+            "text": "주소를 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400"
+          },
+          "addressDetailInput": {
+            "text": "동·호수 등 상세 주소를 입력하세요",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400"
+          },
+          "birthDateInput": {
+            "text": "YYYY-MM-DD",
+            "color": "rgb(17, 24, 39)",
+            "opacity": "0.6",
+            "fontFamily": "Pretendard",
+            "fontSize": "14px",
+            "fontWeight": "400"
+          }
+        }
+      },
+      "images": {
+        "gui": {},
+        "generated": {}
+      },
+      "renderedFonts": {
+        "gui": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "generated": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "unavailable": []
+      },
+      "hiddenNodeIds": {
+        "gui": [],
+        "generated": []
+      },
+      "rows": [
+        {
+          "id": "addressDetailField",
+          "gui": {
+            "x": 20,
+            "y": 848,
+            "width": 350,
+            "height": 80
+          },
+          "generated": {
+            "x": 20,
+            "y": 848,
+            "width": 350,
+            "height": 80
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "addressDetailInput",
+          "gui": {
+            "x": 20,
+            "y": 876,
+            "width": 350,
+            "height": 52
+          },
+          "generated": {
+            "x": 20,
+            "y": 876,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "addressDetailLabel",
+          "gui": {
+            "x": 20,
+            "y": 848,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 848,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "addressField",
+          "gui": {
+            "x": 20,
+            "y": 740,
+            "width": 350,
+            "height": 80
+          },
+          "generated": {
+            "x": 20,
+            "y": 740,
+            "width": 350,
+            "height": 80
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "addressInput",
+          "gui": {
+            "x": 20,
+            "y": 768,
+            "width": 350,
+            "height": 52
+          },
+          "generated": {
+            "x": 20,
+            "y": 768,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "addressLabel",
+          "gui": {
+            "x": 20,
+            "y": 740,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 740,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "birthDateField",
+          "gui": {
+            "x": 20,
+            "y": 956,
+            "width": 350,
+            "height": 80
+          },
+          "generated": {
+            "x": 20,
+            "y": 956,
+            "width": 350,
+            "height": 80
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "birthDateInput",
+          "gui": {
+            "x": 20,
+            "y": 984,
+            "width": 350,
+            "height": 52
+          },
+          "generated": {
+            "x": 20,
+            "y": 984,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "birthDateLabel",
+          "gui": {
+            "x": 20,
+            "y": 956,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 956,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "emailField",
+          "gui": {
+            "x": 20,
+            "y": 308,
+            "width": 350,
+            "height": 80
+          },
+          "generated": {
+            "x": 20,
+            "y": 308,
+            "width": 350,
+            "height": 80
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "emailInput",
+          "gui": {
+            "x": 20,
+            "y": 336,
+            "width": 350,
+            "height": 52
+          },
+          "generated": {
+            "x": 20,
+            "y": 336,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "emailLabel",
+          "gui": {
+            "x": 20,
+            "y": 308,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 308,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "form",
+          "gui": {
+            "x": 20,
+            "y": 200,
+            "width": 350,
+            "height": 836
+          },
+          "generated": {
+            "x": 20,
+            "y": 200,
+            "width": 350,
+            "height": 836
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "intro",
+          "gui": {
+            "x": 20,
+            "y": 124,
+            "width": 350,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 20,
+            "y": 124,
+            "width": 350,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "nameField",
+          "gui": {
+            "x": 20,
+            "y": 200,
+            "width": 350,
+            "height": 80
+          },
+          "generated": {
+            "x": 20,
+            "y": 200,
+            "width": 350,
+            "height": 80
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "nameInput",
+          "gui": {
+            "x": 20,
+            "y": 228,
+            "width": 350,
+            "height": 52
+          },
+          "generated": {
+            "x": 20,
+            "y": 228,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "nameLabel",
+          "gui": {
+            "x": 20,
+            "y": 200,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 200,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "passwordConfirmField",
+          "gui": {
+            "x": 20,
+            "y": 632,
+            "width": 350,
+            "height": 80
+          },
+          "generated": {
+            "x": 20,
+            "y": 632,
+            "width": 350,
+            "height": 80
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "passwordConfirmInput",
+          "gui": {
+            "x": 20,
+            "y": 660,
+            "width": 350,
+            "height": 52
+          },
+          "generated": {
+            "x": 20,
+            "y": 660,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "passwordConfirmLabel",
+          "gui": {
+            "x": 20,
+            "y": 632,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 632,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "passwordField",
+          "gui": {
+            "x": 20,
+            "y": 524,
+            "width": 350,
+            "height": 80
+          },
+          "generated": {
+            "x": 20,
+            "y": 524,
+            "width": 350,
+            "height": 80
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "passwordInput",
+          "gui": {
+            "x": 20,
+            "y": 552,
+            "width": 350,
+            "height": 52
+          },
+          "generated": {
+            "x": 20,
+            "y": 552,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "passwordLabel",
+          "gui": {
+            "x": 20,
+            "y": 524,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 524,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "phoneField",
+          "gui": {
+            "x": 20,
+            "y": 416,
+            "width": 350,
+            "height": 80
+          },
+          "generated": {
+            "x": 20,
+            "y": 416,
+            "width": 350,
+            "height": 80
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "phoneInput",
+          "gui": {
+            "x": 20,
+            "y": 444,
+            "width": 350,
+            "height": 52
+          },
+          "generated": {
+            "x": 20,
+            "y": 444,
+            "width": 350,
+            "height": 52
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "phoneLabel",
+          "gui": {
+            "x": 20,
+            "y": 416,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 416,
+            "width": 350,
+            "height": 20,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "privacyNotice",
+          "gui": {
+            "x": 20,
+            "y": 1068,
+            "width": 350,
+            "height": 54,
+            "lines": 3
+          },
+          "generated": {
+            "x": 20,
+            "y": 1068,
+            "width": 350,
+            "height": 54,
+            "lines": 3
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "root",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 1262
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 1262
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "signupButton",
+          "gui": {
+            "x": 20,
+            "y": 1154,
+            "width": 350,
+            "height": 52,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 1154,
+            "width": 350,
+            "height": 52,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "title",
+          "gui": {
+            "x": 20,
+            "y": 56,
+            "width": 350,
+            "height": 36,
+            "lines": 1
+          },
+          "generated": {
+            "x": 20,
+            "y": 56,
+            "width": 350,
+            "height": 36,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "loadErrors": [],
+      "errors": []
+    }
+  ]
+}
