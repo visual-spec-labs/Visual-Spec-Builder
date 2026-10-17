@@ -152,7 +152,7 @@ export function buttonStyle(
     ...backgroundStyle(node.background),
     // button·input에는 shadow 필드가 아직 없다(속성 패널이 없어 편집할 수 없다).
     // Border는 공유하므로 정렬만 같은 합성기로 처리한다.
-    ...strokeAndShadowStyle(node.border, undefined),
+    ...strokeAndShadowStyle(node.border, undefined, node.border && `var(--vs-state-border-color, ${node.border.color})`),
     ...stateStyleVariables(node.states),
     boxSizing: "border-box",
     cursor: "default",
@@ -184,7 +184,7 @@ export function inputStyle(
     letterSpacing: typography.letterSpacing,
     textAlign: typography.textAlign,
     ...backgroundStyle(node.background),
-    ...strokeAndShadowStyle(node.border, undefined),
+    ...strokeAndShadowStyle(node.border, undefined, node.border && `var(--vs-state-border-color, ${node.border.color})`),
     ...stateStyleVariables(node.states),
     boxSizing: "border-box",
   };

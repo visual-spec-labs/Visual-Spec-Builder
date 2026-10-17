@@ -1,4 +1,4 @@
-import { validateVisualSpec } from "@/features/editor/schema";
+import { validateVisualSpec, withoutStyleRefs } from "@/features/editor/schema";
 import type { FrameNode, Node, NodeId, ScreenSpec } from "@/features/editor/schema";
 import { generateNodeIds } from "@/features/editor/store/nodeId";
 import { setByPath } from "@/features/editor/store/path";
@@ -171,7 +171,7 @@ function applyUpdateNode(screen: ScreenSpec, command: UpdateNodeCommand): ApplyR
   }
   if (command.path === "action") {
     const candidate = withNodes(screen, { ...nodes, [command.id]: nextNode });
-    const result = validateVisualSpec({ version: "0.4", screen: candidate });
+    const result = validateVisualSpec({ version: "0.4", screen: withoutStyleRefs(candidate) });
     if (!result.valid || command.value === undefined) return noOp(screen, "action은 유효한 전체 객체여야 합니다");
   }
   return applied(withNodes(screen, { ...nodes, [command.id]: nextNode }));

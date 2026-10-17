@@ -92,6 +92,7 @@ describe("parseNlResponse — 기다림을 끝낼지 판정한다", () => {
   it("accepts one closed cross-page widget command without local commands", () => {
     const body = { protocol: NL_PROTOCOL_VERSION, commandVersion: "0.2", requestId: "req-1", projectCommand };
     expect(parseNlResponse(responseText(body), "req-1")).toEqual({ kind: "projectCommand", command: projectCommand });
+    expect(parseNlResponse(responseText({ ...body, commandVersion: "0.3" }), "req-1")).toEqual({ kind: "projectCommand", command: projectCommand });
     expect(parseNlResponse(responseText({ ...body, requestId: "old" }), "req-1")).toEqual({ kind: "stale" });
   });
 

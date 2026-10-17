@@ -51,6 +51,18 @@ describe("NL read-only destination catalog", () => {
     expect(editor().history.past).toHaveLength(1);
     editor().undo(); expect(editor().spec).toBe(before);
   });
+  it("applies an action when another node on the page links a project style", () => {
+    const spec = project();
+    const title = spec.pages.login.nodes.title;
+    if (title.type !== "text") throw new Error("fixture needs a title");
+    spec.styles = { colors: { brand: { name: "Brand", value: title.color } } };
+    title.styleRefs = { colors: { color: "brand" } };
+    editor().loadSpec(spec);
+
+    expect(editor().applyGuardedTransaction("login", navigate).ok).toBe(true);
+    expect(editor().spec.pages.login.nodes.loginButton).toMatchObject({ action: { type: "navigate", target: "dashboard" } });
+    expect(editor().spec.pages.login.nodes.title).toMatchObject({ styleRefs: { colors: { color: "brand" } } });
+  });
   it.each(["deleted", "kind"])("old catalog does not bypass current-project G3 after target %s change", (change) => {
     const request = buildNlRequest({ ...input(editor().spec), project: editor().spec });
     if (change === "deleted") editor().removePage("dashboard");

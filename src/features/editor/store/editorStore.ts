@@ -25,7 +25,7 @@ import {
   type TransactionGateResult,
 } from "@/features/editor/command/transactionGate";
 import type { Command, ScreenCommand } from "@/features/editor/command/types";
-import { migrateV01, validateVisualSpec, validateProjectSpec, createCachedProjectValidator } from "@/features/editor/schema";
+import { migrateV01, validateVisualSpec, validateProjectSpec, createCachedProjectValidator, withoutStyleRefs } from "@/features/editor/schema";
 import type {
   Node,
   Responsive,
@@ -455,7 +455,7 @@ function appliedTransaction(
   const nextPage = trial?.screen ?? applyTransaction(page, commands);
   if (nextPage === page) return reject();
   if (page.responsive || nextPage.responsive) {
-    const validation = validateVisualSpec({ version: "0.4", screen: nextPage });
+    const validation = validateVisualSpec({ version: "0.4", screen: withoutStyleRefs(nextPage) });
     if (!validation.valid) {
       useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
       return reject();
@@ -712,7 +712,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const candidate = unlinkStyle(state.spec, "colors", id);
     const colors = { ...candidate.styles?.colors };
     delete colors[id];
-    return get().applyProjectEdit({ ...candidate, styles: { ...candidate.styles, ...(Object.keys(colors).length ? { colors } : {}) } });
+    const { colors: _colors, ...styles } = candidate.styles ?? {};
+    return get().applyProjectEdit({ ...candidate, styles: { ...styles, ...(Object.keys(colors).length ? { colors } : {}) } });
   },
   createTypographyStyle: (name, value, pageId, nodeId) => {
     const state = get();
@@ -737,7 +738,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const candidate = unlinkStyle(state.spec, "typography", id);
     const typography = { ...candidate.styles?.typography };
     delete typography[id];
-    return get().applyProjectEdit({ ...candidate, styles: { ...candidate.styles, ...(Object.keys(typography).length ? { typography } : {}) } });
+    const { typography: _typography, ...styles } = candidate.styles ?? {};
+    return get().applyProjectEdit({ ...candidate, styles: { ...styles, ...(Object.keys(typography).length ? { typography } : {}) } });
   },
   loadSpec: (spec) => {
     useResponsiveViewStore.getState().reset();

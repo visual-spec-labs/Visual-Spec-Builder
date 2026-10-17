@@ -46,9 +46,10 @@ export function radiusCss(radius: Radius | undefined): string | number | undefin
 export function strokeAndShadowStyle(
   border: Border | undefined,
   shadow: Shadow | undefined,
+  ringColor = border?.color,
 ): CSSProperties {
   const insideBorder = border !== undefined && (border.align ?? "inside") === "inside";
-  const layers = [strokeRing(border), dropShadow(shadow)].filter(
+  const layers = [strokeRing(border, ringColor), dropShadow(shadow)].filter(
     (layer): layer is string => layer !== undefined,
   );
 
@@ -61,16 +62,16 @@ export function strokeAndShadowStyle(
 }
 
 /** inside가 아닌 정렬을 box-shadow 고리로 그린다. inside와 두께 0은 CSS border가 맡는다. */
-function strokeRing(border: Border | undefined): string | undefined {
+function strokeRing(border: Border | undefined, color: string | undefined): string | undefined {
   if (border === undefined || border.width <= 0) return undefined;
 
   const align = border.align ?? "inside";
   if (align === "inside") return undefined;
-  if (align === "outside") return `0 0 0 ${border.width}px ${border.color}`;
+  if (align === "outside") return `0 0 0 ${border.width}px ${color}`;
 
   // center는 절반씩 안팎으로 나눠 그린다.
   const half = border.width / 2;
-  return `0 0 0 ${half}px ${border.color}, inset 0 0 0 ${half}px ${border.color}`;
+  return `0 0 0 ${half}px ${color}, inset 0 0 0 ${half}px ${color}`;
 }
 
 function dropShadow(shadow: Shadow | undefined): string | undefined {

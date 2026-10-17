@@ -1231,6 +1231,38 @@ describe("editorStore", () => {
   });
 
   describe("shared design styles (#290 2-2)", () => {
+    it("edits a responsive page containing a linked project style", () => {
+      const state = useEditorStore.getState();
+      const pageId = state.activePageId;
+      const title = state.spec.pages[pageId].nodes.headerTitle;
+      if (title.type !== "text") throw new Error("seed needs a title");
+      const id = state.createColorStyle("Brand", title.color, pageId, "headerTitle", "color");
+      expect(id).not.toBeNull();
+      const candidate = structuredClone(useEditorStore.getState().spec);
+      candidate.pages[pageId].responsive = { breakpoints: {}, overrides: {} };
+      expect(useEditorStore.getState().applyProjectEdit(candidate).ok).toBe(true);
+
+      useEditorStore.getState().setNodeField("cardA", "layout.gap", 16);
+      expect(useEditorStore.getState().spec.pages[pageId].nodes.cardA).toMatchObject({ layout: { gap: 16 } });
+      expect(useEditorStore.getState().spec.pages[pageId].nodes.headerTitle).toMatchObject({ styleRefs: { colors: { color: id } } });
+    });
+
+    it("deletes the last color and typography styles and detaches their references", () => {
+      const state = useEditorStore.getState();
+      const pageId = state.activePageId;
+      const title = state.spec.pages[pageId].nodes.headerTitle;
+      if (title.type !== "text") throw new Error("seed needs a title");
+      const colorId = state.createColorStyle("Brand", title.color, pageId, "headerTitle", "color");
+      const typographyId = useEditorStore.getState().createTypographyStyle("Heading", title.typography, pageId, "headerTitle");
+      expect(colorId).not.toBeNull();
+      expect(typographyId).not.toBeNull();
+      expect(useEditorStore.getState().deleteColorStyle(colorId!).ok).toBe(true);
+      expect(useEditorStore.getState().spec.styles?.colors?.[colorId!]).toBeUndefined();
+      expect(useEditorStore.getState().deleteTypographyStyle(typographyId!).ok).toBe(true);
+      expect(useEditorStore.getState().spec.styles?.typography?.[typographyId!]).toBeUndefined();
+      expect(useEditorStore.getState().spec.pages[pageId].nodes.headerTitle).not.toHaveProperty("styleRefs");
+      expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+    });
     it("a shared color update changes linked literal snapshots across pages in one Undo step", () => {
       const state = useEditorStore.getState();
       const pageId = state.activePageId;
