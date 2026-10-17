@@ -152,6 +152,20 @@ Merge Patch식) 일반 값 쓰기의 의미가 달라지고, 범용 필드 삭�
 2차 instance 생성·분리 명령(#265 S2-3)은 이 결정에 포함되지 않는다. 필요하면 이 문서 절차로 따로 정한다.
 병합 조건은 리더 승인 또는 리뷰어 1명 이상 승인이다(2026-10-13 리더 결정).
 
+### S2 위젯 프로젝트 명령 (2026-10-17)
+
+화면 한 장만 받는 외부 Transaction v0.2에는 여러 화면을 바꾸는 추출·분리를 넣지 않는다.
+GUI 내부 프로젝트 명령은 별도 `WidgetProjectCommand` v0.1로 시작한다.
+`extractWidget`은 `{version:"0.1",type:"extractWidget",pageId,nodeId,widgetId,name}`이고,
+선택한 루트 아닌 frame 서브트리를 새 widget 화면으로 옮겨 호스트를 instance로 바꾼다.
+`detachInstance`는 `{version:"0.1",type:"detachInstance",pageId,nodeId}`이고,
+원본 widget을 호스트에 새 ID로 복사한 뒤 instance를 로컬 wrapper frame으로 바꾼다.
+두 동작 모두 원본 프로젝트를 먼저, 후보 프로젝트를 마지막에 검증하고 한 Undo snapshot으로
+커밋한다. 실패와 취소는 원본·history를 유지한다. GUI 전용 명령이며 외부 NL protocol 2의
+명령 종류나 버전은 바꾸지 않는다. 추출 시 호스트의 visible/box responsive 표현은 instance에,
+원본 내부 표현은 widget에 둔다. 분리 시 호스트 wrapper와 원본 노드의 breakpoint를 폭으로
+결합하고 새 ID를 배정하며 명시 instance color는 원본 responsive color보다 우선한다.
+
 ### S1-3 구현 선행 계약 제안 — 2026-10-15
 
 상태: **리뷰 요청, 런타임 미구현.** #378은 D10 방향을 반영했고 아래 세부까지 확정하지 않았다.
