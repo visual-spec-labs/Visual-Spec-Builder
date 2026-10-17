@@ -25,7 +25,7 @@ export function ProjectExportPanel() {
     <p className="my-2 text-xs text-content-muted">{project.name} · 전체 화면과 모달</p>
     <p role="status" className="text-sm">{state?STATES[state]:error?'검사하지 못했습니다.':'프로젝트 전체 출력 검사 중…'}</p>
     {error&&<p role="alert" className="my-2 text-sm text-error">{error}</p>}
-    {result&&<><p className="my-2 text-xs">파일 {result.files.length}개 · 참조 오류 {result.report.errorCount}건 · 제외 widget {result.context.snapshot.plan.excludedPages.length}개</p>
+    {result&&<><p className="my-2 text-xs">파일 {result.files.length}개 · 참조 오류 {result.report.errorCount}건 · 미참조 widget {result.context.snapshot.plan.excludedPages.length}개</p>
       {result.report.issues.filter(issue=>issue.severity==='error').map((issue,index)=><p key={index} className="text-xs text-error">{issue.message}</p>)}
       <p className="text-xs text-content-muted">파일과 입력 지문 검사입니다. 실제 빌드·브라우저 검증은 별도로 필요합니다.</p></>}
     <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={()=>setRevision(value=>value+1)} disabled={busy}>다시 검사</button>

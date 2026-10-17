@@ -43,7 +43,7 @@ export async function prepareProjectBundle(input:ProjectExportInput):Promise<{zi
   }
   for(const [path,bytes] of assets)entries.push({path:`${folder}/${path}`,bytes});
   entries.push({path:`${folder}/package.json`,bytes:utf8Bytes(buildPackageJson(input.project.name,checked.report.packages))});
-  entries.push({path:`${folder}/README.md`,bytes:utf8Bytes(`# ${input.project.name}\n\n프로젝트 전체 화면과 모달, GUI runtime, 검증한 이미지 bytes를 포함합니다.\n\n진입점: runtime/Entry.tsx. React와 Tailwind 환경에 통합하고 package.json 의존성을 확인하세요.\n\n파일/참조/입력 지문 검사는 실제 typecheck, production build, 브라우저 시각 검증을 대신하지 않습니다.\n재사용 widget ${checked.context.snapshot.plan.excludedPages.length}개는 생성 범위에서 제외했습니다.\n`)});
+  entries.push({path:`${folder}/README.md`,bytes:utf8Bytes(`# ${input.project.name}\n\n프로젝트 전체 화면과 모달, 참조된 공유 widget, GUI runtime, 검증한 이미지 bytes를 포함합니다.\n\n진입점: runtime/Entry.tsx. React와 Tailwind 환경에 통합하고 package.json 의존성을 확인하세요.\n\n파일/참조/입력 지문 검사는 실제 typecheck, production build, 브라우저 시각 검증을 대신하지 않습니다.\n참조되지 않은 widget ${checked.context.snapshot.plan.excludedPages.length}개는 생성 범위에서 제외했습니다.\n`)});
   const zip=createZip(entries);
   const current=await readCurrentProjectContext({requestId:checked.context.snapshot.requestId,project:input.project,plan:checked.context.snapshot.plan,projectRoot:checked.context.projectRoot,isCurrent:input.isCurrent});
   if(current.fingerprints.project!==checked.context.fingerprints.project||!input.isCurrent())throw Error('내보내기 중 프로젝트 또는 이미지가 바뀌었습니다. 다시 검사하세요.');

@@ -5,7 +5,7 @@ export const UNSUPPORTED_SCREEN_RELATIONS_MESSAGE =
 
 /**
  * Legacy single-screen capability guard, not reference validation. Do not use at
- * load/save boundaries. The GUI routes projects with these features through v4;
+ * load/save boundaries. The GUI routes projects with these features through v4/v5;
  * direct v3 callers still cannot silently omit project context or action callbacks.
  * Inspect all nodes (including hidden ones); dangling targets are unsupported too.
  * An omitted kind or explicit page without actions keeps the existing single-page path.

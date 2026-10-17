@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import type { ProjectSpec } from '@/features/editor/schema';
+import type { FrameNode, ProjectSpec } from '@/features/editor/schema';
 import { compileProjectTickets } from '@/features/editor/ticket/compileProjectTickets';
 import { buildProjectInputSnapshot, createProjectAssetSnapshot, projectAssetPaths } from '@/features/editor/ticket/projectInputSnapshot';
 import { buildProjectTicketRequest } from '@/features/editor/ticket/projectTicketProtocol';
@@ -56,6 +56,25 @@ it('exports all pages/modals/runtime and deduplicates same bytes under their con
   const assets=paths.filter(path=>path.includes('/assets/'));expect(assets).toHaveLength(1);expect(entries.get(assets[0])).toEqual(io.disk.get('assets/a.svg'));
   expect(paths.some(path=>path.includes('/staging/')||path.includes('/backups/'))).toBe(false);
   const packagePath=paths.find(path=>path.endsWith('/package.json'))!;expect(JSON.parse(new TextDecoder().decode(entries.get(packagePath))).dependencies['fixture-package']).toBe('*');
+});
+it('exports one referenced shared widget with its asset and v5 manifest ownership',async()=>{
+  const widget=project.pages.notificationWidget;
+  const root=widget.nodes.root as FrameNode;
+  root.background=[{type:'image',src:'assets/widget.svg',fit:'cover'}];
+  io.disk.set('assets/widget.svg',bytes('<svg xmlns="http://www.w3.org/2000/svg" width="3"/>'));
+  for(const pageId of ['login','dashboard']){
+    const page=project.pages[pageId];
+    page.nodes[`shared-${pageId}`]={type:'instance',name:'Notification',box:{width:200,height:100},ref:'notificationWidget'};
+    (page.nodes.root as FrameNode).children.push({node:`shared-${pageId}`});
+  }
+  await generate();
+  expect((await inspectProjectExport(input())).evidence.inspection.state).toBe('current');
+  const entries=zipEntries((await prepareProjectBundle(input())).zip);
+  const paths=[...entries.keys()];
+  expect(paths.filter(path=>path.includes('/notificationWidget/components/'))).toHaveLength(2);
+  const manifest=JSON.parse(new TextDecoder().decode(io.disk.get(GENERATION_MANIFEST_PATH)!));
+  expect(Object.values(manifest.entries).filter((entry:any)=>entry.pageId==='notificationWidget').every((entry:any)=>entry.ticketProtocol===5)).toBe(true);
+  expect(paths.some(path=>path.includes('/assets/')&&new TextDecoder().decode(entries.get(path)!).includes('width="3"'))).toBe(true);
 });
 it('refuses partial provenance instead of exporting a page-only subset',async()=>{
   await generate(false);expect((await inspectProjectExport(input())).evidence.inspection.state).toBe('partial');await expect(prepareProjectBundle(input())).rejects.toThrow(/전체/);

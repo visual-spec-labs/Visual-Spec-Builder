@@ -30,7 +30,7 @@ function externalImages(project: StoredRequest['request']['project']) {
     if (item.type === 'image' && typeof item.src === 'string' && /^(https?:\/\/|data:)/i.test(item.src)) urls.add(item.src);
     Object.values(item).forEach(visit);
   };
-  for (const screen of Object.values(project.pages)) if (screen.kind !== 'widget') visit(screen);
+  for (const screen of Object.values(project.pages)) visit(screen);
   return [...urls];
 }
 
@@ -48,7 +48,7 @@ export async function planProjectOutputs(args: {
   const checked = validateProjectTicketRequest(prepared.request, prepared.snapshot.content, prepared.request.projectRoot);
   if (!checked.valid) throw Error(checked.message);
   const request = checked.request;
-  const response = parseProjectTicketResponse(JSON.stringify({protocol:4,requestId:request.id,results}), request);
+  const response = parseProjectTicketResponse(JSON.stringify({protocol:request.protocol,requestId:request.id,results}), request);
   if (response.kind !== 'results' || response.results.some(item => item.status !== 'done')) throw Error('완전한 성공 wave만 수용할 수 있습니다.');
   const storedInput = await readProjectFile(request.inputSnapshotPath, isCurrent);
   if (!storedInput || storedInput.revision !== request.inputSnapshotSha256 || strictProjectText(storedInput.bytes) !== prepared.snapshot.content) throw Error('저장된 요청 입력이 변경됐습니다.');
@@ -97,7 +97,7 @@ export async function planProjectOutputs(args: {
     if (definition.scope === 'page') {
       const ticket = context.snapshot.plan.tickets.find(ticket => ticket.id === definition.id)!;
       updates[path] = {requestId:request.id,ticketId:ticket.id,componentName:ticket.componentName,projectId:context.snapshot.projectId,pageId:ticket.sourcePageId,
-        componentKey:ticketComponentKey(ticket),inputScope:'page',inputFingerprint:definition.inputFingerprint,contentHash:contentHash(next),ticketProtocol:4,acceptedAt:new Date().toISOString()};
+        componentKey:ticketComponentKey(ticket),inputScope:'page',inputFingerprint:definition.inputFingerprint,contentHash:contentHash(next),ticketProtocol:request.protocol,acceptedAt:new Date().toISOString()};
     } else updates[path] = null; // GUI artifacts never receive a fictitious page identity.
   }
   const sidecar: ProjectGenerationProvenance = {protocol:1,projectId:context.snapshot.projectId,projectRoot:context.projectRoot,plan:context.snapshot.plan,

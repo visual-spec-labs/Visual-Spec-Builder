@@ -2,7 +2,7 @@ import { WORKSPACE_MAX_BODY_BYTES } from "@/features/workspace/protocol";
 import type { ProjectPlan } from "@/features/editor/ticket/types";
 import { validateProjectPlan } from "@/features/editor/ticket/validate";
 import { buildProjectInputSnapshot, createProjectAssetSnapshot, type ProjectInputSnapshot, type ProjectAssetSnapshot } from "@/features/editor/ticket/projectInputSnapshot";
-import { assertProjectOutputPaths, buildProjectTicketRequest, isProjectTicketRequestId } from "@/features/editor/ticket/projectTicketProtocol";
+import { assertProjectOutputPaths, buildProjectTicketRequest, isProjectTicketRequestId, projectTicketProtocol } from "@/features/editor/ticket/projectTicketProtocol";
 import { canonicalJson, sha256Hex } from "./contentHash";
 import { generatedTicketPath, ticketComponentKey } from "./generationIdentity";
 import type { GenerationManifest } from "./generationManifest";
@@ -54,11 +54,14 @@ function coherentPlan(plan: ProjectPlan): boolean {
   }
   for (const ticket of plan.tickets) for (const id of ticket.dependsOn) {
     const dependency = plan.tickets.find(item => item.id === id);
-    if (!dependency || dependency.sourcePageId !== ticket.sourcePageId || dependency.kind !== "component") return false;
+    if (!dependency || dependency.kind !== "component" || (dependency.sourcePageId !== ticket.sourcePageId && !dependency.widgetRoot)) return false;
   }
   const roots = plan.tickets.filter(ticket => ticket.kind === "page");
   const pages = new Set(plan.tickets.map(ticket => ticket.sourcePageId));
-  if (roots.length !== pages.size || new Set(roots.map(ticket => ticket.sourcePageId)).size !== pages.size) return false;
+  const widgetRoots = plan.tickets.filter(ticket => ticket.widgetRoot);
+  if (widgetRoots.some(ticket => ticket.kind !== "component")
+    || roots.length + widgetRoots.length !== pages.size
+    || new Set([...roots, ...widgetRoots].map(ticket => ticket.sourcePageId)).size !== pages.size) return false;
   if (new Set(plan.routes.map(route => route.pageId)).size !== plan.routes.length || !plan.routes.some(route => route.pageId === plan.entryPageId)) return false;
   if (plan.routes.some(route => !roots.some(root => root.id === route.ticketId && root.sourcePageId === route.pageId))) return false;
   const routeIds = new Set(plan.routes.map(route => route.ticketId));
@@ -125,7 +128,7 @@ export function inspectProjectGeneration(args: {
         const entry = manifest?.entries[output.filePath];
         const ticket = record.plan.tickets.find(ticket => ticket.id === output.id)!;
         if (manifest?.protocol !== 2 || manifest.projects[record.projectId]?.outputDir !== record.projectRoot
-          || !entry || entry.ticketProtocol !== 4 || entry.projectId !== record.projectId || entry.pageId !== output.sourcePageId
+          || !entry || entry.ticketProtocol !== projectTicketProtocol(record.plan) || entry.projectId !== record.projectId || entry.pageId !== output.sourcePageId
           || entry.ticketId !== output.id || entry.requestId !== output.requestId || entry.contentHash !== `sha256:${output.sha256}`
           || entry.inputFingerprint !== output.inputFingerprint || entry.componentKey !== ticketComponentKey(ticket)
           || entry.componentName !== ticket.componentName || entry.inputScope !== "page") return unverified("기존 manifest와 프로젝트 수용 기록이 다릅니다.");

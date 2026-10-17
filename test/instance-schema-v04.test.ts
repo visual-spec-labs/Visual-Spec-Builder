@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { migrateToV04, validateProjectSpec, validateVisualSpec } from '@/features/editor/schema';
 import { validateCommand } from '@/features/editor/command/validate';
 import { applyCommand } from '@/features/editor/command/applyCommand';
-import { compileProjectTickets, ProjectPlanError } from '@/features/editor/ticket/compileProjectTickets';
+import { compileProjectTickets } from '@/features/editor/ticket/compileProjectTickets';
 import { compileTickets } from '@/features/editor/ticket/compileTickets';
 import { hasUnsupportedScreenRelations } from '@/features/editor/ticket/screenRelationsGuard';
 import { isEditableNodePath } from '@/features/editor/command/editablePath';
@@ -89,10 +89,14 @@ describe('IR 0.4 instance schema boundary', () => {
     expect(applyCommand(screen as any, { type: 'createNode', parentId: 'root', id: 'new', node: instance })).not.toBe(screen);
   });
 
-  it('blocks project generation while any widget instance is unsupported', () => {
+  it('plans the referenced widget exactly once as a shared root dependency', () => {
     const project = projectWithInstance();
     project.projectId = 'example';
-    expect(() => compileProjectTickets(project as any)).toThrow(ProjectPlanError);
+    const plan = compileProjectTickets(project as any);
+    const roots = plan.tickets.filter(ticket => ticket.widgetRoot);
+    expect(roots).toHaveLength(1);
+    expect(roots[0].sourcePageId).toBe('shared');
+    expect(plan.tickets.some(ticket => ticket.sourcePageId === 'login' && ticket.dependsOn.includes(roots[0].id))).toBe(true);
   });
 
   it('blocks the legacy compiler and allows only displayed instance size edits', () => {

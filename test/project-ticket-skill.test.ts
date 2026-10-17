@@ -7,11 +7,23 @@ import { parseProjectTicketResponse, type ProjectTicketRequest } from '@/feature
 
 const source=readFileSync(new URL('../skills/visual-spec-ticket-response/examples/Screen.tsx',import.meta.url),'utf8');
 const contract=readFileSync(new URL('../skills/visual-spec-ticket-response/PROJECT_V4.md',import.meta.url),'utf8');
+const widgetContract=readFileSync(new URL('../skills/visual-spec-ticket-response/PROJECT_V5.md',import.meta.url),'utf8');
 const hashes=['a'.repeat(64),'b'.repeat(64)];
 
 describe('shipped project skill executable examples (not AI execution)',()=>{
+  it('ships distinct v5 response examples and shared-widget instructions',()=>{
+    const request:Pick<ProjectTicketRequest,'id'|'tickets'|'protocol'>={protocol:5,id:'v5-example',tickets:[{id:'shared:Shared',sourcePageId:'shared',componentName:'Shared',kind:'component',instances:['root'],filePath:'my-app/shared/components/Shared.tsx',outputPath:'staging/v5-example/my-app/shared/components/Shared.tsx'}]};
+    const examples=[...widgetContract.matchAll(/```json\n([\s\S]*?)\n```/g)].map(match=>JSON.parse(match[1]));
+    expect(examples).toHaveLength(2);
+    for(const response of examples){
+      response.results[0].ticketId=request.tickets[0].id;
+      expect(parseProjectTicketResponse(JSON.stringify(response),request).kind).toBe('results');
+    }
+    expect(widgetContract).toContain('widgetRoot');
+    expect(widgetContract).toContain('직접 원본 Text/Button');
+  });
   it('parses both shipped response examples with ticketId and rejects the ambiguous request-side id key',()=>{
-    const request:Pick<ProjectTicketRequest,'id'|'tickets'>={id:'v4-example',tickets:[{id:'home:Home',sourcePageId:'home',componentName:'Home',kind:'page',instances:['root'],filePath:'my-app/home/pages/Home.tsx',outputPath:'staging/v4-example/my-app/home/pages/Home.tsx'}]};
+    const request:Pick<ProjectTicketRequest,'id'|'tickets'|'protocol'>={protocol:4,id:'v4-example',tickets:[{id:'home:Home',sourcePageId:'home',componentName:'Home',kind:'page',instances:['root'],filePath:'my-app/home/pages/Home.tsx',outputPath:'staging/v4-example/my-app/home/pages/Home.tsx'}]};
     const examples=[...contract.matchAll(/```json\n([\s\S]*?)\n```/g)].map(match=>JSON.parse(match[1]));
     expect(examples).toHaveLength(2);
     for(const response of examples){

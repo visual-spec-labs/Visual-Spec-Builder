@@ -4,6 +4,7 @@ import { WORKSPACE_DIR_RULES, WORKSPACE_MAX_BODY_BYTES } from "@/features/worksp
 import { isWorkspaceSegment } from "@/features/workspace/workspaceSegment";
 import { validateProjectPlanContext } from "./compileProjectTickets";
 import type { ProjectPlan } from "./types";
+import { referencedWidgets } from "./widgetReachability";
 
 export const PROJECT_INPUT_PROTOCOL = 1;
 const REQUEST_ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -94,8 +95,8 @@ export function createProjectAssetSnapshot(sourcePath: string, bytes: Uint8Array
     zipPath: `assets/${sha256}.${MEDIA_EXTENSIONS[mediaType]}`, dataBase64: encodeBase64(bytes) };
 }
 
-/** Include hidden nodes and every responsive background; valid S1 widgets are explicitly excluded. */
-export function projectAssetPaths(project: ProjectSpec): string[] {
+/** Include hidden nodes and every responsive background from generated sources. */
+export function projectAssetPaths(project: ProjectSpec, pageIds?: readonly string[]): string[] {
   const paths = new Set<string>();
   const add = (source: string) => {
     if (validAssetPath(source)) paths.add(source);
@@ -106,9 +107,10 @@ export function projectAssetPaths(project: ProjectSpec): string[] {
   const background = (value: unknown) => {
     if (Array.isArray(value)) for (const fill of value) if (fill.type === "image") add(fill.src);
   };
-  for (const pageId of project.pageOrder) {
+  const widgets = pageIds ? null : referencedWidgets(project);
+  const included = pageIds ?? project.pageOrder.filter(id => project.pages[id].kind !== 'widget' || widgets!.has(id));
+  for (const pageId of included) {
     const screen = project.pages[pageId];
-    if (screen.kind === "widget") continue;
     for (const node of Object.values(screen.nodes)) {
       if (node.type === "image") add(node.src);
       if ("background" in node) background(node.background);
@@ -146,7 +148,7 @@ function validateSnapshot(value: unknown): asserts value is ProjectInputSnapshot
   if (canonicalJson([...seen]) !== canonicalJson(projectAssetPaths(project))) throw Error("프로젝트 자산 mapping에 누락 또는 미참조 자산이 있습니다.");
 }
 
-/** Pure preparation; producer must persist content create-only before publishing a v4 request. */
+/** Pure preparation; producer must persist content create-only before publishing a project request. */
 export function buildProjectInputSnapshot(requestId: string, project: ProjectSpec, plan: ProjectPlan, assets: ProjectAssetSnapshot[]) {
   const path = projectInputSnapshotPath(requestId);
   if (assets.reduce((sum, asset) => sum + asset.dataBase64.length, 0) >= WORKSPACE_MAX_BODY_BYTES) throw sizeError();

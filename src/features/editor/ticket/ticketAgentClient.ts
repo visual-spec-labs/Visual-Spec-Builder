@@ -41,7 +41,7 @@ import {
 } from "./ticketProtocol";
 
 import { prepareStoredProjectRequest } from "@/features/editor/ui/projectInputStorage";
-import { parseProjectTicketResponse, serializeProjectTicketRequest, PROJECT_TICKET_PROTOCOL_VERSION, type ProjectTicketResponse } from "./projectTicketProtocol";
+import { parseProjectTicketResponse, serializeProjectTicketRequest, type ProjectTicketResponse } from "./projectTicketProtocol";
 
 /** 응답을 확인하는 간격. `nlAgentClient.NL_POLL_INTERVAL_MS`와 같은 값이다. */
 export const TICKET_POLL_INTERVAL_MS = 1000;
@@ -139,7 +139,7 @@ export async function requestProjectTicketBatch(
     const outcome = await sendTicketTransport(captured.requestId, async () => {
       prepared = await prepareStoredProjectRequest({ ...captured, isCurrent: () => !current.cancelled });
       const { request } = prepared;
-      return { id: request.id, protocol: PROJECT_TICKET_PROTOCOL_VERSION, body: serializeProjectTicketRequest(request),
+      return { id: request.id, protocol: request.protocol, body: serializeProjectTicketRequest(request),
         parse: (text: string | null) => text === null ? { kind: "stale" as const } : parseProjectTicketResponse(text, request) };
     }, current, wait, true, true);
     if (outcome.kind !== "response") return outcome;

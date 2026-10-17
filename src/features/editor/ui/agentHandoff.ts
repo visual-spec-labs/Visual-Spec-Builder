@@ -31,7 +31,7 @@ export function buildNlAgentInstruction(): string {
 }
 
 /** 구현 티켓 웨이브를 처리하도록 에이전트에게 건넬 문단. */
-export function buildTicketAgentInstruction(protocol: 3 | 4 = TICKET_PROTOCOL_VERSION): string {
+export function buildTicketAgentInstruction(protocol: 3 | 4 | 5 = TICKET_PROTOCOL_VERSION): string {
   return (
     `visual-spec-ticket-response 스킬과 그 스킬이 참조하는 visual-spec-to-react ` +
     `지침을 읽고, 현재 ${WORKSPACE_DIR_NAME}/${TICKET_REQUEST_PATH}의 한 웨이브를 처리해 줘. ` +
