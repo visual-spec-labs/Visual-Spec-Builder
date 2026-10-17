@@ -12,8 +12,10 @@ import {
 } from "@/features/editor/schema";
 
 const EXAMPLES_DIR = new URL("../examples/", import.meta.url);
-const examples = readdirSync(EXAMPLES_DIR)
-  .filter((file) => file.endsWith(".json"))
+// S1-1 only promises that the 11 pre-existing examples did not acquire kind/action.
+// S2's new shared-widget example intentionally uses both fields and is checked separately.
+const legacyExamples = readdirSync(EXAMPLES_DIR)
+  .filter((file) => file.endsWith(".json") && file !== "shared-widget-project.json")
   .map((file) => [file, JSON.parse(readFileSync(new URL(file, EXAMPLES_DIR), "utf8"))] as const);
 
 function project() {
@@ -35,7 +37,7 @@ function schemaOnly(result: ReturnType<typeof validateVisualSpec>) {
 }
 
 describe("화면 종류·연결 선택 확장 (#265 S1-1)", () => {
-  it.each(examples)("기존 예제 %s는 고치지 않고 그대로 통과하며 새 필드를 쓰지 않는다", (_file, spec) => {
+  it.each(legacyExamples)("기존 예제 %s는 고치지 않고 그대로 통과하며 새 필드를 쓰지 않는다", (_file, spec) => {
     const result = "pages" in spec ? validateProjectSpec(spec) : validateVisualSpec(spec);
     expect(result).toEqual({ valid: true, issues: [] });
     expect(JSON.stringify(spec)).not.toMatch(/"(kind|action)":/);
