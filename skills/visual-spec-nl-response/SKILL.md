@@ -48,7 +48,7 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 
 | 필드 | 뜻 |
 |---|---|
-| `commandVersion` | Command 버전. 정확히 문자열 `"0.2"`이며 성공 응답에 그대로 포함한다 |
+| `commandVersion` | Command 버전. 정확히 문자열 `"0.3"`이며 성공 응답에 그대로 포함한다 |
 | `protocol` | 형식 버전. 지금은 `2`. 응답에도 **그대로** 돌려줘야 한다 |
 | `id` | 이 요청의 식별자. 응답에는 이 값을 `requestId`라는 **다른 이름**으로 돌려준다(아래 참고) |
 | `instruction` | 사용자가 입력창에 적은 자연어 원문 |
@@ -65,9 +65,9 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 
 ## 버전 관문 — 파일 쓰기 전에 확인
 
-이 스킬은 NL 요청 **protocol 2 + commandVersion "0.2"**만 처리한다. 숫자/누락/다른 버전을
+이 스킬은 NL 요청 **protocol 2 + commandVersion "0.3"**만 처리한다. 숫자/누락/다른 버전을
 자동 보정하지 않는다. protocol 1 요청에는 `{ "protocol": 1, "requestId": "<요청 id>",
-"error": "GUI와 visual-spec skills를 업데이트하세요. Command 0.2가 필요합니다." }`로만 응답하고
+"error": "GUI와 visual-spec skills를 업데이트하세요. Command 0.3가 필요합니다." }`로만 응답하고
 commands를 만들지 않는다. 그 밖의 버전 불일치는 요청 protocol의 error 응답으로 업데이트를 안내한다.
 
 ## 화면 연결 대상 확인 (S1-10)
@@ -96,7 +96,7 @@ commands를 만들지 않는다. 그 밖의 버전 불일치는 요청 protocol�
 
 ## 응답 만들기 — Command 배열
 
-Command 7종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·`updateScreen`·`removeNodeAction`)의
+Command 15종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·`updateScreen`·`removeNodeAction`·`createColorStyle`·`updateColorStyle`·`deleteColorStyle`·`applyColorStyle`·`createTypographyStyle`·`updateTypographyStyle`·`deleteTypographyStyle`·`applyTypographyStyle`)의
 정확한 필드는 Command 계약 문서와 스키마가 정본이다 — 사용자 프로젝트는 함께 설치된
 `../visual-spec/contract/docs/09-command-schema-freeze.md`·`../visual-spec/contract/schema/command.schema.json`,
 저장소 안은 `docs/09-command-schema-freeze.md`·`src/features/editor/command/types.ts`. 요약:
@@ -110,6 +110,14 @@ Command 7종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
 | `moveNode` | `id`·`newParentId`·`index` | 노드를 다른 부모나 다른 위치로 옮긴다 |
 | `setLayout` | `id`·`layout`(완전한 Layout 객체) | frame의 레이아웃을 통째로 갈아 끼운다. frame 아닌 노드에는 no-op |
 | `updateScreen` | `path`·`value` | 페이지 자신의 필드(`name`·`size`)를 바꾼다. 노드를 가리키지 않는다 |
+| `createColorStyle` | `id`·`name`·`value` | 새 색 스타일을 만든다. ID는 안정 ID 규칙을 따르고 이름은 프로젝트 내 고유해야 한다 |
+| `updateColorStyle` | `id`·`name`·`value` | 기존 색 스타일을 갱신한다. 연결된 페이지 전체의 리터럴 사본이 함께 갱신된다 |
+| `deleteColorStyle` | `id` | 카탈로그 항목을 지우고 연결은 해제한다. 노드 색 리터럴은 보존한다 |
+| `createTypographyStyle` | `id`·`name`·`value` | 새 글자 스타일을 만든다. `value`는 Typography 6필드 전체다 |
+| `updateTypographyStyle` | `id`·`name`·`value` | 기존 글자 스타일의 표시 이름과 6개 필드 값을 갱신한다 |
+| `deleteTypographyStyle` | `id` | 카탈로그 항목을 지우고 연결은 해제한다. 노드의 Typography 값은 보존한다 |
+| `applyColorStyle` | `id`·`nodeId`·`target` | 해당 페이지 노드의 지원 색 속성에 색 스타일을 연결한다 |
+| `applyTypographyStyle` | `id`·`nodeId` | 해당 페이지 노드의 6개 Typography 필드에 글자 스타일을 연결한다 |
 
 새 노드마다 고유한 `id`를 만든다(패턴 `^[A-Za-z0-9_-]+$`) — `page.nodes`에 이미 있는 키와
 겹치면 안 된다. `parentId`로 쓸 노드는 **frame이어야 한다**(text·image·button·input은 자식을
@@ -271,7 +279,7 @@ Command 7종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·
 
 **성공**
 ```json
-{ "protocol": 2, "commandVersion": "0.2", "requestId": "<요청의 id 값>", "commands": [ /* Command 배열 */ ] }
+{ "protocol": 2, "commandVersion": "0.3", "requestId": "<요청의 id 값>", "commands": [ /* Command 배열 */ ] }
 ```
 
 **프레임을 위젯으로 추출하고 다른 페이지에도 배치** — 한 프로젝트 명령이며 `commands`는 생략한다.
@@ -284,7 +292,7 @@ GUI는 응답 대기 중 프로젝트 변경을 거부하고, 원본·대상·�
 생성)이거나 요청이 모호하면 `commands` 대신 `error`를 쓴다. `commands: []`는 쓰지 않는다 —
 Transaction은 Command가 최소 1개 필요하다(스키마가 거부한다).
 ```json
-{ "protocol": 2, "commandVersion": "0.2", "requestId": "<요청의 id 값>", "error": "프로젝트에 없는 관계 대상을 추측할 수 없습니다 — 대상 PageId를 확인해 주세요" }
+{ "protocol": 2, "commandVersion": "0.3", "requestId": "<요청의 id 값>", "error": "프로젝트에 없는 관계 대상을 추측할 수 없습니다 — 대상 PageId를 확인해 주세요" }
 ```
 
 `requestId`는 **요청의 `id` 필드 값을 그대로** 넣는다(필드 이름이 바뀌는 걸 놓치기 쉽다 —
@@ -305,15 +313,15 @@ Undo가 어긋난다. 대신 같은 Command를 GUI에 보내 GUI가 검증·적�
    ("이 버튼"이 가리키는 노드), `stateRevision`, `fileName`을 읽는다. 노드 id와 현재 값은 `page`에서만
    가져온다 — 파일을 다시 읽지 않는다(GUI의 미저장 편집이 반영된 쪽이 `page`다).
 3. **버전·지원 명령을 확인하고 Command를 만든다.** gui-state의 protocol이 정확히 2,
-   capabilities.commandVersion이 정확히 "0.2"이고 capabilities.commands 배열에 사용할 명령이
+   capabilities.commandVersion이 정확히 "0.3"이고 capabilities.commands 배열에 사용할 명령이
    모두 있어야 한다. 누락/불일치면 agent-edit.json을 쓰지 않고 GUI와 `visual-spec skills` 갱신을
    안내한다. GUI 종료로 오인하거나 specs 파일을 직접 수정해 우회하지 않는다.
-    위 "응답 만들기" 절과 같은 Command 7종·규칙을 쓴다. 활성 페이지 한 장만
+    위 "응답 만들기" 절과 같은 Command 15종·규칙을 쓴다. 활성 페이지 한 장만
    다룬다.
 4. **`.visual-spec/runtime/agent-edit.json`에 쓴다**(임시 파일에 쓰고 rename으로 교체한다).
    ```json
    {
-     "protocol": 2, "commandVersion": "0.2",
+     "protocol": 2, "commandVersion": "0.3",
      "id": "<새 고유 id — 요청마다 다르게>",
      "baseStateRevision": "<gui-state.json의 stateRevision 그대로>",
      "pageId": "<gui-state.json의 pageId 그대로>",
@@ -399,7 +407,7 @@ button의 action은 `updateNode(path: "action")`으로 전체 객체를 교체�
 `page.nodes.title.typography.fontSize`가 지금 24.
 
 ```json
-{ "protocol": 2, "commandVersion": "0.2", "requestId": "req-abc",
+{ "protocol": 2, "commandVersion": "0.3", "requestId": "req-abc",
   "commands": [
     { "type": "updateNode", "id": "title", "path": "typography.fontSize", "value": 32 }
   ] }
@@ -414,7 +422,7 @@ Command 9개, 3종(`updateScreen`·`setLayout`·`createNode`)으로 만든다.
 `08-natural-language.md`(로컬 계약 `docs/`) 3.3의 4노드 분석은 확장 전 기록이다.
 
 ```json
-{ "protocol": 2, "commandVersion": "0.2", "requestId": "req-xyz",
+{ "protocol": 2, "commandVersion": "0.3", "requestId": "req-xyz",
   "commands": [
     { "type": "updateScreen", "path": "name", "value": "Login" },
     { "type": "updateScreen", "path": "size", "value": { "width": 390, "height": 844 } },

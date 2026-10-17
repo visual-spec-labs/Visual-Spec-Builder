@@ -26,11 +26,7 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 | 가르는 키 | `screen` | `pages` |
 | 정본에서의 위치 | **스키마 루트** | `$defs.ProjectSpec` |
 
-**버전 문자열은 IR 세대를 뜻한다(#127).** 0.2까지는 `VisualSpec`이 `"0.1"`, `ProjectSpec`이
-`"0.2"`였고 버전으로 둘을 갈랐다. 배경이 채우기 겹 배열로 바뀌면서(아래 Background) 둘 다
-`"0.3"`이 됐고, 화면 문서와 프로젝트 문서는 이제 키(`screen` / `pages`)로 가른다. 0.1·0.2 파일은
-앱이 열 때 `migrateToV04`로 자동 변환한다(검증 전에). 현재 저장 버전은 0.4다. v0.3의
-배경 표현 기록은 [06의 v0.3 절](06-schema-freeze.md#v03--배경-채우기-겹-배열-2026-10-04-추가-127)에 남긴다.
+**버전 문자열은 IR 세대를 뜻한다.** 0.3에서 배경이 채우기 겹 배열로 바뀌었고, 0.4에서 프로젝트 색·글자 스타일 연결과 button/input 상태 스타일이 추가됐다. 화면 문서와 프로젝트 문서는 키(`screen` / `pages`)로 가른다. 0.1~0.3 파일은 열 때 순서대로 마이그레이션한 뒤 검증한다. 저장은 항상 0.4다 — 자세한 것은 [06의 v0.4 절](06-schema-freeze.md#v04--프로젝트-스타일과-컨트롤-상태-스타일-2026-10-16)을 참조한다.
 
 `ProjectSpec`이 루트가 아니라 `$defs` 항목인 이유는 06의 v0.2 절 참고.
 
@@ -71,6 +67,8 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
   - `radius`는 숫자 하나 또는 모서리별 객체(`topLeft` `topRight` `bottomRight` `bottomLeft`)
   - `align`은 `inside` | `center` | `outside`, 생략 시 `inside`
 - Typography
+- `ProjectSpec.styles` 색·글자 스타일 카탈로그와 노드 `styleRefs` 연결. 노드 리터럴은 값 사본으로 유지하고, 프로젝트 검증에서 참조/값 정합성을 확인한다.
+- Button/Input의 `states`: hover·pressed·focus별 선택 배경색·글자색·테두리색. 상태 배경은 단색 한 겹이다.
 - 효과
   - Shadow — `frame`만
   - Opacity — `frame` · `text` · `image`, 생략 시 `1`
@@ -81,12 +79,12 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 
 - InstanceNode
 - ComponentSpec
-- TokenSet
+- 일반 TokenSet / spacing 토큰 (이름 있는 색·글자 스타일은 v0.4에서 지원)
 - props
 - bindings
 - events
 - variants
-- states
+- 다른 노드의 states, disabled 등 추가 상태
 - slots
 - 반응형 GUI·코드 생성 — IR 선택 필드는 아래 #222 PR 제안 절을 참조한다.
 - Tailwind 클래스 변환
@@ -194,23 +192,3 @@ S1-4 전에는 GUI 페이지 삭제가 유입 action을 정리하지 않아 위 
 문서를 버리지 않지만 Save는 막힌다 — [06의 S1-2 절](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)을 참조한다.
 현재 modal/widget 또는 버튼 action이 있는 화면의 요청 전송·출력 수용·코드 Export는 임시 차단한다.
 JSON 가져오기·저장은 보존하며, 상세 범위와 해제 조건은 [06의 임시 차단](06-schema-freeze.md#s1-1-생성export-임시-차단)을 따른다.
-
-## IR v0.4 instance 노드 (#265 S2-1)
-
-`Node`에 `instance`가 추가됐다. 필수 `type`, `name`, `box`, `ref`와 선택 `visible`,
-`overrides`만 허용한다. `ref`는 같은 프로젝트의 widget `PageId`다. `overrides`는 원본
-widget의 직접 `NodeId`별 `content`/`color` 객체다. 호스트 반응형 값은 `visible`과
-`PartialBox`만 덮을 수 있다. 스키마는 닫힌 모양을 검사하며 ref의 존재·kind·순환·
-override 대상 및 합성 결과는 S2-2 프로젝트 의미 검증에서 검사한다.
-
-`migrateToV04`는 기존 0.1/0.2/0.3을 현재 버전으로 올린다. 구버전 문서에 이미
-`instance`가 있으면 버전을 유지하고 거부한다. 기존 `migrateToV03` 공개 함수는 과거
-0.3 변환 의미를 유지한다. 0.3 소비자에게 instance를 제거해 저장하지 않는다.
-
-### S2-2 프로젝트 의미 검증
-
-`validateProjectSpec`은 스키마와 각 화면의 로컬 구조를 통과한 뒤 모든 instance의 ref를
-같은 프로젝트의 widget에 대조한다. `instance-ref-missing`, `instance-ref-kind`,
-`instance-cycle`, `instance-override-invalid`를 반환한다. override는 widget의 직접
-Text/Button 노드만 가리킬 수 있고, Button의 빈 content는 무효다. 여러 화면이 같은 widget을
-참조하는 DAG는 유효하다. 독립 `validateVisualSpec`은 외부 ref를 확인하지 않는다.

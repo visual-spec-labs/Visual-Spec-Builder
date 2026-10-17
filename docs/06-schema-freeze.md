@@ -4,10 +4,10 @@
 
 이 문서는 v0.1 계약이 무엇을 보장하고 무엇을 보장하지 않는지, 그리고 언제 바꿀 수 있는지를 적는다.
 
-> **현재 버전은 0.4다 (2026-10-16 기준).** 정본 `src/features/editor/schema/visual-spec.schema.json`의
-> `VisualSpec`·`ProjectSpec` 모두 `version: "0.4"`다. 동결은 v0.1에서 시작했고, 이후 변경은 아래
+> **현재 버전은 0.4이다 (2026-10-16 기준).** 정본 `src/features/editor/schema/visual-spec.schema.json`의
+> `VisualSpec`·`ProjectSpec` 모두 `version: "0.4"`이다. 동결은 v0.1에서 시작했고, 이후 변경은 아래
 > "변경 규칙" 절차를 거쳐 절 단위로 추가됐다 — [v0.2 — ProjectSpec](#v02--projectspec-2026-09-01-추가)(#60),
-> [v0.3 — 배경 채우기 겹 배열](#v03--배경-채우기-겹-배열-2026-10-04-추가-127)(#127),
+> [v0.3 — 배경 채우기 겹 배열](#v03--배경-채우기-겹-배열-2026-10-04-추가-127)(#127), [v0.4 — 프로젝트 스타일과 상태 스타일](#v04--프로젝트-스타일과-컨트롤-상태-스타일-2026-10-16),
 > 그리고 버전을 올리지 않은 선택 확장인 [반응형](#반응형-선택-확장--222-pr-제안)(#245)과
 > [이미지 배경](#이미지-배경-추가-계약-235-팀-리뷰-필요)(#254·#257). 각 절은 추가 당시의 기록이므로
 > 본문의 "v0.1" 표기는 그 시점 기준으로 읽는다. 제목은 버전을 빼고 이 문서의 역할로 바꿨다(파일 경로는 그대로).
@@ -31,17 +31,19 @@
 - `typography`
 - `shadow` · `opacity` · `blur`
 - `ScreenSpec.responsive` — 선택적 breakpoint·노드별 표현 override. 아래 반응형 확장 계약 참고.
-- `ScreenSpec.kind`·`ButtonNode.action` — 화면 종류와 버튼 하나의 화면 간 동작. 아래 "화면 종류·연결 선택 확장" 절(#265 S1-1 제안) 참고.
+- `ScreenSpec.kind`·`ButtonNode.action` — 화면 종류와 버튼 하나의 화면 간 동작. 아래 "화면 종류·연결 선택 확장" 절 참고.
+- `ProjectSpec.styles`, `Node.styleRefs` — 프로젝트 색·글자 카탈로그와 값 사본 연결.
+- `ButtonNode.states`·`InputNode.states` — hover·pressed·focus의 background/color/borderColor. 상태 배경은 단색 값이며 전체 background를 대체한다.
 
 지원하지 않는다.
 
 - `component`
 - `event`
-- `token`
+- 일반 `token` (이름 있는 색·글자 스타일 참조는 v0.4에서 지원)
 - 배경의 `radial` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). `image` 겹도 정본(#254)·편집·렌더·Export(#257)가 지원한다(아래 "이미지 배경 추가 계약" 절). 둘 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
-`instance`, `props`, `bindings`, `variants`, `states`, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
+`instance`, `props`, `bindings`, `variants`, 다른 노드/상태의 states, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
 
 ---
 
@@ -375,6 +377,30 @@ import {
 
 ---
 
+## v0.4 — 프로젝트 스타일과 컨트롤 상태 스타일 (2026-10-16, #290)
+
+VisualSpec과 ProjectSpec 모두 버전은 `"0.4"`이다. 0.1~0.3 문서는 `migrateToV03` 후 `migrateToV04`를 거쳐 열며 기존 리터럴 렌더 결과를 보존한다.
+
+- `ProjectSpec.styles.colors`와 `.typography`는 stable ID 키의 카탈로그다. 표시 이름은 종류별 대소문자 무시 중복을 금지한다. 노드 `styleRefs`는 타깃별 색 ID 또는 타이포그래피 ID를 기록하며, 노드 리터럴은 값 사본으로 남는다. 프로젝트 검증기는 카탈로그 참조와 사본 일치를 확인한다.
+- 스타일을 연결/수정/삭제하는 편집은 전체 후보 프로젝트를 검증한 뒤 한 번의 history 편집으로 커밋한다. 일반 속성 직접 수정은 해당 색 연결 또는 타이포그래피 묶음 연결을 끊고 해당 값만 변경한다.
+- `toStandaloneVisualSpec(project, pageId)`는 프로젝트를 검증하고 페이지 복사본의 스타일 연결만 제거한다. 값 사본과 원본 프로젝트는 보존된다. 낮은 수준의 `toVisualSpec(page)`는 연결이 남은 화면을 거부한다.
+- Button/Input은 `states.hover|pressed|focus`에서 `background`, `color`, `borderColor`를 선택할 수 있다. 상태 배경은 전체 배경을 덮는 단색이다. 캔버스와 생성 스킬은 동시 상태 우선순위 pressed > focus > hover를 적용하고 기본 focus-visible 표시를 유지한다.
+- 일반 spacing token, 추가 폰트, CSS 변수 출력은 #290의 채택 범위 밖/보류로 남는다.
+
+검증 범위는 schema·migration·store·standalone 변환·GUI 상태 미리보기·생성 지침·Ticket 구조 식별 회귀 테스트다. Command 계약은 기존 Transaction v0.3을 유지하며 프로젝트 스타일 작업은 프로젝트 store API로 수행한다.
+
+## v0.4 — 프로젝트 스타일과 컨트롤 상태 스타일 (2026-10-16, #290)
+
+VisualSpec과 ProjectSpec 모두 `"0.4"`이다. 0.1~0.3 문서는 `migrateToV03` 후 `migrateToV04`를 거쳐 열며 기존 리터럴 렌더 결과를 보존한다.
+
+- `ProjectSpec.styles.colors`와 `.typography`는 stable ID 키의 카탈로그다. 표시 이름은 종류별 대소문자 무시 중복을 금지한다. 노드 `styleRefs`는 타깃별 색 ID 또는 타이포그래피 ID를 기록하며, 노드 리터럴은 값 사본으로 남는다. 프로젝트 검증기는 카탈로그 참조와 사본 일치를 확인한다.
+- 스타일 연결·수정·삭제 편집은 전체 후보 프로젝트를 검증한 뒤 한 번의 history 편집으로 커밋한다. 일반 속성 직접 수정은 해당 색 연결 또는 타이포그래피 묶음 연결을 끊고 해당 값을 변경한다.
+- `toStandaloneVisualSpec(project, pageId)`는 검증 후 페이지 복사본의 스타일 연결만 제거한다. 값 사본과 원본 프로젝트는 보존된다. `toVisualSpec(page)`는 연결이 남은 화면을 거부한다.
+- Button/Input은 `states.hover|pressed|focus`에서 `background`, `color`, `borderColor`를 선택할 수 있다. 상태 배경은 전체 배경을 대체하는 단색이다. 캔버스와 생성 지침은 동시 상태 순서를 pressed > focus > hover로 적용하고 기본 focus-visible 표시를 유지한다.
+- 일반 spacing token, 추가 폰트, CSS 변수 출력은 #290의 채택 범위 밖 또는 보류로 남는다.
+
+검증 범위는 schema·migration·store·standalone 변환·GUI 상태 렌더·생성 지침·Ticket 구조 식별 회귀다. Command Transaction은 v0.3이며 프로젝트 스타일 편집은 프로젝트 API를 거친다.
+
 ## 변경 규칙
 
 **이번 스프린트 동안 스키마를 함부로 바꾸지 않는다.**
@@ -627,27 +653,3 @@ Open/Save/NL G3는 엄격하며 기존 오류 안내와 미검증 복구 사본 
 기존 `validateProjectSpec`의 결과/오류 순서는 유지하며 NL G3·Open·Save는 기존 함수를 계속 쓴다.
 상세 수명/비JSON 경계는 [스토어 계약](EDITOR_STORE_CONTRACT.md)의 GUI 후보 검증 캐시 절을 따른다.
 공개 barrel에 함수가 추가되어 배포 CLI 번들도 재생성한다. IR 버전/필드/오류 코드는 바꾸지 않는다.
-
-## IR v0.4 instance 확장 (#265 S2-1)
-
-0.4는 `Node.oneOf`에 `InstanceNode`를 추가한다. 구 0.3 소비자는 새 문서를 버전
-검사에서 거부해야 한다. `migrateToV04`는 올바른 구버전 화면/프로젝트 외곽에서만
-version을 승격하며, 승격 전에 0.1/0.2/0.3 문서의 `instance` 노드를 찾아 거부한다.
-기존 `migrateToV03`는 공개 호환 함수로 남지만 현재 Open·자동 저장 복원·작업공간 서버·
-CLI의 검증 입구는 `migrateToV04`를 호출한다. Open은 원본 파일을 다시 쓰지 않는다.
-
-`InstanceNode`는 leaf이고 `type/name/box/ref`가 필수다. `visible`과 직접 원본
-노드별 `content`/`color` overrides만 선택 허용한다. responsive instance override는
-`visible`과 `PartialBox`만 허용한다. 원본 참조와 합성의 의미 검증은 S2-2의 별도 PR이다.
-S2-1 기간에는 기존 Command v0.2의 createNode로 instance를 만들 수 없고, 기존
-티켓 compiler는 instance가 들어간 생성 요청을 명시적으로 거부한다. GUI의 제한된
-미리보기는 위젯 내용을 생성된 코드로 승격하지 않는다.
-
-### S2-2 참조와 override 검증
-
-프로젝트 검증은 스키마 통과 후 `instance-ref-missing`, `instance-ref-kind`,
-`instance-cycle`, `instance-override-invalid`를 검사한다. 직접/간접 widget 포함 순환은
-막고 여러 호스트의 공유 DAG는 허용한다. override의 키는 참조 widget의 직접 Text/Button
-노드여야 하며 Button content는 빈 문자열이 될 수 없다. 금지 속성·색 형식 등 닫힌
-형태 오류는 먼저 기존 `schema` 코드로 반환한다. 독립 화면 검증은 외부 참조의 존재를
-판정하지 않는다. GUI 후보 검증과 캐시 검증도 프로젝트 전체 의미 검사를 매번 수행한다.
