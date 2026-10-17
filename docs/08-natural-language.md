@@ -746,3 +746,16 @@ navigate는 effective kind=page, openModal은 modal만 대상으로 삼는다. �
 예: 현재 login의 loginButton에 `{type:"updateNode", id:"loginButton", path:"action", value:{type:"navigate", target:"dashboard"}}`.
 모달은 value를 `{type:"openModal", target:"resetPassword"}`로 전체 교체하며 제거는
 `{type:"removeNodeAction", id:"loginButton"}`다. 두 target은 요청 카탈로그에서 확인한 ID일 때만 사용한다.
+
+## S2 공유 위젯 읽기 문맥
+
+선택 필드 `widgets`는 활성 화면의 instance에서 전이적으로 도달하는 widget만
+`{pageId,screen}`으로 전달한다. pageOrder 순서이고 원본을 복사한 요청 시점 스냅샷이다.
+참조하지 않는 widget, 다른 page/modal의 노드, 프로젝트 전체 편집 권한은 전달하지 않는다.
+instance의 `overrides`를 만들 때 에이전트는 이 목록에서 직접 원본 Text/Button NodeId와
+content/color를 확인한다. 새 instance의 ref는 `destinations`의 widget PageId를 쓴다.
+
+protocol 2·Command 0.2와 응답 형식은 그대로다. 구 요청에서 `widgets`가 없으면 원본의
+NodeId를 추측하지 않는다. 화면 로컬 Command로 새 widget 화면을 만들거나 여러 화면을
+원자적으로 추출·detach할 수 없으므로 그 동작은 GUI에 남긴다. 현재 프로젝트 전체 G3와
+요청 이후 변경 거부가 최종 수용을 결정한다. fixture 검증은 실제 모델 실행을 뜻하지 않는다.
