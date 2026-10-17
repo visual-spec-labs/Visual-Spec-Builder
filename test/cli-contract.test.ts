@@ -52,7 +52,7 @@ describe("visual-spec skills — 에이전트별 위치 (#278)", () => {
     for (const file of claude) {
       expect(readFileSync(join(projectDir, ".agents/skills", file))).toEqual(readFileSync(join(projectDir, ".claude/skills", file)));
     }
-  });
+  }, 20_000); // Windows runner copies both complete skill trees before comparing each file.
 
   it("--agent로 한 위치에만 설치한다", () => {
     expect(runCli(["skills", "--agent", "codex"], projectDir).exitCode).toBe(0);
