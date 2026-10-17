@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
+import { posix } from 'node:path';
 import type { FrameNode, ProjectSpec } from '@/features/editor/schema';
 import { compileProjectTickets } from '@/features/editor/ticket/compileProjectTickets';
 import { buildProjectInputSnapshot, createProjectAssetSnapshot, projectAssetPaths } from '@/features/editor/ticket/projectInputSnapshot';
@@ -85,6 +86,27 @@ it('exports one referenced shared widget with its asset and v5 manifest ownershi
   const manifest=JSON.parse(new TextDecoder().decode(io.disk.get(GENERATION_MANIFEST_PATH)!));
   expect(Object.values(manifest.entries).filter((entry:any)=>entry.pageId==='notificationWidget').every((entry:any)=>entry.ticketProtocol===5)).toBe(true);
   expect(paths.some(path=>path.includes('/assets/')&&new TextDecoder().decode(entries.get(path)!).includes('width="3"'))).toBe(true);
+});
+it('rejects a recorded current output that imports an unrelated page at ZIP time',async()=>{
+  await generate();
+  const plan=compileProjectTickets(project);
+  const context=await readCurrentProjectContext({requestId:'scope-check',project,plan,projectRoot:'owned',isCurrent:()=>io.current});
+  const evidence=await readProjectGenerationEvidence(context);
+  expect(evidence.inspection.state).toBe('current');
+  const login=context.outputs.find(output=>output.sourcePageId==='login'&&output.scope==='page')!;
+  const dashboard=context.outputs.find(output=>output.sourcePageId==='dashboard'&&output.scope==='page')!;
+  const from=login.filePath.slice('owned/'.length),to=dashboard.filePath.slice('owned/'.length);
+  const relative=posix.relative(posix.dirname(from),to);
+  const source=`import Other from ${JSON.stringify(relative.startsWith('.')?relative:'./'+relative)}; export default function Screen(){return <Other/>}`;
+  io.disk.set('generated/'+login.filePath,bytes(source));
+  const record=JSON.parse(new TextDecoder().decode(io.disk.get(evidence.sidecarPath)!));
+  record.outputs.find((output:{filePath:string})=>output.filePath===login.filePath).sha256=sha256Hex(bytes(source));
+  io.disk.set(evidence.sidecarPath,bytes(JSON.stringify(record)));
+  const manifest=JSON.parse(new TextDecoder().decode(io.disk.get(GENERATION_MANIFEST_PATH)!));
+  manifest.entries[login.filePath].contentHash=`sha256:${sha256Hex(bytes(source))}`;
+  io.disk.set(GENERATION_MANIFEST_PATH,bytes(JSON.stringify(manifest)));
+  expect((await readProjectGenerationEvidence(context)).inspection.state).toBe('current');
+  await expect(prepareProjectBundle(input())).rejects.toThrow(/계획/);
 });
 it('keeps verified unaffected outputs through v4 to v5 and back without rewriting their protocol history',async()=>{
   await generate(true,'initial');

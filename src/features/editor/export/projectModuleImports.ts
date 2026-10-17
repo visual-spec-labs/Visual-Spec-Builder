@@ -1,3 +1,16 @@
+import { generatedTicketPath } from './generationIdentity';
+import type { ProjectPlan } from '@/features/editor/ticket/types';
+
+/** A ticket can import its source's modules and only the widget roots it names as dependencies. */
+export function ticketModulePaths(plan: ProjectPlan, ticketId: string): string[] {
+  const ticket = plan.tickets.find(item => item.id === ticketId);
+  if (!ticket) throw Error('계획에 없는 프로젝트 티켓입니다.');
+  const dependencies = new Set(ticket.dependsOn);
+  return plan.tickets.filter(item => item.sourcePageId === ticket.sourcePageId
+    || (item.widgetRoot && dependencies.has(item.id)))
+    .map(item => generatedTicketPath(item.sourcePageId, item));
+}
+
 type AstNode = { type: string; [key: string]: unknown };
 function isNode(value: unknown): value is AstNode {
   return value !== null && typeof value === 'object' && typeof (value as AstNode).type === 'string';

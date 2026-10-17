@@ -5,6 +5,10 @@
 
 ## 2026-10-17 #265 공유 위젯 fixture 경과
 
+프로젝트 v5 수용과 ZIP 재검사의 import 허용 범위를 ticket별 같은 sourcePageId와
+해당 ticket의 명시된 widgetRoot 의존성으로 제한했다. 다른 화면의 계획된 TSX도
+선언된 의존성이 없으면 거부하는 회귀를 추가했다. 이 검사는 fixture 소스 기반이다.
+
 공유 위젯 GUI 배치·추출·detach, NL 읽기 문맥과 Command 재정의, v5 티켓 계획·수용,
 ZIP의 위젯·자산 포함을 fixture로 확인했다. 별도 합성 TSX로 만든 앱의 typecheck,
 production build와 Chromium의 두 인스턴스·이동 동작도 확인했다. 이 코드는 실제

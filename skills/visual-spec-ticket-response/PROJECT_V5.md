@@ -70,7 +70,8 @@
 - 반복 이미지가 서로 다르면 image src를 동적 prop으로 바꾸지 않는다. 각 variant의 JSX에
   정적 token을 두고 variant key로 분기한다. background도 각 분기의 정적 style을 JSX에 직접
   둔다. 이미지가 없는 구조/텍스트/callback props는 그대로 재사용한다.
-- import는 **최종 생성 자리 기준** 상대 경로이며 계획에 있는 같은 projectRoot의 TSX만
+- import는 **최종 생성 자리 기준** 상대 경로이며 계획에 있는 같은 sourcePageId의 TSX 또는
+  현재 ticket의 dependsOn에 명시된 다른 sourcePageId의 widgetRoot TSX만
   참조한다. dependency 파일은 `.visual-spec/generated/<계획에서 도출한 filePath>`에서 읽기만
   한다. 없는 export/props를 추측하지 않고 failed로 보고한다. 다른 프로젝트의 같은 이름을
   가져오거나 이번 wave 밖의 코드를 만들지 않는다.
@@ -80,7 +81,7 @@
 - `type:"instance"`는 `ref`인 widget PageId의 root component를 참조한다. 같은 이름·구조라도 다른 PageId의 widget과 합치지 않는다. plan의 widgetRoot ticket을 한 번만 생성하고 각 host instance에서 최종 filePath 기준 상대 import한다. widgetRoot는 named export이며 page 전용 min-height 셸을 사용하지 않는다.
 - instance의 box가 배치 크기를 정한다. 원본 widget의 트리와 반응형 규칙을 유지한다. 직접 원본 Text/Button 노드에만 `overrides`의 content/color를 props로 전달한다. 기본값 → 반응형 값 → instance override 순서로 합성한다. 한 host가 같은 widget을 여러 번 써도 각각 독립 props를 전달한다. 임의 layout·action·image override를 만들지 않는다.
 - widget 내부의 navigate/openModal/close는 host가 전달한 onNavigate/onOpenModal/onClose를 사용한다. 재사용 widget 내부 openModal로 도달 가능한 modal도 host가 관리한다. 저장 NodeId를 반복 instance의 DOM id로 그대로 출력하지 않는다. DOM id가 필요하면 렌더별 안정적인 런타임 id를 사용한다.
-- 다른 sourcePageId의 import는 같은 projectRoot 안의 plan ticket 경로로만 허용된다. widgetRoot dependency가 done이고 그 파일의 named export를 확인한 뒤 사용한다. 다른 화면의 일반 component를 widget처럼 가져오지 않는다.
+- 다른 sourcePageId의 import는 현재 ticket의 dependsOn에 명시된 widgetRoot 경로로만 허용된다. widgetRoot dependency가 done이고 그 파일의 named export를 확인한 뒤 사용한다. 선언하지 않은 widgetRoot나 다른 화면의 일반 component를 가져오지 않는다.
 
 ## 파일과 응답
 

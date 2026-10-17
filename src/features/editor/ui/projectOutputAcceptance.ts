@@ -6,7 +6,7 @@ import { contentHash, sha256Hex } from '@/features/editor/export/contentHash';
 import { PROJECT_TEMPLATE_VERSION, projectGenerationPath } from '@/features/editor/export/projectGenerationIdentity';
 import { projectProvenanceContext, type ProjectGenerationProvenance } from '@/features/editor/export/projectGenerationProvenance';
 import { rewriteProjectAssetModule } from '@/features/editor/export/projectAssetModules';
-import { validateProjectModuleImports } from '@/features/editor/export/projectModuleImports';
+import { ticketModulePaths, validateProjectModuleImports } from '@/features/editor/export/projectModuleImports';
 import { renderProjectRuntime } from '@/features/editor/export/projectRuntimeTemplates';
 import { ticketComponentKey } from '@/features/editor/export/generationIdentity';
 import { GENERATION_MANIFEST_PATH, withManifestUpdates, parseGenerationManifest, type ManifestEntry } from '@/features/editor/export/generationManifest';
@@ -67,9 +67,9 @@ export async function planProjectOutputs(args: {
   for (const ticket of request.plan.tickets) if (ticket.status === 'done' && !retained.some(output => output.id === ticket.id)) throw Error('done 티켓의 현재 수용 근거가 없습니다. 다시 컴파일하세요.');
   const nextOutputs = new Map(retained.map(output => [output.id, output]));
   const candidates = new Map<string,string>();
-  const ownedModulePaths = context.outputs.filter(output=>output.scope==='page').map(output => output.filePath.slice(context.projectRoot.length + 1));
   const allowedExternalImages = externalImages(context.snapshot.project,new Set(context.snapshot.plan.tickets.map(item=>item.sourcePageId)));
   for (const ticket of request.tickets) {
+    const ownedModulePaths = ticketModulePaths(context.snapshot.plan, ticket.id);
     const file = await readProjectFile(ticket.outputPath, isCurrent);
     if (!file || !strictProjectText(file.bytes).trim()) throw Error(`완료 응답의 임시 출력이 없습니다: ${ticket.outputPath}`);
     await validateProjectModuleImports(strictProjectText(file.bytes),ticket.filePath.slice(context.projectRoot.length+1),ownedModulePaths);

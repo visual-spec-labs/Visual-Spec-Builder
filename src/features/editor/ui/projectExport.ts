@@ -4,7 +4,8 @@ import { GENERATION_MANIFEST_PATH, isReadableGenerationManifest, parseGeneration
 import { bundleFileName, bundleFolderName, buildPackageJson } from '@/features/editor/export/bundle';
 import { createZip, utf8Bytes, type ZipEntry } from '@/features/editor/export/zip';
 import { verifyGenerated } from '@/features/editor/export/verifyGenerated';
-import { validateProjectModuleImports } from '@/features/editor/export/projectModuleImports';
+import { ticketModulePaths, validateProjectModuleImports } from '@/features/editor/export/projectModuleImports';
+import { generatedTicketPath } from '@/features/editor/export/generationIdentity';
 import { findGenerationProject } from './generationTarget';
 import { readCurrentProjectContext, readProjectFile, readProjectGenerationEvidence, strictProjectText } from './projectGenerationWorkspace';
 
@@ -23,8 +24,11 @@ export async function inspectProjectExport(input:ProjectExportInput) {
   });
   const report=verifyGenerated({files,tickets:[],assetNames:context.snapshot.assets.map(asset=>asset.zipPath.slice('assets/'.length))});
   const packages=new Set(report.packages);
-  const owned=context.outputs.filter(output=>output.scope==='page').map(output=>output.filePath.slice(owner.outputDir.length+1));
-  if(evidence.inspection.state==='current')for(const file of files)if(owned.includes(file.path))await validateProjectModuleImports(file.content,file.path,owned,name=>packages.add(name));
+  const ticketsByPath=new Map(context.snapshot.plan.tickets.map(ticket=>[generatedTicketPath(ticket.sourcePageId,ticket),ticket.id]));
+  if(evidence.inspection.state==='current')for(const file of files) {
+    const ticketId=ticketsByPath.get(file.path);
+    if(ticketId)await validateProjectModuleImports(file.content,file.path,ticketModulePaths(context.snapshot.plan,ticketId),name=>packages.add(name));
+  }
   report.packages=[...packages].sort();
   return {context,evidence,files,report};
 }
