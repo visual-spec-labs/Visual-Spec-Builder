@@ -29,8 +29,12 @@ function WidgetNode({ project, screen, id, direction, width, ancestry, nodePath 
   if (node.type === "instance") return <WidgetInstance project={project} instance={node} width={width} direction={direction} ancestry={ancestry} onAction={onAction} />;
   if (node.type === "text") return <div style={textStyle(node, direction)}>{node.content}</div>;
   if (node.type === "image") return <div role="img" aria-label={node.name} style={imageStyle(node, direction)} />;
-  if (node.type === "input") return <input aria-label={node.name} placeholder={node.placeholder} style={inputStyle(node, direction)} readOnly={!onAction} tabIndex={onAction ? undefined : -1} />;
-  if (node.type === "button") return <button type="button" style={buttonStyle(node, direction)} onClick={onAction ? () => onAction(node.action) : undefined} tabIndex={onAction ? undefined : -1} aria-disabled={!onAction}>{node.content}</button>;
+  if (node.type === "input") return onAction
+    ? <input aria-label={node.name} placeholder={node.placeholder} style={inputStyle(node, direction)} />
+    : <div style={inputStyle(node, direction)}>{node.placeholder}</div>;
+  if (node.type === "button") return onAction
+    ? <button type="button" style={buttonStyle(node, direction)} onClick={() => onAction(node.action)}>{node.content}</button>
+    : <div style={buttonStyle(node, direction)}>{node.content}</div>;
   const nextPath = new Set(nodePath).add(id);
   return <div style={frameStyle(node, direction)}>{node.children.map(child =>
     <WidgetNode key={child.node} project={project} screen={screen} id={child.node} direction={node.layout.direction} width={width} ancestry={ancestry} nodePath={nextPath} onAction={onAction} />
