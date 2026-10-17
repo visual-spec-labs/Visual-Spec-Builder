@@ -1,0 +1,188 @@
+{
+  "date": "2026-10-17",
+  "sourceHead": "e953df04a8b7325435bccfb4a07a9ccc7efca6e1",
+  "sourceFixture": "examples/shared-widget-project.json",
+  "environment": {
+    "os": "Windows PC",
+    "codexCli": "0.160.0",
+    "model": "Codex CLI default; model identifier not captured",
+    "node": "24.12.0",
+    "pnpm": "10.33.0"
+  },
+  "modelWaves": [
+    {
+      "requestId": "02a0e3d3-a66a-4821-a816-a068963b71f8",
+      "ticketCount": 8,
+      "exitCode": 0
+    },
+    {
+      "requestId": "6ed33c9e-b932-49bf-9065-87249f84be08",
+      "ticketCount": 2,
+      "exitCode": 0
+    },
+    {
+      "requestId": "ac278a4f-850c-4c21-b823-f6c65437b06a",
+      "ticketCount": 2,
+      "exitCode": 0
+    },
+    {
+      "requestId": "21ffbb15-930d-4546-b4f5-fe80e80ab79e",
+      "ticketCount": 2,
+      "exitCode": 0
+    }
+  ],
+  "guiAcceptance": {
+    "ticketCount": 14,
+    "doneCount": 14,
+    "running": false,
+    "runError": null,
+    "failure": null
+  },
+  "export": {
+    "state": "current",
+    "errorCount": 0,
+    "zipFile": "265-pc-actual-model.zip",
+    "zipBytes": 17687,
+    "zipSha256": "694c8801d2b7b9b0902c0ac86a375a48815e3e0c731a89ec2679dfdfdc3376d8"
+  },
+  "independentApp": {
+    "tsxModified": false,
+    "typecheck": "pass",
+    "build": "pass",
+    "pcChromium": {
+      "modalOpenClose": "pass",
+      "loginDashboardLogin": "pass",
+      "widgetLogin": "새 알림",
+      "widgetDashboard": "대시보드 알림",
+      "pageErrors": []
+    }
+  },
+  "files": [
+    {
+      "path": "shared-notification-example/login/components/Title.tsx",
+      "zipSha256": "cf7c7741c6e12c8203df95187d39bdf5771a4661ceeb3af3b15b2706dd81695b",
+      "targetSha256": "cf7c7741c6e12c8203df95187d39bdf5771a4661ceeb3af3b15b2706dd81695b",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/login/components/LoginButton.tsx",
+      "zipSha256": "e3c4bad4108d5b39ab158b465232b7365bfba9cce54b4270ff744f78133aa66a",
+      "targetSha256": "e3c4bad4108d5b39ab158b465232b7365bfba9cce54b4270ff744f78133aa66a",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/login/components/ForgotButton.tsx",
+      "zipSha256": "962ceeb8721003de1fbd6879b547177b11c344e149fe8b3ae6edc63dbe595af3",
+      "targetSha256": "962ceeb8721003de1fbd6879b547177b11c344e149fe8b3ae6edc63dbe595af3",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/login/components/SharedNotification.tsx",
+      "zipSha256": "7ef57da1b2ddd947cefd132f5c1e4ad72eb9d13285d333333d9a6cd6ffe8bcaf",
+      "targetSha256": "7ef57da1b2ddd947cefd132f5c1e4ad72eb9d13285d333333d9a6cd6ffe8bcaf",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/login/pages/LoginPage.tsx",
+      "zipSha256": "3aac2e04b2693fbeb24a4ac34164ecaf0e50b466f83fcdfa9c3fca9893635404",
+      "targetSha256": "3aac2e04b2693fbeb24a4ac34164ecaf0e50b466f83fcdfa9c3fca9893635404",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/dashboard/components/Title.tsx",
+      "zipSha256": "9303007511ed047c7e5aa988c089500f4a5ac617fd59b20515c0256c63f8ae9d",
+      "targetSha256": "9303007511ed047c7e5aa988c089500f4a5ac617fd59b20515c0256c63f8ae9d",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/dashboard/components/LogoutButton.tsx",
+      "zipSha256": "f50446ec8669be53668132c0ebbb28845469ce56e90ca7360910a357736281d7",
+      "targetSha256": "f50446ec8669be53668132c0ebbb28845469ce56e90ca7360910a357736281d7",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/dashboard/components/SharedNotification.tsx",
+      "zipSha256": "20227b1da5302dfee2ebfd7c4a64efe8dc8d68a7c7aa3045a29162dc750491a0",
+      "targetSha256": "20227b1da5302dfee2ebfd7c4a64efe8dc8d68a7c7aa3045a29162dc750491a0",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/dashboard/pages/DashboardPage.tsx",
+      "zipSha256": "c04ad2dcd4e122ed44d7634b61d624d900345fb5e68b0b362a7417b0b07c5f19",
+      "targetSha256": "c04ad2dcd4e122ed44d7634b61d624d900345fb5e68b0b362a7417b0b07c5f19",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/resetPassword/components/Title.tsx",
+      "zipSha256": "b12e551cdf958055378ceb7d17e4695ea272f86cb8224128ff32fe60310e5161",
+      "targetSha256": "b12e551cdf958055378ceb7d17e4695ea272f86cb8224128ff32fe60310e5161",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/resetPassword/components/CloseButton.tsx",
+      "zipSha256": "0e9b0f5f7c568618f9c3e33e3c62db38c1cdd0dbdbc6b3caac21c6b16c8c4dcf",
+      "targetSha256": "0e9b0f5f7c568618f9c3e33e3c62db38c1cdd0dbdbc6b3caac21c6b16c8c4dcf",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/resetPassword/pages/ResetPasswordModal.tsx",
+      "zipSha256": "7b37e12214ed296055544a3130441ee7115d5bc61d8200973c2eda335c9b8e53",
+      "targetSha256": "7b37e12214ed296055544a3130441ee7115d5bc61d8200973c2eda335c9b8e53",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/notificationWidget/components/Title.tsx",
+      "zipSha256": "4097f0f915f66364a8347b3ccf029d4ffd5ca03f71d888262f00b5dccd69e6a6",
+      "targetSha256": "4097f0f915f66364a8347b3ccf029d4ffd5ca03f71d888262f00b5dccd69e6a6",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/notificationWidget/components/NotificationWidget.tsx",
+      "zipSha256": "2803c46f6064c493247d055d5d75720da379ade67757a3fcd69f2057ce81e89c",
+      "targetSha256": "2803c46f6064c493247d055d5d75720da379ade67757a3fcd69f2057ce81e89c",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/runtime/Routes.ts",
+      "zipSha256": "685c3f54774fa68a2188c27dff2638b23ed434af5a07974f6360a8ef54306250",
+      "targetSha256": "685c3f54774fa68a2188c27dff2638b23ed434af5a07974f6360a8ef54306250",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/runtime/Host.tsx",
+      "zipSha256": "9522874f490d2854b48b4b02fefd38908825478b3914759eb00559ce101329ec",
+      "targetSha256": "9522874f490d2854b48b4b02fefd38908825478b3914759eb00559ce101329ec",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/runtime/Entry.tsx",
+      "zipSha256": "ae4a09172c7dfadccc70c881c261d17c77f477a4eee70b87a9c6b7e58772a9d5",
+      "targetSha256": "ae4a09172c7dfadccc70c881c261d17c77f477a4eee70b87a9c6b7e58772a9d5",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/package.json",
+      "zipSha256": "6d1dac09d6112d4dd3b18d3ff7533542ce96c856c28429e574086d9b64423ea9",
+      "targetSha256": "6d1dac09d6112d4dd3b18d3ff7533542ce96c856c28429e574086d9b64423ea9",
+      "match": true
+    },
+    {
+      "path": "shared-notification-example/README.md",
+      "zipSha256": "a06829361fd23f9d00a0b8229f3ebb0b21f99c01291dc3916e4fb4260e6332f6",
+      "targetSha256": "a06829361fd23f9d00a0b8229f3ebb0b21f99c01291dc3916e4fb4260e6332f6",
+      "match": true
+    }
+  ],
+  "guiPersistence": {
+    "input": "prebuilt public example",
+    "save": "pass",
+    "browserContextClosed": true,
+    "reopen": "pass",
+    "relationsUnchanged": [
+      "login navigate dashboard",
+      "login openModal resetPassword",
+      "modal close",
+      "widget ref on login and dashboard"
+    ]
+  }
+}

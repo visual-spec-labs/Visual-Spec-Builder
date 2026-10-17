@@ -4,7 +4,7 @@
 
 사용자가 연결한 **Windows PC**에서 `develop` `e953df04a8b7325435bccfb4a07a9ccc7efca6e1`을 별도로 복제해 실행했다. 원격 develop도 같은 HEAD였고 그 커밋의 GitHub check-run 7개(build, Chromium 2개, Windows Node 24, Linux Node 20·22·24)가 모두 `completed/success`였다. #397은 변경하지 않았다.
 
-개인정보 없는 `examples/shared-widget-project.json`을 격리된 작업공간에 복사했다. `visual-spec init`과 `visual-spec skills`로 `.agents/skills`를 설치하고 CLI `validate` 통과를 확인했다. 이 PC의 기존 Codex CLI 인증으로 최소 실제 모델 호출 `MODEL_READY`를 받았다. 자격 증명 값은 읽거나 복사하지 않았다. 그 뒤 GUI에서 프로젝트를 열고 **구현 티켓 → 프로젝트로 실행**을 선택해 GUI가 만든 v5 요청을 Codex CLI(`codex exec --sandbox workspace-write --ephemeral`)에 전달했다. TSX와 응답은 실제 모델이 작성했고 수동 생성 파일을 끼워 넣지 않았다.
+개인정보 없는 `examples/shared-widget-project.json`을 격리된 작업공간에 복사했다. `visual-spec init`과 `visual-spec skills`로 `.agents/skills`를 설치하고 CLI `validate` 통과를 확인했다. 이 PC의 기존 Codex CLI **0.160.0** 인증으로 최소 실제 모델 호출 `MODEL_READY`를 받았다. 모델 인자는 지정하지 않았고 실행 로그에 모델 식별자가 남지 않아 정확한 모델 이름은 확인할 수 없다. 자격 증명 값은 읽거나 복사하지 않았다. 그 뒤 GUI에서 프로젝트를 열고 **구현 티켓 → 프로젝트로 실행**을 선택해 GUI가 만든 v5 요청을 Codex CLI(`codex exec --sandbox workspace-write --ephemeral`)에 전달했다. TSX와 응답은 실제 모델이 작성했고 수동 생성 파일을 끼워 넣지 않았다.
 
 | 웨이브 | GUI 요청 ID | 수용 티켓 |
 |---|---|---:|
@@ -17,7 +17,9 @@
 
 ZIP을 독립 디렉터리에 풀고 TSX를 **수정하지 않은 채** 별도 React 19.2.8 / Vite 8.2.1 / TypeScript 5.9.3 / Tailwind 4.3.3 앱에 연결했다. 별도 `pnpm install`, `tsc -p tsconfig.json`, `vite build`가 모두 성공했다. **사용자의 PC에 설치된 Chromium**에서 빌드 결과를 열어 비밀번호 찾기 모달 열기·닫기, 로그인 → 대시보드 → 로그인 이동, 두 화면의 공유 위젯 표시를 확인했다. 위젯은 같은 `notificationWidget/components/NotificationWidget.tsx`를 import하며 화면별 override로 `새 알림`과 `대시보드 알림`을 표시했다. 브라우저 page error는 0건이었다. 이 독립 앱의 `index.html`, 진입 파일, 구성 파일은 검증용 연결 코드이고 모델 산출물로 세지 않았다.
 
-실행 원자료(요청 JSON, CLI 결과, GUI 화면, ZIP, 독립 앱 검사)는 이 PC 작업 폴더 `qa-265/evidence/`와 `qa-265/target/`에 보관했다. 앞선 절의 fixture·합성 코드 결과와 이번 실제 모델 결과는 별개다.
+같은 공개 예제를 GUI에서 열어 Save한 뒤 브라우저 컨텍스트를 닫고 새 컨텍스트에서 다시 열었다. 로그인 이동 대상, 모달 열기 대상, 모달 닫기 동작, 두 화면의 widget ref와 widget 종류가 저장 전후 동일했다. 이는 **미리 구성한 예제의 저장·재열기** 검증이다. GUI에서 관계를 처음 구성하는 경로의 근거는 기존 `scripts/browser/widget-instance.mjs`, `widget-extract-detach.mjs`, `screen-relations-integrity.mjs` fixture 여정이며, 이번 모델 호출이 그 GUI 구성 과정을 반복한 것으로 주장하지 않는다.
+
+재검토 가능한 [실제 모델 ZIP](evidence/265-pc-actual-model.zip)과 [비밀 없는 결과·파일별 SHA-256](evidence/265-pc-2026-10-17.json)을 저장소에 남겼다. JSON의 모든 ZIP 내부 파일 SHA-256과 독립 앱에서 실행한 파일 SHA-256이 일치한다. PC의 요청 원본·CLI 상세 로그·GUI 화면은 작업 폴더 `qa-265/evidence/`에 별도 보관했다. 독립 앱 검증용 진입 파일과 설정은 ZIP 밖에 있으며 모델 산출물에 섞이지 않았다. 이번 실제 모델 호출은 **코드 생성**을 검증한 것으로, 자연어 요청으로 위젯을 추출·배치하는 실제 모델 응답은 검증하지 않았다. 해당 동작은 앞선 fixture 검사 근거와 구분한다.
 
 #292의 비용 없는 fixture 여정, 실제 모델 실행 절차와 2026-10-10 실제 모델(Claude Code) 통합 실행 기록은
 [28. 실제 사용자 흐름 회귀](28-real-flow-regression.md)를 참고한다. 아래는 그 이전 로그인 흐름 기록이다.
