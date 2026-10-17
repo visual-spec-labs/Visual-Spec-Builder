@@ -202,6 +202,11 @@ woff2 25/30개, 폰트 실패 0, 텍스트는 양쪽 모두 `Pretendard`·`Prete
   생성 페이지가 계약 셸(`.vsb-page`, `min-height`)과 root `w-full flex-[1_0_auto]`를 썼다([원본](qa/2026-10-10-real-model-output/login/pages/Login.tsx)).
 - 한계: 한 모델(`claude-opus-5-5`)·한 번의 실행이다. Codex 출력이나 다른 화면에서의 일치를 보증하지 않는다.
 
+
+### 2026-10-17 #364 실제 모델 추가 실측
+
+Codex CLI의 390×844 로그인(12노드)과 최신 develop 스킬을 사용한 Claude Code의 긴 회원가입 화면(30노드, root 390×1262)을 각각 실제 생성·Export하여 GUI와 비교했다. 유효 측정에서 두 화면 모두 최대 차이 0 CSS px였다. CLI·모델, 실행 SHA, ZIP·폰트 SHA-256, 보존 스펙·TSX, 측정 조건과 한계는 [#364 QA 기록](qa/2026-10-17-issue-364/README.md)에 있다. 한 모델당 한 실행의 증거다.
+
 ## 5. 발견한 결함 — 이슈 후보 (이 PR에서 고치지 않음)
 
 1. **여러 페이지 Export ZIP을 docs/14 절차대로 한 위치에 넣으면 컴포넌트가 덮인다.** 재현: 위 실행처럼 두 페이지에 각각

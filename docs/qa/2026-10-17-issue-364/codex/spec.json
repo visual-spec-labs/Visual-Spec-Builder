@@ -1,0 +1,308 @@
+{
+  "version": "0.4",
+  "name": "Untitled",
+  "pages": {
+    "page1": {
+      "name": "로그인",
+      "size": {
+        "width": 390,
+        "height": 844
+      },
+      "root": "root",
+      "nodes": {
+        "root": {
+          "type": "frame",
+          "name": "Screen",
+          "box": {
+            "width": "fill",
+            "height": "fill"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 16,
+            "padding": {
+              "top": 40,
+              "right": 24,
+              "bottom": 24,
+              "left": 24
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#FFFFFF"
+            }
+          ],
+          "children": [
+            {
+              "node": "brand"
+            },
+            {
+              "node": "heroImage"
+            },
+            {
+              "node": "heading"
+            },
+            {
+              "node": "intro"
+            },
+            {
+              "node": "loginForm"
+            },
+            {
+              "node": "helpText"
+            }
+          ]
+        },
+        "brand": {
+          "type": "text",
+          "name": "상단 로고",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "NOVA",
+          "color": "#4F46E5",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 26,
+            "fontWeight": 800,
+            "lineHeight": 34,
+            "letterSpacing": 2,
+            "textAlign": "left"
+          }
+        },
+        "heroImage": {
+          "type": "image",
+          "name": "히어로 이미지",
+          "box": {
+            "width": "fill",
+            "height": 152
+          },
+          "src": "assets/hero.png",
+          "fit": "cover"
+        },
+        "heading": {
+          "type": "text",
+          "name": "로그인 제목",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "다시 오신 것을 환영해요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 27,
+            "fontWeight": 700,
+            "lineHeight": 36,
+            "letterSpacing": -0.7,
+            "textAlign": "left"
+          }
+        },
+        "intro": {
+          "type": "text",
+          "name": "안내 문구",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "이메일과 비밀번호를 입력해 로그인하세요.",
+          "color": "#6B7280",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 22,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "loginForm": {
+          "type": "frame",
+          "name": "로그인 입력 영역",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 10,
+            "padding": {
+              "top": 8,
+              "right": 0,
+              "bottom": 8,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "emailLabel"
+            },
+            {
+              "node": "emailInput"
+            },
+            {
+              "node": "passwordLabel"
+            },
+            {
+              "node": "passwordInput"
+            },
+            {
+              "node": "loginButton"
+            }
+          ]
+        },
+        "emailLabel": {
+          "type": "text",
+          "name": "이메일 라벨",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "이메일",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "emailInput": {
+          "type": "input",
+          "name": "이메일 입력",
+          "box": {
+            "width": "fill",
+            "height": 48
+          },
+          "placeholder": "이메일을 입력하세요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 10
+          }
+        },
+        "passwordLabel": {
+          "type": "text",
+          "name": "비밀번호 라벨",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "비밀번호",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "passwordInput": {
+          "type": "input",
+          "name": "비밀번호 입력",
+          "box": {
+            "width": "fill",
+            "height": 48
+          },
+          "placeholder": "비밀번호를 입력하세요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 10
+          }
+        },
+        "loginButton": {
+          "type": "button",
+          "name": "로그인 버튼",
+          "box": {
+            "width": "fill",
+            "height": 50
+          },
+          "content": "로그인",
+          "color": "#FFFFFF",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 16,
+            "fontWeight": 600,
+            "lineHeight": 22,
+            "letterSpacing": 0,
+            "textAlign": "center"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#4F46E5"
+            }
+          ],
+          "border": {
+            "width": 0,
+            "color": "#4F46E5",
+            "radius": 10
+          }
+        },
+        "helpText": {
+          "type": "text",
+          "name": "하단 도움말",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "로그인에 문제가 있나요? 고객센터에 문의하세요.",
+          "color": "#6B7280",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 13,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "center"
+          }
+        }
+      }
+    }
+  },
+  "pageOrder": [
+    "page1"
+  ],
+  "projectId": "0b096649-4817-4bce-a340-c022ce1f1007"
+}
