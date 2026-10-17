@@ -1,4 +1,6 @@
 import { findParentId } from "@/features/editor/command/applyCommand";
+import { activeBreakpoint } from "@/features/editor/responsive/resolveResponsive";
+import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
 import type { NodeId } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 
@@ -42,7 +44,11 @@ function moveInSiblingOrder(nodeId: NodeId, direction: ReorderDirection): void {
 export function buildNodeContextMenuEntries(nodeId: NodeId): MenuEntry[] {
   const { spec, activePageId } = useEditorStore.getState();
   const { nodes, root } = spec.pages[activePageId];
+  const screen = spec.pages[activePageId];
   const isRoot = nodeId === root;
+  const node = nodes[nodeId];
+  const previewWidth = useResponsiveViewStore.getState().widths[activePageId] ?? screen.size.width;
+  const responsive = activeBreakpoint(screen, previewWidth) !== null;
 
   const parentId = isRoot ? undefined : findParentId(nodes, nodeId);
   const parent = parentId !== undefined ? nodes[parentId] : undefined;
@@ -90,6 +96,21 @@ export function buildNodeContextMenuEntries(nodeId: NodeId): MenuEntry[] {
       kind: "action", label: "그룹 해제", disabled: isRoot || index < 0 || nodes[nodeId]?.type !== "frame",
       onSelect: () => useEditorStore.getState().ungroupNode(nodeId),
     },
+    ...(node?.type === "frame" && !isRoot ? [{
+      kind: "action" as const, label: "위젯으로 만들기", disabled: responsive,
+      onSelect: () => useEditorStore.getState().extractWidget(nodeId),
+    }] : []),
+    ...(node?.type === "instance" ? [{
+      kind: "action" as const, label: "인스턴스 분리", disabled: responsive,
+      onSelect: () => useEditorStore.getState().detachInstance(nodeId),
+    }, {
+      kind: "action" as const, label: "원본 위젯으로 이동",
+      onSelect: () => {
+        const state = useEditorStore.getState();
+        const current = state.spec.pages[state.activePageId]?.nodes[nodeId];
+        if (current?.type === "instance") state.selectPage(current.ref);
+      },
+    }] : []),
     { kind: "separator" },
     reorderEntry("맨 앞으로 가져오기", "front", atFront),
     reorderEntry("앞으로 가져오기", "forward", atFront),

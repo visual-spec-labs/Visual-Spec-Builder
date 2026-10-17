@@ -8,6 +8,9 @@ import { seedSpec } from "@/features/editor/store/seedSpec";
 import { copySelection } from "@/features/editor/ui/clipboard";
 import type { ActionEntry, MenuEntry } from "@/features/editor/ui/menuEntry";
 import { buildNodeContextMenuEntries } from "@/features/editor/ui/nodeContextMenuEntries";
+import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
+import fixture from "./fixtures/screen-relations-project.json";
+import type { ProjectSpec } from "@/features/editor/schema";
 
 /** 지금 캔버스에 떠 있는 페이지(editor-store.test.ts와 같은 패턴). */
 function activePage(): ScreenSpec {
@@ -109,5 +112,38 @@ describe("buildNodeContextMenuEntries — 캔버스 컨텍스트 메뉴 항목(#
       { node: "cardB" },
       { node: "cardA" },
     ]);
+  });
+
+  it("프레임을 위젯으로 만들고 인스턴스에서 원본으로 이동하거나 분리한다", () => {
+    const project = structuredClone(fixture) as unknown as ProjectSpec;
+    const host = project.pages.login;
+    const root = host.nodes.root;
+    if (root.type !== "frame") throw Error("fixture root");
+    host.nodes.card = { ...structuredClone(root), name: "Card", box: { width: 200, height: 100 }, children: [] };
+    root.children.push({ node: "card" });
+    useEditorStore.getState().loadSpec(project);
+    action(buildNodeContextMenuEntries("card"), "위젯으로 만들기").onSelect();
+    const state = useEditorStore.getState();
+    expect(state.spec.pages.login.nodes.card.type).toBe("instance");
+    const instance = state.spec.pages.login.nodes.card;
+    if (instance.type !== "instance") throw Error("instance");
+    action(buildNodeContextMenuEntries("card"), "원본 위젯으로 이동").onSelect();
+    expect(useEditorStore.getState().activePageId).toBe(instance.ref);
+    useEditorStore.getState().selectPage("login");
+    action(buildNodeContextMenuEntries("card"), "인스턴스 분리").onSelect();
+    expect(useEditorStore.getState().spec.pages.login.nodes.card.type).toBe("frame");
+  });
+
+  it("반응형 미리보기에서는 위젯 추출을 비활성화한다", () => {
+    const project = structuredClone(fixture) as unknown as ProjectSpec;
+    project.pages.login.responsive = { breakpoints: { wide: { minWidthPx: 700 } }, overrides: {} };
+    const root = project.pages.login.nodes.root;
+    if (root.type !== "frame") throw Error("fixture root");
+    project.pages.login.nodes.card = { ...structuredClone(root), box: { width: 200, height: 100 }, children: [] };
+    root.children.push({ node: "card" });
+    useEditorStore.getState().loadSpec(project);
+    useResponsiveViewStore.getState().setWidth("login", 800);
+    expect(action(buildNodeContextMenuEntries("card"), "위젯으로 만들기").disabled).toBe(true);
+    useResponsiveViewStore.getState().reset();
   });
 });

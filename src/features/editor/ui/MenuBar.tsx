@@ -11,7 +11,7 @@ import { formatDocumentTitle } from "@/features/editor/ui/documentTitle";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
-import { insertControl } from "@/features/editor/ui/insertControl";
+import { insertControl, widgetInsertEntries } from "@/features/editor/ui/insertControl";
 import { MenuList, type MenuEntry } from "@/features/editor/ui/menu";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openExportPanel } from "@/features/editor/ui/openExportPanel";
@@ -66,10 +66,14 @@ function handleOpen() {
 export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const rootRef = useRef<HTMLElement>(null);
+  // Undo/Redo can add or remove widget pages while Insert stays open. Subscribe
+  // only during that menu; the common closed state does not rerender on edits.
+  const insertSpec = useEditorStore((s) => openMenu === "insert" ? s.spec : null);
 
   // 제목에 필요한 작은 조각만 구독한다. spec 전체를 구독하면 속성 하나를 고칠
   // 때마다 메뉴바까지 다시 렌더되는 기존 주석의 문제가 되살아난다.
   const projectName = useEditorStore((s) => s.spec.name);
+  const activePageId = useEditorStore((s) => s.activePageId);
   const pageName = useEditorStore(
     (s) => s.spec.pages[s.activePageId]?.name ?? "페이지 없음",
   );
@@ -113,6 +117,7 @@ export function MenuBar() {
   const INSERT_MENU: MenuEntry[] = [
     { kind: "action", label: "버튼", onSelect: () => insertControl("button") },
     { kind: "action", label: "입력 필드", onSelect: () => insertControl("input") },
+    ...widgetInsertEntries(insertSpec ?? undefined, activePageId),
   ];
 
   const VIEW_MENU: MenuEntry[] = [
