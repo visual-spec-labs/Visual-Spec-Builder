@@ -63,6 +63,14 @@ export async function planProjectOutputs(args: {
     return definition && output.filePath === definition.filePath && output.inputFingerprint === definition.inputFingerprint
       && output.scope === definition.scope && output.sourcePageId === definition.sourcePageId;
   }).map(output => output.scope === 'page' ? {...output,ticketProtocol:output.ticketProtocol ?? projectTicketProtocol(evidence.record!.plan)} : output);
+  // Historical outputs can be hash-consistent yet violate the current per-ticket import
+  // boundary. Do not carry one into a new sidecar while accepting an unrelated wave.
+  for (const output of retained) if (output.scope === 'page') {
+    const file = evidence.files.get(output.filePath);
+    if (!file || sha256Hex(file) !== output.sha256) throw Error(`유지할 생성 출력의 바이트가 변경됐습니다: ${output.filePath}`);
+    const modulePath = output.filePath.slice(context.projectRoot.length + 1);
+    await validateProjectModuleImports(strictProjectText(file), modulePath, ticketModulePaths(context.snapshot.plan, output.id));
+  }
   // A caller cannot manufacture accepted dependency statuses by marking tickets done.
   for (const ticket of request.plan.tickets) if (ticket.status === 'done' && !retained.some(output => output.id === ticket.id)) throw Error('done 티켓의 현재 수용 근거가 없습니다. 다시 컴파일하세요.');
   const nextOutputs = new Map(retained.map(output => [output.id, output]));

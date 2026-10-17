@@ -106,6 +106,14 @@ it('rejects a recorded current output that imports an unrelated page at ZIP time
   manifest.entries[login.filePath].contentHash=`sha256:${sha256Hex(bytes(source))}`;
   io.disk.set(GENERATION_MANIFEST_PATH,bytes(JSON.stringify(manifest)));
   expect((await readProjectGenerationEvidence(context)).inspection.state).toBe('current');
+  const nextPlan=structuredClone(plan);
+  const nextTicket=nextPlan.tickets.find(ticket=>ticket.sourcePageId==='dashboard'&&ticket.dependsOn.length===0)!;
+  for(const ticket of nextPlan.tickets)ticket.status=ticket.id===nextTicket.id?'pending':'done';
+  const snapshot=buildProjectInputSnapshot('scope-next-wave',project,nextPlan,projectAssetPaths(project).map(path=>createProjectAssetSnapshot(path,io.disk.get(path)!)));
+  const request=buildProjectTicketRequest({requestId:'scope-next-wave',projectRoot:'owned',snapshotContent:snapshot.content,snapshotSha256:snapshot.sha256,ticketIds:[nextTicket.id]});
+  io.disk.set(snapshot.path,bytes(snapshot.content));
+  io.disk.set(request.tickets[0].outputPath,bytes(`export default function ${nextTicket.componentName}(){return <div/>}`));
+  await expect(planProjectOutputs({prepared:{request,snapshot},results:[{ticketId:nextTicket.id,status:'done'}],runId:'scope-next-run',isCurrent:()=>io.current})).rejects.toThrow(/import|계획/);
   await expect(prepareProjectBundle(input())).rejects.toThrow(/계획/);
 });
 it('keeps verified unaffected outputs through v4 to v5 and back without rewriting their protocol history',async()=>{
