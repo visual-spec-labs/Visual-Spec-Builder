@@ -92,6 +92,9 @@
         },
         "sourcePageId": {
           "$ref": "visual-spec#/$defs/PageId"
+        },
+        "widgetRoot": {
+          "const": true
         }
       }
     },
@@ -262,7 +265,7 @@
                 "$ref": "visual-spec#/$defs/PageId"
               },
               "reason": {
-                "const": "widget-not-supported-in-s1"
+                "enum": ["widget-not-supported-in-s1", "unreferenced-widget"]
               }
             }
           }

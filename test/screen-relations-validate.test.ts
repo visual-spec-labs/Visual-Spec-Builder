@@ -207,10 +207,10 @@ describe("화면 관계 검사의 경계 (#265 S1-2)", () => {
     }
   });
 
-  it("기존 examples는 관계 검사를 더해도 그대로 통과한다", () => {
+  it("모든 examples는 관계와 위젯 검사를 통과한다", () => {
     const dir = join(REPO_ROOT, "examples");
     const files = readdirSync(dir).filter((file) => file.endsWith(".json"));
-    expect(files).toHaveLength(11);
+    expect(files).toHaveLength(12);
     for (const file of files) {
       const spec: unknown = JSON.parse(readFileSync(join(dir, file), "utf8"));
       const result = typeof spec === "object" && spec !== null && "pages" in spec ? validateProjectSpec(spec) : validateVisualSpec(spec);

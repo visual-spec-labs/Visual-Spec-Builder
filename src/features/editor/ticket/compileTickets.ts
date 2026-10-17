@@ -98,7 +98,7 @@ function structuralKey(
     });
   }
 
-  if (node.type === "instance") throw new Error("Widget instance generation is not supported yet.");
+  if (node.type === "instance") return JSON.stringify({ t: "instance", ref: node.ref, visible: node.visible, box: node.box, overrides: node.overrides });
   const nextVisiting = new Set(visiting).add(id);
   return JSON.stringify({
     t: "frame",
@@ -154,13 +154,13 @@ function groupRepeatedSiblings(
  * 별도로 위상 정렬할 필요가 없다.
  */
 export function compileTickets(screen: ScreenSpec): Ticket[] {
-  return compileScreenTickets(screen, false);
+  return compileScreenTickets(screen, false, false);
 }
 
 /** Internal shared planner; project generation also compares complete button actions. */
-export function compileScreenTickets(screen: ScreenSpec, compareActions: boolean): Ticket[] {
+export function compileScreenTickets(screen: ScreenSpec, compareActions: boolean, allowInstances = false): Ticket[] {
   const { root, nodes } = screen;
-  if (Object.values(nodes).some(node => node.type === "instance")) {
+  if (!allowInstances && Object.values(nodes).some(node => node.type === "instance")) {
     throw new Error("Widget instance generation is not supported yet.");
   }
   const rootNode = nodes[root];

@@ -8,6 +8,7 @@ import { TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH } from "@/features/editor/tic
 import { isAllDone, isReady, readyTickets } from "@/features/editor/ticket/ticketStatus";
 import type { TicketStatus } from "@/features/editor/ticket/types";
 import { buildTicketAgentInstruction } from "@/features/editor/ui/agentHandoff";
+import { projectTicketProtocol } from "@/features/editor/ticket/projectTicketProtocol";
 import { AgentWaitStatus } from "@/features/editor/ui/AgentWaitStatus";
 import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
@@ -168,7 +169,7 @@ export function TicketPanel() {
       )}
 
       <div className="flex-1 overflow-auto p-3">
-        {projectPlan && projectPlan.excludedPages.length > 0 && <p className="mb-2 text-xs text-content-muted">재사용 위젯 {projectPlan.excludedPages.length}개는 이번 생성에서 제외됩니다. 문서에는 보존됩니다.</p>}
+        {projectPlan && projectPlan.excludedPages.length > 0 && <p className="mb-2 text-xs text-content-muted">참조되지 않은 위젯 {projectPlan.excludedPages.length}개는 이번 생성에서 제외됩니다. 문서에는 보존됩니다.</p>}
         {tickets.length === 0 ? (
           <p className="text-sm text-content-muted">
             생성할 구현 티켓이 없습니다. 캔버스에 화면을 구성한 뒤 다시 생성하세요.
@@ -319,7 +320,7 @@ export function TicketPanel() {
         ) : running ? (
           <AgentWaitStatus
             progress={wait}
-            instruction={buildTicketAgentInstruction(projectPlan ? 4 : 3)}
+            instruction={buildTicketAgentInstruction(projectPlan ? projectTicketProtocol(projectPlan) : 3)}
             requestPath={TICKET_REQUEST_PATH}
             responsePath={TICKET_RESPONSE_PATH}
             workspaceRoot={workspaceRoot}

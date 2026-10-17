@@ -9,9 +9,13 @@ import { TICKET_RESPONSE_PATH, type TicketRequestItem, type TicketResultItem } f
 
 /** Additive project transport; TICKET_PROTOCOL_VERSION remains 3. */
 export const PROJECT_TICKET_PROTOCOL_VERSION = 4;
+export const WIDGET_PROJECT_TICKET_PROTOCOL_VERSION = 5;
+export function projectTicketProtocol(plan: ProjectPlan): 4 | 5 {
+  return plan.tickets.some(ticket => ticket.widgetRoot) ? 5 : 4;
+}
 export interface ProjectTicketRequestItem extends TicketRequestItem { sourcePageId: string }
 export interface ProjectTicketRequest {
-  protocol: 4; id: string; project: ProjectSpec; projectRoot: string; plan: ProjectPlan;
+  protocol: 4 | 5; id: string; project: ProjectSpec; projectRoot: string; plan: ProjectPlan;
   tickets: ProjectTicketRequestItem[]; responsePath: string; outputRoot: string;
   assets: ProjectAssetMapping[]; inputSnapshotPath: string; inputSnapshotSha256: string;
 }
@@ -84,7 +88,7 @@ export function buildProjectTicketRequest(args: {
     return { id, sourcePageId: ticket.sourcePageId, componentName: ticket.componentName, kind: ticket.kind,
       instances: [...ticket.instances], filePath, outputPath: `${outputRoot}/${filePath}` };
   });
-  const request: ProjectTicketRequest = { protocol: PROJECT_TICKET_PROTOCOL_VERSION, id: requestId, project, projectRoot, plan, tickets,
+  const request: ProjectTicketRequest = { protocol: projectTicketProtocol(plan), id: requestId, project, projectRoot, plan, tickets,
     responsePath: TICKET_RESPONSE_PATH, outputRoot,
     assets: assets.map(({ dataBase64: _data, ...mapping }) => mapping),
     inputSnapshotPath: projectInputSnapshotPath(requestId), inputSnapshotSha256: snapshotSha256 };
@@ -99,7 +103,7 @@ export type ProjectRequestValidation = { valid: true; request: ProjectTicketRequ
 export function validateProjectTicketRequest(input: unknown, snapshotContent: string, expectedProjectRoot: string): ProjectRequestValidation {
   try {
     if (!record(input)) throw new ProjectProtocolError("malformed", "프로젝트 요청이 객체가 아닙니다.");
-    if (input.protocol !== PROJECT_TICKET_PROTOCOL_VERSION) throw new ProjectProtocolError("version-mismatch", "프로젝트 요청은 protocol 4가 필요합니다. visual-spec skills로 스킬을 갱신하세요.");
+    if (input.protocol !== 4 && input.protocol !== 5) throw new ProjectProtocolError("version-mismatch", "지원되지 않는 프로젝트 요청 규약입니다. visual-spec skills로 스킬을 갱신하세요.");
     if (typeof input.id !== "string" || typeof input.inputSnapshotSha256 !== "string" || !Array.isArray(input.tickets)
       || input.tickets.some(ticket => !record(ticket) || typeof ticket.id !== "string")) {
       throw new ProjectProtocolError("malformed", "프로젝트 요청의 필수 필드가 잘못됐습니다.");
@@ -112,6 +116,7 @@ export function validateProjectTicketRequest(input: unknown, snapshotContent: st
     if (input.projectRoot !== expectedProjectRoot) throw new ProjectProtocolError("invalid-output-path", "프로젝트 소유 생성 폴더와 다릅니다.");
     const expected = buildProjectTicketRequest({ requestId: input.id, projectRoot: expectedProjectRoot,
       snapshotContent, snapshotSha256: input.inputSnapshotSha256, ticketIds: input.tickets.map(ticket => ticket.id as string) });
+    if (input.protocol !== expected.protocol) throw new ProjectProtocolError("version-mismatch", "프로젝트 생성 계획에 맞는 규약 버전이 아닙니다.");
     if (input.tickets.some((ticket, index) => ticket.sourcePageId !== expected.tickets[index].sourcePageId)) {
       throw new ProjectProtocolError("invalid-source", "wave의 sourcePageId가 정본 티켓과 다릅니다.");
     }
@@ -131,15 +136,15 @@ export type ProjectTicketResponse = { kind: "stale" } | { kind: "results"; resul
   | { kind: "malformed"; code: ProjectProtocolErrorCode; message: string };
 
 /** Stale request IDs take precedence; current responses require the exact wave ID set. */
-export function parseProjectTicketResponse(text: string, request: Pick<ProjectTicketRequest, "id" | "tickets">): ProjectTicketResponse {
+export function parseProjectTicketResponse(text: string, request: Pick<ProjectTicketRequest, "id" | "tickets" | "protocol">): ProjectTicketResponse {
   try {
     const body: unknown = JSON.parse(text);
     if (!record(body)) throw new ProjectProtocolError("malformed", "응답이 객체가 아닙니다.");
     if (body.requestId !== request.id) return { kind: "stale" };
-    if (body.protocol !== PROJECT_TICKET_PROTOCOL_VERSION) throw new ProjectProtocolError("version-mismatch",
-      typeof body.protocol === "number" && body.protocol > PROJECT_TICKET_PROTOCOL_VERSION
+    if (body.protocol !== request.protocol) throw new ProjectProtocolError("version-mismatch",
+      typeof body.protocol === "number" && body.protocol > request.protocol
         ? "에이전트가 더 새로운 프로젝트 규약으로 응답했습니다. GUI를 업데이트한 뒤 다시 전달하세요."
-        : "프로젝트 응답은 protocol 4가 필요합니다. visual-spec skills로 스킬을 갱신하세요.");
+        : `프로젝트 응답은 protocol ${request.protocol}가 필요합니다. visual-spec skills로 스킬을 갱신하세요.`);
     if (Object.keys(body).sort().join(",") !== "protocol,requestId,results" || !Array.isArray(body.results)) {
       throw new ProjectProtocolError("malformed", "응답의 필수/추가 필드가 규약과 다릅니다.");
     }

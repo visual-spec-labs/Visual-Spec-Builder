@@ -38,6 +38,8 @@ export interface Ticket {
 export interface ProjectTicket extends Ticket {
   version: "0.2";
   sourcePageId: PageId;
+  /** Present only on the one root component ticket of a reachable widget source. */
+  widgetRoot?: true;
 }
 export type ProjectArtifact = {
   id: "project:routes"; kind: "routes"; filePath: "runtime/Routes.ts"; dependsOn: string[];
@@ -53,5 +55,5 @@ export interface ProjectPlan {
   routes: { pageId: PageId; ticketId: string }[];
   entryPageId: PageId;
   artifacts: ProjectArtifact[];
-  excludedPages: { pageId: PageId; reason: "widget-not-supported-in-s1" }[];
+  excludedPages: { pageId: PageId; reason: "widget-not-supported-in-s1" | "unreferenced-widget" }[];
 }

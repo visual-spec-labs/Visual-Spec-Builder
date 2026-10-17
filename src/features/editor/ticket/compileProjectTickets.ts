@@ -1,5 +1,7 @@
 import { validateProjectSpec, type ProjectSpec } from "@/features/editor/schema";
+import { collectSubtreeIds } from "@/features/editor/command/applyCommand";
 import { compileScreenTickets } from "./compileTickets";
+import { referencedWidgets } from "./widgetReachability";
 import type { ProjectPlan, ProjectTicket } from "./types";
 import { validateProjectPlan } from "./validate";
 
@@ -23,11 +25,6 @@ export class ProjectPlanError extends Error {
 function inputIssues(project: unknown): ProjectPlanIssue[] {
   const result = validateProjectSpec(project);
   if (!result.valid) return result.issues.map(issue => ({ ...issue, code: "project" }));
-  for (const [pageId, screen] of Object.entries((project as ProjectSpec).pages)) {
-    for (const [nodeId, node] of Object.entries(screen.nodes)) {
-      if (node.type === "instance") return [{ code: "project", path: `/pages/${pageId}/nodes/${nodeId}`, message: "위젯 instance 생성은 아직 지원되지 않습니다." }];
-    }
-  }
   if (!(project as ProjectSpec).projectId) {
     return [{ code: "identity", path: "/projectId", message: "프로젝트 생성에는 안정 projectId가 필요합니다." }];
   }
@@ -39,18 +36,26 @@ function buildPlan(project: ProjectSpec): ProjectPlan {
   const routes: ProjectPlan["routes"] = [];
   const roots: string[] = [];
   const excludedPages: ProjectPlan["excludedPages"] = [];
+  const widgets = referencedWidgets(project);
+  const widgetRoots = new Map([...widgets].map(id => [id, JSON.stringify([id, "component", project.pages[id].root])]));
   for (const sourcePageId of project.pageOrder) {
     const screen = project.pages[sourcePageId];
-    if (screen.kind === "widget") {
-      excludedPages.push({ pageId: sourcePageId, reason: "widget-not-supported-in-s1" });
+    const isWidget = screen.kind === "widget";
+    if (isWidget && !widgets.has(sourcePageId)) {
+      excludedPages.push({ pageId: sourcePageId, reason: "unreferenced-widget" });
       continue;
     }
-    const local = compileScreenTickets(screen, true);
-    const ids = new Map(local.map(ticket => [ticket.id, JSON.stringify([sourcePageId, ticket.kind, ticket.instances[0]])]));
+    const local = compileScreenTickets(screen, true, true);
+    const ids = new Map(local.map(ticket => [ticket.id, JSON.stringify([sourcePageId, isWidget && ticket.kind === "page" ? "component" : ticket.kind, ticket.instances[0]])]));
     for (const ticket of local) {
       const id = ids.get(ticket.id)!;
-      tickets.push({ ...ticket, version: "0.2", sourcePageId, id, dependsOn: ticket.dependsOn.map(dep => ids.get(dep)!) });
-      if (ticket.kind === "page") {
+      const refs = new Set(ticket.instances.flatMap(nodeId => [...collectSubtreeIds(screen.nodes, nodeId)].flatMap(id => {
+        const node = screen.nodes[id]; return node.type === "instance" ? [node.ref] : [];
+      })));
+      const dependsOn = [...new Set([...ticket.dependsOn.map(dep => ids.get(dep)!), ...[...refs].map(ref => widgetRoots.get(ref)! )])];
+      tickets.push({ ...ticket, kind: isWidget && ticket.kind === "page" ? "component" : ticket.kind,
+        ...(isWidget && ticket.kind === "page" ? { widgetRoot: true as const } : {}), version: "0.2", sourcePageId, id, dependsOn });
+      if (ticket.kind === "page" && !isWidget) {
         roots.push(id);
         if ((screen.kind ?? "page") === "page") routes.push({ pageId: sourcePageId, ticketId: id });
       }
@@ -86,7 +91,8 @@ function planIssues(plan: ProjectPlan, project: ProjectSpec): ProjectPlanIssue[]
     for (const dep of item.dependsOn) {
       const target = byId.get(dep);
       if (!target || dep === item.id || ("sourcePageId" in item &&
-        (!("sourcePageId" in target) || target.sourcePageId !== item.sourcePageId || target.kind !== "component"))) {
+        (!("sourcePageId" in target) || target.kind !== "component" ||
+          (target.sourcePageId !== item.sourcePageId && !target.widgetRoot)))) {
         issues.push({ code: "dependency", path: "/", message: `허용되지 않는 생성 의존: ${item.id} → ${dep}` });
       }
     }

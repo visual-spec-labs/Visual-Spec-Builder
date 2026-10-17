@@ -1,5 +1,6 @@
 import type { ProjectSpec } from "@/features/editor/schema";
 import type { ProjectPlan } from "@/features/editor/ticket/types";
+import { instanceRefs } from "@/features/editor/ticket/widgetReachability";
 import { buildProjectInputSnapshot, projectAssetPaths, type ProjectInputSnapshot } from "@/features/editor/ticket/projectInputSnapshot";
 import { canonicalJson, sha256Hex } from "./contentHash";
 
@@ -11,7 +12,7 @@ export function structuralProjectPlan(plan: ProjectPlan) {
   return { ...plan, tickets: plan.tickets.map(({ status: _status, error: _error, ...ticket }) => ticket) };
 }
 
-/** S1 has no widget instances. Validate the full project before using this traversal. */
+/** Reachable render sources include modal actions and transitive widget instances. */
 function renderClosure(project: ProjectSpec, sourcePageId: string): string[] {
   const seen = new Set<string>();
   const pending = [sourcePageId];
@@ -19,8 +20,9 @@ function renderClosure(project: ProjectSpec, sourcePageId: string): string[] {
     const id = pending.pop()!;
     if (seen.has(id)) continue;
     const screen = project.pages[id];
-    if (!screen || screen.kind === "widget") throw Error("S1 생성 화면이 아닙니다.");
+    if (!screen) throw Error("생성 화면이 없습니다.");
     seen.add(id);
+    pending.push(...instanceRefs(screen));
     for (const node of Object.values(screen.nodes)) {
       if (node.type === "button" && node.action?.type === "openModal") pending.push(node.action.target);
     }
@@ -41,12 +43,13 @@ export function projectGenerationFingerprints(inputSnapshot: ProjectInputSnapsho
   const assets = snapshot.assets.map(({ dataBase64: _bytes, ...mapping }) => mapping);
   const pages: Record<string, string> = Object.create(null);
   const closures: Record<string, string[]> = Object.create(null);
-  const generatedIds = project.pageOrder.filter(id => project.pages[id].kind !== "widget");
+  const generatedSources = new Set(plan.tickets.map(ticket => ticket.sourcePageId));
+  const generatedIds = project.pageOrder.filter(id => generatedSources.has(id));
   const screens = (ids: string[]) => ids.map(id => ({ id, screen: project.pages[id] }));
   for (const id of generatedIds) {
     const closure = renderClosure(project, id);
     closures[id] = closure;
-    const referenced = new Set(projectAssetPaths({ ...project, pageOrder: [closure[0]!, ...closure.slice(1)] }));
+    const referenced = new Set(projectAssetPaths(project, closure));
     pages[id] = hash({ projectId: project.projectId, sourcePageId: id, templateVersion,
       screens: screens(closure), tickets: plan.tickets.filter(ticket => closure.includes(ticket.sourcePageId)).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
       assets: assets.filter(asset => referenced.has(asset.sourcePath)) });

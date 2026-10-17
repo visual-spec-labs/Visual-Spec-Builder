@@ -1,6 +1,6 @@
 import { isPendingProjectRecovery, recoverPendingProjectOutputs, readCommittedProjectRun, type PendingProjectRecovery, type ProjectRecoveryJournal } from './projectPendingRecovery';
 import type { TicketResultItem } from '@/features/editor/ticket/ticketProtocol';
-import { isProjectTicketRequestId, parseProjectTicketResponse, validateProjectTicketRequest } from '@/features/editor/ticket/projectTicketProtocol';
+import { isProjectTicketRequestId, parseProjectTicketResponse, projectTicketProtocol, validateProjectTicketRequest } from '@/features/editor/ticket/projectTicketProtocol';
 import { parseProjectInputSnapshot } from '@/features/editor/ticket/projectInputSnapshot';
 import { contentHash, sha256Hex } from '@/features/editor/export/contentHash';
 import { PROJECT_TEMPLATE_VERSION, projectGenerationPath } from '@/features/editor/export/projectGenerationIdentity';
@@ -21,7 +21,7 @@ type StoredRequest = Awaited<ReturnType<typeof prepareStoredProjectRequest>>;
 const bytes = (text: string) => new TextEncoder().encode(text);
 const revision = (text: string) => sha256Hex(bytes(text));
 const assertSize = (text: string) => { if (bytes(text).byteLength > WORKSPACE_MAX_BODY_BYTES) throw Error('프로젝트 수용 기록이 저장 크기 한도를 초과합니다.'); };
-function externalImages(project: StoredRequest['request']['project']) {
+function externalImages(project: StoredRequest['request']['project'], sourcePageIds: ReadonlySet<string>) {
   const urls = new Set<string>();
   const visit = (value: unknown) => {
     if (Array.isArray(value)) { value.forEach(visit); return; }
@@ -30,7 +30,7 @@ function externalImages(project: StoredRequest['request']['project']) {
     if (item.type === 'image' && typeof item.src === 'string' && /^(https?:\/\/|data:)/i.test(item.src)) urls.add(item.src);
     Object.values(item).forEach(visit);
   };
-  for (const screen of Object.values(project.pages)) if (screen.kind !== 'widget') visit(screen);
+  for (const [pageId, screen] of Object.entries(project.pages)) if (sourcePageIds.has(pageId)) visit(screen);
   return [...urls];
 }
 
@@ -48,7 +48,7 @@ export async function planProjectOutputs(args: {
   const checked = validateProjectTicketRequest(prepared.request, prepared.snapshot.content, prepared.request.projectRoot);
   if (!checked.valid) throw Error(checked.message);
   const request = checked.request;
-  const response = parseProjectTicketResponse(JSON.stringify({protocol:4,requestId:request.id,results}), request);
+  const response = parseProjectTicketResponse(JSON.stringify({protocol:request.protocol,requestId:request.id,results}), request);
   if (response.kind !== 'results' || response.results.some(item => item.status !== 'done')) throw Error('완전한 성공 wave만 수용할 수 있습니다.');
   const storedInput = await readProjectFile(request.inputSnapshotPath, isCurrent);
   if (!storedInput || storedInput.revision !== request.inputSnapshotSha256 || strictProjectText(storedInput.bytes) !== prepared.snapshot.content) throw Error('저장된 요청 입력이 변경됐습니다.');
@@ -62,19 +62,20 @@ export async function planProjectOutputs(args: {
     const definition = expected.get(output.id);
     return definition && output.filePath === definition.filePath && output.inputFingerprint === definition.inputFingerprint
       && output.scope === definition.scope && output.sourcePageId === definition.sourcePageId;
-  });
+  }).map(output => output.scope === 'page' ? {...output,ticketProtocol:output.ticketProtocol ?? projectTicketProtocol(evidence.record!.plan)} : output);
   // A caller cannot manufacture accepted dependency statuses by marking tickets done.
   for (const ticket of request.plan.tickets) if (ticket.status === 'done' && !retained.some(output => output.id === ticket.id)) throw Error('done 티켓의 현재 수용 근거가 없습니다. 다시 컴파일하세요.');
   const nextOutputs = new Map(retained.map(output => [output.id, output]));
   const candidates = new Map<string,string>();
   const ownedModulePaths = context.outputs.filter(output=>output.scope==='page').map(output => output.filePath.slice(context.projectRoot.length + 1));
+  const allowedExternalImages = externalImages(context.snapshot.project,new Set(context.snapshot.plan.tickets.map(item=>item.sourcePageId)));
   for (const ticket of request.tickets) {
     const file = await readProjectFile(ticket.outputPath, isCurrent);
     if (!file || !strictProjectText(file.bytes).trim()) throw Error(`완료 응답의 임시 출력이 없습니다: ${ticket.outputPath}`);
     await validateProjectModuleImports(strictProjectText(file.bytes),ticket.filePath.slice(context.projectRoot.length+1),ownedModulePaths);
-    const transformed = await rewriteProjectAssetModule({source:strictProjectText(file.bytes), modulePath:ticket.filePath.slice(context.projectRoot.length+1), ownedModulePaths, assets:context.snapshot.assets, externalUrls:externalImages(context.snapshot.project)});
+    const transformed = await rewriteProjectAssetModule({source:strictProjectText(file.bytes), modulePath:ticket.filePath.slice(context.projectRoot.length+1), ownedModulePaths, assets:context.snapshot.assets, externalUrls:allowedExternalImages});
     candidates.set(ticket.filePath, transformed.code);
-    nextOutputs.set(ticket.id, {...expected.get(ticket.id)!,sha256:revision(transformed.code),requestId:request.id});
+    nextOutputs.set(ticket.id, {...expected.get(ticket.id)!,sha256:revision(transformed.code),requestId:request.id,ticketProtocol:request.protocol});
   }
   if (context.snapshot.plan.tickets.every(ticket => nextOutputs.has(ticket.id))) {
     for (const [path, source] of renderProjectRuntime(context)) {
@@ -97,7 +98,7 @@ export async function planProjectOutputs(args: {
     if (definition.scope === 'page') {
       const ticket = context.snapshot.plan.tickets.find(ticket => ticket.id === definition.id)!;
       updates[path] = {requestId:request.id,ticketId:ticket.id,componentName:ticket.componentName,projectId:context.snapshot.projectId,pageId:ticket.sourcePageId,
-        componentKey:ticketComponentKey(ticket),inputScope:'page',inputFingerprint:definition.inputFingerprint,contentHash:contentHash(next),ticketProtocol:4,acceptedAt:new Date().toISOString()};
+        componentKey:ticketComponentKey(ticket),inputScope:'page',inputFingerprint:definition.inputFingerprint,contentHash:contentHash(next),ticketProtocol:request.protocol,acceptedAt:new Date().toISOString()};
     } else updates[path] = null; // GUI artifacts never receive a fictitious page identity.
   }
   const sidecar: ProjectGenerationProvenance = {protocol:1,projectId:context.snapshot.projectId,projectRoot:context.projectRoot,plan:context.snapshot.plan,

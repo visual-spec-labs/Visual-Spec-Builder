@@ -17,7 +17,7 @@ describe("project compiler and contextual plan boundary", () => {
     expect(validateProjectPlanContext(plan, source).valid).toBe(true);
     expect(plan.routes.map(route => route.pageId)).toEqual(["login", "dashboard"]);
     expect(plan.entryPageId).toBe("login");
-    expect(plan.excludedPages).toEqual([{ pageId: "notificationWidget", reason: "widget-not-supported-in-s1" }]);
+    expect(plan.excludedPages).toEqual([{ pageId: "notificationWidget", reason: "unreferenced-widget" }]);
     expect(plan.artifacts[0].dependsOn).toEqual(plan.tickets.filter(t => t.kind === "page").map(t => t.id));
     expect(new Set(plan.tickets.map(t => t.sourcePageId))).toEqual(new Set(["login", "dashboard", "resetPassword"]));
     expect(new Set(plan.tickets.map(t => t.id)).size).toBe(plan.tickets.length);
