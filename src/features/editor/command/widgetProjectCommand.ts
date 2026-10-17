@@ -25,7 +25,9 @@ function extract(project: ProjectSpec, command: Extract<WidgetProjectCommand, { 
   const moved = Object.fromEntries([...ids].map(id => [id, structuredClone(page.nodes[id])])) as ScreenSpec['nodes'];
   const widgetRoot = moved[command.nodeId];
   if (widgetRoot.type !== 'frame') return fail('위젯 루트는 프레임이어야 합니다.');
-  moved[command.nodeId] = { ...widgetRoot, box: { width: 'fill', height: source.box.height === 'auto' ? 'auto' : 'fill' } };
+  const normalizedRoot = { ...widgetRoot, box: { width: 'fill' as const, height: source.box.height === 'auto' ? 'auto' as const : 'fill' as const } };
+  delete normalizedRoot.visible; // Visibility belongs to the host instance, including responsive overrides.
+  moved[command.nodeId] = normalizedRoot;
   const replacement = { type: 'instance' as const, name: command.name, box: structuredClone(source.box), ref: command.widgetId, ...(source.visible === undefined ? {} : { visible: source.visible }) };
   const hostNodes = Object.fromEntries([...Object.entries(page.nodes).filter(([id]) => !ids.has(id)), [command.nodeId, replacement]]) as ScreenSpec['nodes'];
 

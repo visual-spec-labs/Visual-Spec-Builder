@@ -18,6 +18,16 @@ function project() {
 }
 
 describe('project widget commands', () => {
+  it('moves base visibility to the host so a responsive instance can reveal the source', () => {
+    const before=project();
+    before.pages.login.nodes.card.visible=false;
+    before.pages.login.responsive!.overrides.wide.card.visible=true;
+    const result=applyWidgetProjectCommand(before,{version:'0.1',type:'extractWidget',pageId:'login',nodeId:'card',widgetId:'sharedCard',name:'Shared card'});
+    expect(result.ok).toBe(true);
+    if(!result.ok)return;
+    expect(resolveResponsiveScreen(result.spec.pages.login,800).nodes.card.visible).toBe(true);
+    expect(result.spec.pages.sharedCard.nodes.card.visible).not.toBe(false);
+  });
   it('extracts a frame atomically, splitting host box/visible from source responsive appearance', () => {
     const before = project();
     const result = applyWidgetProjectCommand(before, { version: '0.1', type: 'extractWidget', pageId: 'login', nodeId: 'card', widgetId: 'sharedCard', name: 'Shared card' });
