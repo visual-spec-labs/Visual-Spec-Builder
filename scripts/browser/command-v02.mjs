@@ -31,10 +31,10 @@ try {
     throw new Error(`Timed out waiting for ${name}`);
   }
   const state = await waitFile("gui-state.json", data => data.pageId === "login");
-  assert.equal(state.protocol, 2); assert.equal(state.capabilities.commandVersion, "0.2");
+  assert.equal(state.protocol, 2); assert.equal(state.capabilities.commandVersion, "0.3");
   assert.ok(state.capabilities.commands.includes("removeNodeAction"));
   // New producer refuses an old/capability-less GUI before writing (skill fixture, not an AI run).
-  const canProduce = data => data.protocol === 2 && data.capabilities?.commandVersion === "0.2"
+  const canProduce = data => data.protocol === 2 && data.capabilities?.commandVersion === "0.3"
     && data.capabilities.commands.includes("removeNodeAction");
   assert.equal(canProduce({ ...state, protocol: 1 }), false);
   assert.equal(canProduce({ ...state, capabilities: undefined }), false);
@@ -46,7 +46,7 @@ try {
     assert.equal(result.status, "invalid"); assert.equal(result.protocol, 2);
     assert.deepEqual(await page.evaluate(() => ({ spec: editor.getState().spec, past: editor.getState().history.past.length })), baseline);
   }
-  await writeFileAtomic(join(workspace, "runtime/agent-edit.json"), JSON.stringify({ protocol: 2, commandVersion: "0.2", id: "new", baseStateRevision: state.stateRevision, pageId: "login", commands }));
+  await writeFileAtomic(join(workspace, "runtime/agent-edit.json"), JSON.stringify({ protocol: 2, commandVersion: "0.3", id: "new", baseStateRevision: state.stateRevision, pageId: "login", commands }));
   const result = await waitFile("agent-edit-result.json", data => data.requestId === "new");
   assert.equal(result.status, "applied");
   assert.equal(await page.evaluate(() => editor.getState().history.past.length), baseline.past + 1);
@@ -59,8 +59,8 @@ try {
   await page.getByRole("textbox", { name: "자연어 편집 요청" }).fill("버튼의 이동을 복원해 줘");
   await page.getByRole("textbox", { name: "자연어 편집 요청" }).press("Enter");
   const nl = await waitFile("nl-request.json", data => Boolean(data.id));
-  assert.equal(nl.protocol, 2); assert.equal(nl.commandVersion, "0.2");
-  await writeFileAtomic(join(workspace, "runtime/nl-response.json"), JSON.stringify({ protocol: 2, commandVersion: "0.2", requestId: nl.id,
+  assert.equal(nl.protocol, 2); assert.equal(nl.commandVersion, "0.3");
+  await writeFileAtomic(join(workspace, "runtime/nl-response.json"), JSON.stringify({ protocol: 2, commandVersion: "0.3", requestId: nl.id,
     commands: [{ type: "updateNode", id: "loginButton", path: "action", value: { type: "navigate", target: "dashboard" } }] }));
   await page.waitForFunction(() => editor.getState().spec.pages.login.nodes.loginButton.action?.target === "dashboard");
   assert.equal(await page.evaluate(() => editor.getState().history.past.length), baseline.past + 2);
@@ -75,5 +75,5 @@ try {
   await page.evaluate(() => editor.getState().undo());
   assert.deepEqual(await page.evaluate(() => editor.getState().spec), beforeName);
   assert.deepEqual(errors, []);
-  console.log("PASS Command v0.2: capabilities; old/missing-version direct requests rejected without mutation; new direct edit/Undo/Redo; NL protocol 2 round trip. Fixture producers, no AI.");
+  console.log("PASS Command v0.3: capabilities; old/missing-version direct requests rejected without mutation; new direct edit/Undo/Redo; NL protocol 2 round trip. Fixture producers, no AI.");
 } finally { try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); } }
