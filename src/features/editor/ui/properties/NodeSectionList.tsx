@@ -1,4 +1,5 @@
 import { InteractionSection } from "./InteractionSection";
+import { InstanceSection } from "./InstanceSection";
 import { useResponsiveScreen } from "@/features/editor/responsive/useResponsiveScreen";
 import { useNodeField } from "./useNodeField";
 import { SegmentedControl } from "./fields";
@@ -58,6 +59,7 @@ export function NodeSectionList({
   const { breakpoint, pageId } = useResponsiveScreen();
   return (
     <>
+      {type === "instance" && <InstanceSection id={selectedId} />}
       {sectionsFor(type).map((id) => (
         <div key={id}>{renderSection(id, type, selectedId, breakpoint !== null, pageId)}</div>
       ))}

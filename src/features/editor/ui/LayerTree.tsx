@@ -396,8 +396,10 @@ function PageFolderRow({
  * 폴더 아래에 그 페이지의 노드 트리를 root부터 재귀 렌더링한다.
  */
 export function LayerTree() {
+  const spec = useEditorStore((state) => state.spec);
   const pageOrder = useEditorStore((state) => state.spec.pageOrder);
   const activePageId = useEditorStore((state) => state.activePageId);
+  const widgetIds = pageOrder.filter(id => id !== activePageId && spec.pages[id]?.kind === "widget");
   const nodeCount = useEditorStore(
     (state) => Object.keys(state.spec.pages[state.activePageId].nodes).length,
   );
@@ -527,6 +529,18 @@ export function LayerTree() {
     insertNode(parentId, id, blankFrameNode());
   }
 
+  function handleAddWidget(ref: PageId) {
+    const { spec, activePageId, selectedId, insertNode } = useEditorStore.getState();
+    const page = spec.pages[activePageId];
+    const widget = spec.pages[ref];
+    if (!page || widget?.kind !== "widget") return;
+    const parentId = resolveImportParent(page, selectedId);
+    insertNode(parentId, generateNodeId("instance", page.nodes), {
+      type: "instance", name: widget.name, ref,
+      box: { width: widget.size.width, height: widget.size.height },
+    });
+  }
+
   // 접힌 상태는 펼치기 버튼 하나만 있는 좁은 레일이다(#287) — 전체 토글
   // (showPanels)의 "완전히 숨김"과 다르게, 다시 펼치려고 메뉴를 찾지 않아도
   // 된다. docs/22-panel-collapse-resize.md "결정" 1번 참고.
@@ -594,6 +608,10 @@ export function LayerTree() {
 
       <footer className="flex items-center justify-between border-t border-line px-3 py-2">
         <div className="flex items-center gap-1">
+          {widgetIds.length > 0 && <select aria-label="위젯 배치" value="" onChange={event => handleAddWidget(event.target.value)} className="max-w-24 rounded-control border border-line bg-surface text-xs text-content">
+            <option value="">위젯 배치</option>
+            {widgetIds.map(id => <option key={id} value={id}>{spec.pages[id].name}</option>)}
+          </select>}
           <button
             type="button"
             onClick={handleAddFrame}

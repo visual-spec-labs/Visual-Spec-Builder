@@ -19,6 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
   image: "이미지",
   button: "버튼",
   input: "입력",
+  instance: "위젯 인스턴스",
 };
 
 /** 패널 접기 버튼 — 노드 미선택/선택 두 헤더가 같이 쓴다(#287). */
