@@ -9,7 +9,7 @@
 ZIP의 위젯·자산 포함을 fixture로 확인했다. 별도 합성 TSX로 만든 앱의 typecheck,
 production build와 Chromium의 두 인스턴스·이동 동작도 확인했다. 이 코드는 실제
 모델 출력이 아니다. 이전 환경의 최소 MODEL_READY 요청은 HTTP CONNECT 403으로
-거부됐다. 새 환경에서도 `codex exec --ephemeral --sandbox read-only` 최소 호출이
+거부됐다. 새 환경에서도 `codex exec --ephemeral` read-only와 workspace-write 최소 호출이
 모델 전 `Read-only file system (os error 30)` 초기화 오류로 종료됐다. 공유 위젯의
 **실제 AI 생성 → 수용 → ZIP → 독립 앱 검증은 미검증**이다.
 [#265 수용 조건 표](265-acceptance-status.md)에 완료와 남은 항목을 구분한다.
