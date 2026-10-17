@@ -21,7 +21,7 @@ type StoredRequest = Awaited<ReturnType<typeof prepareStoredProjectRequest>>;
 const bytes = (text: string) => new TextEncoder().encode(text);
 const revision = (text: string) => sha256Hex(bytes(text));
 const assertSize = (text: string) => { if (bytes(text).byteLength > WORKSPACE_MAX_BODY_BYTES) throw Error('프로젝트 수용 기록이 저장 크기 한도를 초과합니다.'); };
-function externalImages(project: StoredRequest['request']['project']) {
+function externalImages(project: StoredRequest['request']['project'], sourcePageIds: ReadonlySet<string>) {
   const urls = new Set<string>();
   const visit = (value: unknown) => {
     if (Array.isArray(value)) { value.forEach(visit); return; }
@@ -30,7 +30,7 @@ function externalImages(project: StoredRequest['request']['project']) {
     if (item.type === 'image' && typeof item.src === 'string' && /^(https?:\/\/|data:)/i.test(item.src)) urls.add(item.src);
     Object.values(item).forEach(visit);
   };
-  for (const screen of Object.values(project.pages)) visit(screen);
+  for (const [pageId, screen] of Object.entries(project.pages)) if (sourcePageIds.has(pageId)) visit(screen);
   return [...urls];
 }
 
@@ -68,11 +68,12 @@ export async function planProjectOutputs(args: {
   const nextOutputs = new Map(retained.map(output => [output.id, output]));
   const candidates = new Map<string,string>();
   const ownedModulePaths = context.outputs.filter(output=>output.scope==='page').map(output => output.filePath.slice(context.projectRoot.length + 1));
+  const allowedExternalImages = externalImages(context.snapshot.project,new Set(context.snapshot.plan.tickets.map(item=>item.sourcePageId)));
   for (const ticket of request.tickets) {
     const file = await readProjectFile(ticket.outputPath, isCurrent);
     if (!file || !strictProjectText(file.bytes).trim()) throw Error(`완료 응답의 임시 출력이 없습니다: ${ticket.outputPath}`);
     await validateProjectModuleImports(strictProjectText(file.bytes),ticket.filePath.slice(context.projectRoot.length+1),ownedModulePaths);
-    const transformed = await rewriteProjectAssetModule({source:strictProjectText(file.bytes), modulePath:ticket.filePath.slice(context.projectRoot.length+1), ownedModulePaths, assets:context.snapshot.assets, externalUrls:externalImages(context.snapshot.project)});
+    const transformed = await rewriteProjectAssetModule({source:strictProjectText(file.bytes), modulePath:ticket.filePath.slice(context.projectRoot.length+1), ownedModulePaths, assets:context.snapshot.assets, externalUrls:allowedExternalImages});
     candidates.set(ticket.filePath, transformed.code);
     nextOutputs.set(ticket.id, {...expected.get(ticket.id)!,sha256:revision(transformed.code),requestId:request.id});
   }
