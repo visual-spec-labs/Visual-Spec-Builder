@@ -41,7 +41,7 @@ try {
   }
   const before = await state();
   const ambiguous = await request("LoginButton을 DashboardPage로 연결해 줘");
-  assert.equal(ambiguous.protocol, 2); assert.equal(ambiguous.commandVersion, "0.2");
+  assert.equal(ambiguous.protocol, 2); assert.equal(ambiguous.commandVersion, "0.3");
   assert.equal(ambiguous.pageId, "login"); assert.equal(ambiguous.scope.nodeId, "loginButton");
   assert.equal(ambiguous.destinations.length, 5);
   for (const item of ambiguous.destinations) assert.deepEqual(Object.keys(item).sort(), ["kind", "name", "pageId"]);

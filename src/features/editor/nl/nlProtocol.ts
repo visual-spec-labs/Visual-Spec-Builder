@@ -232,7 +232,7 @@ export function parseNlResponse(
   if (Object.hasOwn(body, "projectCommand")) {
     const command = body.projectCommand;
     const fields = ["version", "type", "pageId", "nodeId", "widgetId", "name", "targetPageId"];
-    if (body.commandVersion !== COMMAND_VERSION || Object.hasOwn(body, "commands") || !isRecord(command)
+    if ((body.commandVersion !== "0.2" && body.commandVersion !== COMMAND_VERSION) || Object.hasOwn(body, "commands") || !isRecord(command)
       || Object.keys(command).length !== fields.length || fields.some((key) => !Object.hasOwn(command, key))
       || command.version !== "0.1" || command.type !== "extractAndPlaceWidget"
       || [command.pageId, command.nodeId, command.widgetId, command.name, command.targetPageId]

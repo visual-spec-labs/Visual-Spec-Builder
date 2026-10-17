@@ -87,7 +87,7 @@ describe("NL read-only destination catalog", () => {
     editor().loadSpec(spec);
     const before=editor().spec;
     const command={type:'updateNode' as const,id:'shared',path:'overrides',value:{title:{content:'Custom',color:'#445566'}}};
-    const response=JSON.stringify({protocol:2,commandVersion:'0.2',requestId:'request',commands:[command]});
+    const response=JSON.stringify({protocol:2,commandVersion:'0.3',requestId:'request',commands:[command]});
     expect(parseNlResponse(response,'request').kind).toBe('commands');
     expect(editor().applyGuardedTransaction('login',[command]).ok).toBe(true);
     expect(editor().history.past).toHaveLength(1);
