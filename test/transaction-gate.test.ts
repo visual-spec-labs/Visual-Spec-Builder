@@ -148,4 +148,64 @@ describe("runTransactionGates — G2→G3, 전부-또는-전무(#154)", () => {
     // 이 테스트는 "호출 뒤에도 여전히 원본과 같다"를 재확인한다.
     expect(SPEC.pages[PAGE_ID].nodes.cardA).toBe(SCREEN.nodes.cardA);
   });
+
+  it("프로젝트 스타일 Command를 같은 transaction에서 검증·적용한다", () => {
+    const spec = structuredClone(SPEC);
+    const page = spec.pages[PAGE_ID];
+    const text = Object.entries(page.nodes).find(([, node]) => node.type === "text");
+    expect(text).toBeDefined();
+    if (!text || text[1].type !== "text") return;
+    spec.styles = { colors: { "color-primary": { name: "Primary", value: text[1].color } } };
+    text[1].styleRefs = { colors: { color: "color-primary" } };
+
+    const result = runTransactionGates(spec, PAGE_ID, [
+      { type: "updateColorStyle", id: "color-primary", name: "Brand", value: "#123456" },
+    ]);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.screen.nodes[text[0]]).toMatchObject({ color: "#123456" });
+    expect(text[1].color).not.toBe("#123456");
+  });
+
+  it("자연어 updateNode 직접 편집은 해당 스타일 연결을 끊고 literal을 바꾼다", () => {
+    const spec = structuredClone(SPEC);
+    const page = spec.pages[PAGE_ID];
+    const text = Object.entries(page.nodes).find(([, node]) => node.type === "text");
+    expect(text).toBeDefined();
+    if (!text || text[1].type !== "text") return;
+    spec.styles = { colors: { "color-primary": { name: "Primary", value: text[1].color } } };
+    text[1].styleRefs = { colors: { color: "color-primary" } };
+
+    const result = runTransactionGates(spec, PAGE_ID, [
+      { type: "updateNode", id: text[0], path: "color", value: "#654321" },
+    ]);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const resultNode = result.screen.nodes[text[0]];
+      expect(result.screen.nodes[text[0]]).toMatchObject({ color: "#654321" });
+      expect("styleRefs" in resultNode ? resultNode.styleRefs : undefined).toBeUndefined();
+    }
+    expect(text[1].color).not.toBe("#654321");
+  });
+
+  it("스타일 create/apply/delete를 한 원자 transaction으로 처리한다", () => {
+    const spec = structuredClone(SPEC);
+    const text = Object.entries(spec.pages[PAGE_ID].nodes).find(([, node]) => node.type === "text");
+    expect(text).toBeDefined();
+    if (!text || text[1].type !== "text") return;
+    const result = runTransactionGates(spec, PAGE_ID, [
+      { type: "createColorStyle", id: "color-brand", name: "Brand", value: "#112233" },
+      { type: "applyColorStyle", id: "color-brand", nodeId: text[0], target: "color" },
+      { type: "deleteColorStyle", id: "color-brand" },
+    ]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const resultNode = result.screen.nodes[text[0]];
+      expect(result.spec.styles?.colors?.["color-brand"]).toBeUndefined();
+      expect(result.screen.nodes[text[0]]).toMatchObject({ color: "#112233" });
+      expect("styleRefs" in resultNode ? resultNode.styleRefs?.colors : undefined).toBeUndefined();
+    }
+    expect(spec.styles).toBeUndefined();
+  });
 });

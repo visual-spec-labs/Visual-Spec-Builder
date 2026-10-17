@@ -83,6 +83,7 @@ function structuralKey(
       color: node.color,
       background: node.background,
       border: node.border,
+      states: node.states,
     });
   }
 
@@ -95,6 +96,7 @@ function structuralKey(
       color: node.color,
       background: node.background,
       border: node.border,
+      states: node.states,
     });
   }
 

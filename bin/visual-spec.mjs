@@ -647,7 +647,7 @@ function runSkills(args) {
  */
 async function runValidate(files) {
   if (files.length === 0) throw new Error("검사할 스펙 파일을 지정하세요: visual-spec validate <파일>...");
-  const { migrateToV04, validateProjectSpec, validateVisualSpec } = await import("./lib/schema.mjs");
+  const { migrateToV03, migrateToV04, validateProjectSpec, validateVisualSpec } = await import("./lib/schema.mjs");
   let failed = 0;
   for (const file of files) {
     let parsed;
@@ -659,7 +659,7 @@ async function runValidate(files) {
       console.log(`✗ ${file} — ${reason}: ${error instanceof Error ? error.message : String(error)}`);
       continue;
     }
-    const migrated = migrateToV04(parsed);
+    const migrated = migrateToV04(migrateToV03(parsed));
     const isProject = typeof migrated === "object" && migrated !== null && "pages" in migrated;
     const { valid, issues } = isProject ? validateProjectSpec(migrated) : validateVisualSpec(migrated);
     if (valid) {

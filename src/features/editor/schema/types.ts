@@ -3,6 +3,7 @@
 
 export type NodeId = string;
 export type Node = FrameNode | TextNode | ImageNode | ButtonNode | InputNode | InstanceNode;
+export type StyleId = string;
 /**
  * number | "auto" | "fill". number는 minimum 0, px로 해석. "fill"의 교차축 해석(align-self: stretch)은 docs/06-schema-freeze.md 참고.
  */
@@ -69,7 +70,7 @@ export type PartialRadius =
 export type ScreenKind = "page" | "modal" | "widget";
 
 /**
- * Visual Spec Schema v0.4 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 구버전 문서는 앱이 열 때 0.4로 변환한다(schema/migrate.ts).
+ * Visual Spec Schema v0.4 — 파일 1개 = Screen 1개. Auto Layout 전용, 절대좌표 없음. 0.3 문서는 앱이 열 때 0.4로 변환한다(schema/migrate.ts).
  */
 export interface VisualSpec {
   version: "0.4";
@@ -94,6 +95,7 @@ export interface ScreenSpec {
 export interface FrameNode {
   type: "frame";
   name: string;
+  styleRefs?: StyleRefs;
   visible?: boolean;
   box: Box;
   layout: Layout;
@@ -103,6 +105,12 @@ export interface FrameNode {
   opacity?: Opacity;
   blur?: Blur;
   children: ChildReference[];
+}
+export interface StyleRefs {
+  colors?: {
+    [k: string]: StyleId;
+  };
+  typography?: StyleId;
 }
 export interface Box {
   width: Size;
@@ -200,6 +208,7 @@ export interface ChildReference {
 export interface TextNode {
   type: "text";
   name: string;
+  styleRefs?: StyleRefs;
   visible?: boolean;
   box: Box;
   content: string;
@@ -219,6 +228,7 @@ export interface Typography {
 export interface ImageNode {
   type: "image";
   name: string;
+  styleRefs?: StyleRefs;
   visible?: boolean;
   box: Box;
   /**
@@ -235,6 +245,8 @@ export interface ImageNode {
 export interface ButtonNode {
   type: "button";
   name: string;
+  styleRefs?: StyleRefs;
+  states?: NodeStates;
   visible?: boolean;
   box: Box;
   /**
@@ -246,6 +258,19 @@ export interface ButtonNode {
   background?: Background;
   border?: Border;
   action?: Action;
+}
+export interface NodeStates {
+  hover?: StateStyle;
+  pressed?: StateStyle;
+  focus?: StateStyle;
+}
+export interface StateStyle {
+  /**
+   * #RRGGBB 또는 #RRGGBBAA
+   */
+  background?: string;
+  color?: Color;
+  borderColor?: Color;
 }
 /**
  * 다른 page로 이동할 의도를 저장한다. 라우터 없이 onNavigate(target) 콜백을 호출하는 코드 생성은 후속 S1-9에서 구현할 계약이며 현재 지원하지 않는다.
@@ -270,6 +295,8 @@ export interface CloseAction {
 export interface InputNode {
   type: "input";
   name: string;
+  styleRefs?: StyleRefs;
+  states?: NodeStates;
   visible?: boolean;
   box: Box;
   /**
@@ -416,7 +443,7 @@ export interface InstanceOverride {
 }
 
 /**
- * Visual Spec v0.4 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 화면 문서와 같은 ScreenSpec이다. 구버전 문서는 앱이 열 때 0.4로 변환한다.
+ * Visual Spec v0.4 — 파일 1개 = 프로젝트 1개(페이지 여러 개). 각 페이지는 화면 문서와 같은 ScreenSpec이다. 버전은 IR 세대를 뜻하고, 화면 문서와는 버전이 아니라 키(screen / pages)로 구별한다. 0.3 문서는 앱이 열 때 0.4로 변환한다.
  */
 export interface ProjectSpec {
   version: "0.4";
@@ -425,6 +452,7 @@ export interface ProjectSpec {
    * GUI가 지정하는 프로젝트의 안정 신원. 편집·앱 안 이름 변경에서는 유지하고 Save As 복사에서는 새 값으로 바꾼다. 생략된 기존 문서는 앱이 열 때 ID를 부여한다.
    */
   projectId?: string;
+  styles?: ProjectStyles;
   pages: {
     [k: string]: ScreenSpec;
   };
@@ -434,4 +462,23 @@ export interface ProjectSpec {
    * @minItems 1
    */
   pageOrder: [PageId, ...PageId[]];
+}
+
+export interface ProjectStyles {
+  colors?: {
+    [k: string]: ColorStyle;
+  };
+  typography?: {
+    [k: string]: TypographyStyle;
+  };
+}
+
+export interface ColorStyle {
+  name: string;
+  value: Color;
+}
+
+export interface TypographyStyle {
+  name: string;
+  value: Typography;
 }

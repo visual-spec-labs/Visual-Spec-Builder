@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CommandTransaction",
-  "description": "Visual Spec Command Schema v0.2 — 신뢰할 수 없는 입력이 Command Engine에 닿기 전의 형태 계약.",
+  "description": "Visual Spec Command Schema v0.3 — 신뢰할 수 없는 입력이 Command Engine에 닿기 전의 형태 계약.",
   "$ref": "#/$defs/Transaction",
   "$defs": {
     "Command": {
@@ -12,7 +12,15 @@
         { "$ref": "#/$defs/MoveNodeCommand" },
         { "$ref": "#/$defs/SetLayoutCommand" },
         { "$ref": "#/$defs/UpdateScreenCommand" },
-        { "$ref": "#/$defs/RemoveNodeActionCommand" }
+        { "$ref": "#/$defs/RemoveNodeActionCommand" },
+        { "$ref": "#/$defs/CreateColorStyleCommand" },
+        { "$ref": "#/$defs/UpdateColorStyleCommand" },
+        { "$ref": "#/$defs/DeleteColorStyleCommand" },
+        { "$ref": "#/$defs/UpdateTypographyStyleCommand" },
+        { "$ref": "#/$defs/ApplyColorStyleCommand" },
+        { "$ref": "#/$defs/ApplyTypographyStyleCommand" },
+        { "$ref": "#/$defs/CreateTypographyStyleCommand" },
+        { "$ref": "#/$defs/DeleteTypographyStyleCommand" }
       ]
     },
     "CreateNodeCommand": {
@@ -94,12 +102,71 @@
         "id": { "$ref": "visual-spec#/$defs/NodeId" }
       }
     },
+    "UpdateColorStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "name", "value"],
+      "properties": {
+        "type": { "const": "updateColorStyle" },
+        "id": { "$ref": "visual-spec#/$defs/StyleId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "value": { "$ref": "visual-spec#/$defs/Color" }
+      }
+    },
+    "CreateColorStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "name", "value"],
+      "properties": { "type": { "const": "createColorStyle" }, "id": { "$ref": "visual-spec#/$defs/StyleId" }, "name": { "type": "string", "minLength": 1, "maxLength": 128 }, "value": { "$ref": "visual-spec#/$defs/Color" } }
+    },
+    "DeleteColorStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": { "type": { "const": "deleteColorStyle" }, "id": { "$ref": "visual-spec#/$defs/StyleId" } }
+    },
+    "UpdateTypographyStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "name", "value"],
+      "properties": {
+        "type": { "const": "updateTypographyStyle" },
+        "id": { "$ref": "visual-spec#/$defs/StyleId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "value": { "$ref": "visual-spec#/$defs/Typography" }
+      }
+    },
+    "CreateTypographyStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "name", "value"],
+      "properties": { "type": { "const": "createTypographyStyle" }, "id": { "$ref": "visual-spec#/$defs/StyleId" }, "name": { "type": "string", "minLength": 1, "maxLength": 128 }, "value": { "$ref": "visual-spec#/$defs/Typography" } }
+    },
+    "DeleteTypographyStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": { "type": { "const": "deleteTypographyStyle" }, "id": { "$ref": "visual-spec#/$defs/StyleId" } }
+    },
+    "ApplyColorStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "nodeId", "target"],
+      "properties": {
+        "type": { "const": "applyColorStyle" },
+        "id": { "$ref": "visual-spec#/$defs/StyleId" },
+        "nodeId": { "$ref": "visual-spec#/$defs/NodeId" },
+        "target": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ApplyTypographyStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "nodeId"],
+      "properties": {
+        "type": { "const": "applyTypographyStyle" },
+        "id": { "$ref": "visual-spec#/$defs/StyleId" },
+        "nodeId": { "$ref": "visual-spec#/$defs/NodeId" }
+      }
+    },
     "Transaction": {
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "commands"],
       "properties": {
-        "version": { "const": "0.2" },
+        "version": { "const": "0.3" },
         "commands": {
           "type": "array",
           "minItems": 1,

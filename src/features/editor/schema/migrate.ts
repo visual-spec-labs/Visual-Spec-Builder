@@ -1,4 +1,5 @@
 import type { PageId, ProjectSpec, ScreenSpec, VisualSpec } from "./types";
+import { validateProjectSpec } from "./validate";
 
 /**
  * 화면 문서를 넓힐 때 쓰는 페이지 id.
@@ -28,7 +29,24 @@ export function migrateV01(spec: VisualSpec): ProjectSpec {
  * Export "이 페이지만 내보내기"가 화면 문서 계약대로 떨어지게 한다. 버전은 0.4다.
  */
 export function toVisualSpec(page: ScreenSpec): VisualSpec {
+  if (Object.values(page.nodes).some((node) => "styleRefs" in node && node.styleRefs !== undefined)) {
+    throw new Error("연결된 스타일이 있는 화면은 프로젝트 문맥을 사용해 독립 문서로 변환해야 합니다.");
+  }
   return { version: "0.4", screen: page };
+}
+
+/** Validate the source project, then detach style links on an immutable page copy. */
+export function toStandaloneVisualSpec(project: ProjectSpec, pageId: PageId): VisualSpec {
+  const validation = validateProjectSpec(project);
+  if (!validation.valid) throw new Error(`유효하지 않은 프로젝트라 화면을 내보낼 수 없습니다: ${validation.issues.map((issue) => issue.message).join("; ")}`);
+  const page = project.pages[pageId];
+  if (!page) throw new Error(`페이지 '${pageId}'가 프로젝트에 없습니다.`);
+  const nodes = Object.fromEntries(Object.entries(page.nodes).map(([id, node]) => {
+    if (!("styleRefs" in node)) return [id, node];
+    const { styleRefs: _styleRefs, ...literalNode } = node;
+    return [id, literalNode];
+  })) as ScreenSpec["nodes"];
+  return { version: "0.4", screen: { ...page, nodes } };
 }
 
 /**

@@ -1,4 +1,5 @@
 import {
+  migrateToV03,
   migrateToV04,
   validateProjectSpec,
   validateVisualSpec,
@@ -37,7 +38,7 @@ export function parseSpecJson(jsonText: string): LoadSpecResult {
     return { ok: false, issueCount: 1, issues: [{ code: "schema", path: "/", message: "올바른 JSON이 아닙니다. JSON 구문을 확인하세요." }] };
   }
 
-  const migrated = migrateToV04(parsed);
+  const migrated = migrateToV04(migrateToV03(parsed));
   const result = isProjectDocument(migrated)
     ? validateProjectSpec(migrated)
     : validateVisualSpec(migrated);

@@ -32,6 +32,33 @@ describe("toPascalCase", () => {
 });
 
 describe("compileTickets", () => {
+  it("states가 다른 button 형제는 같은 컴포넌트 티켓으로 합치지 않는다", () => {
+    const page = screenOf(emptyTitleScreen as VisualSpec);
+    const root = page.nodes[page.root];
+    if (root.type !== "frame") throw new Error("fixture root must be a frame");
+    const group = structuredClone(root);
+    group.name = "Controls";
+    group.children = [{ node: "buttonA" }, { node: "buttonB" }];
+    const button = {
+      type: "button" as const, name: "Action", box: { width: "fill" as const, height: 40 }, content: "Continue",
+      typography: { fontFamily: "Pretendard", fontSize: 16, fontWeight: 400, lineHeight: 24, letterSpacing: 0, textAlign: "center" as const },
+      color: "#FFFFFF", background: [{ type: "solid" as const, color: "#123456" }],
+    };
+    const screen: ScreenSpec = {
+      ...page,
+      nodes: {
+        root: { ...root, children: [{ node: "controls" }] },
+        controls: group,
+        buttonA: { ...button },
+        buttonB: { ...button, states: { hover: { background: "#654321" } } },
+      },
+    };
+
+    const tickets = compileTickets(screen);
+
+    expect(tickets.some((ticket) => ticket.kind === "component" && ticket.instances.includes("buttonA") && ticket.instances.includes("buttonB"))).toBe(false);
+  });
+
   it("반복되는 형제(cardA/cardB)를 하나의 컴포넌트 티켓으로 묶는다", () => {
     const tickets = compileTickets(screenOf(dashboardCards as VisualSpec));
 

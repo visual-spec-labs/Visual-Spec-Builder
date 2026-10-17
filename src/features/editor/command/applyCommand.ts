@@ -4,7 +4,7 @@ import { generateNodeIds } from "@/features/editor/store/nodeId";
 import { setByPath } from "@/features/editor/store/path";
 
 import { isEditableNodePath, isEditableScreenPath } from "./editablePath";
-import type { Command, CreateNodeCommand, DeleteNodeCommand, MoveNodeCommand, SetLayoutCommand, UpdateNodeCommand, UpdateScreenCommand } from "./types";
+import type { Command, ScreenCommand, CreateNodeCommand, DeleteNodeCommand, MoveNodeCommand, SetLayoutCommand, UpdateNodeCommand, UpdateScreenCommand } from "./types";
 
 function isFrameNode(node: Node): node is FrameNode {
   return node.type === "frame";
@@ -155,7 +155,20 @@ function applyUpdateNode(screen: ScreenSpec, command: UpdateNodeCommand): ApplyR
     return noOp(screen, `path '${command.path}'는 이 노드에 쓸 수 없습니다`);
   }
 
-  const nextNode = setByPath(node, command.path, command.value);
+  let nextNode = setByPath(node, command.path, command.value);
+  const originalStyleRefs = "styleRefs" in node ? node.styleRefs : undefined;
+  if (originalStyleRefs !== undefined && nextNode.type !== "instance") {
+    const colors = Object.fromEntries(Object.entries(originalStyleRefs.colors ?? {}).filter(([target]) =>
+      !(command.path === "background" && target.startsWith("background."))
+      && target !== command.path && !target.startsWith(`${command.path}.`)));
+    const typographyChanged = command.path === "typography" || command.path.startsWith("typography.");
+    const { styleRefs: _oldRefs, ...nodeWithoutRefs } = nextNode;
+    const styleRefs = {
+      ...(Object.keys(colors).length > 0 ? { colors } : {}),
+      ...(!typographyChanged && originalStyleRefs.typography ? { typography: originalStyleRefs.typography } : {}),
+    };
+    nextNode = { ...nodeWithoutRefs, ...(Object.keys(styleRefs).length > 0 ? { styleRefs } : {}) } as Node;
+  }
   if (command.path === "action") {
     const candidate = withNodes(screen, { ...nodes, [command.id]: nextNode });
     const result = validateVisualSpec({ version: "0.4", screen: candidate });
@@ -299,6 +312,8 @@ export function applyCommandWithReason(screen: ScreenSpec, command: Command): Ap
       return applySetLayout(screen, command);
     case "updateScreen":
       return applyUpdateScreen(screen, command);
+    default:
+      return noOp(screen, "프로젝트 스타일 Command는 프로젝트 편집 API에서만 적용할 수 있습니다");
   }
 }
 
@@ -312,7 +327,7 @@ export function applyCommand(screen: ScreenSpec, command: Command): ScreenSpec {
  * 통째로 적용할 때 쓴다 — 결과를 history.pushHistory에 한 번만 넘기면
  * PRD 13장이 요구하는 "요청 하나 = Undo 한 번" 트랜잭션이 된다.
  */
-export function applyTransaction(screen: ScreenSpec, commands: Command[]): ScreenSpec {
+export function applyTransaction(screen: ScreenSpec, commands: ScreenCommand[]): ScreenSpec {
   return commands.reduce((current, command) => applyCommand(current, command), screen);
 }
 
@@ -353,7 +368,7 @@ export function buildDuplicateCommands(
   liveNodes: Record<NodeId, Node>,
   parentId: NodeId,
   insertIndex: number,
-): { commands: Command[]; newRootId: NodeId; idMap: Map<NodeId, NodeId> } | null {
+): { commands: ScreenCommand[]; newRootId: NodeId; idMap: Map<NodeId, NodeId> } | null {
   if (sourceNodes[sourceId] === undefined) return null;
 
   const subtreeIds = [...collectSubtreeIds(sourceNodes, sourceId)];
@@ -363,7 +378,7 @@ export function buildDuplicateCommands(
   );
   const idMap = new Map(subtreeIds.map((oldId, i) => [oldId, newIds[i]]));
 
-  const commands: Command[] = subtreeIds.map((oldId) => {
+  const commands: ScreenCommand[] = subtreeIds.map((oldId) => {
     const original = sourceNodes[oldId];
     const newId = idMap.get(oldId) as NodeId;
     // frame이면 children을 비운 채로 만든다 — applyCreateNode가 각 자식의

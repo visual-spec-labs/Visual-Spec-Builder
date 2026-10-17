@@ -32,7 +32,7 @@ const state = () => JSON.parse(files.get("runtime/gui-state.json") ?? "null");
 const result = () => JSON.parse(files.get("runtime/agent-edit-result.json") ?? "null");
 const title = () => (useEditorStore.getState().spec.pages.page1.nodes.headerTitle as { content: string }).content;
 function sendEdit(edit: Record<string, unknown>) {
-  files.set("runtime/agent-edit.json", JSON.stringify({ protocol: 2, commandVersion: "0.2", ...edit }));
+  files.set("runtime/agent-edit.json", JSON.stringify({ protocol: 2, commandVersion: "0.3", ...edit }));
 }
 const background = (color: string) => [{ type: "updateNode", id: "root", path: "background", value: [{ type: "solid", color }] }];
 const retitle = (value: string) => [{ type: "updateNode", id: "headerTitle", path: "content", value }];

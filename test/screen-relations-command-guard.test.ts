@@ -25,7 +25,7 @@ describe("화면 관계 Command v0.2 (#265 S1-3)", () => {
     const spec = project();
     const command: Command = { type: "createNode", id: "copy", parentId: "root", node: spec.pages.login.nodes.loginButton };
     expect(validateCommand(command).valid).toBe(true);
-    expect(validateTransaction({ version: "0.2", commands: [command] }).valid).toBe(true);
+    expect(validateTransaction({ version: "0.3", commands: [command] }).valid).toBe(true);
     expect(runTransactionGates(spec, "login", [command]).ok).toBe(true);
     const invalid: Command = { ...command, node: { ...command.node, action: { type: "navigate", target: "missing" } } as typeof command.node };
     expect(runTransactionGates(spec, "login", [invalid])).toMatchObject({ ok: false, failure: { kind: "invalid", issues: [{ code: "action-target-missing" }] } });

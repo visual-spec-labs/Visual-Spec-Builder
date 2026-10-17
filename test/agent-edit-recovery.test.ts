@@ -74,7 +74,7 @@ it.each(["EIO", "EACCES"])("두 복원 파일의 %s 동시 실패 뒤 회복해�
   const applied = JSON.stringify({ protocol: 2, requestId: "already-applied", status: "applied", uncertain: false });
   fs.writeFileSync(join(root, paths[0]), applied);
   fs.writeFileSync(join(root, paths[1]), JSON.stringify({
-    protocol: 2, commandVersion: "0.2", id: "already-applied", baseStateRevision: "previous-connection", pageId: "page1",
+    protocol: 2, commandVersion: "0.3", id: "already-applied", baseStateRevision: "previous-connection", pageId: "page1",
     commands: [{ type: "updateNode", id: "headerTitle", path: "content", value: "중복 편집" }],
   }));
   const originalStat = vi.mocked(fs.statSync).getMockImplementation()!;

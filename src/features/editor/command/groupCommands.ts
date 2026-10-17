@@ -1,5 +1,5 @@
 import { findParentId } from "./applyCommand";
-import type { Command } from "./types";
+import type { ScreenCommand } from "./types";
 import type { FrameNode, NodeId, ScreenSpec } from "@/features/editor/schema";
 import { generateNodeId } from "@/features/editor/store/nodeId";
 
@@ -30,7 +30,7 @@ export function buildGroupCommands(screen: ScreenSpec, id: NodeId) {
     },
     children: [],
   };
-  const commands: Command[] = [
+  const commands: ScreenCommand[] = [
     { type: "createNode", id: groupId, parentId: at.parentId, index: at.index, node },
     { type: "moveNode", id, newParentId: groupId, index: 0 },
   ];
@@ -56,7 +56,7 @@ export function buildUngroupCommands(screen: ScreenSpec, id: NodeId) {
   const at = location(screen, id);
   const node = screen.nodes[id];
   if (at === null || node?.type !== "frame") return null;
-  const commands: Command[] = node.children.map((child, offset) => ({
+  const commands: ScreenCommand[] = node.children.map((child, offset) => ({
     type: "moveNode", id: child.node, newParentId: at.parentId, index: at.index + offset,
   }));
   commands.push({ type: "deleteNode", id });
