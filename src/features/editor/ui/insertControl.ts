@@ -4,6 +4,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { generateNodeId } from "@/features/editor/store/nodeId";
 
 import { resolveInsertParent } from "./selection";
+import type { MenuEntry } from "./menuEntry";
 
 /** Insert 메뉴도 붙여넣기와 같은 부모 규칙과 기존 createNode Command를 쓴다. */
 export function insertControl(kind: "button" | "input"): void {
@@ -23,4 +24,18 @@ export function insertWidget(ref: PageId): void {
   insertNode(parentId, generateNodeId("instance", screen.nodes), {
     type: "instance", name: widget.name, ref, box: { width: widget.size.width, height: widget.size.height },
   });
+}
+
+/** Read the current project when the menu opens, including widgets just created. */
+export function widgetInsertEntries(): MenuEntry[] {
+  const { spec } = useEditorStore.getState();
+  const widgets = spec.pageOrder.filter((id) => spec.pages[id]?.kind === "widget");
+  if (widgets.length === 0) return [];
+  return [
+    { kind: "separator" },
+    ...widgets.map((id): MenuEntry => ({
+      kind: "action", label: `위젯: ${spec.pages[id].name} (${id})`,
+      onSelect: () => insertWidget(id),
+    })),
+  ];
 }

@@ -6,8 +6,7 @@ import { blankSpec } from "@/features/editor/store/blankSpec";
 import { createNode } from "@/features/editor/store/createNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useToolStore } from "@/features/editor/store/toolStore";
-import { insertControl, insertWidget } from "@/features/editor/ui/insertControl";
-import { widgetInsertEntries } from "@/features/editor/ui/MenuBar";
+import { insertControl, insertWidget, widgetInsertEntries } from "@/features/editor/ui/insertControl";
 import fixture from "./fixtures/screen-relations-project.json";
 import type { ProjectSpec } from "@/features/editor/schema";
 
