@@ -31,6 +31,7 @@ try {
   page.on("dialog", async dialog => { notices.push(dialog.message()); await dialog.dismiss(); });
   await page.goto(url);
   await page.getByRole("button", { name: "Alpha 이름 변경" }).waitFor();
+  await page.getByText("파일: Alpha.json", { exact: true }).waitFor();
   const dialog = page.getByRole("alertdialog");
   const focusInside = () => page.evaluate(() => Boolean(document.activeElement?.closest('[role="alertdialog"]')));
   async function cycle() {
@@ -151,6 +152,7 @@ try {
   await page.getByRole("button", { name: "Alpha 이름 변경" }).first().click();
   await dialog.getByRole("textbox").fill("한글 이름 변경");
   await page.keyboard.press("Enter");
+  await page.getByRole("alertdialog").getByRole("button", { name: "이름과 파일명 변경", exact: true }).click();
   await page.getByRole("button", { name: "한글 이름 변경 이름 변경" }).waitFor();
   assert.ok(JSON.parse(await readFile(join(specs, "한글 이름 변경.json"), "utf8")));
   console.log("PASS Save as and Rename Enter submit to real workspace");

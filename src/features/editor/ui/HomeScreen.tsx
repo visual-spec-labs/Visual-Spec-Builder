@@ -12,7 +12,6 @@ import type {
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { setHomeDraft } from "@/features/editor/store/homeDraft";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
-import { promptText } from "@/features/editor/store/promptDialogStore";
 import type { Direction } from "@/features/editor/ui/canvasLayout";
 import { downloadTextFile } from "@/features/editor/ui/exportSpecAsJson";
 import { HOME_DRAFT_EXAMPLES } from "@/features/editor/ui/homeDraftExamples";
@@ -29,7 +28,7 @@ import {
   type PreviewImageSrc,
 } from "@/features/editor/ui/homePreview";
 import { beginPreviewVisit, collectImageSrcs, endPreviewVisit, usePreviewThumbnails } from "@/features/editor/ui/previewThumbnail";
-import { renameProject } from "./renameProject";
+import { renameProject, requestProjectRename } from "./renameProject";
 import {
   loadWorkspaceProjects,
   loadWorkspaceProjectsProgressively,
@@ -208,12 +207,7 @@ export function HomeScreen() {
 
   async function handleRename(project: HomeProject) {
     if (renaming) return;
-    const name = await promptText({
-      title: "프로젝트 이름 변경",
-      message: "저장 파일명도 함께 변경됩니다.",
-      initialValue: project.spec.name,
-      confirmLabel: "이름 변경",
-    });
+    const name = await requestProjectRename(project.spec.name, project.fileName);
     if (name === null) return;
     setRenaming(true);
     setMessage(null);
@@ -254,10 +248,11 @@ export function HomeScreen() {
   // 파일이 아니니 클릭해도 openEditor()만 한다 — 이미 그 spec이 에디터에도 떠 있다.
   const cards =
     state.kind === "no-workspace"
-      ? [{ key: spec.name, spec, onOpen: openEditor, onRename: undefined }]
+      ? [{ key: spec.name, spec, fileName: null as string | null, onOpen: openEditor, onRename: undefined }]
       : state.projects.map((project) => ({
           key: project.fileName,
           spec: project.spec,
+          fileName: project.fileName,
           onOpen: () => void handleOpenProject(project),
           onRename: () => void handleRename(project),
         }));
@@ -415,7 +410,7 @@ export function HomeScreen() {
         </p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(208px,1fr))] gap-4">
           {cards.map((card) => (
-            <ProjectCard key={card.key} spec={card.spec} onOpen={card.onOpen} onRename={card.onRename} disabled={renaming}
+            <ProjectCard key={card.key} spec={card.spec} fileName={card.fileName} onOpen={card.onOpen} onRename={card.onRename} disabled={renaming}
               scrollRoot={scrollRoot} drawn={drawnPreviews.current.has(card.key)}
               onDrawn={() => drawnPreviews.current.add(card.key)} />
           ))}
@@ -478,6 +473,7 @@ function CorruptedFilesSection({ failures, onRetry }: { failures: HomeProjectFai
 
 function ProjectCard({
   spec,
+  fileName,
   onOpen,
   onRename,
   disabled,
@@ -486,6 +482,7 @@ function ProjectCard({
   onDrawn,
 }: {
   spec: ProjectSpec;
+  fileName: string | null;
   onOpen: () => void;
   onRename?: () => void;
   disabled: boolean;
@@ -508,6 +505,9 @@ function ProjectCard({
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-content-strong">
           {spec.name}
+        </p>
+        <p className="truncate text-xs text-content-muted" title={`파일: ${fileName ?? "저장 전"}`}>
+          파일: {fileName ?? "저장 전"}
         </p>
         <p className="text-xs text-content-muted">
           페이지 {spec.pageOrder.length}개 {coverPage ? `· ${coverPage.size.width}×${coverPage.size.height}` : ""}
