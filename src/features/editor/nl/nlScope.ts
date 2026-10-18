@@ -15,6 +15,7 @@
  * 브라우저 API를 쓰면 테스트가 안 되기 때문이다(`ui/homePreview.ts`가 선례다).
  */
 
+import { findParentId } from "@/features/editor/command/applyCommand";
 import type { NodeId, ScreenSpec } from "@/features/editor/schema";
 
 import type { NlScope, NlScopeKind } from "./nlProtocol";
@@ -60,4 +61,25 @@ export function scopeOptions(page: ScreenSpec, selectedId: NodeId | null): Scope
     },
     { kind: "screen", label: `현재 화면: ${page.name}`, disabled: false },
   ];
+}
+
+/**
+ * 고른 범위로 **무엇을 바꿀 수 있는지** 한 줄로 알린다(#440).
+ *
+ * 선택 요소 범위의 요청은 그 노드와 자손만 겨냥한다(nl-response SKILL.md) — 버튼을 선택한 채
+ * "버튼 아래에 추가해줘"라고 하면 에이전트가 왕복 한 번 뒤에 범위 오류로 거절한다. 보내기 전에
+ * 알 수 있게 라디오 아래에 적고, 옆·바깥에 넣으려면 무엇을 고르면 되는지(부모 요소 이름)까지 쓴다.
+ */
+export function scopeHint(page: ScreenSpec, scope: NlScope): string {
+  const node = scope.nodeId === null ? undefined : page.nodes[scope.nodeId];
+  if (scope.kind === "screen" || scope.nodeId === null || node === undefined) {
+    return "이 화면의 모든 요소를 바꾸거나 새 요소를 넣을 수 있습니다.";
+  }
+  const parentId = findParentId(page.nodes, scope.nodeId);
+  const parent = parentId === undefined ? undefined : page.nodes[parentId];
+  const outside = parent === undefined
+    ? ""
+    : ` 옆이나 위·아래에 새 요소를 넣으려면 부모 요소(${parent.name})를 선택하거나 "현재 화면"을 고르세요.`;
+  if (node.type === "frame") return `${node.name} 요소와 그 안쪽만 바꿉니다 — 안에 새 요소를 넣을 수 있습니다.${outside}`;
+  return `${node.name}의 속성(글자·색·크기 등)만 바꿉니다.${outside}`;
 }
