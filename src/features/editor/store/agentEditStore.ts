@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import type { Command } from "@/features/editor/command/types";
+import type { BackgroundChange } from "@/features/editor/nl/backgroundChange";
 import type { PageId, ProjectSpec } from "@/features/editor/schema";
 
 /**
@@ -13,7 +14,7 @@ export type AgentEditNotice =
   | { kind: "rejected"; requestId: string; message: string }
   | {
       /** 배경을 바꾸는 편집 — 자연어 입력창과 같이 적용 전에 확인받는다. */
-      kind: "confirm"; requestId: string; message: string; names: string[];
+      kind: "confirm"; requestId: string; message: string; changes: BackgroundChange[];
       pageId: PageId; commands: Command[]; baseStateRevision: string;
     };
 
