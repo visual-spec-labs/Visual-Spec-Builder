@@ -116,14 +116,18 @@ async function saveAndObserve(spec: ProjectSpec, filename: string, json: string,
     if (saved) {
       // 디스크 성공은 여기서 "저장됨"으로 확정하지 않는다. diskWatch의 실제 내용 확인을 기다린다.
       useDocumentStore.getState().setFileName(filename, saved.revision);
+      if (useEditorStore.getState().spec.name !== spec.name) {
+        useEditorStore.getState().renameProject(spec.name);
+      }
       phase = saved.downloaded ? "downloaded" : null;
       return true;
     }
     return false;
   } finally {
     if (usePersistenceStatusStore.getState().attempt === attempt) {
-      usePersistenceStatusStore.setState({ attempt: useEditorStore.getState().documentId === attempt.documentId && phase
-        ? { ...attempt, phase } : null });
+      const current = useEditorStore.getState();
+      usePersistenceStatusStore.setState({ attempt: current.documentId === attempt.documentId && phase
+        ? { ...attempt, spec: phase === "downloaded" ? current.spec : attempt.spec, phase } : null });
     }
   }
 }
@@ -174,9 +178,6 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
 
   const filename = currentFileName ?? result.filename;
   if (await saveAndObserve(identified, filename, result.json, isCurrent)) {
-    if (useEditorStore.getState().spec.name !== identified.name) {
-      useEditorStore.getState().renameProject(identified.name);
-    }
     useEditorStore.getState().setProjectId(identified.projectId!);
   }
   return { ...result, filename };

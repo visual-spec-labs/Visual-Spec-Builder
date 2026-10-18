@@ -105,6 +105,22 @@ it("다운로드 fallback은 실제 파일 저장 성공으로 표시하지 않�
   expect(labels().file).toBe("다운로드 요청됨");
   edit("다운로드 이후"); expect(labels().file).not.toBe("파일 저장됨");
 });
+it("첫 저장에서 이름을 정한 뒤에도 다운로드 상태를 표시한다", async () => {
+  useEditorStore.getState().loadSpec({ ...structuredClone(initial), name: "Untitled" });
+  await start();
+  useDocumentStore.getState().clearFileName();
+  vi.mocked(isWorkspaceAvailable).mockResolvedValue(false);
+  vi.stubGlobal("document", { createElement: () => ({ click: vi.fn() }) });
+  vi.stubGlobal("URL", { createObjectURL: () => "blob:fixture", revokeObjectURL: vi.fn() });
+
+  const saving = saveSpec(useEditorStore.getState().spec);
+  expect(usePromptDialogStore.getState().state.kind).toBe("text");
+  usePromptDialogStore.getState().resolve("새 프로젝트");
+  await saving;
+
+  expect(useEditorStore.getState().spec.name).toBe("새 프로젝트");
+  expect(labels().file).toBe("다운로드 요청됨");
+});
 it("오래된 Save 응답은 교체된 문서의 상태를 바꾸지 않는다", async () => {
   await start(); edit(); let finish!: () => void;
   vi.mocked(writeWorkspaceFile).mockImplementationOnce(path => new Promise(resolve => { finish = () => resolve({ ok: true, path, revision: "late" }); }));
