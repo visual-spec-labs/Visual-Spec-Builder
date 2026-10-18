@@ -32,8 +32,15 @@ try {
     const context = await runner.newContext({ viewport: { width: 1440, height: 1000 } });
     const page = await context.newPage(); page.setDefaultTimeout(15000);
     const errors = [], alerts = [], downloads = [], writes = [];
+    let resolveNextAlert;
     page.on("pageerror", error => errors.push(error.message));
-    page.on("dialog", async dialog => { alerts.push(dialog.message()); await dialog.accept(); });
+    page.on("dialog", async dialog => {
+      const message = dialog.message();
+      alerts.push(message);
+      await dialog.accept();
+      resolveNextAlert?.(message);
+      resolveNextAlert = undefined;
+    });
     page.on("download", download => downloads.push(download));
     page.on("request", request => { if (["PUT", "POST", "DELETE"].includes(request.method()) && /\/(specs|generated)\//.test(request.url())) writes.push(request.url()); });
     await page.goto(runner.url);
@@ -74,10 +81,17 @@ try {
     const before = await state();
     writes.length = 0;
     for (const label of ["저장", "다른 이름으로 저장"]) {
+      const alertSeen = new Promise(resolve => { resolveNextAlert = resolve; });
       await page.getByRole("button", { name: "파일", exact: true }).click();
       await page.getByRole("menuitem", { name: label, exact: true }).click();
-      assert.match(alerts.at(-1), new RegExp(`\\[${code}\\]`));
-      assert.match(alerts.at(-1), /파일을 저장하지 않았습니다/);
+      if (label === "저장") {
+        const namePrompt = page.getByRole("alertdialog");
+        await namePrompt.getByRole("textbox").fill("복구 검증");
+        await namePrompt.getByRole("button", { name: "저장", exact: true }).click();
+      }
+      const alertMessage = await alertSeen;
+      assert.match(alertMessage, new RegExp(`\\[${code}\\]`));
+      assert.match(alertMessage, /파일을 저장하지 않았습니다/);
       const after = await state();
       assert.deepEqual(after.spec, before.spec); assert.deepEqual(after.history, before.history);
       assert.equal(after.fileName, before.fileName); assert.equal(after.draft, before.draft);
