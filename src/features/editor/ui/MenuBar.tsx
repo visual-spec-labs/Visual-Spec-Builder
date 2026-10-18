@@ -1,5 +1,6 @@
 import { DocumentSaveStatus } from "./DocumentSaveStatus";
 import { useEffect, useRef, useState } from "react";
+import { Pencil } from "lucide-react";
 
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -7,8 +8,8 @@ import { useExportStore } from "@/features/editor/store/exportStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useTicketStore } from "@/features/editor/store/ticketStore";
 import { useViewStore } from "@/features/editor/store/viewStore";
-import { formatDocumentTitle } from "@/features/editor/ui/documentTitle";
 import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
+import { requestProjectRename, renameProject as renameSavedProject } from "@/features/editor/ui/renameProject";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
 import { insertControl, widgetInsertEntries } from "@/features/editor/ui/insertControl";
@@ -29,7 +30,7 @@ type MenuKey = "file" | "insert" | "view";
  * 필요 없다.
  */
 function handleExport() {
-  exportSpecAsJson(useEditorStore.getState().spec);
+  exportSpecAsJson(useEditorStore.getState().spec, useDocumentStore.getState().fileName);
 }
 // 작업공간 쓰기는 비동기다(개발 서버 미들웨어로 PUT, 이슈 #133). 메뉴 항목은
 // 반환값을 쓰지 않으므로 void로 떼어 버린다 — 결과 안내는 각 함수가 alert로 한다.
@@ -41,6 +42,17 @@ function handleSaveAs() {
 }
 function handleOpen() {
   void openSpec();
+}
+
+async function handleRenameProject(projectName: string, fileName: string | null) {
+  const name = await requestProjectRename(projectName, fileName);
+  if (name === null) return;
+  if (fileName === null) {
+    useEditorStore.getState().renameProject(name);
+    return;
+  }
+  const result = await renameSavedProject(fileName, name);
+  if (!result.ok) window.alert(result.error);
 }
 
 /**
@@ -228,12 +240,19 @@ export function MenuBar() {
       </div>
 
       <div className="min-w-0 flex-1 text-center">
-      <span
-        className="block truncate text-xs text-content-muted"
-        title={formatDocumentTitle(projectName, pageName, fileName)}
-      >
-        {formatDocumentTitle(projectName, pageName, fileName)}
-      </span>
+      <div className="flex min-w-0 items-center justify-center gap-2 text-xs text-content-muted">
+        <button
+          type="button"
+          className="inline-flex max-w-[50%] items-center gap-1 truncate font-medium text-content-strong hover:underline"
+          title="프로젝트 이름 변경"
+          aria-label={`프로젝트 이름 변경: ${projectName}`}
+          onClick={() => void handleRenameProject(projectName, fileName)}
+        >
+          <span className="truncate">{projectName}</span>
+          <Pencil aria-hidden="true" size={12} className="shrink-0" />
+        </button>
+        <span className="truncate">— {pageName} · {fileName ?? "저장되지 않음"}</span>
+      </div>
       <DocumentSaveStatus />
       </div>
 

@@ -215,6 +215,43 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
   });
 });
 
+describe("첫 Save는 프로젝트 이름을 먼저 정한다 (#435)", () => {
+  it("입력한 이름을 프로젝트 제목과 첫 저장 파일명에 사용한다", async () => {
+    useEditorStore.getState().loadSpec(dashboardSpec());
+    const pending = save();
+    await answerPrompt("카페 메뉴");
+    await pending;
+
+    expect(specsDir()).toEqual(["카페 메뉴.json"]);
+    expect(readSpecFile("카페 메뉴.json").name).toBe("카페 메뉴");
+    expect(useEditorStore.getState().spec.name).toBe("카페 메뉴");
+    expect(useDocumentStore.getState().fileName).toBe("카페 메뉴.json");
+  });
+
+  it("취소하면 프로젝트와 저장 파일을 바꾸지 않는다", async () => {
+    useEditorStore.getState().loadSpec(dashboardSpec());
+    const pending = save();
+    await answerPrompt(null);
+    await pending;
+
+    expect(specsDir()).toEqual([]);
+    expect(useEditorStore.getState().spec.name).toBe("Dashboard");
+    expect(useDocumentStore.getState().fileName).toBeNull();
+  });
+
+  it("파일명으로 쓸 수 없는 이름은 저장 전에 거부한다", async () => {
+    useEditorStore.getState().loadSpec(dashboardSpec());
+    const pending = save();
+    await answerPrompt("bad/name");
+    await pending;
+
+    expect(specsDir()).toEqual([]);
+    expect(useEditorStore.getState().spec.name).toBe("Dashboard");
+    expect(useDocumentStore.getState().fileName).toBeNull();
+    expect(alerts.at(-1)).toContain("파일명으로 사용할 수 있어야");
+  });
+});
+
 describe("Save as 다음의 Save도 그 파일에 쓴다 (PR #145 리뷰)", () => {
   it("Save as로 만든 foo.json을 이어서 Save가 갱신한다", async () => {
     await newSpec();
@@ -223,6 +260,7 @@ describe("Save as 다음의 Save도 그 파일에 쓴다 (PR #145 리뷰)", () =
     await pending;
 
     expect(existsSync(join(workspaceRoot, "specs", "foo.json"))).toBe(true);
+    expect(useEditorStore.getState().spec.name).toBe("Untitled");
 
     const pageId = renameActivePage("Save as 뒤의 편집");
     await save();
@@ -284,10 +322,12 @@ describe("New는 현재 문서를 비운다 (PR #145 리뷰)", () => {
     await newSpec();
     expect(useDocumentStore.getState().fileName).toBeNull();
 
-    await save();
+    const saving = save();
+    await answerPrompt("새 프로젝트 이름");
+    await saving;
 
-    // 새 문서는 자기 이름(spec.name)으로 저장되고, 열었던 파일은 손대지 않는다.
-    const newName = `${useEditorStore.getState().spec.name}.json`;
+    // 새 문서는 입력한 이름으로 저장되고, 열었던 파일은 손대지 않는다.
+    const newName = "새 프로젝트 이름.json";
     expect(newName).not.toBe("customer-copy.json");
     expect(existsSync(join(workspaceRoot, "specs", newName))).toBe(true);
     expect(readSpecFile("customer-copy.json").name).toBe("Dashboard");
@@ -296,10 +336,12 @@ describe("New는 현재 문서를 비운다 (PR #145 리뷰)", () => {
 });
 
 describe("한 번도 저장하지 않은 문서", () => {
-  it("첫 Save는 spec.name으로 파일을 만들고, 그 파일이 다음 Save의 대상이 된다", async () => {
+  it("첫 Save에서 정한 이름으로 파일을 만들고, 그 파일이 다음 Save의 대상이 된다", async () => {
     await newSpec();
-    await save();
-    const created = `${useEditorStore.getState().spec.name}.json`;
+    const firstSave = save();
+    await answerPrompt("My project");
+    await firstSave;
+    const created = "My project.json";
 
     const pageId = renameActivePage("두 번째 저장");
     await save();
@@ -444,9 +486,9 @@ describe("JSON Export 검증 실패 알림 (#230)", () => {
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:export");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     try {
-      const result = exportSpecAsJson(dashboardSpec());
+      const result = exportSpecAsJson(dashboardSpec(), useDocumentStore.getState().fileName);
       expect(result.ok).toBe(true);
-      expect(anchor.download).toBe("Dashboard.json");
+      expect(anchor.download).toBe("original.json");
       expect(click).toHaveBeenCalledOnce();
       expect(revokeObjectURL).toHaveBeenCalledWith("blob:export");
       expect(alerts).toEqual([]);

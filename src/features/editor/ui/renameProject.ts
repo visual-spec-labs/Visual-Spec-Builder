@@ -6,6 +6,7 @@ import { projectStorageKey, prepareProjectRename, publishProjectRename } from "@
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { projectFileName } from "@/features/workspace/projectName";
+import { promptConfirm, promptText } from "@/features/editor/store/promptDialogStore";
 import { WORKSPACE_MARKER_HEADER, WORKSPACE_RENAME_ROUTE, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
 import { findRecordedProjectId, recordProjectRename } from "./generationTarget";
 import { readWorkspaceSpecSnapshot, type WriteResult } from "./workspaceClient";
@@ -15,6 +16,35 @@ import { readWorkspaceSpecSnapshot, type WriteResult } from "./workspaceClient";
  * 끝났지만 사용자가 복구 경로(다음 전달 때 다시 기록)를 알아야 한다(`recordProjectRename`).
  */
 export type RenameProjectResult = WriteResult | { ok: true; path: string; revision?: string; warning: string };
+
+/** Ask for a project title, then show the exact file path change before committing it. */
+export async function requestProjectRename(projectName: string, fileName: string | null): Promise<string | null> {
+  const name = await promptText({
+    title: "프로젝트 이름 변경",
+    message: fileName === null
+      ? "프로젝트 이름을 바꿉니다. 첫 저장 때 파일명을 정합니다."
+      : "이름 변경은 저장 파일명에도 반영됩니다.",
+    initialValue: projectName,
+    confirmLabel: "계속",
+  });
+  if (name === null || name.length === 0) return null;
+  if (fileName === null) return name;
+
+  const nextFileName = projectFileName(name);
+  if (nextFileName === null) {
+    window.alert("프로젝트 이름은 파일명으로 사용할 수 있어야 합니다. 1~120자, .json 포함 UTF-8 255바이트 이내로 입력하고 파일명에 쓸 수 없는 문자는 제외하세요.");
+    return null;
+  }
+  if (nextFileName === fileName) return name;
+
+  const confirmed = await promptConfirm({
+    title: "저장 파일명 변경 확인",
+    message: `.visual-spec/specs/${fileName}을(를) .visual-spec/specs/${nextFileName}(으)로 변경합니다. 기존 파일명은 변경 후 사용할 수 없습니다.`,
+    signal: new AbortController().signal,
+    confirmLabel: "이름과 파일명 변경",
+  });
+  return confirmed ? name : null;
+}
 
 /** Rename disk metadata first. A rejected/uncertain request never changes the in-memory draft. */
 export async function renameProject(fileName: string, name: string): Promise<RenameProjectResult> {

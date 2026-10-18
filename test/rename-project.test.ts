@@ -1,11 +1,12 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
+import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { prepareProjectRename, publishProjectRename } from "@/features/editor/store/specStorage";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { findRecordedProjectId, recordProjectRename } from "@/features/editor/ui/generationTarget";
-import { renameProject } from "@/features/editor/ui/renameProject";
+import { renameProject, requestProjectRename } from "@/features/editor/ui/renameProject";
 import { readWorkspaceSpecSnapshot } from "@/features/editor/ui/workspaceClient";
 import { WORKSPACE_MARKER_HEADER, WORKSPACE_REVISION_HEADER } from "@/features/workspace/protocol";
 
@@ -35,6 +36,26 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("home rename", () => {
+  it("shows the exact old and new file names before allowing a rename", async () => {
+    const pending = requestProjectRename("Cafe", "cafe.json");
+    await vi.waitFor(() => expect(usePromptDialogStore.getState().state.kind).toBe("text"));
+    usePromptDialogStore.getState().resolve("카페 메뉴");
+    await vi.waitFor(() => expect(usePromptDialogStore.getState().state.kind).toBe("confirm"));
+    const state = usePromptDialogStore.getState().state;
+    expect(state.kind === "confirm" ? state.message : "").toContain("cafe.json을(를) .visual-spec/specs/카페 메뉴.json");
+    usePromptDialogStore.getState().resolve("confirm");
+    expect(await pending).toBe("카페 메뉴");
+  });
+
+  it("does not proceed with a file rename when the preview is cancelled", async () => {
+    const pending = requestProjectRename("Cafe", "cafe.json");
+    await vi.waitFor(() => expect(usePromptDialogStore.getState().state.kind).toBe("text"));
+    usePromptDialogStore.getState().resolve("카페 메뉴");
+    await vi.waitFor(() => expect(usePromptDialogStore.getState().state.kind).toBe("confirm"));
+    usePromptDialogStore.getState().resolve(null);
+    expect(await pending).toBeNull();
+  });
+
   it("preserves unsaved edits, selection and history, including undo/redo after rename", async () => {
     const editor = useEditorStore.getState();
     const pageId = editor.activePageId;
