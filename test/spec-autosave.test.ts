@@ -191,7 +191,9 @@ describe("same-project autosave conflict preservation", () => {
     expect(useSaveConflictStore.getState().paused).toBe(false);
     expect(useSaveConflictStore.getState().check()).toBe(false);
   });
-  it.each(["Save", "Save as"])("delayed %s completion never redirects a newly opened document", async (kind) => {
+  it.each([
+    ["Save", true], ["Save", false], ["Save as", true], ["Save as", false],
+  ] as const)("delayed %s completion (success=%s) never alerts or redirects a newly opened document", async (kind, succeeds) => {
     stop = startSpecAutosave(); edit("snapshot A");
     let complete: ((response: Response) => void) | undefined;
     const fetch = vi.fn(async (_url: string, options: RequestInit) => {
@@ -204,10 +206,13 @@ describe("same-project autosave conflict preservation", () => {
     if (kind === "Save as") usePromptDialogStore.getState().resolve("copy-C.json");
     await vi.waitFor(() => expect(complete).toBeDefined());
     edit("opened B"); useDocumentStore.getState().setFileName("B.json");
-    complete?.(new Response(JSON.stringify({ ok: true, path: "specs/copy-C.json" }), { headers: { "x-visual-spec-workspace": "1" } }));
+    complete?.(new Response(JSON.stringify({ ok: succeeds, path: "specs/copy-C.json", error: "write failed" }), {
+      status: succeeds ? 200 : 500, headers: { "x-visual-spec-workspace": "1" },
+    }));
     await operation;
     expect(useDocumentStore.getState().fileName).toBe("B.json");
     expect(useEditorStore.getState().spec.name).toBe("opened B");
+    expect(window.alert).not.toHaveBeenCalled();
   });
   it("successful local rename back adopts stale target cache without replacing memory or pausing", async () => {
     stop = startSpecAutosave(); edit("original draft"); await vi.advanceTimersByTimeAsync(500);

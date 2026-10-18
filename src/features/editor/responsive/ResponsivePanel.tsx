@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import type { Responsive } from "@/features/editor/schema";
-import { emptyResponsive, pinnedAppearance, resolveResponsiveScreen, overridePaths, removeResponsiveOverride, sortedBreakpoints } from "./resolveResponsive";
+import { basePreviewWidth, emptyResponsive, pinnedAppearance, resolveResponsiveScreen, overridePaths, removeResponsiveOverride, sortedBreakpoints } from "./resolveResponsive";
 import { useResponsiveScreen } from "./useResponsiveScreen";
 import { useResponsiveViewStore } from "./responsiveViewStore";
 
@@ -52,7 +52,7 @@ export function ResponsivePanel() {
     <label className="flex items-center justify-between gap-2 text-xs text-content-muted">편집 기준
       <select aria-label="반응형 편집 기준" aria-describedby={helpId} className={inputClass} value={breakpoint ?? ""} onChange={(event) => {
         const id = event.target.value;
-        setWidth(pageId, id ? responsive.breakpoints[id].minWidthPx : Math.min(screen.size.width, (points[0]?.[1].minWidthPx ?? screen.size.width * 2) / 2));
+        setWidth(pageId, id ? responsive.breakpoints[id].minWidthPx : basePreviewWidth(screen));
       }}>
         <option value="">기본값 (base)</option>
         {points.map(([id, point]) => <option key={id} value={id}>{id} · ≥{point.minWidthPx}px</option>)}

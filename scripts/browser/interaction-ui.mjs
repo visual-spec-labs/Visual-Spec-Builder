@@ -63,13 +63,15 @@ try {
   await page.evaluate(async () => { window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore; });
   assert.deepEqual((await state()).spec, expected);
   await page.getByRole("button").filter({ hasText: /InteractionFlow.*페이지/s }).click();
-  // Responsive UI is a read-only base-action notice, never an override writer.
+  // Responsive UI guides the user to base-action editing without writing an override.
   await page.evaluate(() => {
     editor.getState().selectPage("login"); editor.getState().select("loginButton");
     editor.getState().setResponsive("login", { breakpoints: { wide: { minWidthPx: 768 } }, overrides: {} });
   });
-  await page.getByText("연결은 모든 화면 폭에서 같습니다. 기본 편집 모드에서 변경하세요.", { exact: true }).waitFor({ state: "visible" });
+  await page.getByText("버튼 동작은 모든 화면 폭에 공통입니다. 기본값(base) 편집으로 전환해 설정하세요.", { exact: true }).waitFor({ state: "visible" });
   assert.equal(await mode.count(), 0);
+  await page.getByRole("button", { name: "기본값으로 전환", exact: true }).click();
+  await mode.waitFor({ state: "visible" });
   // Historical invalid document remains visible with explicit missing-target warning.
   await page.evaluate(({ expected }) => {
     const legacy = structuredClone(expected); delete legacy.pages.resetPassword;
