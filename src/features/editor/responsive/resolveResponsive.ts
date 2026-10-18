@@ -14,6 +14,10 @@ export function mergeResponsiveValue(base: unknown, patch: unknown): unknown {
 export function sortedBreakpoints(screen: ScreenSpec) {
   return Object.entries(screen.responsive?.breakpoints ?? {}).sort((a, b) => a[1].minWidthPx - b[1].minWidthPx);
 }
+/** The closest base preview width below the first breakpoint. */
+export function basePreviewWidth(screen: ScreenSpec): number {
+  return Math.min(screen.size.width, (sortedBreakpoints(screen)[0]?.[1].minWidthPx ?? screen.size.width * 2) / 2);
+}
 export function activeBreakpoint(screen: ScreenSpec, width: number): string | null {
   return sortedBreakpoints(screen).filter(([, point]) => point.minWidthPx <= width).at(-1)?.[0] ?? null;
 }

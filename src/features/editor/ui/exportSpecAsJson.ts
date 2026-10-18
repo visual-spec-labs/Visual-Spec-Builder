@@ -90,12 +90,14 @@ async function saveToWorkspace(filename: string, json: string, isCurrent: () => 
     if (!isCurrent()) return false;
     const written = await writeWorkspaceFile(relativePath, json, "application/json", expectedRevision);
     if (!written.ok) {
-      if (isCurrent() && (written.status === 409 || written.status === 428)) useSaveConflictStore.getState().pause(true);
-      window.alert(`저장할 수 없습니다: ${written.error}`);
+      if (isCurrent()) {
+        if (written.status === 409 || written.status === 428) useSaveConflictStore.getState().pause(true);
+        window.alert(`저장할 수 없습니다: ${written.error}`);
+      }
       return false;
     }
     revision = written.revision ?? null;
-    window.alert(`저장했습니다 — .visual-spec/${written.path}`);
+    if (isCurrent()) window.alert(`저장했습니다 — .visual-spec/${written.path}`);
     return true;
   });
   return saved ? { revision } : null;

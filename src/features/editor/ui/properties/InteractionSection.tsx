@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
+import { basePreviewWidth } from "@/features/editor/responsive/resolveResponsive";
 import type { ProjectSpec } from "@/features/editor/schema";
 import { PropertySection } from "./PropertySection";
 import { SelectField, type SelectOption } from "./fields";
@@ -43,7 +44,11 @@ export function InteractionSection({ responsive }: { responsive: boolean }) {
   }
 
   return <PropertySection title="Interaction">
-    {responsive ? <p className="text-xs text-content-muted">연결은 모든 화면 폭에서 같습니다. 기본 편집 모드에서 변경하세요.</p> : <>
+    {responsive ? <div className="flex flex-col gap-2">
+      <p className="text-xs text-content-muted">버튼 동작은 모든 화면 폭에 공통입니다. 기본값(base) 편집으로 전환해 설정하세요.</p>
+      <button type="button" className="self-start rounded-control border border-line px-2 py-1 text-xs text-content hover:bg-surface-muted"
+        onClick={() => useResponsiveViewStore.getState().setWidth(pageId, basePreviewWidth(page))}>기본값으로 전환</button>
+    </div> : <>
       <SelectField label="동작" value={choice} options={options} onChange={(next) => {
         setError(null);
         if (next === "none" || next === "close") commit(next);

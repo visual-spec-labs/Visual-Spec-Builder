@@ -11,6 +11,7 @@ interface SelectFieldProps<T extends string> {
   value: T | undefined;
   options: readonly SelectOption<T>[];
   onChange: (value: T) => void;
+  placeholder?: string;
 }
 
 /** 드롭다운 선택. fontFamily, direction 등에 사용. */
@@ -19,6 +20,7 @@ export function SelectField<T extends string>({
   value,
   options,
   onChange,
+  placeholder,
 }: SelectFieldProps<T>) {
   const id = useId();
   return (
@@ -29,6 +31,7 @@ export function SelectField<T extends string>({
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value as T)}
       >
+        {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

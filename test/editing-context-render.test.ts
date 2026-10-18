@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import example from "../examples/responsive-cards.json";
+import login from "../examples/login-screen.json";
+import { migrateV01 } from "@/features/editor/schema";
 import type { VisualSpec } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
@@ -44,6 +46,17 @@ function liveRegion(markup: string) {
   expect(match).not.toBeNull();
   return match![1];
 }
+
+it("offers a direct base switch when a button action is hidden by a responsive override", () => {
+  useEditorStore.getState().loadSpec(migrateV01(login as VisualSpec));
+  const pageId = useEditorStore.getState().activePageId;
+  expect(useEditorStore.getState().setResponsive(pageId, {
+    breakpoints: { mobile: { minWidthPx: 320 } }, overrides: {},
+  })).toBeNull();
+  const markup = render(390, "loginButton");
+  expect(markup).toContain("기본값으로 전환");
+  expect(markup).toContain("버튼 동작은 모든 화면 폭에 공통입니다");
+});
 
 describe("실제 PropertiesPanel + ResponsivePanel 렌더 (#340)", () => {
   it.each([
