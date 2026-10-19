@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 
 import { FieldError } from "./fields/Field";
-import { useDocumentStore } from "@/features/editor/store/documentStore";
+import { documentDownloadName, useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { exportSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
 
@@ -9,7 +9,7 @@ import { exportSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
 export function ExportJsonButton() {
   const errorId = useId();
   const spec = useEditorStore((state) => state.spec);
-  const fileName = useDocumentStore((state) => state.fileName ?? state.downloadFileName);
+  const fileName = useDocumentStore(documentDownloadName);
   const [error, setError] = useState<string | null>(null);
 
   function handleExport() {

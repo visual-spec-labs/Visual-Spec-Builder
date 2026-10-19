@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { loadStoredFileName, loadStoredDiskRevision } from "@/features/editor/store/specStorage";
+import { loadStoredDownloadFileName, loadStoredFileName, loadStoredDiskRevision } from "@/features/editor/store/specStorage";
 
 /**
  * **지금 편집 중인 문서가 어느 파일인가**만 다루는 스토어 (PR #145 리뷰, wook3964).
@@ -74,9 +74,14 @@ export interface DocumentState {
   clearFileName: () => void;
 }
 
+/** Preferred name for a Save/JSON download target, preserving workspace precedence. */
+export function documentDownloadName(document: Pick<DocumentState, "fileName" | "downloadFileName">): string | null {
+  return document.fileName ?? document.downloadFileName;
+}
+
 export const useDocumentStore = create<DocumentState>((set) => ({
   fileName: loadStoredFileName() ?? null,
-  downloadFileName: null,
+  downloadFileName: loadStoredDownloadFileName() ?? null,
   diskRevision: loadStoredDiskRevision(),
   projectIdentity: 0,
   advanceProjectIdentity: () => set((state) => ({ projectIdentity: state.projectIdentity + 1 })),

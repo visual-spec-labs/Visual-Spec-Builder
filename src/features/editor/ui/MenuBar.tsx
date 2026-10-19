@@ -2,7 +2,7 @@ import { DocumentSaveStatus } from "./DocumentSaveStatus";
 import { useEffect, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 
-import { useDocumentStore } from "@/features/editor/store/documentStore";
+import { documentDownloadName, useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useExportStore } from "@/features/editor/store/exportStore";
 import { useNavigationStore } from "@/features/editor/store/navigationStore";
@@ -32,7 +32,7 @@ type MenuKey = "file" | "insert" | "view";
  */
 export function handleExport() {
   const document = useDocumentStore.getState();
-  exportSpecAsJson(useEditorStore.getState().spec, document.fileName ?? document.downloadFileName);
+  exportSpecAsJson(useEditorStore.getState().spec, documentDownloadName(document));
 }
 // 작업공간 쓰기는 비동기다(개발 서버 미들웨어로 PUT, 이슈 #133). 메뉴 항목은
 // 반환값을 쓰지 않으므로 void로 떼어 버린다 — 결과 안내는 각 함수가 alert로 한다.

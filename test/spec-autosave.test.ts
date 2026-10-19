@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useDocumentStore } from "@/features/editor/store/documentStore";
+import { documentDownloadName, useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
-import { loadStoredSpec, saveSpecToStorage, parseStoredDocument, projectStorageKey, readRecovery, prepareProjectRename, publishProjectRename } from "@/features/editor/store/specStorage";
+import { loadStoredSpec, loadStoredDownloadFileName, saveSpecToStorage, parseStoredDocument, projectStorageKey, readRecovery, prepareProjectRename, publishProjectRename, SPEC_STORAGE_KEY } from "@/features/editor/store/specStorage";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { startSpecAutosave } from "@/features/editor/ui/specAutosave";
 import { saveSpec, saveSpecAs, downloadConflictCopy } from "@/features/editor/ui/exportSpecAsJson";
+import { handleExport } from "@/features/editor/ui/MenuBar";
+import * as workspaceClient from "@/features/editor/ui/workspaceClient";
 
 function storage() {
   const map = new Map<string, string>();
@@ -564,5 +566,51 @@ describe("nonblocking transition races (#302)", () => {
     queueMicrotask(() => useEditorStore.getState().setPageField(useEditorStore.getState().activePageId, "name", "late edit"));
     expect(await pending).toBe(false);
     expect(useEditorStore.getState().spec.pages[useEditorStore.getState().activePageId].name).toBe("late edit");
+  });
+});
+
+describe("download-only filename recovery", () => {
+  it("preserves Save As filename across autosave and reload for Save and JSON export", async () => {
+    const available = vi.spyOn(workspaceClient, "isWorkspaceAvailable").mockResolvedValue(false);
+    const click = vi.fn();
+    const anchor = { href: "", download: "", click };
+    vi.stubGlobal("document", { createElement: () => anchor });
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:download-only");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    try {
+      useDocumentStore.getState().clearFileName();
+      useDocumentStore.getState().setDownloadFileName("local-A.json"); // Local JSON Open has no workspace path.
+      useEditorStore.getState().loadSpec({ ...initial, name: "Dashboard" });
+      stop = startSpecAutosave();
+
+      const saving = saveSpecAs(useEditorStore.getState().spec);
+      usePromptDialogStore.getState().resolve("copy-B");
+      await saving;
+      await vi.advanceTimersByTimeAsync(500);
+      expect(parseStoredDocument(localStorage.getItem(SPEC_STORAGE_KEY))?.downloadFileName).toBe("copy-B.json");
+
+      stop(); stop = undefined;
+      await Promise.resolve(); // Let the same-document restart handoff expire, as on a real reload.
+      const restoredSpec = loadStoredSpec();
+      expect(restoredSpec).toBeDefined();
+      useEditorStore.getState().loadSpec(restoredSpec!);
+      useDocumentStore.getState().clearFileName();
+      useDocumentStore.getState().setDownloadFileName(loadStoredDownloadFileName() ?? null);
+      vi.stubGlobal("performance", { getEntriesByType: () => [{ type: "reload" }] });
+      stop = startSpecAutosave();
+
+      expect(useDocumentStore.getState().downloadFileName).toBe("copy-B.json");
+      expect(documentDownloadName(useDocumentStore.getState())).toBe("copy-B.json");
+      await saveSpec(useEditorStore.getState().spec);
+      expect(anchor.download).toBe("copy-B.json");
+      handleExport();
+      expect(anchor.download).toBe("copy-B.json");
+      expect(click).toHaveBeenCalledTimes(3);
+    } finally {
+      available.mockRestore();
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      Reflect.deleteProperty(globalThis, "document");
+    }
   });
 });
