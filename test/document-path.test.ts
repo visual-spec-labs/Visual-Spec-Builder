@@ -24,6 +24,7 @@ import * as workspaceClient from "@/features/editor/ui/workspaceClient";
 import { handleExport, handleRenameProject } from "@/features/editor/ui/MenuBar";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { newSpec } from "@/features/editor/ui/newSpec";
+import { openSpecFromFileDialog } from "@/features/editor/ui/openSpecFromFile";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import {
   createWorkspaceMiddleware,
@@ -287,6 +288,66 @@ describe("다운로드 전용 문서의 이름", () => {
       createObjectURL.mockRestore();
       revokeObjectURL.mockRestore();
       Reflect.deleteProperty(globalThis, "document");
+    }
+  });
+
+  it("로컬 JSON Open → 다운로드 전용 Save as → Save와 Export는 새 다운로드 이름을 사용한다", async () => {
+    const available = vi.spyOn(workspaceClient, "isWorkspaceAvailable").mockResolvedValue(false);
+    const click = vi.fn();
+    const anchor = { href: "", download: "", click };
+    let input!: { files: Array<{ name: string; text: string }> | null; onchange: (() => void) | null; click: () => void };
+    let firstElement = true;
+    vi.stubGlobal("document", { createElement: () => {
+      if (firstElement) {
+        firstElement = false;
+        return input = { files: null, onchange: null, click: vi.fn() };
+      }
+      return anchor;
+    } });
+    vi.stubGlobal("FileReader", class {
+      result: string | null = null;
+      onload: (() => void) | null = null;
+      readAsText(file: { text: string }) {
+        this.result = file.text;
+        queueMicrotask(() => this.onload?.());
+      }
+    });
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:local-open");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    try {
+      openSpecFromFileDialog();
+      input.files = [{ name: "local-A.json", text: JSON.stringify(dashboardSpec()) }];
+      input.onchange?.();
+      await vi.waitFor(() => expect(useEditorStore.getState().spec.name).toBe("Dashboard"));
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("local-A.json");
+
+      const saveAs = saveSpecAs(useEditorStore.getState().spec);
+      await answerPrompt("local-B");
+      await saveAs;
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("local-B.json");
+
+      renameActivePage("편집 후 저장");
+      await save();
+      expect(anchor.download).toBe("local-B.json");
+      const renaming = handleRenameProject("Dashboard", null);
+      await answerPrompt("local-C");
+      await renaming;
+      expect(useEditorStore.getState().spec.name).toBe("local-C");
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("local-C.json");
+      await save();
+      expect(anchor.download).toBe("local-C.json");
+      handleExport();
+      expect(anchor.download).toBe("local-C.json");
+      expect(click).toHaveBeenCalledTimes(4);
+    } finally {
+      available.mockRestore();
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      Reflect.deleteProperty(globalThis, "document");
+      Reflect.deleteProperty(globalThis, "FileReader");
     }
   });
 

@@ -1,6 +1,6 @@
 import { validationFailureMessage } from "@/features/editor/store/validationGuidance";
 import { useEditorStore } from "@/features/editor/store/editorStore";
-import { usePersistenceStatusStore, type SaveAttempt } from "@/features/editor/store/persistenceStatusStore";
+import { sameSpecSnapshot, usePersistenceStatusStore, type SaveAttempt } from "@/features/editor/store/persistenceStatusStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import type { ProjectSpec } from "@/features/editor/schema";
 import { createProjectIdentity, ensureProjectIdentity } from "@/features/editor/store/projectIdentity";
@@ -133,6 +133,16 @@ async function saveAndObserve(spec: ProjectSpec, filename: string, json: string,
   }
 }
 
+/** Rebind a completed download to the current object only when no content changed. */
+function retainDownloadedStatusForCurrentSnapshot(): void {
+  const attempt = usePersistenceStatusStore.getState().attempt;
+  const current = useEditorStore.getState();
+  if (attempt?.documentId === current.documentId && attempt.phase === "downloaded" &&
+    sameSpecSnapshot(attempt.spec, current.spec)) {
+    usePersistenceStatusStore.setState({ attempt: { ...attempt, spec: current.spec } });
+  }
+}
+
 /**
  * File ▸ Save — **지금 열려 있는 그 파일**에 쓴다 (PR #145 리뷰, wook3964).
  *
@@ -182,6 +192,7 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
   const filename = currentFileName ?? downloadFileName ?? result.filename;
   if (await saveAndObserve(identified, filename, result.json, isCurrent, spec.name)) {
     useEditorStore.getState().setProjectId(identified.projectId!);
+    retainDownloadedStatusForCurrentSnapshot();
   }
   return { ...result, filename };
 }
@@ -204,7 +215,7 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
     window.alert(validationFailureMessage("저장할 수 없습니다", validation.issues, "save"));
     return validation;
   }
-  const current = currentFileName ?? validation.filename;
+  const current = currentFileName ?? useDocumentStore.getState().downloadFileName ?? validation.filename;
   const chosenName = await promptText({ title: "다른 이름으로 저장", initialValue: current, confirmLabel: "저장" });
   if (chosenName === null) {
     return null;
@@ -222,6 +233,7 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
       useDocumentStore.getState().advanceProjectIdentity();
     }
     useEditorStore.getState().setProjectId(projectId);
+    retainDownloadedStatusForCurrentSnapshot();
   }
   return { ...result, filename };
 }

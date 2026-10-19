@@ -9,7 +9,7 @@ import { exportSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
 export function ExportJsonButton() {
   const errorId = useId();
   const spec = useEditorStore((state) => state.spec);
-  const fileName = useDocumentStore((state) => state.fileName);
+  const fileName = useDocumentStore((state) => state.fileName ?? state.downloadFileName);
   const [error, setError] = useState<string | null>(null);
 
   function handleExport() {

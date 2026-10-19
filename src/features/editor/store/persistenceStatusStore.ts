@@ -39,6 +39,11 @@ function comparableSpecJson(json: string): string {
   return json;
 }
 
+/** Compare serialized project contents while ignoring identity metadata. */
+export function sameSpecSnapshot(left: ProjectSpec, right: ProjectSpec): boolean {
+  return comparableSpecJson(JSON.stringify(left)) === comparableSpecJson(JSON.stringify(right));
+}
+
 export function persistenceLabels(input: {
   documentId: number; fileName: string | null; diskRevision: string | null;
   spec: ProjectSpec; json: string;
