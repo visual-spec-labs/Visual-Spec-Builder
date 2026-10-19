@@ -4,8 +4,8 @@ const workspace = vi.hoisted(() => ({
   files: new Map<string, string>(),
   /** true면 작업공간 서버에 닿지 않는다(목록·읽기가 null). */
   offline: false,
-  /** true면 RUNTIME_DIR 목록은 되는데 STAGING_DIR 목록만 일시적으로 null(#432 리뷰 대응). */
-  stagingOffline: false,
+  /** 이 경로의 개별 읽기만 일시적으로 실패한다(#432 리뷰 대응 — 전체 연결 끊김과는 다르다). */
+  unreadablePaths: new Set<string>(),
   /** 잠금 연장 결과. 연결이 끊긴 동안은 실제 클라이언트처럼 true로 지나간다. */
   lockOwned: true,
   released: [] as string[],
@@ -15,7 +15,6 @@ const workspace = vi.hoisted(() => ({
 vi.mock("@/features/editor/ui/workspaceClient", () => ({
   listWorkspaceFiles: async (dir: string, options: { recursive?: boolean } = {}) => {
     if (workspace.offline) return null;
-    if (dir === "staging" && workspace.stagingOffline) return null;
     const prefix = `${dir}/`;
     return [...workspace.files.keys()]
       .filter((path) => path.startsWith(prefix))
@@ -25,6 +24,12 @@ vi.mock("@/features/editor/ui/workspaceClient", () => ({
   readWorkspaceTextFile: async (path: string) => {
     await workspace.beforeRead?.();
     return workspace.offline ? null : workspace.files.get(path) ?? null;
+  },
+  // 티켓 임시 출력 증거 확인(#432 리뷰 대응)만 쓴다 — 응답 파일 읽기는 여전히
+  // `readWorkspaceTextFile`·`beforeRead`를 거친다(두 메커니즘이 서로 안 끼게 분리).
+  readWorkspaceTextFileStrict: async (path: string) => {
+    if (workspace.offline || workspace.unreadablePaths.has(path)) return { ok: false };
+    return { ok: true, text: workspace.files.get(path) ?? null };
   },
   writeWorkspaceFile: async (path: string, body: string) => {
     if (workspace.offline) return { ok: false, error: "fetch failed" };
@@ -88,7 +93,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-10-10T00:00:00Z"));
   workspace.files.clear();
   workspace.offline = false;
-  workspace.stagingOffline = false;
+  workspace.unreadablePaths.clear();
   workspace.lockOwned = true;
   workspace.released = [];
   workspace.beforeRead = null;
@@ -132,10 +137,10 @@ describe("티켓 요청 대기 — timeout과 대기 연장 (가상 시간)", ()
   it("연장 클릭 없이도 임시 출력이 계속 늘면 3분을 훨씬 넘겨도 같은 요청으로 응답을 받는다(#432)", async () => {
     const { outcome, progress } = startTicket();
     await vi.advanceTimersByTimeAsync(1000);
-    workspace.files.set("staging/req-1/components/Header.tsx", "a"); // 1번째 증거
+    workspace.files.set("staging/req-1/shop/page1/components/Header.tsx", "a"); // 1번째 증거
     await vi.advanceTimersByTimeAsync(150_000); // 151s — 자동연장이 창을 다시 미뤄 180s를 넘겨도 죽지 않는다
     expect(progress.some((item) => item.stagedFiles === 1)).toBe(true);
-    workspace.files.set("staging/req-1/components/Card.tsx", "b"); // 2번째 증거
+    workspace.files.set("staging/req-1/shop/page1/components/Card.tsx", "b"); // 2번째 증거
     await vi.advanceTimersByTimeAsync(150_000); // 총 301s — 수동 "대기 연장"을 한 번도 누르지 않았다
     expect(progress.some((item) => item.stagedFiles === 2)).toBe(true);
     respondTicket("req-1");
@@ -144,25 +149,37 @@ describe("티켓 요청 대기 — timeout과 대기 연장 (가상 시간)", ()
     expect(workspace.released).toEqual(["req-1"]); // 잠금도 끝까지 유지되다 정상 해제됐다
   });
 
-  it("STAGING_DIR 목록만 일시적으로 실패해도 이미 알던 staged 개수를 잃지 않는다(#432 리뷰 대응)", async () => {
+  it("개수가 그대로여도 같은 파일 내용이 바뀌면 자동연장된다 — 같은 파일을 오래 고쳐 쓰는 웨이브도 지킨다(#432 리뷰 대응)", async () => {
+    const { outcome, progress } = startTicket();
+    await vi.advanceTimersByTimeAsync(1000);
+    workspace.files.set("staging/req-1/shop/page1/components/Header.tsx", "draft 1");
+    await vi.advanceTimersByTimeAsync(150_000); // 151s — 개수 증가(0→1)로 한 번 연장됨
+    expect(progress.some((item) => item.stagedFiles === 1)).toBe(true);
+    workspace.files.set("staging/req-1/shop/page1/components/Header.tsx", "draft 2"); // 같은 파일, 개수는 그대로(1)
+    await vi.advanceTimersByTimeAsync(150_000); // 총 301s — 개수 증가 없이 내용 변화만으로도 안 죽었다
+    respondTicket("req-1");
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(outcome).resolves.toMatchObject({ kind: "response", result: { kind: "results" } });
+  });
+
+  it("특정 임시 출력 파일만 일시적으로 못 읽어도 이미 알던 staged 개수를 잃지 않는다(#432 리뷰 대응)", async () => {
     const { outcome } = startTicket();
     await vi.advanceTimersByTimeAsync(1000);
-    workspace.files.set("staging/req-1/components/Header.tsx", "a");
-    workspace.files.set("staging/req-1/components/Card.tsx", "b");
-    workspace.files.set("staging/req-1/components/Footer.tsx", "c");
-    await vi.advanceTimersByTimeAsync(2000); // 다음 회차가 3개를 보고 기한을 미룬다
-    workspace.stagingOffline = true; // RUNTIME_DIR는 되는데 STAGING_DIR GET만 일시 실패
+    workspace.files.set("staging/req-1/shop/page1/components/Header.tsx", "a");
+    workspace.files.set("staging/req-1/shop/page1/components/Card.tsx", "b");
+    await vi.advanceTimersByTimeAsync(2000); // 다음 회차가 2개를 보고 기한을 미룬다
+    workspace.unreadablePaths.add("staging/req-1/shop/page1/components/Card.tsx"); // 그 파일만 일시적으로 못 읽는다
     await vi.advanceTimersByTimeAsync(AGENT_WAIT_WINDOW_MS); // 복구 없이 그대로 만료
     await expect(outcome).resolves.toMatchObject({
       kind: "timeout",
-      message: expect.stringContaining("임시 출력 3개"),
+      message: expect.stringContaining("임시 출력 2개"),
     });
   });
 
   it("임시 출력이 한 번만 늘고 더 늘지 않으면 결국 그대로 timeout된다 — 메시지에 몇 개를 버렸는지 남는다(#432)", async () => {
     const { outcome } = startTicket();
     await vi.advanceTimersByTimeAsync(1000);
-    workspace.files.set("staging/req-1/components/Header.tsx", "a");
+    workspace.files.set("staging/req-1/shop/page1/components/Header.tsx", "a");
     await vi.advanceTimersByTimeAsync(2000); // 다음 회차가 증거를 보고 기한을 '그때부터 창 하나'로 한 번만 미룬다
     await vi.advanceTimersByTimeAsync(AGENT_WAIT_WINDOW_MS); // 더 늘지 않으므로 그 미뤄진 기한에서 그대로 만료
     await expect(outcome).resolves.toMatchObject({

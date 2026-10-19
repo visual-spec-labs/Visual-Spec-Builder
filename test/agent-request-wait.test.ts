@@ -119,6 +119,28 @@ describe("createAgentRequestWait (#284)", () => {
     expect(wait.expired()).toBe(true);
   });
 
+  it("개수는 그대로여도 activityEvidence가 true면 자동연장한다 — 같은 파일을 계속 고쳐 쓰는 경우를 놓치지 않는다(#432 리뷰 대응)", () => {
+    const { wait, advance, now } = setup();
+    wait.start();
+    advance(170_000);
+    wait.report("waiting", 1, true); // 개수는 처음 늘지만, 증거는 activityEvidence로도 줄 수 있다
+    advance(170_000); // 총 340s — 개수는 그대로(1)지만 내용이 바뀐 증거만으로 또 연장한다
+    wait.report("waiting", 1, true);
+    expect(wait.deadline).toBe(now() + AGENT_WAIT_WINDOW_MS);
+    advance(20_000);
+    expect(wait.expired()).toBe(false);
+  });
+
+  it("activityEvidence가 false/미지정이면 개수가 그대로일 때 연장하지 않는다", () => {
+    const { wait, advance } = setup();
+    wait.start();
+    wait.report("waiting", 1);
+    const extended = wait.deadline;
+    advance(AGENT_WAIT_WINDOW_MS - 1000);
+    wait.report("waiting", 1, false); // 개수도 그대로, 내용 변화 증거도 없다
+    expect(wait.deadline).toBe(extended);
+  });
+
   it("끝난 요청(settle 후)의 staged 증가는 자동연장도 무시한다", () => {
     const { wait, advance } = setup();
     wait.start();
