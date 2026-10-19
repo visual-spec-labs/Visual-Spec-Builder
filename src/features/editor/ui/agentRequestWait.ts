@@ -57,6 +57,15 @@ export interface AgentRequestWait {
  * 연장이 **누적되지 않는** 이유: 중복 클릭이 기한을 두 배로 늘리면 사용자가 본 남은 시간과
  * 실제 기한이 어긋난다. "지금부터 창 하나"로 다시 맞추면 몇 번을 눌러도 한 번 누른 것과
  * 같고, 남은 시간이 창보다 길면 줄이지도 않는다.
+ *
+ * **활동 증거는 자동으로 같은 연장을 준다(#432).** 사람이 화면을 지켜보며 "대기 연장"을
+ * 누르지 않아도, 이 요청의 임시 출력(`stagedFiles`)이 이전에 본 적 없는 수로 늘어난
+ * 회차마다 `extend()`와 같은 효과를 자동 적용한다 — 그 수가 에이전트가 아직 이 요청을
+ * 살아서 처리하고 있다는 GUI가 가진 유일한 직접 증거이기 때문이다. `extend()`와 달리
+ * 기한이 이미 지난 순간에도 거절하지 않는다: 폴링 루프가 매 회차 `report()` 뒤에
+ * `expired()`를 보므로, 증거가 도착한 그 회차 안에서 바로 살려야 뜻이 있다. 반대로
+ * 임시 출력이 전혀 늘지 않은 채(= 증거 없음) 창이 다 지나면 여전히 timeout이다 — 그래야
+ * "무한정 기다리면 다음 요청을 못 한다"는 원래 안전장치가 깨지지 않는다.
  */
 export function createAgentRequestWait(
   onProgress: (progress: AgentWaitProgress) => void = () => {},
@@ -66,15 +75,23 @@ export function createAgentRequestWait(
   let settled = false;
   let phase: AgentWaitPhase = "saving";
   let stagedFiles: number | undefined;
+  /** 지금까지 본 가장 큰 staged 수. 이보다 더 늘어난 회차만 "새 증거"로 자동연장한다(#432). */
+  let maxStagedFiles = 0;
 
   function emit() {
     onProgress({ phase, deadline, ...(stagedFiles === undefined ? {} : { stagedFiles }) });
   }
 
+  /** `extend()`·자동연장이 공유하는 "지금부터 창 하나" 규칙. 기한이 없으면(시작 전) 아무것도 안 한다. */
+  function extendDeadline(): void {
+    if (deadline === null) return;
+    deadline = Math.max(deadline, now() + AGENT_WAIT_WINDOW_MS);
+  }
+
   return {
     extend() {
       if (settled || deadline === null || now() >= deadline) return false;
-      deadline = Math.max(deadline, now() + AGENT_WAIT_WINDOW_MS);
+      extendDeadline();
       emit();
       return true;
     },
@@ -89,6 +106,13 @@ export function createAgentRequestWait(
     },
     report(nextPhase, nextStagedFiles) {
       if (settled) return;
+      // 이 요청의 새 임시 출력이 보인 것은 에이전트가 살아서 처리 중이라는 직접 증거다 —
+      // 사람이 "대기 연장"을 누른 것과 같은 효과를 자동으로 준다(#432). 기한이 이미 지난
+      // 순간이어도 거절하지 않는다: 이 회차의 `expired()` 판정 전에 되살려야 뜻이 있다.
+      if (nextStagedFiles !== undefined && nextStagedFiles > maxStagedFiles) {
+        maxStagedFiles = nextStagedFiles;
+        extendDeadline();
+      }
       // 매 폴링 회차마다 같은 값을 다시 알리지 않는다 — 구독하는 화면이 1초마다 다시 그려진다.
       const staged = nextStagedFiles ?? stagedFiles;
       if (nextPhase === phase && staged === stagedFiles) return;

@@ -77,6 +77,58 @@ describe("createAgentRequestWait (#284)", () => {
     expect(progress).toHaveLength(count);
   });
 
+  it("임시 출력 수가 이전보다 늘면 연장 클릭 없이도 자동으로 기한을 '지금부터 창 하나'로 미룬다(#432)", () => {
+    const { wait, advance, now } = setup();
+    wait.start();
+    advance(170_000);
+    wait.report("waiting", 1); // 새 증거 — 기한을 되살린다
+    expect(wait.deadline).toBe(now() + AGENT_WAIT_WINDOW_MS);
+    // 원래 기한(처음 시작 + 180초)을 넘겨도 아직 만료가 아니다
+    advance(20_000);
+    expect(wait.expired()).toBe(false);
+  });
+
+  it("같은 수를 반복 보고하면 자동연장되지 않는다 — 새 증거만 연장한다", () => {
+    const { wait, advance } = setup();
+    wait.start();
+    advance(170_000);
+    wait.report("waiting", 1);
+    const extended = wait.deadline;
+    advance(5_000);
+    wait.report("waiting", 1); // 같은 수 — 새 증거가 아니다
+    expect(wait.deadline).toBe(extended);
+  });
+
+  it("이미 기한이 지난 순간에도 새 증거가 도착하면 되살린다 — extend()보다 관대하다(#432)", () => {
+    const { wait, advance, now } = setup();
+    wait.start();
+    advance(AGENT_WAIT_WINDOW_MS + 1); // 기한을 지났다
+    expect(wait.expired()).toBe(true);
+    expect(wait.extend()).toBe(false); // 수동 연장은 이미 지난 기한을 못 살린다
+    wait.report("waiting", 1); // 그래도 새 임시 출력 증거는 살린다
+    expect(wait.expired()).toBe(false);
+    expect(wait.deadline).toBe(now() + AGENT_WAIT_WINDOW_MS);
+  });
+
+  it("임시 출력이 전혀 늘지 않으면 자동연장 없이 창이 다 지나 그대로 만료된다 — 무한 대기를 막는 안전장치는 유지된다", () => {
+    const { wait, advance } = setup();
+    wait.start();
+    wait.report("waiting", 0);
+    advance(AGENT_WAIT_WINDOW_MS);
+    wait.report("waiting", 0); // 증거 없음 — 자동연장 안 함
+    expect(wait.expired()).toBe(true);
+  });
+
+  it("끝난 요청(settle 후)의 staged 증가는 자동연장도 무시한다", () => {
+    const { wait, advance } = setup();
+    wait.start();
+    advance(AGENT_WAIT_WINDOW_MS + 1000);
+    wait.settle();
+    const deadlineAtSettle = wait.deadline;
+    wait.report("waiting", 5);
+    expect(wait.deadline).toBe(deadlineAtSettle);
+  });
+
   it("같은 단계·같은 근거는 다시 알리지 않고, 단계·임시 출력 수가 바뀔 때만 알린다", () => {
     const { wait, progress } = setup();
     wait.start();
