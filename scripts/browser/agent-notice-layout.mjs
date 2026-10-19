@@ -114,6 +114,21 @@ try {
   await away();
   await closes();
 
+  // 확인 알림의 "적용"을 키보드로 누르면 그 버튼이 사라진다 — 브라우저는 이때 blur를 보내지 않으므로
+  // 포커스가 이미 밖에 있는데 붙잡은 채로 남으면 안 된다(PR #450 리뷰).
+  await writeFileAtomic(join(workspace, "runtime/agent-edit.json"), JSON.stringify({ protocol: 2, commandVersion: "0.3", id: "confirm-keyboard",
+    baseStateRevision: revision, pageId: "login", commands: [{ type: "updateNode", id: "root", path: "background",
+      value: [{ type: "linear", angle: 180, stops: [{ color: "#4F46E5", at: 0 }, { color: "#1E40AF", at: 1 }] }] }] }));
+  assert.equal((await waitFile("agent-edit-result.json", data => data.requestId === "confirm-keyboard")).status, "pending");
+  const confirm = page.getByRole("status").filter({ hasText: "외부 에이전트가 배경을 바꾸려 합니다" });
+  await confirm.getByRole("button", { name: "적용", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  assert.equal((await waitFile("agent-edit-result.json", data => data.requestId === "confirm-keyboard" && data.status !== "pending")).status, "applied");
+  await notice.waitFor();
+  await nextRevision();
+  await input.focus();
+  await closes();
+
   assert.deepEqual(errors, []);
-  console.log("PASS agent notice layout: 1440x900 applied notice sits above the NL bar, 요청 stays clickable; hover and focus hold it independently (focus only, leave with focus, blur with hover, replaced under the pointer), otherwise auto-closes; Undo kept. Fixture producer, no AI.");
+  console.log("PASS agent notice layout: 1440x900 applied notice sits above the NL bar, 요청 stays clickable; hover and focus hold it independently (focus only, leave with focus, blur with hover, replaced under the pointer, confirm accepted by keyboard), otherwise auto-closes; Undo kept. Fixture producer, no AI.");
 } finally { try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); } }

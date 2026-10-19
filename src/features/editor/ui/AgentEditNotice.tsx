@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAgentEditStore, type AgentEditNotice as Notice } from "@/features/editor/store/agentEditStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -79,6 +79,9 @@ export function AgentEditNotice() {
  * 마우스와 포커스는 따로 추적한다 — 하나로 묶으면 마우스를 떼는 순간 안에 남은 키보드 포커스까지
  * 놓친 것으로 본다. 상태를 알림 객체가 아니라 이 패널에 두므로, 포인터를 올린 채 새 알림으로
  * 바뀌어도(패널은 그대로 마운트된다) 붙잡은 상태가 이어지고, 알림이 없어져 패널이 사라지면 함께 지워진다.
+ *
+ * 포커스된 버튼이 사라지면(확인 → 적용 전환, 편집 뒤 되돌리기 숨김) 브라우저는 blur를 보내지 않는다 —
+ * 그래서 내용이 바뀔 때마다 실제 포커스가 아직 패널 안에 있는지 다시 본다(PR #450 리뷰).
  */
 function NoticePanel({ notice }: { notice: Notice }) {
   const resolveConfirm = useAgentEditStore((s) => s.resolveConfirm);
@@ -86,6 +89,10 @@ function NoticePanel({ notice }: { notice: Notice }) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const held = hovered || focused;
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focused && !panelRef.current?.contains(document.activeElement)) setFocused(false);
+  }, [notice, spec, focused]);
   useEffect(() => {
     if (notice.kind !== "applied" || held) return;
     const timer = setTimeout(() => {
@@ -97,7 +104,7 @@ function NoticePanel({ notice }: { notice: Notice }) {
   const close = () => useAgentEditStore.setState({ notice: null });
 
   return (
-    <div role="status" aria-live="polite" className={panel}
+    <div ref={panelRef} role="status" aria-live="polite" className={panel}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}
       onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
