@@ -96,6 +96,7 @@ export function NaturalLanguageBar() {
   const [scopeOverride, setScopeOverride] = useState<NlScopeKind | null>(null);
   const [feedback, setFeedback] = useState<Feedback>({ kind: "none" });
   const instructionInputRef = useRef<HTMLInputElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
 
   // 홈 화면의 "자연어로 초안 만들기" 패널이 적재해 둔 문구가 있으면 한 번만
   // 꺼내 입력칸에 채우고 포커스한다(#286). 전송은 하지 않는다 — 에이전트가
@@ -109,6 +110,24 @@ export function NaturalLanguageBar() {
       setInstruction(draft);
       instructionInputRef.current?.focus();
     }
+  }, []);
+
+  // 화면 오른쪽 아래에 뜨는 외부 에이전트 알림(`AgentEditNotice`)이 이 행의 "요청" 버튼을
+  // 가리지 않게 행 높이를 `--nl-bar-height`로 알린다(#442). 행 높이는 결과 줄에 따라 늘고
+  // 줄어서(EditorLayout 주석) 고정 토큰으로 둘 수 없다. 홈 화면처럼 이 행이 없으면 변수를 지워
+  // 알림이 원래 자리(bottom-4)로 돌아간다.
+  useEffect(() => {
+    const element = sectionRef.current;
+    if (element === null) return;
+    const root = document.documentElement;
+    const report = () => root.style.setProperty("--nl-bar-height", `${Math.round(element.offsetHeight)}px`);
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--nl-bar-height");
+    };
   }, []);
 
   // 페이지를 바꿨다 돌아오거나 Undo로 같은 참조를 복원해도 낡은 동의는 재사용하지 않는다.
@@ -293,6 +312,7 @@ export function NaturalLanguageBar() {
     // z-20 으로 둔다 — 도구 모음(z-10)이 숨을 때 아래로 미끄러지며 이 행 위를
     // 스쳐 지나간다. 그때 입력칸이 가려지지 않게 이쪽이 위에 있어야 한다.
     <section
+      ref={sectionRef}
       aria-label="자연어 편집"
       className="z-20 flex flex-col gap-2 border-t border-line bg-surface px-4 py-3 [grid-area:ai]"
     >

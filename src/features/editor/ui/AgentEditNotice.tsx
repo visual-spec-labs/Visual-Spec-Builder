@@ -1,4 +1,6 @@
-import { useAgentEditStore } from "@/features/editor/store/agentEditStore";
+import { useEffect, useRef, useState } from "react";
+
+import { useAgentEditStore, type AgentEditNotice as Notice } from "@/features/editor/store/agentEditStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 
 /**
@@ -7,20 +9,26 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
  *
  * 되돌리기는 적용 직후 상태 그대로일 때만 보인다 — 그 뒤 사용자가 더 편집했으면 Undo 한 번이
  * 그 편집을 먼저 되돌리므로, 이 알림이 "에이전트 편집을 되돌린다"고 약속할 수 없다.
+ *
+ * 자리는 자연어 입력 행 바로 위다(#442) — 화면 맨 아래에 두면 그 행 오른쪽 끝 "요청" 버튼을 덮어,
+ * 알림을 닫기 전에는 다음 요청을 보낼 수 없었다. 행 높이는 `NaturalLanguageBar`가
+ * `--nl-bar-height`로 알린다(없으면 0). 적용 알림은 결과를 알릴 뿐이라 잠시 뒤 저절로 닫힌다 —
+ * 그래도 Undo는 그대로 남는다. 마우스를 올리거나 포커스가 안에 있는 동안은 닫지 않는다(되돌리기를
+ * 누르려는 중에 사라지지 않게). 거절·확인 알림은 읽고 답해야 하므로 사용자가 닫을 때까지 둔다.
  */
+const APPLIED_NOTICE_TIMEOUT_MS = 8000;
+const panel = "rounded-panel border border-line bg-surface-raised p-3 text-sm text-content shadow-lg";
+
 export function AgentEditNotice() {
   const notice = useAgentEditStore((s) => s.notice);
   const diskNotice = useAgentEditStore((s) => s.diskNotice);
-  const resolveConfirm = useAgentEditStore((s) => s.resolveConfirm);
   const resolveDiskChange = useAgentEditStore((s) => s.resolveDiskChange);
   const spec = useEditorStore((s) => s.spec);
   if (notice === null && diskNotice === null) return null;
-  const close = () => useAgentEditStore.setState({ notice: null });
   const closeDisk = () => useAgentEditStore.setState({ diskNotice: null });
-  const panel = "rounded-panel border border-line bg-surface-raised p-3 text-sm text-content shadow-lg";
 
   return (
-    <div className="fixed right-4 bottom-4 z-50 flex max-w-sm flex-col gap-2">
+    <div className="fixed right-4 bottom-[calc(var(--nl-bar-height,0px)+--spacing(4))] z-50 flex max-w-sm flex-col gap-2">
       {diskNotice !== null && (
         <div role="status" aria-live="polite" className={panel}>
       {diskNotice.kind === "diskImported" && (
@@ -62,8 +70,44 @@ export function AgentEditNotice() {
       )}
         </div>
       )}
-      {notice !== null && (
-    <div role="status" aria-live="polite" className={panel}>
+      {notice !== null && <NoticePanel notice={notice} />}
+    </div>
+  );
+}
+
+/**
+ * 마우스와 포커스는 따로 추적한다 — 하나로 묶으면 마우스를 떼는 순간 안에 남은 키보드 포커스까지
+ * 놓친 것으로 본다. 상태를 알림 객체가 아니라 이 패널에 두므로, 포인터를 올린 채 새 알림으로
+ * 바뀌어도(패널은 그대로 마운트된다) 붙잡은 상태가 이어지고, 알림이 없어져 패널이 사라지면 함께 지워진다.
+ *
+ * 포커스된 버튼이 사라지면(확인 → 적용 전환, 편집 뒤 되돌리기 숨김) 브라우저는 blur를 보내지 않는다 —
+ * 그래서 내용이 바뀔 때마다 실제 포커스가 아직 패널 안에 있는지 다시 본다(PR #450 리뷰).
+ */
+function NoticePanel({ notice }: { notice: Notice }) {
+  const resolveConfirm = useAgentEditStore((s) => s.resolveConfirm);
+  const spec = useEditorStore((s) => s.spec);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const held = hovered || focused;
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focused && !panelRef.current?.contains(document.activeElement)) setFocused(false);
+  }, [notice, spec, focused]);
+  useEffect(() => {
+    if (notice.kind !== "applied" || held) return;
+    const timer = setTimeout(() => {
+      // 그 사이 새 알림이 왔으면 그 알림은 건드리지 않는다.
+      useAgentEditStore.setState((state) => (state.notice === notice ? { notice: null } : state));
+    }, APPLIED_NOTICE_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [notice, held]);
+  const close = () => useAgentEditStore.setState({ notice: null });
+
+  return (
+    <div ref={panelRef} role="status" aria-live="polite" className={panel}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
       {notice.kind === "applied" && (
         <>
           <p className="font-semibold">외부 에이전트가 편집을 적용했습니다</p>
@@ -98,8 +142,6 @@ export function AgentEditNotice() {
               onClick={() => resolveConfirm(false)}>적용하지 않음</button>
           </div>
         </>
-      )}
-    </div>
       )}
     </div>
   );
