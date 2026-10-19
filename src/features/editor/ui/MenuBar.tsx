@@ -19,6 +19,7 @@ import { openExportPanel } from "@/features/editor/ui/openExportPanel";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import { openTicketPanel } from "@/features/editor/ui/openTicketPanel";
 import { togglePropsPanel, toggleTreePanel } from "@/features/editor/ui/panelToggle";
+import { projectFileName } from "@/features/workspace/projectName";
 
 type MenuKey = "file" | "insert" | "view";
 
@@ -29,8 +30,9 @@ type MenuKey = "file" | "insert" | "view";
  * Export/Save/Save as는 클릭 때만 최신 spec이 필요하므로 반응형 구독이
  * 필요 없다.
  */
-function handleExport() {
-  exportSpecAsJson(useEditorStore.getState().spec, useDocumentStore.getState().fileName);
+export function handleExport() {
+  const document = useDocumentStore.getState();
+  exportSpecAsJson(useEditorStore.getState().spec, document.fileName ?? document.downloadFileName);
 }
 // 작업공간 쓰기는 비동기다(개발 서버 미들웨어로 PUT, 이슈 #133). 메뉴 항목은
 // 반환값을 쓰지 않으므로 void로 떼어 버린다 — 결과 안내는 각 함수가 alert로 한다.
@@ -44,15 +46,18 @@ function handleOpen() {
   void openSpec();
 }
 
-async function handleRenameProject(projectName: string, fileName: string | null) {
+export async function handleRenameProject(projectName: string, fileName: string | null) {
   const name = await requestProjectRename(projectName, fileName);
   if (name === null) return;
   if (fileName === null) {
     useEditorStore.getState().renameProject(name);
+    const filename = projectFileName(name);
+    if (filename !== null) useDocumentStore.getState().setDownloadFileName(filename);
     return;
   }
   const result = await renameSavedProject(fileName, name);
   if (!result.ok) window.alert(result.error);
+  else if ("warning" in result) window.alert(result.warning);
 }
 
 /**
@@ -90,6 +95,7 @@ export function MenuBar() {
     (s) => s.spec.pages[s.activePageId]?.name ?? "페이지 없음",
   );
   const fileName = useDocumentStore((s) => s.fileName);
+  const downloadFileName = useDocumentStore((s) => s.downloadFileName);
   const openHome = useNavigationStore((s) => s.openHome);
   const zoomIn = useViewStore((s) => s.zoomIn);
   const zoomOut = useViewStore((s) => s.zoomOut);
@@ -251,7 +257,7 @@ export function MenuBar() {
           <span className="truncate">{projectName}</span>
           <Pencil aria-hidden="true" size={12} className="shrink-0" />
         </button>
-        <span className="truncate">— {pageName} · {fileName ?? "저장되지 않음"}</span>
+        <span className="truncate">— {pageName} · {fileName ?? downloadFileName ?? "저장되지 않음"}</span>
       </div>
       <DocumentSaveStatus />
       </div>

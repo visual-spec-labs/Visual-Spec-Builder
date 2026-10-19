@@ -105,7 +105,7 @@ async function saveToWorkspace(filename: string, json: string, isCurrent: () => 
 }
 
 /** 기존 저장 판단은 유지하고 현재 문서의 최신 요청 결과만 표시한다. */
-async function saveAndObserve(spec: ProjectSpec, filename: string, json: string, isCurrent: () => boolean): Promise<boolean> {
+async function saveAndObserve(spec: ProjectSpec, filename: string, json: string, isCurrent: () => boolean, originalProjectName = spec.name): Promise<boolean> {
   if (!isCurrent()) return false;
   const attempt: SaveAttempt = { documentId: useEditorStore.getState().documentId, spec, phase: "saving" };
   usePersistenceStatusStore.setState({ attempt });
@@ -115,8 +115,9 @@ async function saveAndObserve(spec: ProjectSpec, filename: string, json: string,
     if (!isCurrent()) { phase = null; return false; }
     if (saved) {
       // 디스크 성공은 여기서 "저장됨"으로 확정하지 않는다. diskWatch의 실제 내용 확인을 기다린다.
-      useDocumentStore.getState().setFileName(filename, saved.revision);
-      if (useEditorStore.getState().spec.name !== spec.name) {
+      if (saved.downloaded) useDocumentStore.getState().setDownloadFileName(filename);
+      else useDocumentStore.getState().setFileName(filename, saved.revision);
+      if (useEditorStore.getState().spec.name === originalProjectName && spec.name !== originalProjectName) {
         useEditorStore.getState().renameProject(spec.name);
       }
       phase = saved.downloaded ? "downloaded" : null;
@@ -127,7 +128,7 @@ async function saveAndObserve(spec: ProjectSpec, filename: string, json: string,
     if (usePersistenceStatusStore.getState().attempt === attempt) {
       const current = useEditorStore.getState();
       usePersistenceStatusStore.setState({ attempt: current.documentId === attempt.documentId && phase
-        ? { ...attempt, spec: phase === "downloaded" ? current.spec : attempt.spec, phase } : null });
+        ? { ...attempt, phase } : null });
     }
   }
 }
@@ -151,8 +152,10 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
   if (useSaveConflictStore.getState().paused || useSaveConflictStore.getState().check()) return null;
   const isCurrent = useSaveConflictStore.getState().captureDocument();
   let documentSpec = spec;
-  const currentFileName = useDocumentStore.getState().fileName;
-  if (currentFileName === null) {
+  const document = useDocumentStore.getState();
+  const currentFileName = document.fileName;
+  const downloadFileName = document.downloadFileName;
+  if (currentFileName === null && downloadFileName === null) {
     const name = await promptText({
       title: "프로젝트 이름 저장",
       message: "프로젝트 이름을 정하세요. 첫 저장 파일명은 이 이름에 .json을 붙여 만듭니다.",
@@ -176,8 +179,8 @@ export async function saveSpec(spec: ProjectSpec): Promise<ExportResult | null> 
     return result;
   }
 
-  const filename = currentFileName ?? result.filename;
-  if (await saveAndObserve(identified, filename, result.json, isCurrent)) {
+  const filename = currentFileName ?? downloadFileName ?? result.filename;
+  if (await saveAndObserve(identified, filename, result.json, isCurrent, spec.name)) {
     useEditorStore.getState().setProjectId(identified.projectId!);
   }
   return { ...result, filename };
@@ -214,7 +217,7 @@ export async function saveSpecAs(spec: ProjectSpec): Promise<ExportResult | null
   const copied = { ...identified, projectId };
   const result = buildExportPayload(copied);
   if (!result.ok) return result;
-  if (await saveAndObserve(copied, filename, result.json, isCurrent)) {
+  if (await saveAndObserve(copied, filename, result.json, isCurrent, spec.name)) {
     if (currentFileName === null) {
       useDocumentStore.getState().advanceProjectIdentity();
     }

@@ -17,8 +17,11 @@ import { migrateV01 } from "@/features/editor/schema";
 import type { ProjectSpec, VisualSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { usePersistenceStatusStore } from "@/features/editor/store/persistenceStatusStore";
 import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { saveSpecToStorage } from "@/features/editor/store/specStorage";
+import * as workspaceClient from "@/features/editor/ui/workspaceClient";
+import { handleExport, handleRenameProject } from "@/features/editor/ui/MenuBar";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
@@ -249,6 +252,77 @@ describe("첫 Save는 프로젝트 이름을 먼저 정한다 (#435)", () => {
     expect(useEditorStore.getState().spec.name).toBe("Dashboard");
     expect(useDocumentStore.getState().fileName).toBeNull();
     expect(alerts.at(-1)).toContain("파일명으로 사용할 수 있어야");
+  });
+});
+
+describe("다운로드 전용 문서의 이름", () => {
+  it("첫 다운로드 뒤 이름을 바꾸면 작업공간 경로 없이 다음 다운로드 파일명이 갱신된다", async () => {
+    const available = vi.spyOn(workspaceClient, "isWorkspaceAvailable").mockResolvedValue(false);
+    const click = vi.fn();
+    const anchor = { href: "", download: "", click };
+    vi.stubGlobal("document", { createElement: () => anchor });
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:first-save");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    try {
+      useEditorStore.getState().loadSpec(dashboardSpec());
+      const pending = save();
+      await answerPrompt("첫 이름");
+      await pending;
+
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("첫 이름.json");
+
+      const renaming = handleRenameProject("첫 이름", null);
+      await answerPrompt("바뀐 이름");
+      await renaming;
+      expect(useEditorStore.getState().spec.name).toBe("바뀐 이름");
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("바뀐 이름.json");
+      expect(specsDir()).toEqual([]);
+      handleExport();
+      expect(anchor.download).toBe("바뀐 이름.json");
+      expect(click).toHaveBeenCalledTimes(2);
+    } finally {
+      available.mockRestore();
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      Reflect.deleteProperty(globalThis, "document");
+    }
+  });
+
+  it("작업공간 감지 중 편집이 있어도 완료 다운로드 표시는 직렬화한 spec에 묶인다", async () => {
+    let release!: (available: boolean) => void;
+    const available = vi.spyOn(workspaceClient, "isWorkspaceAvailable").mockImplementation(() =>
+      new Promise((resolve) => { release = resolve; }));
+    const click = vi.fn();
+    const anchor = { href: "", download: "", click };
+    vi.stubGlobal("document", { createElement: () => anchor });
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:fallback");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    try {
+      useEditorStore.getState().loadSpec(dashboardSpec());
+      const pending = save();
+      await answerPrompt("스냅샷 이름");
+      await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+      renameActivePage("감지 중 편집");
+      const editedSpec = useEditorStore.getState().spec;
+      release(false);
+      await pending;
+
+      const attempt = usePersistenceStatusStore.getState().attempt;
+      expect(attempt?.phase).toBe("downloaded");
+      expect(attempt?.spec.name).toBe("스냅샷 이름");
+      expect(attempt?.spec).not.toBe(editedSpec);
+      expect(attempt?.spec.pages[attempt!.spec.pageOrder[0]].name).not.toBe("감지 중 편집");
+      expect(anchor.download).toBe("스냅샷 이름.json");
+      expect(click).toHaveBeenCalledOnce();
+      expect(useDocumentStore.getState().fileName).toBeNull();
+    } finally {
+      available.mockRestore();
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      Reflect.deleteProperty(globalThis, "document");
+    }
   });
 });
 
