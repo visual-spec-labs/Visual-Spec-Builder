@@ -17,28 +17,15 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
  * 누르려는 중에 사라지지 않게). 거절·확인 알림은 읽고 답해야 하므로 사용자가 닫을 때까지 둔다.
  */
 const APPLIED_NOTICE_TIMEOUT_MS = 8000;
+const panel = "rounded-panel border border-line bg-surface-raised p-3 text-sm text-content shadow-lg";
 
 export function AgentEditNotice() {
   const notice = useAgentEditStore((s) => s.notice);
   const diskNotice = useAgentEditStore((s) => s.diskNotice);
-  const resolveConfirm = useAgentEditStore((s) => s.resolveConfirm);
   const resolveDiskChange = useAgentEditStore((s) => s.resolveDiskChange);
   const spec = useEditorStore((s) => s.spec);
-  // 붙잡은 알림 자체를 기억한다 — 불리언이면 붙잡은 채 닫힌 알림의 상태가 다음 알림까지 남는다.
-  const [heldNotice, setHeldNotice] = useState<Notice | null>(null);
-  const held = notice !== null && heldNotice === notice;
-  useEffect(() => {
-    if (notice?.kind !== "applied" || held) return;
-    const timer = setTimeout(() => {
-      // 그 사이 새 알림이 왔으면 그 알림은 건드리지 않는다.
-      useAgentEditStore.setState((state) => (state.notice === notice ? { notice: null } : state));
-    }, APPLIED_NOTICE_TIMEOUT_MS);
-    return () => clearTimeout(timer);
-  }, [notice, held]);
   if (notice === null && diskNotice === null) return null;
-  const close = () => useAgentEditStore.setState({ notice: null });
   const closeDisk = () => useAgentEditStore.setState({ diskNotice: null });
-  const panel = "rounded-panel border border-line bg-surface-raised p-3 text-sm text-content shadow-lg";
 
   return (
     <div className="fixed right-4 bottom-[calc(var(--nl-bar-height,0px)+--spacing(4))] z-50 flex max-w-sm flex-col gap-2">
@@ -83,11 +70,37 @@ export function AgentEditNotice() {
       )}
         </div>
       )}
-      {notice !== null && (
+      {notice !== null && <NoticePanel notice={notice} />}
+    </div>
+  );
+}
+
+/**
+ * 마우스와 포커스는 따로 추적한다 — 하나로 묶으면 마우스를 떼는 순간 안에 남은 키보드 포커스까지
+ * 놓친 것으로 본다. 상태를 알림 객체가 아니라 이 패널에 두므로, 포인터를 올린 채 새 알림으로
+ * 바뀌어도(패널은 그대로 마운트된다) 붙잡은 상태가 이어지고, 알림이 없어져 패널이 사라지면 함께 지워진다.
+ */
+function NoticePanel({ notice }: { notice: Notice }) {
+  const resolveConfirm = useAgentEditStore((s) => s.resolveConfirm);
+  const spec = useEditorStore((s) => s.spec);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const held = hovered || focused;
+  useEffect(() => {
+    if (notice.kind !== "applied" || held) return;
+    const timer = setTimeout(() => {
+      // 그 사이 새 알림이 왔으면 그 알림은 건드리지 않는다.
+      useAgentEditStore.setState((state) => (state.notice === notice ? { notice: null } : state));
+    }, APPLIED_NOTICE_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [notice, held]);
+  const close = () => useAgentEditStore.setState({ notice: null });
+
+  return (
     <div role="status" aria-live="polite" className={panel}
-      onMouseEnter={() => setHeldNotice(notice)} onMouseLeave={() => setHeldNotice(null)}
-      onFocus={() => setHeldNotice(notice)}
-      onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setHeldNotice(null); }}>
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
       {notice.kind === "applied" && (
         <>
           <p className="font-semibold">외부 에이전트가 편집을 적용했습니다</p>
@@ -122,8 +135,6 @@ export function AgentEditNotice() {
               onClick={() => resolveConfirm(false)}>적용하지 않음</button>
           </div>
         </>
-      )}
-    </div>
       )}
     </div>
   );
