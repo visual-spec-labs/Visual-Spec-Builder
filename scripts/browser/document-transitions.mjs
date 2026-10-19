@@ -95,7 +95,10 @@ try {
   assert.equal(await snapshot(), before);
   console.log("PASS replacement cancels previous request and ignores old approval");
 
-  await page.evaluate(() => { window.pending = newSpec(); });
+  await page.evaluate(async () => {
+    (await import("/src/features/editor/store/navigationStore.ts")).useNavigationStore.getState().openEditor();
+    window.pending = newSpec();
+  });
   await dialog.waitFor();
   const changed = await page.evaluate(async () => {
     const {readRecovery, serializeStoredDocument} = await import("/src/features/editor/store/specStorage.ts");

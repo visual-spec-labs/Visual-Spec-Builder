@@ -1,6 +1,8 @@
 import { migrateV01, type ValidationIssue, type ProjectSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useNavigationStore } from "@/features/editor/store/navigationStore";
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { beginDocumentTransition } from "./documentTransition";
 import { SPEC_DIR } from "@/features/workspace/protocol";
@@ -143,8 +145,13 @@ export async function loadWorkspaceProjectsProgressively(
  * 경우 남은 초안을 비교하게 파일명을 넘긴다(#267). false면 현재 문서를 그대로 둔다.
  */
 export async function openHomeProject(project: HomeProject): Promise<boolean> {
-  const transition = beginDocumentTransition();
-  if (!await transition.settle(project.fileName) || !transition.current()) return false;
+  const transition = beginDocumentTransition({ allowConflictOnHome: true });
+  // A newly opened tab starts on Home while the autosave store may have restored
+  // a conflict from its prior editor session. Home cards are navigation, not an
+  // attempt to overwrite that session; retain the pause for the editor screen.
+  const settled = await transition.settle(project.fileName);
+  const conflictOnHome = useNavigationStore.getState().screen === "home" && useSaveConflictStore.getState().paused;
+  if ((!settled && !conflictOnHome) || !transition.current()) return false;
   useEditorStore.getState().loadSpec(project.spec);
   useDocumentStore.getState().setFileName(project.fileName, project.diskRevision);
   return true;

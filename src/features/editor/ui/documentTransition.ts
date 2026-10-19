@@ -1,5 +1,6 @@
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
+import { useNavigationStore } from "@/features/editor/store/navigationStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 
@@ -20,7 +21,7 @@ useDocumentStore.subscribe((state, previous) => {
  * Every await must be followed by current(); settle is permission for an immediate
  * synchronous load only. Cancellation does not discard recovery, write disk, or resume autosave.
  */
-export function beginDocumentTransition() {
+export function beginDocumentTransition({ allowConflictOnHome = false }: { allowConflictOnHome?: boolean } = {}) {
   pending?.abort();
   usePromptDialogStore.getState().resolve(null);
   const controller = new AbortController();
@@ -34,7 +35,8 @@ export function beginDocumentTransition() {
     spec === useEditorStore.getState().spec && fileName === useDocumentStore.getState().fileName &&
     downloadFileName === useDocumentStore.getState().downloadFileName &&
     diskRevision === useDocumentStore.getState().diskRevision &&
-    !useSaveConflictStore.getState().paused && !useSaveConflictStore.getState().check();
+    (allowConflictOnHome && useNavigationStore.getState().screen === "home" ||
+      !useSaveConflictStore.getState().paused && !useSaveConflictStore.getState().check());
   return {
     current,
     async settle(nextFileName: string | null) {

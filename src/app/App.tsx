@@ -23,10 +23,10 @@ export function App() {
 
   return (
     <ThemeProvider>
-      <div inert={paused || prompting || undefined}>
+      <div inert={(screen === "editor" && paused) || prompting || undefined}>
         {screen === "home" ? <HomeScreen /> : <EditorLayout />}
       </div>
-      <SaveConflictDialog />
+      {screen === "editor" && <SaveConflictDialog />}
       <PromptDialog />
       <AgentEditNotice />
     </ThemeProvider>
