@@ -70,10 +70,14 @@ try {
     await unlink(join(workspace, 'specs/c.json'));
     await page.reload();
     await init();
+    async function confirmFileRename() {
+        await page.getByRole('alertdialog').getByRole('button', { name: '이름과 파일명 변경', exact: true }).click();
+    }
     await page.evaluate(async () => { window.held = await (await import('/src/features/editor/ui/agentRequestLock.ts')).holdRequestLock('ticket', 'audit-holder'); });
     await page.getByRole('button', { name: 'a 이름 변경', exact: true }).click();
     await page.getByRole('alertdialog').getByRole('textbox').fill('b');
     await page.getByRole('alertdialog').locator('button[type=submit]').click();
+    await confirmFileRename();
     await page.waitForFunction(() => document.body.innerText.includes('생성 기록') && document.body.innerText.includes('다음'));
     console.log('PASS actual Home rename warning visible', await page.locator('body').innerText().then(t => t.split('\n').filter(s => s.includes('생성 기록') || s.includes('다음')).join(' ')));
     assert.ok(JSON.parse(await readFile(join(workspace, 'specs/b.json'), 'utf8')));
@@ -85,6 +89,7 @@ try {
     await page.getByRole('button', { name: 'b 이름 변경', exact: true }).click();
     await page.getByRole('alertdialog').getByRole('textbox').fill('c');
     await page.getByRole('alertdialog').locator('button[type=submit]').click();
+    await confirmFileRename();
     await page.getByRole('button', { name: 'c 이름 변경', exact: true }).waitFor();
     const chained = await page.evaluate(async () => { const s = await scan('c.json'); return { location: s.location, zip: await zip(s) }; });
     assert.equal(chained.location.projectId, a.projectId);
@@ -96,6 +101,7 @@ try {
         await page.getByRole('button', { name: `${currentName} 이름 변경`, exact: true }).click();
         await page.getByRole('alertdialog').getByRole('textbox').fill(nextName);
         await page.getByRole('alertdialog').locator('button[type=submit]').click();
+        await confirmFileRename();
         await page.getByRole('button', { name: `${nextName} 이름 변경`, exact: true }).waitFor();
         const revisited = await page.evaluate(async name => {
             const s = await scan(`${name}.json`);

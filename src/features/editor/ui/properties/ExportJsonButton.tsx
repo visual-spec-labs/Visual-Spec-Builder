@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 
 import { FieldError } from "./fields/Field";
+import { documentDownloadName, useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { exportSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
 
@@ -8,10 +9,11 @@ import { exportSpecAsJson } from "@/features/editor/ui/exportSpecAsJson";
 export function ExportJsonButton() {
   const errorId = useId();
   const spec = useEditorStore((state) => state.spec);
+  const fileName = useDocumentStore(documentDownloadName);
   const [error, setError] = useState<string | null>(null);
 
   function handleExport() {
-    const result = exportSpecAsJson(spec);
+    const result = exportSpecAsJson(spec, fileName);
     if (!result.ok) {
       setError(`JSON을 내보낼 수 없습니다. 문서 검증 오류 ${result.issueCount}건을 수정한 뒤 다시 시도하세요. 자세한 내용은 콘솔에서 확인할 수 있습니다.`);
       return;

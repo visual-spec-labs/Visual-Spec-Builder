@@ -11,7 +11,8 @@ useEditorStore.subscribe((state, previous) => {
   if (state.spec !== previous.spec || state.documentId !== previous.documentId) revision++;
 });
 useDocumentStore.subscribe((state, previous) => {
-  if (state.fileName !== previous.fileName || state.diskRevision !== previous.diskRevision) revision++;
+  if (state.fileName !== previous.fileName || state.downloadFileName !== previous.downloadFileName ||
+    state.diskRevision !== previous.diskRevision) revision++;
 });
 
 /**
@@ -27,10 +28,11 @@ export function beginDocumentTransition() {
   const isDocument = useSaveConflictStore.getState().captureDocument();
   const expectedRevision = revision;
   const { spec, documentId } = useEditorStore.getState();
-  const { fileName, diskRevision } = useDocumentStore.getState();
+  const { fileName, downloadFileName, diskRevision } = useDocumentStore.getState();
   const current = () => pending === controller && !controller.signal.aborted && isDocument() &&
     revision === expectedRevision && documentId === useEditorStore.getState().documentId &&
     spec === useEditorStore.getState().spec && fileName === useDocumentStore.getState().fileName &&
+    downloadFileName === useDocumentStore.getState().downloadFileName &&
     diskRevision === useDocumentStore.getState().diskRevision &&
     !useSaveConflictStore.getState().paused && !useSaveConflictStore.getState().check();
   return {

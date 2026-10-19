@@ -44,7 +44,8 @@ beforeEach(() => {
   useEditorStore.getState().loadSpec(structuredClone(initial));
   useDocumentStore.getState().setFileName("saved.json", "rev-1");
   useNavigationStore.getState().openEditor();
-  useSaveConflictStore.setState({ paused: false, unavailable: false });
+  useSaveConflictStore.setState({ paused: false, unavailable: false, check: () => false,
+    captureDocument: () => () => true, save: (_fileName, _json, write) => write(), settle: async () => true });
   usePersistenceStatusStore.setState({ disk: null, draft: null, attempt: null });
   disk = { text: JSON.stringify(initial), revision: "rev-1" };
   vi.mocked(isWorkspaceAvailable).mockResolvedValue(true);
@@ -104,6 +105,40 @@ it("다운로드 fallback은 실제 파일 저장 성공으로 표시하지 않�
   await saveSpec(useEditorStore.getState().spec);
   expect(labels().file).toBe("다운로드 요청됨");
   edit("다운로드 이후"); expect(labels().file).not.toBe("파일 저장됨");
+});
+it("첫 저장에서 이름을 정한 뒤에도 다운로드 상태를 표시한다", async () => {
+  useEditorStore.getState().loadSpec({ ...structuredClone(initial), name: "Untitled" });
+  await start();
+  useDocumentStore.getState().clearFileName();
+  vi.mocked(isWorkspaceAvailable).mockResolvedValue(false);
+  vi.stubGlobal("document", { createElement: () => ({ click: vi.fn() }) });
+  vi.stubGlobal("URL", { createObjectURL: () => "blob:fixture", revokeObjectURL: vi.fn() });
+
+  const saving = saveSpec(useEditorStore.getState().spec);
+  expect(usePromptDialogStore.getState().state.kind).toBe("text");
+  usePromptDialogStore.getState().resolve("새 프로젝트");
+  await saving;
+
+  expect(useEditorStore.getState().spec.name).toBe("새 프로젝트");
+  expect(labels().file).toBe("다운로드 요청됨");
+});
+it("다운로드 완료 후 지연 중 편집한 spec은 다운로드 성공 상태로 표시하지 않는다", async () => {
+  useSaveConflictStore.setState({ paused: false, check: () => false });
+  useEditorStore.getState().loadSpec({ ...structuredClone(initial), name: "Untitled" });
+  useDocumentStore.getState().clearFileName();
+  useDocumentStore.getState().setDownloadFileName("스냅샷.json");
+  let release!: (available: boolean) => void;
+  vi.mocked(isWorkspaceAvailable).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+  vi.stubGlobal("document", { createElement: () => ({ click: vi.fn() }) });
+  vi.stubGlobal("URL", { createObjectURL: () => "blob:fixture", revokeObjectURL: vi.fn() });
+
+  const saving = saveSpec(useEditorStore.getState().spec);
+  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  edit("다운로드 감지 중 편집");
+  release(false);
+  await saving;
+
+  expect(labels().file).toBe("파일 미저장");
 });
 it("오래된 Save 응답은 교체된 문서의 상태를 바꾸지 않는다", async () => {
   await start(); edit(); let finish!: () => void;

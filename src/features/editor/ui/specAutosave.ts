@@ -30,8 +30,11 @@ const PRISTINE_UNTITLED = [migrateV01(blankSpec), migrateV01(seedSpec)].map((spe
 
 /** Browser lifecycle adapter; session recovery is written before any asynchronous save. */
 export function startSpecAutosave() {
-  const current = (): StoredDocument => ({ spec: useEditorStore.getState().spec,
-    fileName: useDocumentStore.getState().fileName, diskRevision: useDocumentStore.getState().diskRevision });
+  const current = (): StoredDocument => {
+    const document = useDocumentStore.getState();
+    return { spec: useEditorStore.getState().spec, fileName: document.fileName,
+      ...(document.downloadFileName ? { downloadFileName: document.downloadFileName } : {}), diskRevision: document.diskRevision };
+  };
   const recovery = readRecovery();
   let untitledId = crypto.randomUUID();
   let document = current();
@@ -135,7 +138,7 @@ export function startSpecAutosave() {
         baseline = raw;
         // 마지막 보관 시각은 원문 밖 보조 키에 둔다 — 원문 CAS와 baseline은 그대로다(#351).
         if (isRecoverableUnnamed(document)) recordUnnamedDraftSaved(key);
-        saveSpecToStorage(document.spec, document.fileName, document.diskRevision, key);
+        saveSpecToStorage(document.spec, document.fileName, document.diskRevision, key, document.downloadFileName);
         notifyUnnamedDrafts();
         preserve();
       } catch { reportDraft(); /* The per-tab recovery and explicit download remain available. */ }
@@ -241,6 +244,7 @@ export function startSpecAutosave() {
     useEditorStore.getState().loadSpec(latest.spec);
     if (latest.fileName === null) useDocumentStore.getState().clearFileName();
     else useDocumentStore.getState().setFileName(latest.fileName, latest.diskRevision ?? null);
+    useDocumentStore.getState().setDownloadFileName(latest.downloadFileName ?? null);
     restoring = false;
     preserve();
     useSaveConflictStore.setState({ paused: false });
@@ -477,7 +481,7 @@ export function startSpecAutosave() {
     }
   });
   const unsubscribeFile = useDocumentStore.subscribe((s, prev) => {
-    if (s.fileName !== prev.fileName || s.diskRevision !== prev.diskRevision) changed();
+    if (s.fileName !== prev.fileName || s.downloadFileName !== prev.downloadFileName || s.diskRevision !== prev.diskRevision) changed();
   });
   window.addEventListener("storage", storage);
   window.addEventListener("beforeunload", beforeUnload);

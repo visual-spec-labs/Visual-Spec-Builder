@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { loadStoredFileName, loadStoredDiskRevision } from "@/features/editor/store/specStorage";
+import { loadStoredDownloadFileName, loadStoredFileName, loadStoredDiskRevision } from "@/features/editor/store/specStorage";
 
 /**
  * **지금 편집 중인 문서가 어느 파일인가**만 다루는 스토어 (PR #145 리뷰, wook3964).
@@ -60,6 +60,8 @@ export interface DocumentState {
    * 그때의 Save는 예전처럼 `spec.name`에서 이름을 만들어 쓴다.
    */
   fileName: string | null;
+  /** Browser download name when no workspace file backs this document. */
+  downloadFileName: string | null;
   diskRevision: string | null;
   /** 프로젝트 신원 세대(위 "프로젝트 신원 세대"). 값 자체는 뜻이 없고 같은지만 본다. */
   projectIdentity: number;
@@ -68,19 +70,28 @@ export interface DocumentState {
   setFileName: (fileName: string, diskRevision?: string | null) => void;
   /** 앱 안 이름 변경을 적는다 — 같은 프로젝트라 `projectIdentity`를 올리지 않는다. */
   adoptRenamedFileName: (fileName: string, diskRevision: string | null) => void;
+  setDownloadFileName: (fileName: string | null) => void;
   clearFileName: () => void;
+}
+
+/** Preferred name for a Save/JSON download target, preserving workspace precedence. */
+export function documentDownloadName(document: Pick<DocumentState, "fileName" | "downloadFileName">): string | null {
+  return document.fileName ?? document.downloadFileName;
 }
 
 export const useDocumentStore = create<DocumentState>((set) => ({
   fileName: loadStoredFileName() ?? null,
+  downloadFileName: loadStoredDownloadFileName() ?? null,
   diskRevision: loadStoredDiskRevision(),
   projectIdentity: 0,
   advanceProjectIdentity: () => set((state) => ({ projectIdentity: state.projectIdentity + 1 })),
   setFileName: (fileName, diskRevision = null) => set((state) => ({
     fileName,
+    downloadFileName: null,
     diskRevision,
     projectIdentity: state.fileName !== null && state.fileName !== fileName ? state.projectIdentity + 1 : state.projectIdentity,
   })),
-  adoptRenamedFileName: (fileName, diskRevision) => set({ fileName, diskRevision }),
-  clearFileName: () => set({ fileName: null, diskRevision: null }),
+  adoptRenamedFileName: (fileName, diskRevision) => set({ fileName, downloadFileName: null, diskRevision }),
+  setDownloadFileName: (downloadFileName) => set({ downloadFileName }),
+  clearFileName: () => set({ fileName: null, downloadFileName: null, diskRevision: null }),
 }));

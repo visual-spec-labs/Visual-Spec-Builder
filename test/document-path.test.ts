@@ -17,10 +17,14 @@ import { migrateV01 } from "@/features/editor/schema";
 import type { ProjectSpec, VisualSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { usePersistenceStatusStore } from "@/features/editor/store/persistenceStatusStore";
 import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { saveSpecToStorage } from "@/features/editor/store/specStorage";
+import * as workspaceClient from "@/features/editor/ui/workspaceClient";
+import { handleExport, handleRenameProject } from "@/features/editor/ui/MenuBar";
 import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
 import { newSpec } from "@/features/editor/ui/newSpec";
+import { openSpecFromFileDialog } from "@/features/editor/ui/openSpecFromFile";
 import { openSpec } from "@/features/editor/ui/openSpecFromFile";
 import {
   createWorkspaceMiddleware,
@@ -215,6 +219,174 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
   });
 });
 
+describe("첫 Save는 프로젝트 이름을 먼저 정한다 (#435)", () => {
+  it("입력한 이름을 프로젝트 제목과 첫 저장 파일명에 사용한다", async () => {
+    useEditorStore.getState().loadSpec(dashboardSpec());
+    const pending = save();
+    await answerPrompt("카페 메뉴");
+    await pending;
+
+    expect(specsDir()).toEqual(["카페 메뉴.json"]);
+    expect(readSpecFile("카페 메뉴.json").name).toBe("카페 메뉴");
+    expect(useEditorStore.getState().spec.name).toBe("카페 메뉴");
+    expect(useDocumentStore.getState().fileName).toBe("카페 메뉴.json");
+  });
+
+  it("취소하면 프로젝트와 저장 파일을 바꾸지 않는다", async () => {
+    useEditorStore.getState().loadSpec(dashboardSpec());
+    const pending = save();
+    await answerPrompt(null);
+    await pending;
+
+    expect(specsDir()).toEqual([]);
+    expect(useEditorStore.getState().spec.name).toBe("Dashboard");
+    expect(useDocumentStore.getState().fileName).toBeNull();
+  });
+
+  it("파일명으로 쓸 수 없는 이름은 저장 전에 거부한다", async () => {
+    useEditorStore.getState().loadSpec(dashboardSpec());
+    const pending = save();
+    await answerPrompt("bad/name");
+    await pending;
+
+    expect(specsDir()).toEqual([]);
+    expect(useEditorStore.getState().spec.name).toBe("Dashboard");
+    expect(useDocumentStore.getState().fileName).toBeNull();
+    expect(alerts.at(-1)).toContain("파일명으로 사용할 수 있어야");
+  });
+});
+
+describe("다운로드 전용 문서의 이름", () => {
+  it("첫 다운로드 뒤 이름을 바꾸면 작업공간 경로 없이 다음 다운로드 파일명이 갱신된다", async () => {
+    const available = vi.spyOn(workspaceClient, "isWorkspaceAvailable").mockResolvedValue(false);
+    const click = vi.fn();
+    const anchor = { href: "", download: "", click };
+    vi.stubGlobal("document", { createElement: () => anchor });
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:first-save");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    try {
+      useEditorStore.getState().loadSpec(dashboardSpec());
+      const pending = save();
+      await answerPrompt("첫 이름");
+      await pending;
+
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("첫 이름.json");
+
+      const renaming = handleRenameProject("첫 이름", null);
+      await answerPrompt("바뀐 이름");
+      await renaming;
+      expect(useEditorStore.getState().spec.name).toBe("바뀐 이름");
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("바뀐 이름.json");
+      expect(specsDir()).toEqual([]);
+      handleExport();
+      expect(anchor.download).toBe("바뀐 이름.json");
+      expect(click).toHaveBeenCalledTimes(2);
+    } finally {
+      available.mockRestore();
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      Reflect.deleteProperty(globalThis, "document");
+    }
+  });
+
+  it("로컬 JSON Open → 다운로드 전용 Save as → Save와 Export는 새 다운로드 이름을 사용한다", async () => {
+    const available = vi.spyOn(workspaceClient, "isWorkspaceAvailable").mockResolvedValue(false);
+    const click = vi.fn();
+    const anchor = { href: "", download: "", click };
+    let input!: { files: Array<{ name: string; text: string }> | null; onchange: (() => void) | null; click: () => void };
+    let firstElement = true;
+    vi.stubGlobal("document", { createElement: () => {
+      if (firstElement) {
+        firstElement = false;
+        return input = { files: null, onchange: null, click: vi.fn() };
+      }
+      return anchor;
+    } });
+    vi.stubGlobal("FileReader", class {
+      result: string | null = null;
+      onload: (() => void) | null = null;
+      readAsText(file: { text: string }) {
+        this.result = file.text;
+        queueMicrotask(() => this.onload?.());
+      }
+    });
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:local-open");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    try {
+      openSpecFromFileDialog();
+      input.files = [{ name: "local-A.json", text: JSON.stringify(dashboardSpec()) }];
+      input.onchange?.();
+      await vi.waitFor(() => expect(useEditorStore.getState().spec.name).toBe("Dashboard"));
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("local-A.json");
+
+      const saveAs = saveSpecAs(useEditorStore.getState().spec);
+      await answerPrompt("local-B");
+      await saveAs;
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("local-B.json");
+
+      renameActivePage("편집 후 저장");
+      await save();
+      expect(anchor.download).toBe("local-B.json");
+      const renaming = handleRenameProject("Dashboard", null);
+      await answerPrompt("local-C");
+      await renaming;
+      expect(useEditorStore.getState().spec.name).toBe("local-C");
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("local-C.json");
+      await save();
+      expect(anchor.download).toBe("local-C.json");
+      handleExport();
+      expect(anchor.download).toBe("local-C.json");
+      expect(click).toHaveBeenCalledTimes(4);
+    } finally {
+      available.mockRestore();
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      Reflect.deleteProperty(globalThis, "document");
+      Reflect.deleteProperty(globalThis, "FileReader");
+    }
+  });
+
+  it("작업공간 감지 중 편집이 있어도 완료 다운로드 표시는 직렬화한 spec에 묶인다", async () => {
+    let release!: (available: boolean) => void;
+    const available = vi.spyOn(workspaceClient, "isWorkspaceAvailable").mockImplementation(() =>
+      new Promise((resolve) => { release = resolve; }));
+    const click = vi.fn();
+    const anchor = { href: "", download: "", click };
+    vi.stubGlobal("document", { createElement: () => anchor });
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:fallback");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    try {
+      useEditorStore.getState().loadSpec(dashboardSpec());
+      const pending = save();
+      await answerPrompt("스냅샷 이름");
+      await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+      renameActivePage("감지 중 편집");
+      const editedSpec = useEditorStore.getState().spec;
+      release(false);
+      await pending;
+
+      const attempt = usePersistenceStatusStore.getState().attempt;
+      expect(attempt?.phase).toBe("downloaded");
+      expect(attempt?.spec.name).toBe("스냅샷 이름");
+      expect(attempt?.spec).not.toBe(editedSpec);
+      expect(attempt?.spec.pages[attempt!.spec.pageOrder[0]].name).not.toBe("감지 중 편집");
+      expect(anchor.download).toBe("스냅샷 이름.json");
+      expect(click).toHaveBeenCalledOnce();
+      expect(useDocumentStore.getState().fileName).toBeNull();
+    } finally {
+      available.mockRestore();
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+      Reflect.deleteProperty(globalThis, "document");
+    }
+  });
+});
+
 describe("Save as 다음의 Save도 그 파일에 쓴다 (PR #145 리뷰)", () => {
   it("Save as로 만든 foo.json을 이어서 Save가 갱신한다", async () => {
     await newSpec();
@@ -223,6 +395,7 @@ describe("Save as 다음의 Save도 그 파일에 쓴다 (PR #145 리뷰)", () =
     await pending;
 
     expect(existsSync(join(workspaceRoot, "specs", "foo.json"))).toBe(true);
+    expect(useEditorStore.getState().spec.name).toBe("Untitled");
 
     const pageId = renameActivePage("Save as 뒤의 편집");
     await save();
@@ -284,10 +457,12 @@ describe("New는 현재 문서를 비운다 (PR #145 리뷰)", () => {
     await newSpec();
     expect(useDocumentStore.getState().fileName).toBeNull();
 
-    await save();
+    const saving = save();
+    await answerPrompt("새 프로젝트 이름");
+    await saving;
 
-    // 새 문서는 자기 이름(spec.name)으로 저장되고, 열었던 파일은 손대지 않는다.
-    const newName = `${useEditorStore.getState().spec.name}.json`;
+    // 새 문서는 입력한 이름으로 저장되고, 열었던 파일은 손대지 않는다.
+    const newName = "새 프로젝트 이름.json";
     expect(newName).not.toBe("customer-copy.json");
     expect(existsSync(join(workspaceRoot, "specs", newName))).toBe(true);
     expect(readSpecFile("customer-copy.json").name).toBe("Dashboard");
@@ -296,10 +471,12 @@ describe("New는 현재 문서를 비운다 (PR #145 리뷰)", () => {
 });
 
 describe("한 번도 저장하지 않은 문서", () => {
-  it("첫 Save는 spec.name으로 파일을 만들고, 그 파일이 다음 Save의 대상이 된다", async () => {
+  it("첫 Save에서 정한 이름으로 파일을 만들고, 그 파일이 다음 Save의 대상이 된다", async () => {
     await newSpec();
-    await save();
-    const created = `${useEditorStore.getState().spec.name}.json`;
+    const firstSave = save();
+    await answerPrompt("My project");
+    await firstSave;
+    const created = "My project.json";
 
     const pageId = renameActivePage("두 번째 저장");
     await save();
@@ -444,9 +621,9 @@ describe("JSON Export 검증 실패 알림 (#230)", () => {
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:export");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     try {
-      const result = exportSpecAsJson(dashboardSpec());
+      const result = exportSpecAsJson(dashboardSpec(), useDocumentStore.getState().fileName);
       expect(result.ok).toBe(true);
-      expect(anchor.download).toBe("Dashboard.json");
+      expect(anchor.download).toBe("original.json");
       expect(click).toHaveBeenCalledOnce();
       expect(revokeObjectURL).toHaveBeenCalledWith("blob:export");
       expect(alerts).toEqual([]);

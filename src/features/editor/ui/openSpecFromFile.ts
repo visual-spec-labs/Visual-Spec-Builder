@@ -30,7 +30,14 @@ async function loadSpecText(text: string, fileName: string, diskRevision: string
   // 검증 실패는 문서 전환/초안 정리에 들어가지 않는다. 유효한 파일만 이동을 확정한다.
   if (!await transition.settle(fileName) || !transition.current()) return;
   useEditorStore.getState().loadSpec(result.spec);
-  useDocumentStore.getState().setFileName(fileName, diskRevision);
+  if (diskRevision === null) {
+    // A browser FileReader cannot write back to the selected local file. Keep its
+    // name only as the next download name, never as a workspace path.
+    useDocumentStore.getState().clearFileName();
+    useDocumentStore.getState().setDownloadFileName(fileName);
+  } else {
+    useDocumentStore.getState().setFileName(fileName, diskRevision);
+  }
 }
 
 /**

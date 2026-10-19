@@ -23,6 +23,8 @@ export const SPEC_STORAGE_KEY = "visual-spec:project";
 export interface StoredDocument {
   /** `documentStore.fileName`과 같은 뜻 — null이면 그 세션엔 어느 파일도 아니었다. */
   fileName: string | null;
+  /** Browser download name for documents that have no workspace file. Absent in older caches. */
+  downloadFileName?: string;
   spec: ProjectSpec;
   diskRevision?: string | null;
 }
@@ -68,6 +70,8 @@ export function parseStoredDocument(raw: string | null): StoredDocument | undefi
     ("renamePending" in parsed && parsed.renamePending === true)) return undefined;
   const fileName = (parsed as Record<string, unknown>).fileName;
   if (fileName !== null && typeof fileName !== "string") return undefined;
+  const downloadFileName = (parsed as Record<string, unknown>).downloadFileName;
+  if (downloadFileName !== undefined && downloadFileName !== null && typeof downloadFileName !== "string") return undefined;
 
   // 검증 전에 0.3으로 바꾼다(#127). 빠뜨리면 0.2 시절 자동 저장본이 아래 검증에서
   // 조용히 버려져, 갱신 직후 첫 실행에서 작업이 사라진다.
@@ -79,7 +83,9 @@ export function parseStoredDocument(raw: string | null): StoredDocument | undefi
   if (!result.valid && !result.issues.every(isScreenRelationIssue)) return undefined;
 
   const diskRevision = (parsed as Record<string, unknown>).diskRevision;
-  return { fileName, spec: spec as ProjectSpec, ...(typeof diskRevision === "string" ? { diskRevision } : {}) };
+  return { fileName, spec: spec as ProjectSpec,
+    ...(typeof downloadFileName === "string" ? { downloadFileName } : {}),
+    ...(typeof diskRevision === "string" ? { diskRevision } : {}) };
 }
 
 /**
@@ -107,6 +113,12 @@ export function loadStoredFileName(): string | null | undefined {
   return recovery ? recovery.document.fileName : readStoredDocument()?.fileName;
 }
 
+/** Read the separate browser download name, including per-tab reload recovery. */
+export function loadStoredDownloadFileName(): string | null | undefined {
+  const recovery = readRecovery();
+  return recovery ? recovery.document.downloadFileName ?? null : readStoredDocument()?.downloadFileName;
+}
+
 /**
  * 현재 프로젝트와 파일명을 함께 localStorage에 저장한다(이슈 #128 → #185에서
  * `fileName` 추가).
@@ -115,12 +127,14 @@ export function loadStoredFileName(): string | null | undefined {
  * 조용히 무시한다 — 자동저장이 실패했다고 편집 자체를 막을 이유는 없다. 대신
  * File > Save(작업공간 쓰기 또는 다운로드)가 여전히 남아있다.
  *
- * 디스크를 열 때 받은 리비전도 함께 보존한다. 이 함수 자체는 디스크를 읽지
- * 않으며, 명시적 Save가 서버 CAS로 오래된 리비전의 덮어쓰기를 차단한다.
+ * 디스크를 열 때 받은 리비전과 작업공간 파일이 없는 문서의 다운로드 파일명도
+ * 함께 보존한다. 이 함수 자체는 디스크를 읽지 않으며, 명시적 Save가 서버 CAS로
+ * 오래된 리비전의 덮어쓰기를 차단한다.
  */
-export function saveSpecToStorage(spec: ProjectSpec, fileName: string | null, diskRevision?: string | null, draftKey?: string): void {
+export function saveSpecToStorage(spec: ProjectSpec, fileName: string | null, diskRevision?: string | null, draftKey?: string,
+  downloadFileName?: string | null): void {
   try {
-    localStorage.setItem(SPEC_STORAGE_KEY, JSON.stringify({ ...JSON.parse(serializeStoredDocument({ fileName, spec, diskRevision })),
+    localStorage.setItem(SPEC_STORAGE_KEY, JSON.stringify({ ...JSON.parse(serializeStoredDocument({ fileName, spec, diskRevision, downloadFileName: downloadFileName ?? undefined })),
       ...(fileName === null && draftKey ? { draftKey } : {}) }));
   } catch {
     /* 위 설명대로 조용히 무시한다. */
@@ -187,5 +201,7 @@ export function publishProjectRename(oldFileName: string, spec: ProjectSpec, new
 
 /** One envelope order for autosave, Save and post-Save-as identity comparisons. */
 export function serializeStoredDocument(document: StoredDocument): string {
-  return JSON.stringify({ fileName: document.fileName, spec: document.spec, ...(document.diskRevision ? { diskRevision: document.diskRevision } : {}) });
+  return JSON.stringify({ fileName: document.fileName, spec: document.spec,
+    ...(document.downloadFileName ? { downloadFileName: document.downloadFileName } : {}),
+    ...(document.diskRevision ? { diskRevision: document.diskRevision } : {}) });
 }

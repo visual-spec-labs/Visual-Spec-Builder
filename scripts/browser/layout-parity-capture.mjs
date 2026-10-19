@@ -45,6 +45,9 @@ export async function captureInPage({ scopeSelector, shellSelector, rootId, inpu
       };
     }
   }
+  // Image decoding may take long enough for a late text/font request to start after
+  // the first font readiness barrier. Wait again before recording the final status.
+  await document.fonts.ready;
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
   const lineCount = (element) => {

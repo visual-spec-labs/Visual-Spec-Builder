@@ -197,6 +197,8 @@ try {
   await fallback.getByRole("button", {name:"파일", exact:true}).click();
   const download = fallback.waitForEvent("download");
   await fallback.getByRole("menuitem", {name:"저장", exact:true}).click();
+  const firstSaveName = fallback.getByRole("alertdialog");
+  await firstSaveName.getByRole("button", {name:"저장", exact:true}).click();
   await download;
   await fallback.locator('[role="status"][aria-label="저장 상태"]').filter({hasText:"다운로드 요청됨"}).waitFor();
   assert.equal((await fallback.locator('[role="status"][aria-label="저장 상태"]').textContent()).includes("파일 저장됨"), false);
