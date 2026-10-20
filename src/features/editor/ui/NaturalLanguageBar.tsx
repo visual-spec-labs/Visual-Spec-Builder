@@ -17,7 +17,7 @@ import { NL_REQUEST_PATH, NL_RESPONSE_PATH, type NlScopeKind } from "@/features/
 import type { Command } from "@/features/editor/command/types";
 import { runTransactionGates } from "@/features/editor/command/transactionGate";
 import { applyWidgetProjectCommand } from "@/features/editor/command/widgetProjectCommand";
-import { changedBackgroundNodes } from "@/features/editor/nl/backgroundChange";
+import { changedBackgroundNodes, type BackgroundChange } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
 import { buildNlAgentInstruction } from "@/features/editor/ui/agentHandoff";
 import {
@@ -26,6 +26,7 @@ import {
   type AgentWaitProgress,
 } from "@/features/editor/ui/agentRequestWait";
 import { AgentWaitStatus } from "@/features/editor/ui/AgentWaitStatus";
+import { BackgroundChangeList } from "@/features/editor/ui/BackgroundChangeList";
 import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 
 /**
@@ -73,7 +74,7 @@ type Feedback =
       spec: ProjectSpec;
       pageId: string;
       commands: Command[];
-      names: string[];
+      changes: BackgroundChange[];
       revision: number;
     }
   /**
@@ -260,11 +261,11 @@ export function NaturalLanguageBar() {
       setFeedback({ kind: "error", message: describeTransactionFailure(preview.failure) });
       return;
     }
-    const names = changedBackgroundNodes(page, preview.screen);
-    if (names.length > 0) {
+    const changes = changedBackgroundNodes(page, preview.screen);
+    if (changes.length > 0) {
       setFeedback({
         kind: "confirmation", spec: current.spec, pageId,
-        commands: result.commands, names, revision: requestRevision,
+        commands: result.commands, changes, revision: requestRevision,
       });
       return;
     }
@@ -384,15 +385,20 @@ export function NaturalLanguageBar() {
           />
         )}
         {shown.kind === "confirmation" && (
-          <span className="text-content">
-            기존 배경 겹이 없어지거나 순서·내용이 바뀝니다: {shown.names.join(", ")}. 적용할까요?{" "}
-            <button type="button" onClick={confirmBackground} className="underline hover:text-content">
-              변경 적용
-            </button>{" "}
-            <button type="button" onClick={cancelPending} className="underline hover:text-content">
-              적용 취소
-            </button>
-          </span>
+          // 적용하면 지금 배경이 아래 값으로 바뀐다 — 사용자가 화면에서 보는 말(세부설정 패널의
+          // 단색·선형·이미지)과 색 값으로 보여 준다(#441).
+          <div className="flex flex-col gap-1 text-content">
+            <span>적용하면 배경이 이렇게 바뀝니다. 적용할까요?</span>
+            <BackgroundChangeList changes={shown.changes} />
+            <span>
+              <button type="button" onClick={confirmBackground} className="underline hover:text-content">
+                변경 적용
+              </button>{" "}
+              <button type="button" onClick={cancelPending} className="underline hover:text-content">
+                적용 취소
+              </button>
+            </span>
+          </div>
         )}
         {shown.kind === "error" && (
           <div className="flex flex-col gap-1">

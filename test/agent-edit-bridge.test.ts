@@ -34,7 +34,10 @@ const title = () => (useEditorStore.getState().spec.pages.page1.nodes.headerTitl
 function sendEdit(edit: Record<string, unknown>) {
   files.set("runtime/agent-edit.json", JSON.stringify({ protocol: 2, commandVersion: "0.3", ...edit }));
 }
-const background = (color: string) => [{ type: "updateNode", id: "root", path: "background", value: [{ type: "solid", color }] }];
+// 확인을 거치는 배경 편집 — 단색 한 겹끼리의 교체는 묻지 않으므로(#441) 그라디언트로 바꾼다.
+const background = (color: string) => [{ type: "updateNode", id: "root", path: "background",
+  value: [{ type: "linear", angle: 90, stops: [{ color, at: 0 }, { color: "#FFFFFF", at: 1 }] }] }];
+const solid = (color: string) => [{ type: "updateNode", id: "root", path: "background", value: [{ type: "solid", color }] }];
 const retitle = (value: string) => [{ type: "updateNode", id: "headerTitle", path: "content", value }];
 
 /**
@@ -252,8 +255,7 @@ describe("에이전트 편집 적용 (#279)", () => {
 
   it("배경을 바꾸는 편집은 확인을 기다렸다가 적용하거나 거절한다", async () => {
     await connect();
-    const repaint = [{ type: "updateNode", id: "root", path: "background", value: [{ type: "solid", color: "#000000" }] }];
-    sendEdit({ id: "bg1", baseStateRevision: state().stateRevision, pageId: "page1", commands: repaint });
+    sendEdit({ id: "bg1", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
     await vi.advanceTimersByTimeAsync(1100);
     expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "confirm", requestId: "bg1" });
     expect(result()).toMatchObject({ requestId: "bg1", status: "pending" });
@@ -261,11 +263,29 @@ describe("에이전트 편집 적용 (#279)", () => {
     await vi.advanceTimersByTimeAsync(0); // 적용 직전 연결 소유권을 다시 확인한다
     expect(result()).toMatchObject({ requestId: "bg1", status: "applied" });
 
-    sendEdit({ id: "bg2", baseStateRevision: currentRevision(), pageId: "page1", commands: [{ type: "updateNode", id: "root", path: "background", value: [{ type: "solid", color: "#FFFFFF" }] }] });
+    sendEdit({ id: "bg2", baseStateRevision: currentRevision(), pageId: "page1", commands: background("#FFFFFF") });
     await vi.advanceTimersByTimeAsync(1100);
     useAgentEditStore.getState().resolveConfirm(false);
     await vi.advanceTimersByTimeAsync(0);
     expect(result()).toMatchObject({ requestId: "bg2", status: "rejected" });
+  });
+
+  it("단색 한 겹을 다른 단색으로 바꾸는 편집은 묻지 않고 적용한다 (#441)", async () => {
+    await connect();
+    sendEdit({ id: "paint", baseStateRevision: state().stateRevision, pageId: "page1", commands: solid("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(result()).toMatchObject({ requestId: "paint", status: "applied" });
+    expect(useAgentEditStore.getState().notice).toMatchObject({ kind: "applied", requestId: "paint" });
+  });
+
+  it("확인창은 이전·이후 배경 값을 함께 넘긴다 (#441)", async () => {
+    await connect();
+    sendEdit({ id: "bg", baseStateRevision: state().stateRevision, pageId: "page1", commands: background("#000000") });
+    await vi.advanceTimersByTimeAsync(1100);
+    const notice = useAgentEditStore.getState().notice;
+    expect(notice?.kind === "confirm" && notice.changes).toEqual([
+      { name: seedSpec.screen.nodes.root.name, before: expect.stringMatching(/^단색 #/), after: "선형 그라디언트 90° (#000000 0%, #FFFFFF 100%)" },
+    ]);
   });
 
   it("다시 연결되면 이전에 처리한 마지막 요청을 다시 적용하지 않는다", async () => {

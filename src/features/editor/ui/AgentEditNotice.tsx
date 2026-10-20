@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAgentEditStore, type AgentEditNotice as Notice } from "@/features/editor/store/agentEditStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { BackgroundChangeList } from "@/features/editor/ui/BackgroundChangeList";
 
 /**
  * 외부 에이전트 편집과 열린 파일의 디스크 변경(#279)을 GUI에서 확인시키는 자리. 적용됐으면 무엇이 바뀌었는지와
@@ -134,7 +135,7 @@ function NoticePanel({ notice }: { notice: Notice }) {
         <>
           <p className="font-semibold">외부 에이전트가 배경을 바꾸려 합니다</p>
           <p className="mt-1 text-content-muted">{notice.message}</p>
-          <p className="mt-1 text-content-muted">대상: {notice.names.join(", ")}</p>
+          <div className="mt-1 text-content-muted"><BackgroundChangeList changes={notice.changes} /></div>
           <div className="mt-2 flex gap-2">
             <button type="button" className="rounded-control border border-line px-2 py-1 hover:bg-hover"
               onClick={() => resolveConfirm(true)}>적용</button>

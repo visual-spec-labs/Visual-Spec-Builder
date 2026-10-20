@@ -183,7 +183,7 @@ describe("열린 파일의 디스크 변경 (#279)", () => {
   it("디스크 알림은 에이전트 확인 대기를 덮지 않고, 같은 버전 질문은 다시 띄우지 않는다", async () => {
     await watch();
     useEditorStore.getState().setNodeField("headerTitle", "content", "내 편집");
-    const confirm = { kind: "confirm" as const, requestId: "bg", message: "배경 변경", names: ["Screen"], pageId: "page1", commands: [], baseStateRevision: "r" };
+    const confirm = { kind: "confirm" as const, requestId: "bg", message: "배경 변경", changes: [{ name: "Screen", before: "단색 #FFFFFF", after: "배경 없음" }], pageId: "page1", commands: [], baseStateRevision: "r" };
     useAgentEditStore.setState({ notice: confirm });
     setDisk(withTitle("디스크 변경"), "rev-2");
     await tick();

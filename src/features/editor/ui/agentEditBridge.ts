@@ -467,12 +467,12 @@ export function startAgentEditBridge(): () => void {
       await writeResult(parsed.id, "rejected", message);
       return;
     }
-    const names = changedBackgroundNodes(state.spec.pages[parsed.pageId], preview.screen);
-    if (names.length > 0) {
+    const changes = changedBackgroundNodes(state.spec.pages[parsed.pageId], preview.screen);
+    if (changes.length > 0) {
       const message = parsed.summary ?? describeCommands(parsed.commands);
       useAgentEditStore.setState({
         notice: {
-          kind: "confirm", requestId: parsed.id, message, names, pageId: parsed.pageId,
+          kind: "confirm", requestId: parsed.id, message, changes, pageId: parsed.pageId,
           commands: parsed.commands, baseStateRevision: parsed.baseStateRevision,
         },
       });
