@@ -143,6 +143,7 @@ export function saveSpecToStorage(spec: ProjectSpec, fileName: string | null, di
 
 /** Per-tab recovery survives reload without replacing another tab's autosave. */
 export const RECOVERY_KEY = "visual-spec:tab-recovery";
+export const RECOVERY_ARCHIVE_KEY = "visual-spec:tab-recovery-archive";
 export interface Recovery {
   document: StoredDocument;
   key: string;
@@ -168,6 +169,33 @@ export function writeRecovery(recovery: Recovery): boolean {
     sessionStorage.setItem(RECOVERY_KEY, JSON.stringify(recovery));
     return true;
   } catch { return false; }
+}
+/** Keep conflicted project drafts recoverable when this tab switches documents. */
+export function archiveRecovery(): boolean {
+  const recovery = readRecovery();
+  if (!recovery?.conflicted || recovery.document.fileName === null) return true;
+  try {
+    const archived = JSON.parse(sessionStorage.getItem(RECOVERY_ARCHIVE_KEY) ?? "[]") as Recovery[];
+    const next = archived.filter(item => item.key !== recovery.key);
+    next.push(recovery);
+    sessionStorage.setItem(RECOVERY_ARCHIVE_KEY, JSON.stringify(next));
+    return true;
+  } catch { return false; }
+}
+export function readArchivedRecovery(fileName: string): Recovery | undefined {
+  try {
+    const archived = JSON.parse(sessionStorage.getItem(RECOVERY_ARCHIVE_KEY) ?? "[]") as Recovery[];
+    const value = archived.find(item => item.document?.fileName === fileName);
+    if (!value || typeof value.key !== "string" || typeof value.conflicted !== "boolean") return undefined;
+    const document = parseStoredDocument(JSON.stringify(value.document));
+    return document ? { ...value, document } : undefined;
+  } catch { return undefined; }
+}
+export function removeArchivedRecovery(fileName: string): void {
+  try {
+    const archived = JSON.parse(sessionStorage.getItem(RECOVERY_ARCHIVE_KEY) ?? "[]") as Recovery[];
+    sessionStorage.setItem(RECOVERY_ARCHIVE_KEY, JSON.stringify(archived.filter(item => item.document?.fileName !== fileName)));
+  } catch { /* Keep recovery data if session storage cannot be updated. */ }
 }
 export function projectStorageKey(fileName: string | null, untitledId: string): string {
   return `visual-spec:autosave:${fileName === null ? `draft:${untitledId}` : `file:${fileName.toLowerCase()}`}`;

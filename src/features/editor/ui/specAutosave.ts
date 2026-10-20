@@ -13,7 +13,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { withoutProjectIdentity } from "@/features/editor/store/projectIdentity";
 import { useSaveConflictStore, type PauseReason } from "@/features/editor/store/saveConflictStore";
 import {
-  serializeStoredDocument, parseStoredDocument, projectStorageKey, readRecovery, saveSpecToStorage, loadStoredSpec,
+  serializeStoredDocument, parseStoredDocument, projectStorageKey, readRecovery, archiveRecovery, readArchivedRecovery, removeArchivedRecovery, saveSpecToStorage, loadStoredSpec,
   writeRecovery, SPEC_STORAGE_KEY, type StoredDocument,
 } from "@/features/editor/store/specStorage";
 
@@ -361,6 +361,44 @@ export function startSpecAutosave() {
     clearTimeout(timer);
     timer = setTimeout(() => { void flush(); }, 500);
   }
+  function switchProject(nextFileName: string): boolean {
+    if (!conflicted || document.fileName === nextFileName) return false;
+    // Keep the source document and its conflict metadata in this tab's recovery.
+    if (!preserve()) return false;
+    if (!archiveRecovery()) return false;
+    conflicted = false;
+    diskConflict = false;
+    edited = false;
+    useSaveConflictStore.setState({ paused: false });
+    return true;
+  }
+  function restoreArchived(fileName: string): boolean {
+    if (conflicted) return false;
+    const archived = readArchivedRecovery(fileName);
+    const restoredFileName = archived?.document.fileName;
+    if (!archived || restoredFileName == null) return false;
+    const restored = archived.document;
+    pendingTransition?.abort();
+    clearTimeout(timer);
+    generation++;
+    restoring = true;
+    document = restored;
+    key = archived.key;
+    baseline = archived.baseline;
+    renameBaseline = archived.renameBaseline ?? null;
+    conflicted = archived.conflicted;
+    diskConflict = archived.diskConflict ?? false;
+    pauseReason = archived.reason ?? "remote";
+    edited = true;
+    useEditorStore.getState().loadSpec(restored.spec);
+    useDocumentStore.getState().setFileName(restoredFileName, restored.diskRevision ?? null);
+    useDocumentStore.getState().setDownloadFileName(restored.downloadFileName ?? null);
+    restoring = false;
+    removeArchivedRecovery(fileName);
+    preserve();
+    useSaveConflictStore.setState({ paused: true, reason: pauseReason });
+    return true;
+  }
   const readDraft = () => parseStoredDocument(read(key))?.spec;
   const captureDocument = () => {
     const expectedGeneration = generation;
@@ -452,7 +490,7 @@ export function startSpecAutosave() {
     }
   }
   useUnnamedDraftStore.setState({ resume: draft => recover(draft, false), remove: (draft, transition) => recover(draft, true, transition) });
-  useSaveConflictStore.setState({ paused: conflicted, reason: pauseReason, loadLatest, check, pause, save, settle, discardDraft, readDraft, captureDocument, adoptRename });
+  useSaveConflictStore.setState({ paused: conflicted, reason: pauseReason, loadLatest, check, pause, save, settle, discardDraft, switchProject, restoreArchived, readDraft, captureDocument, adoptRename });
   if (!recovery && baseline !== null && baseline !== serializeStoredDocument(document)) pause(false, draftOf(baseline, document));
   check();
   preserve();

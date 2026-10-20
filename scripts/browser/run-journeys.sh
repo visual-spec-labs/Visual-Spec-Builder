@@ -13,8 +13,8 @@ scratch=$(mktemp -d "${TMPDIR:-/tmp}/vsb-journeys.XXXXXX")
 trap 'rm -rf -- "$scratch"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-# 기존 5개 + #292의 3개 + #281의 생성 소유권 여정을 모두 유지한다.
-journeys=(export-journey project-dialogs document-transitions unnamed-drafts save-status
+# 기존 9개 여정을 유지하고 #434의 홈 충돌 회귀 여정을 포함한다.
+journeys=(export-journey project-dialogs document-transitions home-new-tab-conflict unnamed-drafts save-status
   stale-ticket-journey request-generation manual-change-guard generation-ownership)
 for journey in "${journeys[@]}"; do
   case_dir="$scratch/$journey"

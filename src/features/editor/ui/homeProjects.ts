@@ -1,6 +1,8 @@
 import { migrateV01, type ValidationIssue, type ProjectSpec } from "@/features/editor/schema";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useNavigationStore } from "@/features/editor/store/navigationStore";
+import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { beginDocumentTransition } from "./documentTransition";
 import { SPEC_DIR } from "@/features/workspace/protocol";
@@ -143,8 +145,35 @@ export async function loadWorkspaceProjectsProgressively(
  * 경우 남은 초안을 비교하게 파일명을 넘긴다(#267). false면 현재 문서를 그대로 둔다.
  */
 export async function openHomeProject(project: HomeProject): Promise<boolean> {
-  const transition = beginDocumentTransition();
-  if (!await transition.settle(project.fileName) || !transition.current()) return false;
+  if (useNavigationStore.getState().screen === "home" && !useSaveConflictStore.getState().paused) {
+    // The tab may have been restored before the other tab's storage event was
+    // delivered. Reconcile the autosave baseline before deciding whether this
+    // card would replace a conflicted source document.
+    useSaveConflictStore.getState().check();
+  }
+  const transition = beginDocumentTransition({ allowConflictOnHome: true });
+  const onHome = useNavigationStore.getState().screen === "home";
+  const conflictOnHome = onHome && useSaveConflictStore.getState().paused;
+  if (conflictOnHome) {
+    // Reopening the conflicted file would replace its recovered draft with the
+    // Home snapshot. Keep the recovery intact and let the caller return to Editor.
+    if (useDocumentStore.getState().fileName === project.fileName) return true;
+    // Switching projects is safe only after the source recovery is durable and
+    // the autosave adapter has detached its conflict from the new document.
+    if (!useSaveConflictStore.getState().switchProject(project.fileName)) return false;
+    // settle() would inspect the source project's stale autosave key and raise
+    // its conflict again. The source draft is archived, so replace the document
+    // synchronously before another autosave check can run.
+    if (useSaveConflictStore.getState().restoreArchived(project.fileName)) return true;
+    useEditorStore.getState().loadSpec(project.spec);
+    useDocumentStore.getState().setFileName(project.fileName, project.diskRevision);
+    return true;
+  }
+  const settled = await transition.settle(project.fileName);
+  if (!settled || !transition.current()) return false;
+  // Archive adoption replaces the active editor state, so first settle its
+  // outgoing document through the same cancellation and persistence boundary.
+  if (onHome && useSaveConflictStore.getState().restoreArchived(project.fileName)) return true;
   useEditorStore.getState().loadSpec(project.spec);
   useDocumentStore.getState().setFileName(project.fileName, project.diskRevision);
   return true;
