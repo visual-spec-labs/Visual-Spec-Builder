@@ -131,6 +131,20 @@ describe("createAgentRequestWait (#284)", () => {
     expect(wait.expired()).toBe(false);
   });
 
+  it("activityEvidence로 연장될 때 phase·개수가 그대로여도 새 deadline을 알린다 — 화면 countdown이 뒤처지지 않는다(PR #451 재검토 대응)", () => {
+    const { wait, advance, progress, now } = setup();
+    wait.start();
+    wait.report("waiting", 1); // 개수 증가로 첫 연장. phase="waiting", stagedFiles=1로 고정된다
+    const emittedBeforeExtend = progress.length;
+    advance(170_000);
+    wait.report("waiting", 1, true); // phase·개수는 그대로지만 내용이 바뀌어 다시 연장된다
+    // emit이 실제로 한 번 더 일어났고, 그 progress가 새 deadline을 담고 있어야 한다 —
+    // 아니면 AgentWaitStatus가 구독한 deadline이 옛 값에 머물러 실제 요청은 살아 있는데
+    // 화면만 0:00에 닿을 수 있다.
+    expect(progress.length).toBe(emittedBeforeExtend + 1);
+    expect(progress.at(-1)).toMatchObject({ deadline: now() + AGENT_WAIT_WINDOW_MS, stagedFiles: 1 });
+  });
+
   it("activityEvidence가 false/미지정이면 개수가 그대로일 때 연장하지 않는다", () => {
     const { wait, advance } = setup();
     wait.start();

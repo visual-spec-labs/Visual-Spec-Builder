@@ -118,12 +118,17 @@ export function createAgentRequestWait(
       // 출력이 있었으면(activityEvidence, #432 리뷰) 에이전트가 살아서 처리 중이라는 직접
       // 증거다 — 사람이 "대기 연장"을 누른 것과 같은 효과를 자동으로 준다. 기한이 이미 지난
       // 순간이어도 거절하지 않는다: 이 회차의 `expired()` 판정 전에 되살려야 뜻이 있다.
+      const deadlineBefore = deadline;
       const grew = nextStagedFiles !== undefined && nextStagedFiles > maxStagedFiles;
       if (grew) maxStagedFiles = nextStagedFiles!;
       if (grew || activityEvidence === true) extendDeadline();
+      // 기한이 실제로 바뀌었으면 phase·개수가 그대로여도 알린다(#432 PR #451 재검토 대응) —
+      // 아니면 activityEvidence만으로 연장된 새 기한을 화면(`AgentWaitStatus`의 남은 시간
+      // countdown)이 못 받아, 요청은 살아 있는데 화면만 0:00에 닿을 수 있다.
+      const deadlineChanged = deadline !== deadlineBefore;
       // 매 폴링 회차마다 같은 값을 다시 알리지 않는다 — 구독하는 화면이 1초마다 다시 그려진다.
       const staged = nextStagedFiles ?? stagedFiles;
-      if (nextPhase === phase && staged === stagedFiles) return;
+      if (nextPhase === phase && staged === stagedFiles && !deadlineChanged) return;
       phase = nextPhase;
       stagedFiles = staged;
       emit();
