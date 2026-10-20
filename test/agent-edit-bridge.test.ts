@@ -284,7 +284,7 @@ describe("에이전트 편집 적용 (#279)", () => {
     await vi.advanceTimersByTimeAsync(1100);
     const notice = useAgentEditStore.getState().notice;
     expect(notice?.kind === "confirm" && notice.changes).toEqual([
-      { name: seedSpec.screen.nodes.root.name, before: expect.stringMatching(/^단색 #/), after: "선형 그라디언트 #000000→#FFFFFF" },
+      { name: seedSpec.screen.nodes.root.name, before: expect.stringMatching(/^단색 #/), after: "선형 그라디언트 90° (#000000 0%, #FFFFFF 100%)" },
     ]);
   });
 

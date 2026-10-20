@@ -1,4 +1,4 @@
-import type { Background, Fill, ScreenSpec } from "@/features/editor/schema";
+import type { Background, Fill, ImageFill, ScreenSpec } from "@/features/editor/schema";
 
 // Fill에는 ID가 없으므로 속성 순서와 무관한 전체 값으로 기존 겹을 식별한다.
 // 겹 자체의 수정도 기존 겹 소실 가능성이 있어 보수적으로 확인한다.
@@ -29,16 +29,38 @@ export function needsBackgroundConfirmation(before: Background = [], after: Back
   return false;
 }
 
-/** 확인창에 보일 배경 한 겹 — 세부설정 패널의 종류 이름(단색·선형·이미지)과 같은 말을 쓴다. */
+// 세부설정 패널의 채우기 방식 버튼 이름(ContentSection FIT_OPTIONS)과 같다.
+const FIT_NAMES: Record<ImageFill["fit"], string> = { cover: "채우기", contain: "맞추기", fill: "늘이기" };
+
+/** 패널 칸과 같은 자리수(소수 넷째 자리)로 — 0.29 × 100 같은 부동소수 오차를 숨긴다. */
+function round(value: number): number {
+  return Math.round(value * 10_000) / 10_000;
+}
+
+/** data URI에는 이름이 없다 — 내용으로 짧은 식별값(FNV-1a 32비트)을 만들어 다른 이미지와 구분한다. */
+function shortHash(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+/**
+ * 확인창에 보일 배경 한 겹 — 세부설정 패널의 종류 이름(단색·선형·이미지)과 칸(각도·위치·채우기 방식)을
+ * 그대로 쓴다. 확인 여부는 겹의 모든 값으로 판단하므로, 어느 값이 바뀌어도 이전·이후 문구가 달라지게
+ * 모든 값을 싣는다(PR #452 리뷰).
+ */
 function describeFill(fill: Fill): string {
   switch (fill.type) {
     case "solid":
       return `단색 ${fill.color}`;
     case "linear":
-      return `선형 그라디언트 ${fill.stops.map((stop) => stop.color).join("→")}`;
-    case "image":
-      // data URI는 이름이 없고 길어서 종류만 쓴다. 경로·assetId는 마지막 조각이 파일 이름이다.
-      return fill.src.startsWith("data:") ? "이미지" : `이미지 ${fill.src.split("/").pop()}`;
+      return `선형 그라디언트 ${round(fill.angle)}° (${fill.stops.map((stop) => `${stop.color} ${round(stop.at * 100)}%`).join(", ")})`;
+    case "image": {
+      const source = fill.src.startsWith("data:") ? `내장 이미지 ${shortHash(fill.src)}` : `이미지 ${fill.src}`;
+      return `${source} (${FIT_NAMES[fill.fit]})`;
+    }
   }
 }
 
@@ -60,10 +82,9 @@ export function changedBackgroundNodes(before: ScreenSpec, after: ScreenSpec): B
     const previous = "background" in node ? node.background : undefined;
     const following = next && "background" in next ? next.background : undefined;
     if (!needsBackgroundConfirmation(previous, following)) return [];
-    return [{
-      name: node.name || id,
-      before: describeBackground(previous),
-      after: next === undefined ? "요소 삭제" : describeBackground(following),
-    }];
+    const description = { before: describeBackground(previous), after: next === undefined ? "요소 삭제" : describeBackground(following) };
+    // 패널 자리수보다 작은 차이는 문구에 드러나지 않는다 — 같은 문구 둘로 묻지 않게 바뀐 것만은 알린다.
+    if (description.before === description.after) description.after += " (패널에 보이지 않는 작은 값 차이)";
+    return [{ name: node.name || id, ...description }];
   });
 }

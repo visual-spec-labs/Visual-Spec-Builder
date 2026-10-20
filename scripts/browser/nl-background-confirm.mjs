@@ -55,7 +55,7 @@ try {
   await ask("버튼을 그라디언트로", [{ type: "linear", angle: 90, stops: [{ color: "#4F46E5", at: 0 }, { color: "#1E40AF", at: 1 }] }]);
   await page.getByRole("button", { name: "변경 적용" }).waitFor();
   const text = await status.innerText();
-  assert.match(text, /LoginButton 배경: 단색 #1E40AF → 선형 그라디언트 #4F46E5→#1E40AF/);
+  assert.match(text, /LoginButton 배경: 단색 #1E40AF → 선형 그라디언트 90° \(#4F46E5 0%, #1E40AF 100%\)/);
   assert.doesNotMatch(text, /겹/);
   assert.deepEqual(await background(), [{ type: "solid", color: "#1E40AF" }]);
   await page.getByRole("button", { name: "변경 적용" }).click();
