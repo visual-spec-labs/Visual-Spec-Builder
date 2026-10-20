@@ -8,6 +8,12 @@ const workspace = vi.hoisted(() => ({
 }));
 vi.mock("@/features/editor/ui/workspaceClient", () => workspace);
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   vi.stubGlobal("Image", class {
     naturalWidth = 600; naturalHeight = 200;
@@ -63,6 +69,101 @@ describe("shared ImageNode/background asset importer", () => {
 
     const page = useEditorStore.getState().spec.pages.page1;
     expect(Object.values(page.nodes).filter((node) => node.type === "image")).toHaveLength(1);
+  });
+
+  it("keeps the replacement target captured before delayed file I/O", async () => {
+    useEditorStore.getState().loadSpec(structuredClone(seedSpec));
+    useEditorStore.getState().insertNode("root", "photoA", {
+      type: "image", name: "A", box: { width: 100, height: 80 }, src: "a.png", fit: "cover",
+    });
+    useEditorStore.getState().insertNode("root", "photoB", {
+      type: "image", name: "B", box: { width: 100, height: 80 }, src: "b.png", fit: "cover",
+    });
+    useEditorStore.getState().select("photoA");
+    const listing = deferred<[]>();
+    workspace.listWorkspaceFiles.mockReturnValueOnce(listing.promise);
+
+    const pending = importImageFile(new File(["new"], "replacement.png", { type: "image/png" }));
+    await vi.waitFor(() => expect(workspace.listWorkspaceFiles).toHaveBeenCalledTimes(1));
+    useEditorStore.getState().select("photoB");
+    listing.resolve([]);
+    await pending;
+
+    const page = useEditorStore.getState().spec.pages.page1;
+    expect(page.nodes.photoA).toMatchObject({ src: expect.stringMatching(/^assets\/replacement-/) });
+    expect(page.nodes.photoB).toMatchObject({ src: "b.png" });
+  });
+
+  it("cancels instead of changing behavior when the captured image is deleted", async () => {
+    vi.stubGlobal("window", { alert: vi.fn() });
+    useEditorStore.getState().loadSpec(structuredClone(seedSpec));
+    useEditorStore.getState().insertNode("root", "photo", {
+      type: "image", name: "Photo", box: { width: 100, height: 80 }, src: "old.png", fit: "cover",
+    });
+    const listing = deferred<[]>();
+    workspace.listWorkspaceFiles.mockReturnValueOnce(listing.promise);
+    const pending = importImageFile(new File(["new"], "replacement.png", { type: "image/png" }));
+    await vi.waitFor(() => expect(workspace.listWorkspaceFiles).toHaveBeenCalledTimes(1));
+
+    useEditorStore.getState().removeNode("photo");
+    listing.resolve([]);
+    await pending;
+
+    expect(Object.values(useEditorStore.getState().spec.pages.page1.nodes).some((node) => node.type === "image")).toBe(false);
+    expect(window.alert).toHaveBeenCalledOnce();
+  });
+
+  it("cancels a delayed import when its page is no longer active", async () => {
+    vi.stubGlobal("window", { alert: vi.fn() });
+    useEditorStore.getState().loadSpec(structuredClone(seedSpec));
+    const listing = deferred<[]>();
+    workspace.listWorkspaceFiles.mockReturnValueOnce(listing.promise);
+    const pending = importImageFile(new File(["new"], "late.png", { type: "image/png" }));
+    await vi.waitFor(() => expect(workspace.listWorkspaceFiles).toHaveBeenCalledTimes(1));
+
+    useEditorStore.getState().addPage();
+    listing.resolve([]);
+    await pending;
+
+    expect(Object.values(useEditorStore.getState().spec.pages.page1.nodes).some((node) => node.type === "image")).toBe(false);
+    expect(window.alert).toHaveBeenCalledOnce();
+  });
+
+  it("cancels a delayed import after another document replaces the captured one", async () => {
+    vi.stubGlobal("window", { alert: vi.fn() });
+    useEditorStore.getState().loadSpec(structuredClone(seedSpec));
+    const listing = deferred<[]>();
+    workspace.listWorkspaceFiles.mockReturnValueOnce(listing.promise);
+    const pending = importImageFile(new File(["new"], "late.png", { type: "image/png" }));
+    await vi.waitFor(() => expect(workspace.listWorkspaceFiles).toHaveBeenCalledTimes(1));
+
+    useEditorStore.getState().loadSpec(structuredClone(seedSpec));
+    listing.resolve([]);
+    await pending;
+
+    expect(Object.values(useEditorStore.getState().spec.pages.page1.nodes).some((node) => node.type === "image")).toBe(false);
+    expect(window.alert).toHaveBeenCalledOnce();
+  });
+
+  it("keeps overlapping imports as two insertions even after the first selects its node", async () => {
+    useEditorStore.getState().loadSpec(structuredClone(seedSpec));
+    const firstList = deferred<[]>();
+    const secondList = deferred<[]>();
+    workspace.listWorkspaceFiles
+      .mockReturnValueOnce(firstList.promise)
+      .mockReturnValueOnce(secondList.promise);
+
+    const first = importImageFile(new File(["first"], "first.png", { type: "image/png" }));
+    const second = importImageFile(new File(["second"], "second.png", { type: "image/png" }));
+    await vi.waitFor(() => expect(workspace.listWorkspaceFiles).toHaveBeenCalledTimes(2));
+    firstList.resolve([]);
+    await first;
+    secondList.resolve([]);
+    await second;
+
+    const images = Object.values(useEditorStore.getState().spec.pages.page1.nodes)
+      .filter((node) => node.type === "image");
+    expect(images).toHaveLength(2);
   });
 
   it("concurrent same-name imports keep distinct paths and original bytes", async () => {
