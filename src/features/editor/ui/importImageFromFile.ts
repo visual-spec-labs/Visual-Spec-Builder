@@ -101,13 +101,20 @@ export async function loadImageAsset(file: File): Promise<{ src: string; width: 
   return { src, ...size };
 }
 
-async function importImage(file: File): Promise<void> {
+export async function importImageFile(file: File): Promise<void> {
   const asset = await loadImageAsset(file);
   if (asset === null) return;
   const { src, ...size } = asset;
 
-  const { spec, activePageId, selectedId, insertNode } = useEditorStore.getState();
+  const { spec, activePageId, selectedId, insertNode, setNodeField } = useEditorStore.getState();
   const page = spec.pages[activePageId];
+  const selected = selectedId === null ? undefined : page?.nodes[selectedId];
+  if (selectedId !== null && selected?.type === "image") {
+    // src만 바꿔 이미지 노드의 크기·맞춤 방식과 선택을 유지한다.
+    // 스토어 필드 업데이트 한 번이므로 교체 전체가 Undo 한 단계다.
+    setNodeField(selectedId, "src", src);
+    return;
+  }
   const parentId = resolveImportParent(page, selectedId);
   const id = generateNodeId("image", page.nodes);
 
@@ -136,7 +143,7 @@ export function importImageFromFile(): void {
   input.onchange = () => {
     const file = input.files?.[0];
     if (!file) return;
-    void importImage(file);
+    void importImageFile(file);
   };
 
   input.click();

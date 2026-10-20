@@ -3,6 +3,7 @@ import type { NodeType } from "./nodeSections";
 import { PropertySection } from "./PropertySection";
 import { useNodeField } from "./useNodeField";
 import { Field, FieldLabel, SegmentedControl, TextField } from "./fields";
+import { importImageFromFile } from "../importImageFromFile";
 
 type ImageFit = "cover" | "contain" | "fill";
 
@@ -50,6 +51,13 @@ function ImageFields() {
 
   return (
     <>
+      <button
+        type="button"
+        onClick={importImageFromFile}
+        className="rounded-control border border-line px-2 py-1.5 text-sm text-content hover:bg-surface-inset focus-visible:outline-2 focus-visible:outline-content"
+      >
+        이미지 바꾸기
+      </button>
       {display.kind === "path" ? (
         <TextField
           label="경로 (src)"
@@ -84,7 +92,7 @@ function ImageFields() {
           </FieldLabel>
         </Field>
       )}
-      {(!src || src === EMPTY_IMAGE_SRC) && <p className="text-xs text-content-muted">이미지가 비어 있습니다. 경로를 입력하세요. 파일 → 이미지 가져오기는 새 이미지 노드를 추가합니다.</p>}
+      {(!src || src === EMPTY_IMAGE_SRC) && <p className="text-xs text-content-muted">이미지가 비어 있습니다. 경로를 입력하거나 이미지 바꾸기를 선택하세요.</p>}
       <SegmentedControl
         label="채우기 방식 (fit)"
         value={fit}
