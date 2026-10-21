@@ -71,8 +71,8 @@ export async function handleRenameProject(projectName: string, fileName: string 
  * 다운로드다 — 스펙을 저장소 밖으로 꺼내는 경로는 남겨 둔다.
  * **Export와 Export Code는 다른 기능이다** — Export는 스펙 JSON, Export Code는
  * `.visual-spec/generated/`의 React 코드를 검증해 결과 폴더 ZIP으로 내보낸다(#157).
- * Import는 importImageFromFile(이미지 선택 → .visual-spec/assets/에 저장 → 선택된
- * 프레임/root에 삽입)로 연결돼 있다 — 코드·디자인 파일 가져오기는 이번 범위 밖(별도 이슈).
+ * Import는 이미지 노드가 선택됐으면 그림을 교체하고, 아니면 선택된 프레임/root에
+ * 새 이미지 노드를 넣는다. 코드·디자인 파일 가져오기는 이번 범위 밖(별도 이슈).
  * 검증 실패 시 Export는 다운로드하지 않고 처음 3개 원인과 위치를 alert로
  * 알린다(#230). Open/Save/Save as도 실패를 alert로 알려 조용히 끝나지 않는다.
  * View 항목은 viewStore(줌·그리드·패널 표시)에 연결돼 있다.

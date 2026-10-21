@@ -5,7 +5,7 @@ import {
   listWorkspaceFiles,
   writeWorkspaceFile,
 } from "@/features/editor/ui/workspaceClient";
-import type { ImageNode } from "@/features/editor/schema";
+import type { ImageNode, NodeId, PageId } from "@/features/editor/schema";
 import { sanitizeAssetFileName, uniqueAssetName } from "@/features/workspace/assetName";
 import { ASSET_DIR } from "@/features/workspace/protocol";
 
@@ -101,16 +101,68 @@ export async function loadImageAsset(file: File): Promise<{ src: string; width: 
   return { src, ...size };
 }
 
-async function importImage(file: File): Promise<void> {
+type ImageImportIntent = {
+  documentId: number;
+  pageId: PageId;
+  destination:
+    | { kind: "replace"; nodeId: NodeId; node: ImageNode }
+    | { kind: "insert"; parentId: NodeId };
+};
+
+/** 파일 선택 대화상자를 열기 전에 캡처해 비동기 작업 중 선택 변화에 흔들리지 않게 한다. */
+function captureImageImportIntent(): ImageImportIntent | null {
+  const { spec, documentId, activePageId, selectedId } = useEditorStore.getState();
+  const page = spec.pages[activePageId];
+  if (!page) return null;
+  const selected = selectedId === null ? undefined : page.nodes[selectedId];
+  return {
+    documentId,
+    pageId: activePageId,
+    destination: selectedId !== null && selected?.type === "image"
+      ? { kind: "replace", nodeId: selectedId, node: selected }
+      : { kind: "insert", parentId: resolveImportParent(page, selectedId) },
+  };
+}
+
+function reportStaleImageImport(): void {
+  window.alert("가져오는 동안 문서나 대상이 바뀌어 이미지 가져오기를 취소했습니다. 다시 시도하세요.");
+}
+
+export async function importImageFile(file: File, intent = captureImageImportIntent()): Promise<void> {
+  if (intent === null) return;
   const asset = await loadImageAsset(file);
   if (asset === null) return;
   const { src, ...size } = asset;
 
-  const { spec, activePageId, selectedId, insertNode } = useEditorStore.getState();
-  const page = spec.pages[activePageId];
-  const parentId = resolveImportParent(page, selectedId);
-  const id = generateNodeId("image", page.nodes);
+  const state = useEditorStore.getState();
+  if (state.documentId !== intent.documentId || state.activePageId !== intent.pageId) {
+    reportStaleImageImport();
+    return;
+  }
+  const page = state.spec.pages[intent.pageId];
+  if (!page) {
+    reportStaleImageImport();
+    return;
+  }
 
+  if (intent.destination.kind === "replace") {
+    const node = page.nodes[intent.destination.nodeId];
+    if (node?.type !== "image" || node !== intent.destination.node) {
+      reportStaleImageImport();
+      return;
+    }
+    // src만 바꿔 이미지 노드의 크기·맞춤 방식을 유지한다.
+    // 스토어 필드 업데이트 한 번이므로 교체 전체가 Undo 한 단계다.
+    state.setNodeField(intent.destination.nodeId, "src", src);
+    return;
+  }
+
+  const parentId = intent.destination.parentId;
+  if (page.nodes[parentId]?.type !== "frame") {
+    reportStaleImageImport();
+    return;
+  }
+  const id = generateNodeId("image", page.nodes);
   const node: ImageNode = {
     type: "image",
     name: baseName(file.name),
@@ -118,8 +170,7 @@ async function importImage(file: File): Promise<void> {
     src,
     fit: "cover",
   };
-
-  insertNode(parentId, id, node);
+  state.insertNode(parentId, id, node);
 }
 
 /**
@@ -129,6 +180,7 @@ async function importImage(file: File): Promise<void> {
  * 여기 둔다.
  */
 export function importImageFromFile(): void {
+  const intent = captureImageImportIntent();
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
@@ -136,7 +188,7 @@ export function importImageFromFile(): void {
   input.onchange = () => {
     const file = input.files?.[0];
     if (!file) return;
-    void importImage(file);
+    void importImageFile(file, intent);
   };
 
   input.click();
