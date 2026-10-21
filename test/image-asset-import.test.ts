@@ -94,7 +94,7 @@ describe("shared ImageNode/background asset importer", () => {
     expect(page.nodes.photoB).toMatchObject({ src: "b.png" });
   });
 
-  it("cancels instead of changing behavior when the captured image is deleted", async () => {
+  it("cancels when the captured image is deleted and its ID is reused", async () => {
     vi.stubGlobal("window", { alert: vi.fn() });
     useEditorStore.getState().loadSpec(structuredClone(seedSpec));
     useEditorStore.getState().insertNode("root", "photo", {
@@ -106,10 +106,15 @@ describe("shared ImageNode/background asset importer", () => {
     await vi.waitFor(() => expect(workspace.listWorkspaceFiles).toHaveBeenCalledTimes(1));
 
     useEditorStore.getState().removeNode("photo");
+    useEditorStore.getState().insertNode("root", "photo", {
+      type: "image", name: "New Photo", box: { width: 120, height: 90 }, src: "new-image.png", fit: "contain",
+    });
     listing.resolve([]);
     await pending;
 
-    expect(Object.values(useEditorStore.getState().spec.pages.page1.nodes).some((node) => node.type === "image")).toBe(false);
+    expect(useEditorStore.getState().spec.pages.page1.nodes.photo).toMatchObject({
+      name: "New Photo", src: "new-image.png", box: { width: 120, height: 90 }, fit: "contain",
+    });
     expect(window.alert).toHaveBeenCalledOnce();
   });
 

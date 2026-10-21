@@ -104,7 +104,9 @@ export async function loadImageAsset(file: File): Promise<{ src: string; width: 
 type ImageImportIntent = {
   documentId: number;
   pageId: PageId;
-  destination: { kind: "replace"; nodeId: NodeId } | { kind: "insert"; parentId: NodeId };
+  destination:
+    | { kind: "replace"; nodeId: NodeId; node: ImageNode }
+    | { kind: "insert"; parentId: NodeId };
 };
 
 /** 파일 선택 대화상자를 열기 전에 캡처해 비동기 작업 중 선택 변화에 흔들리지 않게 한다. */
@@ -117,7 +119,7 @@ function captureImageImportIntent(): ImageImportIntent | null {
     documentId,
     pageId: activePageId,
     destination: selectedId !== null && selected?.type === "image"
-      ? { kind: "replace", nodeId: selectedId }
+      ? { kind: "replace", nodeId: selectedId, node: selected }
       : { kind: "insert", parentId: resolveImportParent(page, selectedId) },
   };
 }
@@ -145,7 +147,7 @@ export async function importImageFile(file: File, intent = captureImageImportInt
 
   if (intent.destination.kind === "replace") {
     const node = page.nodes[intent.destination.nodeId];
-    if (node?.type !== "image") {
+    if (node?.type !== "image" || node !== intent.destination.node) {
       reportStaleImageImport();
       return;
     }
