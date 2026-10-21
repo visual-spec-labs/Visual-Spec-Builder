@@ -67,6 +67,9 @@
   `<Card onNavigate={onNavigate} title={title} />`처럼 각 prop을 명시한다.
   외부 HTTP/data URL은 원본 IR에 있는 정확한 값만
   정적으로 쓴다. CSS var로 제한을 우회하지 않는다.
+  `style={{...}}`는 정적 object literal이어야 한다. `as React.CSSProperties`/
+  `satisfies React.CSSProperties` 타입 단언으로 감싸는 것은 허용하지만(#433), 단언이 object
+  literal이 아닌 값(변수·spread 등)을 감싸면 여전히 거부한다.
 - 반복 이미지가 서로 다르면 image src를 동적 prop으로 바꾸지 않는다. 각 variant의 JSX에
   정적 token을 두고 variant key로 분기한다. background도 각 분기의 정적 style을 JSX에 직접
   둔다. 이미지가 없는 구조/텍스트/callback props는 그대로 재사용한다.
