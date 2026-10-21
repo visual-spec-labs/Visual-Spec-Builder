@@ -407,6 +407,32 @@ describe("editorStore", () => {
   });
 
   describe("addPage / removePage", () => {
+    it("페이지 순서를 바꾸고 undo/redo로 복원한다", () => {
+      const initialOrder = [...useEditorStore.getState().spec.pageOrder];
+      useEditorStore.getState().addPage();
+      const addedId = useEditorStore.getState().activePageId;
+      const beforeReorder = [...useEditorStore.getState().spec.pageOrder];
+
+      useEditorStore.getState().reorderPage(addedId, 0);
+      expect(useEditorStore.getState().spec.pageOrder).toEqual([addedId, ...initialOrder]);
+      expect(useEditorStore.getState().activePageId).toBe(addedId);
+      expect(undoEnabled()).toBe(true);
+
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().spec.pageOrder).toEqual(beforeReorder);
+      useEditorStore.getState().redo();
+      expect(useEditorStore.getState().spec.pageOrder).toEqual([addedId, ...initialOrder]);
+      expect(validateProjectSpec(useEditorStore.getState().spec).valid).toBe(true);
+    });
+
+    it("존재하지 않는 페이지나 범위를 벗어난 위치는 무시한다", () => {
+      const before = useEditorStore.getState();
+      useEditorStore.getState().reorderPage("missing", 0);
+      useEditorStore.getState().reorderPage(before.activePageId, 1);
+      expect(useEditorStore.getState().spec).toBe(before.spec);
+      expect(useEditorStore.getState().history).toBe(before.history);
+    });
+
     it("addPage는 빈 페이지를 끝에 붙이고 그리로 이동한다", () => {
       useEditorStore.getState().addPage();
 

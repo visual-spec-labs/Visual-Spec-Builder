@@ -210,6 +210,8 @@ export interface EditorState {
    * 페이지로 돌아간다.
    */
   addPage: () => void;
+  /** pageOrder에서 페이지 위치를 바꾼다. 프로젝트 스냅숏에 기록되어 되돌릴 수 있다. */
+  reorderPage: (id: PageId, toIndex: number) => void;
   /**
    * 페이지를 지운다. 마지막 한 장은 지우지 않는다 — pages가 비면 캔버스가
    * 그릴 것이 없어지고 스키마의 minProperties도 깨진다.
@@ -612,6 +614,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedId: null,
         focusRootId: null,
       };
+    }),
+  reorderPage: (id, toIndex) =>
+    set((state) => {
+      const fromIndex = state.spec.pageOrder.indexOf(id);
+      if (fromIndex < 0 || !Number.isInteger(toIndex)
+        || toIndex < 0 || toIndex >= state.spec.pageOrder.length
+        || fromIndex === toIndex) return state;
+
+      const pageOrder = [...state.spec.pageOrder];
+      pageOrder.splice(fromIndex, 1);
+      pageOrder.splice(toIndex, 0, id);
+      const spec = { ...state.spec, pageOrder: asPageOrder(pageOrder) };
+      const prepared = prepareProjectCommit(state, spec, state.activePageId, false, false);
+      if (!prepared.ok) {
+        useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+        return state;
+      }
+      if (prepared.commit === null) return state;
+      useResponsiveViewStore.getState().reportError(null);
+      return prepared.commit;
     }),
   removePage: (id, expected) =>
     set((state) => {
