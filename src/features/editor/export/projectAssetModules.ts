@@ -23,6 +23,19 @@ function staticString(value: unknown): string | null {
 function name(value: unknown): string | null {
   return node(value) && typeof value.name === "string" ? value.name : staticString(value);
 }
+/**
+ * `{ ... } as React.CSSProperties`/`{ ... } satisfies React.CSSProperties` 같은 타입 단언은
+ * 런타임에 아무 효과가 없다 — babel AST에서는 object literal을 감싸는 `TSAsExpression`/
+ * `TSSatisfiesExpression`일 뿐이다(이슈 #433). 이 단언들만 벗겨 안의 실제 표현식을 돌려준다.
+ * 단언이 없으면 원래 값 그대로다. 체인(`as X as Y`)도 끝까지 벗긴다.
+ */
+function unwrapTypeAssertion(value: unknown): unknown {
+  let current = value;
+  while (node(current) && (current.type === "TSAsExpression" || current.type === "TSSatisfiesExpression")) {
+    current = current.expression;
+  }
+  return current;
+}
 function validModulePath(path: string): boolean {
   return path.endsWith(".tsx") && path.split("/").every(part => isWorkspaceSegment(part) && !isWindowsDeviceName(part));
 }
@@ -138,8 +151,13 @@ export async function rewriteProjectAssetModule(args: {
         if (identifier && node(value)) edit(value, `{${identifier}}`);
       }
       if (key !== "style") continue;
-      if (!node(value) || value.type !== "JSXExpressionContainer" || !node(value.expression) || value.expression.type !== "ObjectExpression") throw Error("style은 정적 object 표현이어야 합니다.");
-      for (const property of value.expression.properties as Ast[]) {
+      if (!node(value) || value.type !== "JSXExpressionContainer") throw Error("style은 정적 object 표현이어야 합니다.");
+      // `{ ... } as React.CSSProperties`/`satisfies`로 감싼 정적 object도 받는다(#433) — 단언은
+      // 타입 체크 전용이라 벗겨도 런타임 의미가 바뀌지 않는다. 벗긴 뒤에도 object literal이
+      // 아니면(동적 값에 단언만 붙인 경우 포함) 그대로 거부한다.
+      const styleExpression = unwrapTypeAssertion(value.expression);
+      if (!node(styleExpression) || styleExpression.type !== "ObjectExpression") throw Error("style은 정적 object 표현이어야 합니다.");
+      for (const property of styleExpression.properties as Ast[]) {
         if (property.type !== "ObjectProperty" || property.computed) throw Error("style spread/계산 속성은 지원하지 않습니다.");
         const styleKey = name(property.key); const literal = staticString(property.value);
         if (styleKey === "background" || styleKey === "backgroundImage" || styleKey === "background-image") {

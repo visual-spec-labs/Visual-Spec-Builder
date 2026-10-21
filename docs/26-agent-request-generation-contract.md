@@ -1363,6 +1363,16 @@ CSS 값은 별도 value parser로 읽는다. 각 hash에 충돌 없는 모듈 bi
 추가 생성자의 shadowing 가능성 때문에 거부한다. 현재 ProjectPlan에 CSS 산출물이 없으므로 CSS
 module 출력/import 지원을 가장하지 않는다. 별도 코드/소유권 검증과 snapshot byte 검증은 여전히 필요하다.
 
+**"정적 object style"은 타입 단언을 투과한다(#433).** 고객 테스트에서 에이전트가 자체 tsc
+통과를 위해 `style={{ ... } as React.CSSProperties}`를 쓰자 `value.expression.type !==
+"ObjectExpression"`로 거부돼 왕복이 늘었다 — 스킬 문서에는 style 형태 제약이 아예 없었다.
+`TSAsExpression`/`TSSatisfiesExpression`은 런타임에 아무 효과가 없는 타입 체크 전용 wrapper라,
+`unwrapTypeAssertion`으로 벗긴 뒤에도 object literal이면 그대로 받는다(체인도 끝까지 벗긴다).
+벗긴 결과가 object literal이 아니면(변수·spread에 단언만 붙인 경우 포함) 여전히 거부한다 — 이
+허용이 동적 값 금지 자체를 느슨하게 하지 않는다. `skills/visual-spec-ticket-response/PROJECT_V4.md`·
+`PROJECT_V5.md`에 허용 형태를 명시했다. 검증: `test/project-asset-modules.test.ts`
+"style type assertions (#433)".
+
 CI opt-in `project-asset-build.test.ts`는 실제 변환기의 page/host TSX를 독립 fixture로 typecheck하고
 Vite base=./, assetsInlineLimit=0으로 빌드한다. 동일 dist를 `/`와 `/products/demo/`에 각각 mount한
 Chromium에서 img 두 개와 inline background의 image.decode·실제 SVG 요청을 확인한다. CSS module,

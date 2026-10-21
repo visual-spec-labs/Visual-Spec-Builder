@@ -48,6 +48,29 @@ describe('project asset module transform', () => {
   });
 });
 
+describe('style type assertions (#433)', () => {
+  it('accepts a static object wrapped in "as React.CSSProperties" and still rewrites its background', async () => {
+    const source = `<div style={{ backgroundImage: 'url("${token}")' } as React.CSSProperties} />`;
+    const { code, usedAssets } = await transform(source);
+    expect(code).toContain('new URL');
+    expect(usedAssets).toEqual([asset.sha256]);
+  });
+  it('accepts a static object wrapped in "satisfies React.CSSProperties"', async () => {
+    const source = '<div style={{color: "red"} satisfies React.CSSProperties} />';
+    expect(await transform(source)).toEqual({ code: source, usedAssets: [] });
+  });
+  it('accepts a chained assertion ("as X as Y")', async () => {
+    const source = '<div style={{color: "red"} as React.CSSProperties as unknown} />';
+    expect(await transform(source)).toEqual({ code: source, usedAssets: [] });
+  });
+  it.each([
+    '<div style={styles as React.CSSProperties} />',
+    '<div style={{...styles} as React.CSSProperties} />',
+  ])('still rejects a dynamic/spread value even if wrapped in a type assertion: %s', async source => {
+    await expect(transform(source)).rejects.toThrow();
+  });
+});
+
 describe('asset transform review regressions', () => {
   it.each(['import("./theme.css")', 'import("./image.svg?url")', 'require("./image.png")'])('rejects direct asset dependency %s', async source => {
     await expect(transform(source)).rejects.toThrow();
