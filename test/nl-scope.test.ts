@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
+import { resolveScope, scopeHint, scopeOptions } from "@/features/editor/nl/nlScope";
 import type { ScreenSpec } from "@/features/editor/schema";
+import login from "../examples/login-screen.json";
 
 /**
  * 적용 범위 (이슈 #155).
@@ -102,5 +103,28 @@ describe("scopeOptions — 입력창 위 라디오 두 칸", () => {
 
   it("1차에는 '전체 프로젝트' 칸이 없다 — docs/08 7.2", () => {
     expect(scopeOptions(page, "card")).toHaveLength(2);
+  });
+});
+
+describe("scopeHint — 범위로 바꿀 수 있는 것 (#440)", () => {
+  it("화면 범위는 새 요소를 넣을 수 있다고 알린다", () => {
+    expect(scopeHint(page, resolveScope(page, null))).toBe("이 화면의 모든 요소를 바꾸거나 새 요소를 넣을 수 있습니다.");
+  });
+
+  it("frame 선택은 안쪽에만 넣을 수 있고, 옆에 넣으려면 부모를 고르라고 알린다", () => {
+    expect(scopeHint(page, resolveScope(page, "card"))).toBe(
+      'ProductCard 요소와 그 안쪽만 바꿉니다 — 안에 새 요소를 넣을 수 있습니다. 옆이나 위·아래에 새 요소를 넣으려면 부모 요소(Screen)를 선택하거나 "현재 화면"을 고르세요.',
+    );
+  });
+
+  it("부모가 없는 root는 바깥 안내를 붙이지 않는다", () => {
+    expect(scopeHint(page, resolveScope(page, "root"))).toBe("Screen 요소와 그 안쪽만 바꿉니다 — 안에 새 요소를 넣을 수 있습니다.");
+  });
+
+  it("버튼 같은 leaf는 속성만 바꾼다고 알린다 — 고객 B의 '버튼 아래에 추가' 사례", () => {
+    const loginPage = login.screen as ScreenSpec;
+    expect(scopeHint(loginPage, resolveScope(loginPage, "loginButton"))).toBe(
+      'LoginButton의 속성(글자·색·크기 등)만 바꿉니다. 옆이나 위·아래에 새 요소를 넣으려면 부모 요소(Card)를 선택하거나 "현재 화면"을 고르세요.',
+    );
   });
 });

@@ -18,7 +18,7 @@ import type { Command } from "@/features/editor/command/types";
 import { runTransactionGates } from "@/features/editor/command/transactionGate";
 import { applyWidgetProjectCommand } from "@/features/editor/command/widgetProjectCommand";
 import { changedBackgroundNodes, type BackgroundChange } from "@/features/editor/nl/backgroundChange";
-import { resolveScope, scopeOptions } from "@/features/editor/nl/nlScope";
+import { resolveScope, scopeHint, scopeOptions } from "@/features/editor/nl/nlScope";
 import { buildNlAgentInstruction } from "@/features/editor/ui/agentHandoff";
 import {
   createAgentRequestWait,
@@ -340,6 +340,8 @@ export function NaturalLanguageBar() {
             {option.label}
           </label>
         ))}
+        {/* 고른 범위로 무엇을 바꿀 수 있는지 보내기 전에 알린다(#440). */}
+        <span className="text-xs text-content-muted">{scopeHint(page, scope)}</span>
       </div>
 
       <form onSubmit={submit} className="flex items-center gap-2">
