@@ -42,8 +42,11 @@ export interface AgentRequestWait {
   start: () => void;
   /** 기한이 지났는가. 시작 전이면 false. */
   expired: () => boolean;
-  /** 클라이언트가 진행 단계를 알린다. 끝난 뒤에는 무시한다. */
-  report: (phase: AgentWaitPhase, stagedFiles?: number) => void;
+  /**
+   * 클라이언트가 진행 단계를 알린다. 끝난 뒤에는 무시한다. `activityEvidence`는 `stagedFiles`
+   * 개수가 그대로여도 내용이 바뀐 임시 출력이 있었는지(#432) — true면 그 회차에 자동연장한다.
+   */
+  report: (phase: AgentWaitPhase, stagedFiles?: number, activityEvidence?: boolean) => void;
   /** 결과(응답·취소·timeout 등)가 정해졌다. 이후 연장·보고는 무시된다. */
   settle: () => void;
   readonly settled: boolean;
@@ -57,6 +60,20 @@ export interface AgentRequestWait {
  * 연장이 **누적되지 않는** 이유: 중복 클릭이 기한을 두 배로 늘리면 사용자가 본 남은 시간과
  * 실제 기한이 어긋난다. "지금부터 창 하나"로 다시 맞추면 몇 번을 눌러도 한 번 누른 것과
  * 같고, 남은 시간이 창보다 길면 줄이지도 않는다.
+ *
+ * **활동 증거는 자동으로 같은 연장을 준다(#432).** 사람이 화면을 지켜보며 "대기 연장"을
+ * 누르지 않아도, 두 가지 증거 중 하나만 있으면 `extend()`와 같은 효과를 자동 적용한다 —
+ * (1) 이 요청의 임시 출력(`stagedFiles`)이 이전에 본 적 없는 수로 늘어났다, (2) 호출부가
+ * `report()`의 세 번째 자리로 "지난 회차와 내용이 달라진 임시 출력이 있다"는 `activityEvidence`를
+ * 알렸다. (2)가 있는 이유는 (1)만으로는 "파일 수는 그대로인데 같은 파일을 계속 고쳐 쓰는"
+ * 긴 작업(#432 리뷰)을 놓치기 때문이다 — 개수는 화면에 보이는 "N/M개" 표시와 뜻이 같아야
+ * 해서 건드리지 않고, 호출부가 내용 비교까지 해서 별도로 알린다. 둘 다 에이전트가 아직 이
+ * 요청을 살아서 처리하고 있다는 GUI가 가진 직접 증거다. `extend()`와 달리 기한이 이미 지난
+ * 순간에도 거절하지 않는다: 폴링 루프가 매 회차 `report()` 뒤에 `expired()`를 보므로, 증거가
+ * 도착한 그 회차 안에서 바로 살려야 뜻이 있다. 반대로 둘 다 없는 채(= 증거 없음) 창이 다
+ * 지나면 여전히 timeout이다 — 그래야 "무한정 기다리면 다음 요청을 못 한다"는 원래
+ * 안전장치가 깨지지 않는다. 첫 임시 출력이 나오기 전부터 조용히 오래 걸리는 경우는 이
+ * 증거들로도 가릴 수 없는 남은 한계다(docs/26 `#432` 절).
  */
 export function createAgentRequestWait(
   onProgress: (progress: AgentWaitProgress) => void = () => {},
@@ -66,15 +83,23 @@ export function createAgentRequestWait(
   let settled = false;
   let phase: AgentWaitPhase = "saving";
   let stagedFiles: number | undefined;
+  /** 지금까지 본 가장 큰 staged 수. 이보다 더 늘어난 회차만 "새 증거"로 자동연장한다(#432). */
+  let maxStagedFiles = 0;
 
   function emit() {
     onProgress({ phase, deadline, ...(stagedFiles === undefined ? {} : { stagedFiles }) });
   }
 
+  /** `extend()`·자동연장이 공유하는 "지금부터 창 하나" 규칙. 기한이 없으면(시작 전) 아무것도 안 한다. */
+  function extendDeadline(): void {
+    if (deadline === null) return;
+    deadline = Math.max(deadline, now() + AGENT_WAIT_WINDOW_MS);
+  }
+
   return {
     extend() {
       if (settled || deadline === null || now() >= deadline) return false;
-      deadline = Math.max(deadline, now() + AGENT_WAIT_WINDOW_MS);
+      extendDeadline();
       emit();
       return true;
     },
@@ -87,11 +112,23 @@ export function createAgentRequestWait(
     expired() {
       return deadline !== null && now() >= deadline;
     },
-    report(nextPhase, nextStagedFiles) {
+    report(nextPhase, nextStagedFiles, activityEvidence) {
       if (settled) return;
+      // 이 요청의 새 임시 출력이 보였거나(개수 증가), 개수는 그대로여도 내용이 바뀐 임시
+      // 출력이 있었으면(activityEvidence, #432 리뷰) 에이전트가 살아서 처리 중이라는 직접
+      // 증거다 — 사람이 "대기 연장"을 누른 것과 같은 효과를 자동으로 준다. 기한이 이미 지난
+      // 순간이어도 거절하지 않는다: 이 회차의 `expired()` 판정 전에 되살려야 뜻이 있다.
+      const deadlineBefore = deadline;
+      const grew = nextStagedFiles !== undefined && nextStagedFiles > maxStagedFiles;
+      if (grew) maxStagedFiles = nextStagedFiles!;
+      if (grew || activityEvidence === true) extendDeadline();
+      // 기한이 실제로 바뀌었으면 phase·개수가 그대로여도 알린다(#432 PR #451 재검토 대응) —
+      // 아니면 activityEvidence만으로 연장된 새 기한을 화면(`AgentWaitStatus`의 남은 시간
+      // countdown)이 못 받아, 요청은 살아 있는데 화면만 0:00에 닿을 수 있다.
+      const deadlineChanged = deadline !== deadlineBefore;
       // 매 폴링 회차마다 같은 값을 다시 알리지 않는다 — 구독하는 화면이 1초마다 다시 그려진다.
       const staged = nextStagedFiles ?? stagedFiles;
-      if (nextPhase === phase && staged === stagedFiles) return;
+      if (nextPhase === phase && staged === stagedFiles && !deadlineChanged) return;
       phase = nextPhase;
       stagedFiles = staged;
       emit();

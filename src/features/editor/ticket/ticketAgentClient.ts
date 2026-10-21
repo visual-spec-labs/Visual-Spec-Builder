@@ -18,6 +18,7 @@
 import {
   listWorkspaceFiles,
   readWorkspaceTextFile,
+  readWorkspaceTextFileStrict,
   writeWorkspaceFile,
 } from "@/features/editor/ui/workspaceClient";
 import { holdRequestLock, type HeldRequestLock } from "@/features/editor/ui/agentRequestLock";
@@ -140,7 +141,8 @@ export async function requestProjectTicketBatch(
       prepared = await prepareStoredProjectRequest({ ...captured, isCurrent: () => !current.cancelled });
       const { request } = prepared;
       return { id: request.id, protocol: request.protocol, body: serializeProjectTicketRequest(request),
-        parse: (text: string | null) => text === null ? { kind: "stale" as const } : parseProjectTicketResponse(text, request) };
+        parse: (text: string | null) => text === null ? { kind: "stale" as const } : parseProjectTicketResponse(text, request),
+        stagingFiles: request.tickets.map((ticket) => ticket.outputPath) };
     }, current, wait, true, true);
     if (outcome.kind !== "response") return outcome;
     // requireLease and retainLock guarantee both; never expose an unlocked acceptance candidate.
@@ -152,7 +154,19 @@ export async function requestProjectTicketBatch(
   } finally { wait.settle(); }
 }
 
-interface TicketWire<Result> { id: string; protocol: number; body: string; parse: (text: string | null) => Result }
+interface TicketWire<Result> {
+  id: string;
+  protocol: number;
+  body: string;
+  parse: (text: string | null) => Result;
+  /**
+   * 이 웨이브의 모든 티켓이 쓸 임시 출력의 정확한 경로(`outputPath`, #432 리뷰 대응).
+   * 서버의 재귀 목록은 전체 `staging/` 아래 2,000개까지만 보므로, 다른(오래된) 요청의
+   * 파일이 그 상한을 채우면 이 요청의 새 파일이 아예 목록에 안 보일 수 있다 — 경로를
+   * 직접 알고 있으니 목록 대신 하나씩 확인한다.
+   */
+  stagingFiles: readonly string[];
+}
 
 async function sendTicketBatch(
   input: BuildTicketRequestInput,
@@ -166,7 +180,8 @@ async function sendTicketBatch(
   const request = buildTicketRequest(input);
 
   return sendTicketTransport(request.id, async () => ({ id: request.id, protocol: TICKET_PROTOCOL_VERSION,
-    body: JSON.stringify(request, null, 2), parse: (text: string | null) => parseTicketResponse(text, request.id) }), cancel, wait, retainLock);
+    body: JSON.stringify(request, null, 2), parse: (text: string | null) => parseTicketResponse(text, request.id),
+    stagingFiles: request.tickets.map((ticket) => ticket.outputPath) }), cancel, wait, retainLock);
 }
 
 async function sendTicketTransport<Result extends { kind: string }>(
@@ -226,7 +241,13 @@ async function waitForTicketResponse<Result extends { kind: string }>(
   }
 
   wait.start();
-  const stagedPrefix = `${request.id}/`;
+  // timeout 문구에 쓴다 — 기다림이 끝난 뒤에는 `wait`의 진행 상태가 화면에서 사라지므로
+  // (#432) 몇 개를 버렸는지는 이 메시지에만 남는다.
+  let lastKnownStaged: number | undefined;
+  // 경로마다 지난 회차에 읽은 내용(없으면 null). 개수가 그대로여도 어느 파일의 내용이
+  // 달라졌으면 에이전트가 그 파일을 계속 고쳐 쓰는 중이라는 증거다(#432 리뷰 대응) —
+  // "N/M개" 표시는 개수 그대로 두고, 이 변화만 따로 자동연장 증거로 알린다.
+  const lastContent = new Map<string, string | null>(request.stagingFiles.map((path) => [path, null]));
   for (;;) {
     if (cancel.cancelled) return { kind: "cancelled" };
     // 연결이 끊긴 동안 잠금 연장은 서버에 닿지 않아 true로 지나간다. 복구된 첫 회차에 연장이
@@ -246,10 +267,25 @@ async function waitForTicketResponse<Result extends { kind: string }>(
       wait.report("connectionLost");
     } else {
       // 이 요청의 임시 출력이 보이는지 — GUI가 가진 유일한 에이전트 활동 근거다. 표시용일 뿐
-      // 수용 판단에는 쓰지 않는다(확정은 경로별로 직접 읽는다). 목록 상한(서버 2000개)에
-      // 잘리면 덜 셀 수 있다.
-      const staged = await listWorkspaceFiles(STAGING_DIR, { recursive: true });
-      wait.report("waiting", staged?.filter((path) => path.startsWith(stagedPrefix)).length);
+      // 수용 판단에는 쓰지 않는다(확정은 경로별로 직접 읽는다). 경로를 알고 있는 만큼만
+      // 하나씩 확인한다 — 서버의 재귀 목록(2,000개 상한)은 전체 staging/ 아래를 보므로
+      // 오래된 다른 요청의 파일이 그 상한을 채우면 이 요청의 새 파일이 아예 안 보일 수
+      // 있다(#432 리뷰 대응).
+      let changed = false;
+      const probes = await Promise.all(request.stagingFiles.map((path) => readWorkspaceTextFileStrict(path)));
+      request.stagingFiles.forEach((path, index) => {
+        const probe = probes[index];
+        // 이 파일 하나만 읽기 실패할 수 있다 — 그 회차는 직전까지 알던 상태를 그대로 둔다
+        // (전체 목록이 통째로 실패하는 연결 끊김과는 다르다. 이 분기는 RUNTIME_DIR가 이미
+        // 됐을 때만 들어온다).
+        if (!probe.ok) return;
+        if (probe.text !== lastContent.get(path)) {
+          changed = true;
+          lastContent.set(path, probe.text);
+        }
+      });
+      lastKnownStaged = [...lastContent.values()].filter((text) => text !== null).length;
+      wait.report("waiting", lastKnownStaged, changed);
     }
     const result =
       files !== null && files.includes(TICKET_RESPONSE_FILE)
@@ -277,7 +313,15 @@ async function waitForTicketResponse<Result extends { kind: string }>(
             kind: "timeout",
             // 구버전 스킬(티켓 요청 규약 v2)은 v3 요청을 받으면 응답 없이 멈추고 에이전트 대화에만 버전 불일치를
             // 알린다(#281 리뷰) — GUI에서는 이 만료로만 보이므로 그 경우의 할 일을 함께 적는다.
-            message: "대기 시간 안에 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요. " +
+            // 임시 출력이 있었다면(#432) 몇 개가 버려졌는지와 그게 generated/에 반영되지 않았다는
+            // 점을 먼저 말한다 — 활동 증거가 있었는데도 끝났다는 뜻을 소스 없이 읽는 사람도 알아야 한다.
+            // "대기 시간 안에 응답이 오지 않았다"는 사실은 두 분기 중 하나에서만 말한다 —
+            // staged 분기가 이미 같은 사실을 담고 있어 둘 다 넣으면 같은 말을 두 번 한다.
+            message:
+              (lastKnownStaged !== undefined && lastKnownStaged > 0
+                ? `에이전트가 이 요청의 임시 출력 ${lastKnownStaged}개를 \`${STAGING_DIR}/${request.id}/\`에 썼지만, 대기 시간 안에 응답을 받지 못해 확정하지 않았습니다 — 그 파일들은 generated/에 반영되지 않습니다. `
+                : "대기 시간 안에 응답이 오지 않았습니다. ") +
+              "에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요. 다시 전달하면 새 요청 ID와 새 임시 출력 폴더로 진행되며, 버려진 임시 출력은 다시 쓰지 않습니다. " +
               `에이전트가 티켓 요청 규약 버전이 다르다고 알렸다면 \`visual-spec skills\`로 스킬을 갱신한 뒤 다시 전달하세요(이 GUI는 규약 v${request.protocol}).`,
           };
     }

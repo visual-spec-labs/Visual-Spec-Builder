@@ -12,6 +12,8 @@ vi.mock('@/features/editor/ui/workspaceClient', () => ({
   readWorkspaceFileSnapshot: io.read, writeWorkspaceFile: io.write,
   listWorkspaceFiles: async (dir: string) => [...io.disk.keys()].filter(p => p.startsWith(dir+'/')).map(p => p.slice(dir.length+1)),
   readWorkspaceTextFile: async (path: string) => { if(await io.beforeRead() === null)return null; return io.disk.get(path) ?? null; },
+  // 티켓 임시 출력 증거 확인(#432 리뷰 대응)만 쓴다 — `beforeRead`는 응답 파일 읽기 전용이라 여기선 안 거친다.
+  readWorkspaceTextFileStrict: async (path: string) => ({ ok: true, text: io.disk.get(path) ?? null }),
 }));
 function input() {
   const project = {...structuredClone(fixture) as unknown as ProjectSpec, projectId:'dispatch'};
