@@ -64,7 +64,7 @@ export function ResponsivePanel() {
     <p id={helpId} className="text-xs text-content-muted">미리보기 폭에 따라 편집 기준도 바뀝니다. 기준을 고르면 미리보기 폭도 바뀝니다.</p>
     {breakpoint && responsive.breakpoints[breakpoint].minWidthPx <= screen.size.width && (
       <p role="status" className="rounded-control border border-line bg-surface-inset px-2 py-1 text-xs font-medium text-content">
-        이 분기점(≥{responsive.breakpoints[breakpoint].minWidthPx}px)에서 편집한 값은 현재 페이지 폭 {screen.size.width}px에도 그대로 적용됩니다. 데스크톱만 다른 값으로 두려면 이 값을 기본값(base)으로 옮기고, 데스크톱 전용 값은 더 큰 폭의 새 분기점에 재정의로 추가하세요.
+        이 분기점(≥{responsive.breakpoints[breakpoint].minWidthPx}px)에서 편집한 값은 현재 페이지 폭 {screen.size.width}px에도 영향을 줄 수 있습니다 — 더 큰 분기점에 같은 속성의 재정의가 있으면 그 값이 우선합니다. 데스크톱만 다른 값으로 두려면, 이 값을 기본값(base)으로 바꾸기 전에 먼저 더 큰 폭의 새 분기점을 추가하고 해당 노드에서 현재 표현값 고정으로 데스크톱 값을 보존한 뒤 기본값을 바꾸세요.
       </p>
     )}
     <details open className="text-xs text-content-muted">

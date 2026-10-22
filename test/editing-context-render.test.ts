@@ -96,10 +96,10 @@ describe("실제 PropertiesPanel + ResponsivePanel 렌더 (#340)", () => {
     expect(markup).toMatch(/<p role="alert"[^>]*>오류: 폭은 양수여야 합니다\.<\/p>/);
   });
 
-  it("분기점이 현재 페이지 폭에도 적용되면 접히지 않은 안내로 바로 보여준다 (#438)", () => {
-    expect(render(768, "root")).toContain("현재 페이지 폭 1440px에도 그대로 적용됩니다");
-    expect(render(1024, "root")).toContain("현재 페이지 폭 1440px에도 그대로 적용됩니다");
-    expect(render(767, "root")).not.toContain("그대로 적용됩니다");
+  it("분기점이 현재 페이지 폭에도 영향을 줄 수 있으면 접히지 않은 안내로 바로 보여준다 (#438)", () => {
+    expect(render(768, "root")).toContain("현재 페이지 폭 1440px에도 영향을 줄 수 있습니다");
+    expect(render(1024, "root")).toContain("현재 페이지 폭 1440px에도 영향을 줄 수 있습니다");
+    expect(render(767, "root")).not.toContain("영향을 줄 수 있습니다");
     expect(render(768, "root")).toContain("<details open");
   });
 
@@ -110,7 +110,17 @@ describe("실제 PropertiesPanel + ResponsivePanel 렌더 (#340)", () => {
     expect(state.setResponsive(pageId, { ...screen.responsive!, breakpoints: { ...screen.responsive!.breakpoints, wide: { minWidthPx: 2000 } } })).toBeNull();
     const markup = render(2000, "root");
     expect(markup).toContain("wide 재정의(override)");
-    expect(markup).not.toContain("그대로 적용됩니다");
+    expect(markup).not.toContain("영향을 줄 수 있습니다");
+  });
+
+  it("더 큰 분기점이 같은 속성을 재정의하면 그 값이 우선한다는 예외를 안내에 포함한다 (#438 리뷰)", () => {
+    const state = useEditorStore.getState();
+    const screen = state.spec.pages[state.activePageId];
+    // tablet(768)의 gap 24는 desktop(1024)의 gap 32로 덮여, 1440px 페이지에서는 desktop 값이 보인다.
+    expect((screen.responsive!.overrides.tablet.root as { layout: { gap: number } }).layout.gap).toBe(24);
+    expect((screen.responsive!.overrides.desktop.root as { layout: { gap: number } }).layout.gap).toBe(32);
+    const markup = render(768, "root");
+    expect(markup).toContain("더 큰 분기점에 같은 속성의 재정의가 있으면 그 값이 우선합니다");
   });
 });
 
