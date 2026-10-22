@@ -62,7 +62,12 @@ export function ResponsivePanel() {
       <input aria-label="미리보기 폭" aria-describedby={helpId} className={`${inputClass} w-24`} type="number" min="0.01" step="any" value={width} onChange={(event) => setWidth(pageId, Number(event.target.value))} />
     </label>
     <p id={helpId} className="text-xs text-content-muted">미리보기 폭에 따라 편집 기준도 바뀝니다. 기준을 고르면 미리보기 폭도 바뀝니다.</p>
-    <details className="text-xs text-content-muted">
+    {breakpoint && responsive.breakpoints[breakpoint].minWidthPx <= screen.size.width && (
+      <p className="rounded-control border border-line bg-surface-inset px-2 py-1 text-xs font-medium text-content">
+        이 분기점(≥{responsive.breakpoints[breakpoint].minWidthPx}px)에서 편집한 값은 현재 페이지 폭 {screen.size.width}px에도 영향을 줄 수 있습니다 — 더 큰 분기점에 같은 속성의 재정의가 있으면 그 값이 우선합니다. 데스크톱만 다른 값으로 두려면, 이 값을 기본값(base)으로 바꾸기 전에 먼저 더 큰 폭의 새 분기점을 추가해 해당 노드에서 현재 표현값 고정으로 데스크톱 값을 보존한 뒤 기본값을 바꾸세요. 단, 이미 이 분기점(또는 더 작은 분기점)에서 같은 속성을 재정의했다면 지금 보이는 값에 그 재정의가 섞여 있으니, 먼저 상속으로 되돌려 원래 값을 확인하거나 알고 있는 원래 값을 새 분기점에 직접 입력한 뒤 되돌린 재정의를 다시 추가하세요.
+      </p>
+    )}
+    <details open className="text-xs text-content-muted">
       <summary className="cursor-pointer rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content">편집 범위와 상속 안내</summary>
       <div className="mt-2 space-y-2">
       <p>미리보기 폭은 페이지 크기를 바꾸지 않으며 문서·실행 취소 이력에 저장되지 않습니다.</p>

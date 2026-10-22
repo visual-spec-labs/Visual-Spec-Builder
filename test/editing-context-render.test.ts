@@ -6,9 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import example from "../examples/responsive-cards.json";
 import login from "../examples/login-screen.json";
 import { migrateV01 } from "@/features/editor/schema";
-import type { VisualSpec } from "@/features/editor/schema";
+import type { FrameNode, VisualSpec } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
+import { resolveResponsiveScreen } from "@/features/editor/responsive/resolveResponsive";
 import { PropertiesPanel } from "@/features/editor/ui/PropertiesPanel";
 
 // SSR의 Zustand는 최초 snapshot만 읽는다. 현재 fixture를 읽도록 구독 훅만
@@ -94,6 +95,45 @@ describe("실제 PropertiesPanel + ResponsivePanel 렌더 (#340)", () => {
     useResponsiveViewStore.getState().reportError("폭은 양수여야 합니다.");
     const markup = renderToStaticMarkup(createElement(PropertiesPanel));
     expect(markup).toMatch(/<p role="alert"[^>]*>오류: 폭은 양수여야 합니다\.<\/p>/);
+  });
+
+  it("분기점이 현재 페이지 폭에도 영향을 줄 수 있으면 접히지 않은 안내로 바로 보여준다 (#438)", () => {
+    expect(render(768, "root")).toContain("현재 페이지 폭 1440px에도 영향을 줄 수 있습니다");
+    expect(render(1024, "root")).toContain("현재 페이지 폭 1440px에도 영향을 줄 수 있습니다");
+    expect(render(767, "root")).not.toContain("영향을 줄 수 있습니다");
+    expect(render(768, "root")).toContain("<details open");
+  });
+
+  it("분기점 폭이 페이지 폭보다 크면 안내를 보여주지 않는다 (#438)", () => {
+    const state = useEditorStore.getState();
+    const pageId = state.activePageId;
+    const screen = state.spec.pages[pageId];
+    expect(state.setResponsive(pageId, { ...screen.responsive!, breakpoints: { ...screen.responsive!.breakpoints, wide: { minWidthPx: 2000 } } })).toBeNull();
+    const markup = render(2000, "root");
+    expect(markup).toContain("wide 재정의(override)");
+    expect(markup).not.toContain("영향을 줄 수 있습니다");
+  });
+
+  it("더 큰 분기점이 같은 속성을 재정의하면 그 값이 우선한다는 예외를 안내에 포함한다 (#438 리뷰)", () => {
+    const state = useEditorStore.getState();
+    const screen = state.spec.pages[state.activePageId];
+    // tablet(768)의 gap 24는 desktop(1024)의 gap 32로 덮여, 1440px 페이지에서는 desktop 값이 보인다.
+    expect((screen.responsive!.overrides.tablet.root as { layout: { gap: number } }).layout.gap).toBe(24);
+    expect((screen.responsive!.overrides.desktop.root as { layout: { gap: number } }).layout.gap).toBe(32);
+    const markup = render(768, "root");
+    expect(markup).toContain("더 큰 분기점에 같은 속성의 재정의가 있으면 그 값이 우선합니다");
+  });
+
+  it("더 작은 분기점에 이미 재정의가 있으면 새 분기점의 '보이는 값'에도 섞이므로, 고정 전에 되돌리라고 안내한다 (#438 리뷰)", () => {
+    const state = useEditorStore.getState();
+    const pageId = state.activePageId;
+    const base = { breakpoints: { mobile: { minWidthPx: 390 }, desktop: { minWidthPx: 1024 } }, overrides: { mobile: { root: { layout: { gap: 8 } } } } };
+    expect(state.setResponsive(pageId, base)).toBeNull();
+    const screen = useEditorStore.getState().spec.pages[pageId];
+    // desktop(1024)엔 아직 재정의가 없어, 거기서 "보이는 값"은 base(24)가 아니라 mobile의 8이 그대로 섞여 있다.
+    expect((resolveResponsiveScreen(screen, 1024).nodes.root as FrameNode).layout.gap).toBe(8);
+    const markup = render(1024, "root");
+    expect(markup).toContain("이미 이 분기점(또는 더 작은 분기점)에서 같은 속성을 재정의했다면 지금 보이는 값에 그 재정의가 섞여 있으니");
   });
 });
 
