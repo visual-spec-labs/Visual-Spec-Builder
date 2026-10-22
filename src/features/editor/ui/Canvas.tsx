@@ -405,35 +405,20 @@ export function Canvas() {
           랜딩페이지처럼 흔한 모양이다. 문제는 그 사실을 알 방법이 없어, 반응형 미리보기
           폭을 좁혀 안 보이던 넘친 내용이 생겨도 스크롤해야 한다는 낌새 없이 버튼이
           삭제된 것처럼 보였다(고객 A 재현). 실측 높이(artboardHeight)가 선언한 높이를
-          넘을 때만 그 경계에 옅은 점선과 라벨을 띄운다 — 경고가 아니라 "여기부터는
-          스크롤해야 보인다"는 위치 안내다.
+          넘을 때만 그 경계에 옅은 점선을 띄운다 — 경고가 아니라 "여기부터는 스크롤해야
+          보인다"는 위치 안내다.
+
+          글자가 있는 불투명 라벨은 여기 두지 않는다 — 내용과 함께 흐르는 자리에 두면,
+          낮은 줌에서 줄바꿈으로 커진 상자가 바로 아래의 실제 내용(버튼 등)을 그대로
+          덮어 버렸다(#446 PR 리뷰 2차). 설명 문구는 줌·스크롤과 무관하게 항상 같은
+          자리인 아래 "표시 전용 배지" 쪽에 둔다.
         */}
         {artboardHeight !== null && artboardHeight > size.height && (
-          <>
-            {/* 점선은 장식이라 aria-hidden, 라벨은 스크린 리더 사용자도 넘침을 알아야
-                해서 별도 형제로 뺀다(#446 자체 code-review) — aria-hidden 안에 두면
-                내용이 사라진 것처럼 보이는 원래 문제가 그대로 남는다. */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute left-0 border-t border-dashed border-content-subtle"
-              style={{ top: size.height * scale, width: size.width * scale }}
-            />
-            {/* nowrap이면 좁은 미리보기·낮은 줌에서 라벨 폭이 아트보드보다 넓어져
-                캔버스에 가로 스크롤이 생겼다(#446 PR 리뷰). size.width*scale을 다시
-                계산하는 대신 screenName 라벨(위 356행 부근)과 같은 방식으로 — 이미
-                그 폭인 outerRef(containing block)에 left+right를 둘 다 걸어 그
-                안에서만 줄바꿈하게 한다. 쪼개지지 않는 토큰이 그래도 넘칠 극단적인
-                좁은 폭(0에 가까운 미리보기 폭)을 대비해 overflow-hidden도 둔다 —
-                그 폭 자체가 캔버스 가로 스크롤 범위라 이 라벨은 거기서 절대
-                넘지 않아야 한다. */}
-            <span
-              role="status"
-              className="pointer-events-none absolute left-1 right-1 overflow-hidden rounded-control bg-surface px-1.5 py-0.5 text-[10px] text-content-muted shadow-modal"
-              style={{ top: size.height * scale + 4 }}
-            >
-              페이지 높이 {size.height}px — 아래로 스크롤하면 넘친 내용이 있습니다
-            </span>
-          </>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-0 border-t border-dashed border-content-subtle"
+            style={{ top: size.height * scale, width: size.width * scale }}
+          />
         )}
 
         {/*
@@ -624,6 +609,14 @@ export function Canvas() {
         <span className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
           {Math.round(zoom)}%
         </span>
+        {/* 아트보드 안의 점선(#446)이 "어디서" 넘쳤는지 보여준다면, 이 배지는
+            "넘쳤다는 사실"을 줌·스크롤 위치와 무관하게 항상 같은 자리에서 알린다 —
+            같은 이유로 바깥에 둔 줌 배지 옆이라 최소 변경이다. */}
+        {artboardHeight !== null && artboardHeight > size.height && (
+          <span role="status" className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
+            페이지 높이 {size.height}px 넘침 — 스크롤하면 더 있습니다
+          </span>
+        )}
       </div>
 
       {/*
