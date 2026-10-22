@@ -615,17 +615,22 @@ export function Canvas() {
       </div>
 
       {/*
-        넘침 배지(#446). <main> 보다 **먼저** 오는 형제로 뒀더니(z-index:auto라
-        DOM 순서로 쌓임) 스크롤만 조금 해도 main 안의 불투명한 콘텐츠가 그 위를
-        덮어 버렸다(#446 PR 리뷰 4차) — 위 줌 배지처럼 </main> **뒤**에 둬야
-        항상 맨 위에 그려진다. 도구 모음(bottom-4 left-1/2, z-10)·줌 배지
-        (bottom-3 left-3)·모달 미리보기 버튼(right-3 top-3, z-10)과 안 겹치는
-        유일한 빈 자리가 왼쪽 위다(#446 PR 리뷰 3차). max-w를 pane 전체 폭이
-        아니라 문구 하나가 알맞게 줄바꿈되는 좁은 값으로 둬, 모달 미리보기
-        버튼이 있는 오른쪽까지는 아무리 좁은 폭에서도 번지지 않는다.
+        넘침 배지(#446). <main> 보다 먼저 오는 형제로 뒀을 때는 z-index:auto라
+        DOM 순서로 쌓여, main 안의 불투명한 콘텐츠가 스크롤 몇십 px만 해도 그
+        위를 덮었다(#446 PR 리뷰 4차). DOM 순서(</main> 뒤)만으로 맨 위를
+        보장하면 "이 형제가 항상 마지막"이라는 조용한 불변조건에 기대게 되고,
+        모달 미리보기 버튼(right-3 top-3)처럼 z-10을 쓰는 다른 고정 배지가
+        나중에 끼어들면 다시 깨진다 — NaturalLanguageBar.tsx·ContextMenu.tsx가
+        쓰는 것과 같은 방식으로 z-20을 직접 줘 DOM 순서와 무관하게 확정한다.
+        도구 모음(bottom-4 left-1/2, z-10)과는 안 겹치는 왼쪽 위에 둔다(#446
+        PR 리뷰 3차). max-w는 고정값 하나가 아니라 min()으로 두 상한을 같이
+        건다 — 12rem은 모달 미리보기 버튼 쪽으로 너무 번지지 않게, calc(100%
+        - 1.5rem)은 캔버스 영역이 MIN_CANVAS_WIDTH(300px)보다 더 좁아지는
+        극단적인 창 폭에서도(panelLayout.ts) 조상의 overflow-hidden에 글자가
+        잘리지 않고 줄바꿈되게 한다(#446 PR 리뷰 5차).
       */}
       {overflowedHeight && (
-        <span role="status" className="pointer-events-none absolute left-3 top-3 max-w-48 rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
+        <span role="status" className="pointer-events-none absolute left-3 top-3 z-20 max-w-[min(12rem,calc(100%-1.5rem))] rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
           페이지 높이 {size.height}px 넘침 — 스크롤하면 더 있습니다
         </span>
       )}
