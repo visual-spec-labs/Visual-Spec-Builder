@@ -330,6 +330,23 @@ export function Canvas() {
         <div className="canvas-grid pointer-events-none absolute inset-0" />
       )}
 
+      {/*
+        넘침 배지(#446)는 bottom-4 left-1/2의 도구 모음(Toolbar.tsx, z-10)과도
+        bottom-3 left-3의 줌 배지와도 겹치지 않을 자리가 필요했다 — 처음에 줌 배지
+        옆(왼쪽 아래)에 뒀더니 문구가 길어 가운데까지 번져 도구 모음에 가렸고, 스크롤을
+        바닥까지 내리면 같은 자리에 있던 마지막 콘텐츠도 가렸다(#446 PR 리뷰 3차).
+        아래쪽은 도구 모음과 "사용자가 스크롤해 보려는 바로 그 content"가 만나는
+        자리라 구조적으로 피하기 어렵다 — 아예 반대쪽인 왼쪽 위(아무도 안 쓰는 자리,
+        모달 미리보기 버튼은 오른쪽 위)로 옮긴다. 스크롤해 내용이 위로 밀려날수록
+        이 자리와는 멀어지므로 "내려 보려는 내용"과 마주칠 일이 구조적으로 준다.
+      */}
+      {overflowedHeight && (
+        <div className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%-1.5rem)]">
+          <span role="status" className="inline-block rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
+            페이지 높이 {size.height}px 넘침 — 스크롤하면 더 있습니다
+          </span>
+        </div>
+      )}
       {responsiveScreen.kind === "modal" && <button type="button" className="absolute right-3 top-3 z-10 rounded bg-surface px-3 py-1 text-content shadow-modal" onClick={() => setModalPreview(true)}>모달 미리보기</button>}
       {modalPreview && responsiveScreen.kind === "modal" && <ModalPreview key={activePageId} project={project} pageId={activePageId} editorSurface={mainRef} onClose={() => setModalPreview(false)} onNavigate={id => useEditorStore.getState().selectPage(id)} />}
       <main
@@ -608,19 +625,10 @@ export function Canvas() {
         화면 밖으로 사라진다. pointer-events-none 이라 클릭은 캔버스로 내려가고,
         바깥에 있으니 바탕 클릭 핸들러(노드 생성)에도 닿지 않는다.
       */}
-      <div className="pointer-events-none absolute bottom-3 left-3 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2">
+      <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2">
         <span className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
           {Math.round(zoom)}%
         </span>
-        {/* 아트보드 안의 점선(#446)이 "어디서" 넘쳤는지 보여준다면, 이 배지는
-            "넘쳤다는 사실"을 줌·스크롤 위치와 무관하게 항상 같은 자리에서 알린다 —
-            같은 이유로 바깥에 둔 줌 배지 옆이라 최소 변경이다. 좁은 캔버스 영역에서
-            잘리지 않도록 줄바꿈 가능한 폭으로 묶는다(#446 자체 code-review). */}
-        {overflowedHeight && (
-          <span role="status" className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
-            페이지 높이 {size.height}px 넘침 — 스크롤하면 더 있습니다
-          </span>
-        )}
       </div>
 
       {/*
