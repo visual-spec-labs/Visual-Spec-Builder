@@ -296,6 +296,9 @@ export function Canvas() {
   }, [viewport, activePageId, size]);
 
   const scale = zoom / 100;
+  // 줌·넘침 배지가 같은 "캔버스 모서리에 고정된 칩" 모양을 쓴다 — 한쪽만 고치고
+  // 잊는 일이 없도록 한 곳에 둔다(#446 자체 code-review).
+  const pinnedBadgeClass = "rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card";
   // 노드를 끄는 동안(#187)은 도구와 무관하게 쥔 손이다. 자손까지 강제하는 이유는
   // button·input 노드가 인라인 `cursor: default`를 가져 상속이 끊기기 때문이다.
   const cursorClass = drag.dragging
@@ -609,7 +612,7 @@ export function Canvas() {
         바깥에 있으니 바탕 클릭 핸들러(노드 생성)에도 닿지 않는다.
       */}
       <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2">
-        <span className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
+        <span className={pinnedBadgeClass}>
           {Math.round(zoom)}%
         </span>
       </div>
@@ -617,20 +620,21 @@ export function Canvas() {
       {/*
         넘침 배지(#446). <main> 보다 먼저 오는 형제로 뒀을 때는 z-index:auto라
         DOM 순서로 쌓여, main 안의 불투명한 콘텐츠가 스크롤 몇십 px만 해도 그
-        위를 덮었다(#446 PR 리뷰 4차). DOM 순서(</main> 뒤)만으로 맨 위를
-        보장하면 "이 형제가 항상 마지막"이라는 조용한 불변조건에 기대게 되고,
-        모달 미리보기 버튼(right-3 top-3)처럼 z-10을 쓰는 다른 고정 배지가
-        나중에 끼어들면 다시 깨진다 — NaturalLanguageBar.tsx·ContextMenu.tsx가
-        쓰는 것과 같은 방식으로 z-20을 직접 줘 DOM 순서와 무관하게 확정한다.
-        도구 모음(bottom-4 left-1/2, z-10)과는 안 겹치는 왼쪽 위에 둔다(#446
-        PR 리뷰 3차). max-w는 고정값 하나가 아니라 min()으로 두 상한을 같이
-        건다 — 12rem은 모달 미리보기 버튼 쪽으로 너무 번지지 않게, calc(100%
-        - 1.5rem)은 캔버스 영역이 MIN_CANVAS_WIDTH(300px)보다 더 좁아지는
-        극단적인 창 폭에서도(panelLayout.ts) 조상의 overflow-hidden에 글자가
-        잘리지 않고 줄바꿈되게 한다(#446 PR 리뷰 5차).
+        위를 덮었다(#446 PR 리뷰 4차) — </main> 뒤에 둬 DOM 순서로 그 문제를
+        푼다. z-index는 일부러 안 준다 — z-10(모달 미리보기 버튼과 같은 값)을
+        주면 MenuBar.tsx의 드롭다운(top-full left-0 z-10)이 캔버스 왼쪽 위까지
+        뻗어올 때 이 배지가 열린 메뉴 위를 덮어 버린다(#446 PR 리뷰 6차) —
+        EditorLayout이 MenuBar·Canvas 사이에 별도 쌓임 맥락을 안 둬서 z-index가
+        전역으로 경쟁한다. z-auto로 두면 main(z-auto)에는 DOM 순서로 이기고
+        z-10인 드롭다운·모달 버튼에는 그냥 진다 — 메뉴가 열려 있거나 모달
+        버튼과 겹칠 가능성이 있는 동안만 배지가 양보하는 셈이라 바람직하다.
+        그래서 모달 버튼과는 겹치지 않게 폭으로 막아야 한다 — MIN_CANVAS_WIDTH
+        (300px, panelLayout.ts)에서 모달 미리보기 버튼 왼쪽 끝이 대략 160px
+        언저리라(리뷰어 실측), max-w-32(8rem=128px)면 left-3(12px)에서 시작해도
+        안 닿는다(#446 PR 리뷰 6차).
       */}
       {overflowedHeight && (
-        <span role="status" className="pointer-events-none absolute left-3 top-3 z-20 max-w-[min(12rem,calc(100%-1.5rem))] rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
+        <span role="status" className={`pointer-events-none absolute left-3 top-3 max-w-32 ${pinnedBadgeClass}`}>
           페이지 높이 {size.height}px 넘침 — 스크롤하면 더 있습니다
         </span>
       )}
