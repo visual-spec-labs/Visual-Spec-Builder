@@ -618,30 +618,34 @@ export function Canvas() {
       </div>
 
       {/*
-        넘침 배지(#446). <main> 보다 먼저 오는 형제로 뒀을 때는 z-index:auto라
-        DOM 순서로 쌓여, main 안의 불투명한 콘텐츠가 스크롤 몇십 px만 해도 그
-        위를 덮었다(#446 PR 리뷰 4차) — </main> 뒤에 둬 DOM 순서로 그 문제를
-        푼다. z-index는 일부러 안 준다 — z-10(모달 미리보기 버튼과 같은 값)을
-        주면 MenuBar.tsx의 드롭다운(top-full left-0 z-10)이 캔버스 왼쪽 위까지
+        넘침 배지(#446)의 고정 자리 설계. <main> 보다 먼저 오는 형제로 뒀을 때는
+        z-index:auto라 DOM 순서로 쌓여, main 안의 불투명한 콘텐츠가 스크롤
+        몇십 px만 해도 그 위를 덮었다(#446 PR 리뷰 4차) — </main> 뒤에 둬 DOM
+        순서로 그 문제를 푼다.
+
+        z-index는 일부러 안 준다 — z-10(모달 미리보기 버튼과 같은 값)을 주면
+        MenuBar.tsx의 드롭다운(top-full left-0 z-10)이 캔버스 왼쪽 위까지
         뻗어올 때 이 배지가 열린 메뉴 위를 덮어 버린다(#446 PR 리뷰 6차) —
         EditorLayout이 MenuBar·Canvas 사이에 별도 쌓임 맥락을 안 둬서 z-index가
         전역으로 경쟁한다. z-auto로 두면 main(z-auto)에는 DOM 순서로 이기고
         z-10인 드롭다운·모달 버튼에는 그냥 진다 — 메뉴가 열려 있거나 모달
         버튼과 겹칠 가능성이 있는 동안만 배지가 양보하는 셈이라 바람직하다.
-        그래서 모달 버튼과는 겹치지 않게 폭으로 막는다 — 패널을 드래그로 줄일 때
-        캔버스가 지키는 MIN_CANVAS_WIDTH(300px, panelLayout.ts)를 기준 삼아
-        max-w-32(8rem=128px)로 잡았다. 다만 이 300px는 **드래그 하한일 뿐** —
-        panelLayout.ts 자신의 주석대로 패널 폭을 그대로 둔 채 브라우저 창
-        자체를 줄이면 캔버스는 그보다 더 좁아질 수 있고(usePanelResize.ts는
-        창 크기 변화에 실시간으로 반응하지 않는다), EditorLayout의 캔버스
-        그리드 트랙에도 minmax 하한이 없다(#446 자체 code-review 8차). 그
-        극단적인 경우(모달 화면 + 넘침 + 창을 아주 좁게) 배지가 모달 버튼에
-        가려질 수 있다 — z-index 없이 폭으로만 막는 한 피할 수 없는 트레이드
-        오프로 받아들인다. 수동 조작 가능한 인터랙티브 버튼이 수동 안내
-        배지보다 우선하는 쪽이 낫다고 판단했다.
+
+        top-14(56px)인 이유: top-3(12px) 줄에는 모달 미리보기 버튼(right-3
+        top-3, 세로로 약 12~44px)과 스크린 이름 라벨(screenName, outerRef 바로
+        위 bottom-full이라 main의 p-8 때문에 스크롤 맨 위에서 대략 12~28px에
+        온다— #446 PR 리뷰 8차에서 실제로 겹치는 걸 확인했다)이 이미 있다.
+        그 줄을 완전히 피해 한 줄 아래(56px)에 두면 가로 폭과 무관하게 세
+        요소 모두와 겹칠 일이 없다 — 가로(모달 버튼)만 보던 max-w-32 방어보다
+        근본적인 분리다.
+
+        남는 한계: z-index 없이 DOM 순서·자리로만 피하므로, MenuBar 드롭다운이
+        이 높이(56px)보다 길게 뻗어오면(흔한 길이의 메뉴라면 그렇다) 배지가
+        그 드롭다운 아래 깔린다 — 메뉴가 열려 있는 동안만 생기는 일시적 가림이라
+        받아들인다.
       */}
       {overflowedHeight && (
-        <span role="status" className={`pointer-events-none absolute left-3 top-3 max-w-32 ${pinnedBadgeClass}`}>
+        <span role="status" className={`pointer-events-none absolute left-3 top-14 max-w-32 ${pinnedBadgeClass}`}>
           페이지 높이 {size.height}px 넘침 — 스크롤하면 더 있습니다
         </span>
       )}
