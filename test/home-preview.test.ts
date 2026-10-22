@@ -1,7 +1,10 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import type { ImageNode } from "@/features/editor/schema";
+import type { ImageNode, ScreenSpec } from "@/features/editor/schema";
 import { previewImageStyle, previewScale } from "@/features/editor/ui/homePreview";
+import { ProjectPreview } from "@/features/editor/ui/HomeScreen";
 
 /** 축소본 없이 원본을 그대로 쓰는 경우(SVG·축소 실패) — 예전 동작과 같다. */
 const original = (src: string) => src;
@@ -76,5 +79,71 @@ describe("homeCoverPage", () => {
     expect(homeCoverPage(spec)).toBe(spec.pages.dashboard);
     spec.pages.dashboard.kind = "modal";
     expect(homeCoverPage(spec)).toBeUndefined();
+  });
+});
+
+// #439: base는 모바일 값, desktop ≥768 재정의로 가로 배치·배경 이미지를 둔 화면의 홈 썸네일이
+// 실제 1440 캔버스(desktop 재정의 적용)와 같은 배치로 나오는지 고정한다.
+describe("ProjectPreview — 썸네일의 반응형 해석 (#439)", () => {
+  function page(): ScreenSpec {
+    return {
+      name: "Home",
+      size: { width: 1440, height: 900 },
+      root: "root",
+      nodes: {
+        root: {
+          type: "frame",
+          name: "Root",
+          box: { width: "fill", height: "fill" },
+          layout: { direction: "column", gap: 16, padding: { top: 0, right: 0, bottom: 0, left: 0 }, mainAxis: "start", crossAxis: "stretch" },
+          children: [{ node: "order" }],
+        },
+        order: {
+          type: "button",
+          name: "Order",
+          box: { width: "auto", height: 40 },
+          content: "주문하기",
+          typography: { fontFamily: "Inter", fontSize: 14, fontWeight: 600, lineHeight: 20, letterSpacing: 0, textAlign: "left" },
+          color: "#FFFFFF",
+          background: [{ type: "solid", color: "#2563EB" }],
+        },
+      },
+      // base(위 nodes)는 column 배치·배경 없음이다. desktop(≥768)만 가로 배치와 배경 이미지 겹을 더한다 —
+      // 고객 A가 만든 스펙과 같은 모양이다.
+      responsive: {
+        breakpoints: { desktop: { minWidthPx: 768 } },
+        overrides: {
+          desktop: {
+            root: {
+              layout: { direction: "row" },
+              background: [{ type: "image", src: "assets/hero.png", fit: "cover" }],
+            },
+          },
+        },
+      },
+    };
+  }
+
+  function render(spec: ScreenSpec): string {
+    return renderToStaticMarkup(createElement(ProjectPreview, { page: spec, scrollRoot: null, drawn: false, onDrawn: () => {} }));
+  }
+
+  it("1440 페이지 크기는 desktop 재정의(가로 배치)를 쓴다 — base(column)를 그대로 쓰지 않는다", () => {
+    const markup = render(page());
+    expect(markup).toContain("flex-direction:row");
+    expect(markup).not.toContain("flex-direction:column");
+  });
+
+  it("desktop 재정의에만 있는 배경 이미지 겹도 반영한다 — base에는 배경이 없다", () => {
+    const markup = render(page());
+    expect(markup).toContain('data-preview-image="1"');
+  });
+
+  it("폭이 desktop 분기점보다 좁은 페이지는 base(column)를 그대로 쓴다", () => {
+    const spec = page();
+    spec.size = { width: 600, height: 900 };
+    const markup = render(spec);
+    expect(markup).toContain("flex-direction:column");
+    expect(markup).not.toContain('data-preview-image="1"');
   });
 });

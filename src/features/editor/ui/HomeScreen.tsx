@@ -28,6 +28,7 @@ import {
   type PreviewImageSrc,
 } from "@/features/editor/ui/homePreview";
 import { beginPreviewVisit, collectImageSrcs, endPreviewVisit, usePreviewThumbnails } from "@/features/editor/ui/previewThumbnail";
+import { resolveResponsiveScreen } from "@/features/editor/responsive/resolveResponsive";
 import { renameProject, requestProjectRename } from "./renameProject";
 import {
   loadWorkspaceProjects,
@@ -550,15 +551,18 @@ function useSeenOnce<T extends Element>(
  * 그리는 카드는 노드를 **전부** 그린다 — 노드를 일부만 그리면 row·grid 배치에서 보이는 영역이
  * 빠지거나, 남은 형제의 정렬(center·space-between 등)이 달라져 카드와 실제 화면이 어긋난다.
  */
-function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
+export function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
   page: ScreenSpec; scrollRoot: Element | null; drawn: boolean; onDrawn: () => void;
 }) {
   const { width, height } = page.size;
+  // 캔버스가 기본으로 보여주는 폭(responsive/resolveResponsive.ts의 기본 미리보기 폭 규칙과 같음)과
+  // 같은 조건으로 해석해야, 데스크톱 재정의가 있는 화면도 썸네일과 캔버스가 같은 배치로 나온다.
+  const resolved = useMemo(() => resolveResponsiveScreen(page, width), [page, width]);
   const scale = previewScale(width, height, PREVIEW_WIDTH, PREVIEW_HEIGHT);
   const [ref, seen] = useSeenOnce<HTMLDivElement>(scrollRoot, drawn);
   useEffect(() => { if (seen) onDrawn(); }, [seen, onDrawn]);
   // 이미지는 원본이 아니라 카드 크기로 줄인 것을 쓴다(#322). 줄이는 동안은 그 이미지만 비워 둔다.
-  const imageSrcs = useMemo(() => collectImageSrcs(page.nodes, page.root), [page.nodes, page.root]);
+  const imageSrcs = useMemo(() => collectImageSrcs(resolved.nodes, resolved.root), [resolved]);
   const imageSrc = usePreviewThumbnails(imageSrcs, seen, THUMBNAIL_SHORT_SIDE);
 
   // 미리보기는 그림이다 — 카드 버튼의 접근 가능한 이름은 프로젝트 이름·페이지 정보로 충분하다.
@@ -576,7 +580,7 @@ function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
           className="absolute top-0 left-0"
           style={{ width, height, transform: `scale(${scale})`, transformOrigin: "top left" }}
         >
-          <PreviewNode id={page.root} nodes={page.nodes} imageSrc={imageSrc} />
+          <PreviewNode id={resolved.root} nodes={resolved.nodes} imageSrc={imageSrc} />
         </div>
       )}
     </div>
