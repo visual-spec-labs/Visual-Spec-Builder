@@ -7,6 +7,7 @@ import { editResponsiveNode } from "@/features/editor/responsive/editResponsive"
 import {
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Eye,
   EyeOff,
   Folder,
@@ -334,6 +335,8 @@ function PageFolderRow({
   const page = useEditorStore((state) => state.spec.pages[pageId]);
   const isActive = useEditorStore((state) => state.activePageId === pageId);
   const canDelete = useEditorStore((state) => canRemovePage(state.spec, pageId));
+  const pageIndex = useEditorStore((state) => state.spec.pageOrder.indexOf(pageId));
+  const pageCount = useEditorStore((state) => state.spec.pageOrder.length);
   const selectPage = useEditorStore((state) => state.selectPage);
 
   return (
@@ -355,6 +358,27 @@ function PageFolderRow({
           <Folder size={13} className="shrink-0 text-content-subtle" aria-hidden="true" />
           <span className="truncate font-medium">{page.name}</span>
           <span aria-label={`화면 종류: ${page.kind ?? "page"}`} className="shrink-0 text-xs text-content-subtle">{page.kind ?? "page"}</span>
+        </button>
+
+        <button
+          type="button"
+          disabled={pageIndex === 0}
+          onClick={() => useEditorStore.getState().reorderPage(pageId, pageIndex - 1)}
+          aria-label="페이지 위로 이동"
+          title="페이지 위로 이동"
+          className="flex size-5 shrink-0 items-center justify-center rounded-control text-content-subtle hover:bg-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <ChevronUp size={13} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          disabled={pageIndex === pageCount - 1}
+          onClick={() => useEditorStore.getState().reorderPage(pageId, pageIndex + 1)}
+          aria-label="페이지 아래로 이동"
+          title="페이지 아래로 이동"
+          className="flex size-5 shrink-0 items-center justify-center rounded-control text-content-subtle hover:bg-hover hover:text-content disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <ChevronDown size={13} aria-hidden="true" />
         </button>
 
         {canDelete ? (
