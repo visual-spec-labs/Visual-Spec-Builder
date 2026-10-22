@@ -418,10 +418,13 @@ export function Canvas() {
               className="pointer-events-none absolute left-0 border-t border-dashed border-content-subtle"
               style={{ top: size.height * scale, width: size.width * scale }}
             />
+            {/* nowrap이면 좁은 미리보기·낮은 줌에서 라벨 폭이 아트보드보다 넓어져
+                캔버스에 가로 스크롤이 생겼다(#446 PR 리뷰). 아트보드 폭 안으로
+                줄바꿈하도록 막는다. */}
             <span
               role="status"
-              className="pointer-events-none absolute left-1 whitespace-nowrap rounded-control bg-surface px-1.5 py-0.5 text-[10px] text-content-muted shadow-modal"
-              style={{ top: size.height * scale + 4 }}
+              className="pointer-events-none absolute left-1 rounded-control bg-surface px-1.5 py-0.5 text-[10px] text-content-muted shadow-modal"
+              style={{ top: size.height * scale + 4, maxWidth: Math.max(0, size.width * scale - 8) }}
             >
               페이지 높이 {size.height}px — 아래로 스크롤하면 넘친 내용이 있습니다
             </span>
