@@ -94,6 +94,37 @@ commands를 만들지 않는다. 그 밖의 버전 불일치는 요청 protocol�
 - **선택한 프레임을 위젯으로 만들고 다른 페이지에도 넣기**는 아래의 단일 `projectCommand`만 쓴다. `scope.kind`는 `node`, `scope.nodeId`는 현재 `page.nodes`의 루트 아닌 frame이어야 한다. `destinations`에서 요청 대상 이름과 유일하게 일치하는 kind=page의 `pageId`를 `targetPageId`로 쓴다. 중복 이름·없는 대상·프레임 선택 없음은 error로 답한다. `widgetId`는 `destinations`의 모든 PageId와 달라야 하며 새 ID를 명시한다. 다른 페이지의 노드 구조는 추측하지 않는다. GUI가 대상 페이지 root 아래에 인스턴스를 배치한다. 이 응답에 `commands`를 섞지 않는다. 분리는 GUI 명시 동작으로 남는다.
 - GUI가 응답 Command를 현재 프로젝트 전체에 다시 적용해 참조·순환·override 무결성을 검증한다. 검증 실패를 우회해 스펙 파일을 직접 변경하지 않는다.
 
+## 모호한 요청 — 고치기 전에 되묻는다 (#443)
+
+요청을 Command로 옮기기 전에 **무엇을 어떤 값으로 바꾸라는지** 정해지는지 본다. 정해지지 않으면
+고치지 않고 되묻는다. 짐작으로 여러 노드를 바꾸면 사용자는 원하지 않은 변경을 하나씩 찾아 되돌려야
+하고, Undo는 요청 전체를 한 번에 되돌리므로 마음에 든 변경만 남길 수도 없다.
+
+**모호한 요청**은 바꿀 대상도, 바꿀 속성이나 값도 말하지 않은 요청이다 — "좀 더 예쁘게",
+"세련되게", "깔끔하게", "보기 좋게 다듬어줘". 특히 `scope.kind === "screen"`이면 화면 전체가 대상이 된다.
+
+- **되묻는다.** `commands` 대신 `error`에 "무엇을 바꿀지 정해 주세요"와 바로 다시 보낼 수 있는 구체적인
+  요청 2–3개를 쓴다. GUI는 이 문장을 입력창 아래에 그대로 보여 준다. 예:
+  ```json
+  { "protocol": 2, "commandVersion": "0.3", "requestId": "<요청의 id 값>", "error": "요청이 넓어 무엇을 바꿀지 정할 수 없습니다. 예: '로그인 버튼 모서리를 12로 둥글게', 'Card에 옅은 그림자 추가', '제목 글자 크기를 28로' 중 원하는 것을 보내 주세요." }
+  ```
+  위 예시의 '로그인 버튼'·'제목'처럼 화면의 말로 쓴 대상은 `page`에 실제로 있는 노드 이름(`name`)으로
+  바꿔 쓴다 — 사용자가 그 문장을 그대로 다시 보내도 대상이 하나로 정해지게.
+- **대상이나 방향이 하나라도 정해져 있으면 고쳐도 된다.** "버튼을 좀 더 눈에 띄게"(대상 = 버튼),
+  "전체 색을 어둡게"(속성 = 색)처럼 범위가 좁혀지면, 그 대상·속성만 작게 바꾼다. 그 밖의 노드와
+  속성은 건드리지 않는다.
+- **대화 경로(`agent-edit.json`)에서는 대화로 묻는다.** 사용자가 이 대화에 직접 요청했으면
+  `agent-edit.json`을 쓰지 말고 대화에서 무엇을 바꿀지 물은 뒤 답을 받아 보낸다.
+
+### 사용자가 정한 값은 유지한다
+
+`page`에 이미 들어 있는 값은 사용자가 정한 값으로 본다. 대표적으로 `layout`의 `gap`·`padding`·
+`direction`·정렬, `box` 크기, 텍스트 `content`가 그렇다. **요청이 직접 말하지 않은 값은 바꾸지 않는다.**
+모양을 다듬는 요청(색·그림자·모서리·글꼴)이 간격이나 크기까지 바꾸면 안 된다. 예를 들어 사용자가
+앞서 "간격을 24로" 해 둔 Card는, 나중에 "버튼을 더 예쁘게"를 받았을 때도 `gap: 24` 그대로다.
+멀티턴 맥락은 없으므로(`page`만 보인다) "직전 요청에서 정한 값"을 따로 알 수는 없다. 그래서
+요청이 말하지 않은 값은 **전부** 유지하는 것으로 지킨다.
+
 ## 응답 만들기 — Command 배열
 
 Command 15종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·`updateScreen`·`removeNodeAction`·`createColorStyle`·`updateColorStyle`·`deleteColorStyle`·`applyColorStyle`·`createTypographyStyle`·`updateTypographyStyle`·`deleteTypographyStyle`·`applyTypographyStyle`)의
@@ -289,7 +320,7 @@ Command 15종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`�
 GUI는 응답 대기 중 프로젝트 변경을 거부하고, 원본·대상·새 widget을 한 후보 프로젝트에서 검증한 뒤 한 Undo 단계로 커밋한다. 다른 프로젝트 명령 종류나 임의 필드는 거부한다.
 
 **못 하겠을 때** — 표현할 수 없는 요구(예: `onClick` 동작, `component` 타입, 새 페이지
-생성)이거나 요청이 모호하면 `commands` 대신 `error`를 쓴다. `commands: []`는 쓰지 않는다 —
+생성)이거나 요청이 모호하면(위 "모호한 요청" 절) `commands` 대신 `error`를 쓴다. `commands: []`는 쓰지 않는다 —
 Transaction은 Command가 최소 1개 필요하다(스키마가 거부한다).
 ```json
 { "protocol": 2, "commandVersion": "0.3", "requestId": "<요청의 id 값>", "error": "프로젝트에 없는 관계 대상을 추측할 수 없습니다 — 대상 PageId를 확인해 주세요" }
@@ -375,6 +406,8 @@ button의 action은 `updateNode(path: "action")`으로 전체 객체를 교체�
 - **`children`을 미리 채운다.** 위 "`createNode`는 자식 배열을 스스로 채우지 않는다" 참고
 - **`scope.kind === "node"`인데 다른 노드를 고친다.** 사용자가 요소를 선택한 채 요청했다는
   뜻이다 — `scope.nodeId`가 가리키는 노드(또는 그 안쪽)만 건드린다
+- **"좀 더 예쁘게"에 여러 노드를 한꺼번에 바꾼다.** 대상·속성이 없는 요청은 되묻는다. 요청이
+  말하지 않은 `gap`·`padding`·크기·텍스트는 바꾸지 않는다 — 위 "모호한 요청" 절 참고
 - **`page`를 안 읽고 값을 추측한다.** 지금 `layout.gap`이 얼마인지, 어떤 자식이 있는지는
   전부 요청에 실려 온 `page`에서 읽는다 — 기억이나 예시로 채우지 않는다
 - **배경을 `background.color`·`background.0.color` 경로나 객체 모양 `{ "color": … }`으로 쓴다.**
