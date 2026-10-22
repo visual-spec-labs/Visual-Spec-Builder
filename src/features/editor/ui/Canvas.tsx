@@ -400,6 +400,27 @@ export function Canvas() {
         </div>
 
         {/*
+          페이지 높이를 넘긴 내용이 있음을 보여주는 경계(#446). 아트보드는 minHeight로만
+          자라 내용이 많으면 자연히 size.height를 넘는다(#86) — 그 자체는 버그가 아니라
+          랜딩페이지처럼 흔한 모양이다. 문제는 그 사실을 알 방법이 없어, 반응형 미리보기
+          폭을 좁혀 안 보이던 넘친 내용이 생겨도 스크롤해야 한다는 낌새 없이 버튼이
+          삭제된 것처럼 보였다(고객 A 재현). 실측 높이(artboardHeight)가 선언한 높이를
+          넘을 때만 그 경계에 옅은 점선과 라벨을 띄운다 — 경고가 아니라 "여기부터는
+          스크롤해야 보인다"는 위치 안내다.
+        */}
+        {artboardHeight !== null && artboardHeight > size.height && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-0 border-t border-dashed border-content-subtle"
+            style={{ top: size.height * scale, width: size.width * scale }}
+          >
+            <span className="absolute left-1 top-1 whitespace-nowrap rounded-control bg-surface px-1.5 py-0.5 text-[10px] text-content-muted shadow-modal">
+              페이지 높이 {size.height}px — 아래로 스크롤하면 넘친 내용이 있습니다
+            </span>
+          </div>
+        )}
+
+        {/*
           선택 표시. 아트보드 안이 아니라 옆에 둔다 — 안에 두면 선택한 노드의
           opacity·blur를 이 표시까지 함께 받아 흐려진다(#90). 바깥 상자는 확대되지
           않으므로 좌표를 실측값 그대로 쓰고, 테두리도 어느 확대율에서나 2px이다.
