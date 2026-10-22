@@ -4,6 +4,7 @@ import { useEditorStore } from "@/features/editor/store/editorStore";
 import { consumeHomeDraft } from "@/features/editor/store/homeDraft";
 import type { ProjectSpec } from "@/features/editor/schema";
 import {
+  describeCancel,
   describeCommandIssues,
   describeCommands,
   describeTransactionFailure,
@@ -19,6 +20,7 @@ import { runTransactionGates } from "@/features/editor/command/transactionGate";
 import { applyWidgetProjectCommand } from "@/features/editor/command/widgetProjectCommand";
 import { changedBackgroundNodes, type BackgroundChange } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeHint, scopeOptions } from "@/features/editor/nl/nlScope";
+import { undoNlEdit } from "@/features/editor/nl/nlUndo";
 import { buildNlAgentInstruction } from "@/features/editor/ui/agentHandoff";
 import {
   createAgentRequestWait,
@@ -57,6 +59,8 @@ import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
 type Feedback =
   | { kind: "none" }
   | { kind: "pending" }
+  /** 사용자가 대기나 배경 확인을 취소했다(#448 B-6). 빈칸 대신 무엇이 됐는지 남긴다. */
+  | { kind: "cancelled"; message: string }
   | {
       kind: "error";
       message: string;
@@ -306,7 +310,10 @@ export function NaturalLanguageBar() {
     cancelRef.current = null;
     waitRef.current = null;
     setWaitProgress(null);
-    setFeedback({ kind: "none" });
+    setFeedback({
+      kind: "cancelled",
+      message: describeCancel(feedback.kind === "confirmation" ? "confirmation" : "waiting"),
+    });
   }
 
   return (
@@ -402,6 +409,7 @@ export function NaturalLanguageBar() {
             </span>
           </div>
         )}
+        {shown.kind === "cancelled" && <span className="text-content-muted">{shown.message}</span>}
         {shown.kind === "error" && (
           <div className="flex flex-col gap-1">
             <span className="text-error">{shown.message}</span>
@@ -428,7 +436,7 @@ export function NaturalLanguageBar() {
             <button
               type="button"
               onClick={() => {
-                useEditorStore.getState().undo();
+                undoNlEdit();
                 setFeedback({ kind: "none" });
               }}
               className="underline hover:text-content"

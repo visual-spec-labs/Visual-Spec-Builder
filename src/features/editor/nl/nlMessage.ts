@@ -112,3 +112,16 @@ export function describeTransactionFailure(failure: TransactionFailure): string 
     }
   }
 }
+
+/**
+ * 취소 문장(#448 B-6). 상태 줄을 빈칸으로 두면 취소가 먹었는지, 화면이 바뀌었는지 알 수 없다.
+ *
+ * 응답 대기 중 취소는 GUI가 기다림을 멈추는 것뿐이다(`nlAgentClient.requestNlEdit` 주석) —
+ * 지시를 받은 외부 에이전트는 계속 돈다. 그래서 그 사실과, 늦게 온 응답은 반영하지 않는다는
+ * 것을 함께 말한다. 배경 확인의 "적용 취소"는 응답이 이미 온 뒤라 에이전트 안내가 필요 없다.
+ */
+export function describeCancel(stage: "waiting" | "confirmation"): string {
+  return stage === "waiting"
+    ? "요청을 취소했습니다. 화면은 바뀌지 않았습니다. 지시를 이미 전달한 에이전트는 계속 작업할 수 있으니 필요하면 에이전트 쪽에서 멈추세요. 늦게 온 응답은 반영하지 않습니다."
+    : "배경 변경을 적용하지 않았습니다. 화면은 바뀌지 않았습니다.";
+}
