@@ -62,7 +62,12 @@ export function ResponsivePanel() {
       <input aria-label="미리보기 폭" aria-describedby={helpId} className={`${inputClass} w-24`} type="number" min="0.01" step="any" value={width} onChange={(event) => setWidth(pageId, Number(event.target.value))} />
     </label>
     <p id={helpId} className="text-xs text-content-muted">미리보기 폭에 따라 편집 기준도 바뀝니다. 기준을 고르면 미리보기 폭도 바뀝니다.</p>
-    <details className="text-xs text-content-muted">
+    {breakpoint && responsive.breakpoints[breakpoint].minWidthPx <= screen.size.width && (
+      <p role="status" className="rounded-control border border-line bg-surface-inset px-2 py-1 text-xs font-medium text-content">
+        이 분기점(≥{responsive.breakpoints[breakpoint].minWidthPx}px)에서 편집한 값은 현재 페이지 폭 {screen.size.width}px에도 그대로 적용됩니다. 데스크톱만 다른 값으로 두려면 이 값을 기본값(base)으로 옮기고, 데스크톱 전용 값은 더 큰 폭의 새 분기점에 재정의로 추가하세요.
+      </p>
+    )}
+    <details open className="text-xs text-content-muted">
       <summary className="cursor-pointer rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content">편집 범위와 상속 안내</summary>
       <div className="mt-2 space-y-2">
       <p>미리보기 폭은 페이지 크기를 바꾸지 않으며 문서·실행 취소 이력에 저장되지 않습니다.</p>

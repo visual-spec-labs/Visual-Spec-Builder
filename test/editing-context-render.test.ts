@@ -95,6 +95,23 @@ describe("실제 PropertiesPanel + ResponsivePanel 렌더 (#340)", () => {
     const markup = renderToStaticMarkup(createElement(PropertiesPanel));
     expect(markup).toMatch(/<p role="alert"[^>]*>오류: 폭은 양수여야 합니다\.<\/p>/);
   });
+
+  it("분기점이 현재 페이지 폭에도 적용되면 접히지 않은 안내로 바로 보여준다 (#438)", () => {
+    expect(render(768, "root")).toContain("현재 페이지 폭 1440px에도 그대로 적용됩니다");
+    expect(render(1024, "root")).toContain("현재 페이지 폭 1440px에도 그대로 적용됩니다");
+    expect(render(767, "root")).not.toContain("그대로 적용됩니다");
+    expect(render(768, "root")).toContain("<details open");
+  });
+
+  it("분기점 폭이 페이지 폭보다 크면 안내를 보여주지 않는다 (#438)", () => {
+    const state = useEditorStore.getState();
+    const pageId = state.activePageId;
+    const screen = state.spec.pages[pageId];
+    expect(state.setResponsive(pageId, { ...screen.responsive!, breakpoints: { ...screen.responsive!.breakpoints, wide: { minWidthPx: 2000 } } })).toBeNull();
+    const markup = render(2000, "root");
+    expect(markup).toContain("wide 재정의(override)");
+    expect(markup).not.toContain("그대로 적용됩니다");
+  });
 });
 
 // 실제 컴포넌트의 label/id 연결을 검사한다. 입력/오류/IME/undo는 브라우저 회귀에서 검증한다.
