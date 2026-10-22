@@ -95,6 +95,9 @@ export function Canvas() {
   const previewRect = useRectOf(outerRef, artboardRef, altHeld ? null : previewId);
   const measureRect = useRectOf(outerRef, artboardRef, altHeld ? hover.target.deepId : null);
   const artboardHeight = useArtboardHeight(artboardRef);
+  // 점선(아트보드 안)과 배지(아트보드 밖) 둘 다 같은 판정을 써야 한다 — 따로 두면
+  // 나중에 한쪽만 고쳐 "경계는 있는데 배지는 없다"는 식으로 어긋날 수 있다(#446 자체 code-review).
+  const overflowedHeight = artboardHeight !== null && artboardHeight > size.height;
   const contextMenuTarget = useContextMenuStore((s) => s.target);
   const anchorRef = useRef<ZoomAnchor | null>(null);
   useZoomAnchor(mainRef, outerRef, artboardRef, anchorRef, zoom);
@@ -413,7 +416,7 @@ export function Canvas() {
           덮어 버렸다(#446 PR 리뷰 2차). 설명 문구는 줌·스크롤과 무관하게 항상 같은
           자리인 아래 "표시 전용 배지" 쪽에 둔다.
         */}
-        {artboardHeight !== null && artboardHeight > size.height && (
+        {overflowedHeight && (
           <div
             aria-hidden
             className="pointer-events-none absolute left-0 border-t border-dashed border-content-subtle"
@@ -605,14 +608,15 @@ export function Canvas() {
         화면 밖으로 사라진다. pointer-events-none 이라 클릭은 캔버스로 내려가고,
         바깥에 있으니 바탕 클릭 핸들러(노드 생성)에도 닿지 않는다.
       */}
-      <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2">
+      <div className="pointer-events-none absolute bottom-3 left-3 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2">
         <span className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
           {Math.round(zoom)}%
         </span>
         {/* 아트보드 안의 점선(#446)이 "어디서" 넘쳤는지 보여준다면, 이 배지는
             "넘쳤다는 사실"을 줌·스크롤 위치와 무관하게 항상 같은 자리에서 알린다 —
-            같은 이유로 바깥에 둔 줌 배지 옆이라 최소 변경이다. */}
-        {artboardHeight !== null && artboardHeight > size.height && (
+            같은 이유로 바깥에 둔 줌 배지 옆이라 최소 변경이다. 좁은 캔버스 영역에서
+            잘리지 않도록 줄바꿈 가능한 폭으로 묶는다(#446 자체 code-review). */}
+        {overflowedHeight && (
           <span role="status" className="rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card">
             페이지 높이 {size.height}px 넘침 — 스크롤하면 더 있습니다
           </span>
