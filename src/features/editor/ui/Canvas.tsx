@@ -419,12 +419,17 @@ export function Canvas() {
               style={{ top: size.height * scale, width: size.width * scale }}
             />
             {/* nowrap이면 좁은 미리보기·낮은 줌에서 라벨 폭이 아트보드보다 넓어져
-                캔버스에 가로 스크롤이 생겼다(#446 PR 리뷰). 아트보드 폭 안으로
-                줄바꿈하도록 막는다. */}
+                캔버스에 가로 스크롤이 생겼다(#446 PR 리뷰). size.width*scale을 다시
+                계산하는 대신 screenName 라벨(위 356행 부근)과 같은 방식으로 — 이미
+                그 폭인 outerRef(containing block)에 left+right를 둘 다 걸어 그
+                안에서만 줄바꿈하게 한다. 쪼개지지 않는 토큰이 그래도 넘칠 극단적인
+                좁은 폭(0에 가까운 미리보기 폭)을 대비해 overflow-hidden도 둔다 —
+                그 폭 자체가 캔버스 가로 스크롤 범위라 이 라벨은 거기서 절대
+                넘지 않아야 한다. */}
             <span
               role="status"
-              className="pointer-events-none absolute left-1 rounded-control bg-surface px-1.5 py-0.5 text-[10px] text-content-muted shadow-modal"
-              style={{ top: size.height * scale + 4, maxWidth: Math.max(0, size.width * scale - 8) }}
+              className="pointer-events-none absolute left-1 right-1 overflow-hidden rounded-control bg-surface px-1.5 py-0.5 text-[10px] text-content-muted shadow-modal"
+              style={{ top: size.height * scale + 4 }}
             >
               페이지 높이 {size.height}px — 아래로 스크롤하면 넘친 내용이 있습니다
             </span>
