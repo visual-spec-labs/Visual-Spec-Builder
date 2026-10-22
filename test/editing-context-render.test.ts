@@ -6,9 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import example from "../examples/responsive-cards.json";
 import login from "../examples/login-screen.json";
 import { migrateV01 } from "@/features/editor/schema";
-import type { VisualSpec } from "@/features/editor/schema";
+import type { FrameNode, VisualSpec } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
+import { resolveResponsiveScreen } from "@/features/editor/responsive/resolveResponsive";
 import { PropertiesPanel } from "@/features/editor/ui/PropertiesPanel";
 
 // SSR의 Zustand는 최초 snapshot만 읽는다. 현재 fixture를 읽도록 구독 훅만
@@ -121,6 +122,18 @@ describe("실제 PropertiesPanel + ResponsivePanel 렌더 (#340)", () => {
     expect((screen.responsive!.overrides.desktop.root as { layout: { gap: number } }).layout.gap).toBe(32);
     const markup = render(768, "root");
     expect(markup).toContain("더 큰 분기점에 같은 속성의 재정의가 있으면 그 값이 우선합니다");
+  });
+
+  it("더 작은 분기점에 이미 재정의가 있으면 새 분기점의 '보이는 값'에도 섞이므로, 고정 전에 되돌리라고 안내한다 (#438 리뷰)", () => {
+    const state = useEditorStore.getState();
+    const pageId = state.activePageId;
+    const base = { breakpoints: { mobile: { minWidthPx: 390 }, desktop: { minWidthPx: 1024 } }, overrides: { mobile: { root: { layout: { gap: 8 } } } } };
+    expect(state.setResponsive(pageId, base)).toBeNull();
+    const screen = useEditorStore.getState().spec.pages[pageId];
+    // desktop(1024)엔 아직 재정의가 없어, 거기서 "보이는 값"은 base(24)가 아니라 mobile의 8이 그대로 섞여 있다.
+    expect((resolveResponsiveScreen(screen, 1024).nodes.root as FrameNode).layout.gap).toBe(8);
+    const markup = render(1024, "root");
+    expect(markup).toContain("이미 이 분기점(또는 더 작은 분기점)에서 같은 속성을 재정의했다면 지금 보이는 값에 그 재정의가 섞여 있으니");
   });
 });
 
