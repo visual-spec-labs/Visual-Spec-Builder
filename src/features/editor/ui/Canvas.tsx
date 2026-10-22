@@ -409,15 +409,23 @@ export function Canvas() {
           스크롤해야 보인다"는 위치 안내다.
         */}
         {artboardHeight !== null && artboardHeight > size.height && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-0 border-t border-dashed border-content-subtle"
-            style={{ top: size.height * scale, width: size.width * scale }}
-          >
-            <span className="absolute left-1 top-1 whitespace-nowrap rounded-control bg-surface px-1.5 py-0.5 text-[10px] text-content-muted shadow-modal">
+          <>
+            {/* 점선은 장식이라 aria-hidden, 라벨은 스크린 리더 사용자도 넘침을 알아야
+                해서 별도 형제로 뺀다(#446 자체 code-review) — aria-hidden 안에 두면
+                내용이 사라진 것처럼 보이는 원래 문제가 그대로 남는다. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-0 border-t border-dashed border-content-subtle"
+              style={{ top: size.height * scale, width: size.width * scale }}
+            />
+            <span
+              role="status"
+              className="pointer-events-none absolute left-1 whitespace-nowrap rounded-control bg-surface px-1.5 py-0.5 text-[10px] text-content-muted shadow-modal"
+              style={{ top: size.height * scale + 4 }}
+            >
               페이지 높이 {size.height}px — 아래로 스크롤하면 넘친 내용이 있습니다
             </span>
-          </div>
+          </>
         )}
 
         {/*
