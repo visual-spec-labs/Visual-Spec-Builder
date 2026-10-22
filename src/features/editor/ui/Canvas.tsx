@@ -628,10 +628,17 @@ export function Canvas() {
         전역으로 경쟁한다. z-auto로 두면 main(z-auto)에는 DOM 순서로 이기고
         z-10인 드롭다운·모달 버튼에는 그냥 진다 — 메뉴가 열려 있거나 모달
         버튼과 겹칠 가능성이 있는 동안만 배지가 양보하는 셈이라 바람직하다.
-        그래서 모달 버튼과는 겹치지 않게 폭으로 막아야 한다 — MIN_CANVAS_WIDTH
-        (300px, panelLayout.ts)에서 모달 미리보기 버튼 왼쪽 끝이 대략 160px
-        언저리라(리뷰어 실측), max-w-32(8rem=128px)면 left-3(12px)에서 시작해도
-        안 닿는다(#446 PR 리뷰 6차).
+        그래서 모달 버튼과는 겹치지 않게 폭으로 막는다 — 패널을 드래그로 줄일 때
+        캔버스가 지키는 MIN_CANVAS_WIDTH(300px, panelLayout.ts)를 기준 삼아
+        max-w-32(8rem=128px)로 잡았다. 다만 이 300px는 **드래그 하한일 뿐** —
+        panelLayout.ts 자신의 주석대로 패널 폭을 그대로 둔 채 브라우저 창
+        자체를 줄이면 캔버스는 그보다 더 좁아질 수 있고(usePanelResize.ts는
+        창 크기 변화에 실시간으로 반응하지 않는다), EditorLayout의 캔버스
+        그리드 트랙에도 minmax 하한이 없다(#446 자체 code-review 8차). 그
+        극단적인 경우(모달 화면 + 넘침 + 창을 아주 좁게) 배지가 모달 버튼에
+        가려질 수 있다 — z-index 없이 폭으로만 막는 한 피할 수 없는 트레이드
+        오프로 받아들인다. 수동 조작 가능한 인터랙티브 버튼이 수동 안내
+        배지보다 우선하는 쪽이 낫다고 판단했다.
       */}
       {overflowedHeight && (
         <span role="status" className={`pointer-events-none absolute left-3 top-3 max-w-32 ${pinnedBadgeClass}`}>
