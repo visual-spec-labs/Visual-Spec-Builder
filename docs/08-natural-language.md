@@ -1,5 +1,5 @@
-> 2026-10-15 #265 S1-3: 현재 Command는 v0.2(7종), NL과 직접 agent-edit 전송은 각각 protocol 2다.
-> 요청/성공 응답의 commandVersion은 "0.2"이며 직접 경로는 gui-state capabilities도 검사한다.
+> 2026-10-15 #265 S1-3: 당시 Command는 v0.2(7종), NL과 직접 agent-edit 전송은 각각 protocol 2였다.
+> 현재 요청/성공 응답의 commandVersion은 "0.3"이며 직접 경로는 gui-state capabilities도 검사한다.
 > 이전 6종/무버전 예제는 조사 시점 기록이다. 현재 송수신 계약은 [09](09-command-schema-freeze.md)와
 > 배포 NL 스킬을 따른다. S1-10은 아래 읽기 전용 destinations 카탈로그로 대상 신원을 전달한다.
 
@@ -730,7 +730,7 @@ GUI는 요청 시점의 프로젝트에서 pageOrder 순서대로 모든 화면�
 이 목록에는 다른 화면의 nodes, 파일 경로, 명령, 편집 권한이 없다. 이름은 표시/검색 힌트이며 PageId가
 신원이다. 중복 이름을 합치지 않는다. 실제 action.target에는 목록의 PageId만 쓴다.
 
-protocol=2와 commandVersion="0.2", 기존 요청 필드와 응답 형식은 그대로다. `destinations` 없는 구
+protocol=2와 현재 commandVersion="0.3", 기존 요청 필드와 응답 형식은 그대로다. `destinations` 없는 구
 요청도 유효하며 buildNlRequest의 구 입력은 필드를 생략한다. 기존 protocol 2 생산자는 추가 문맥을
 무시하고 기존 형식으로 응답할 수 있다. 새 스킬은 카탈로그가 없는 요청에서 화면 간 target을 추측하지
 않고 재요청/업데이트를 안내한다. 임의 제3자의 닫힌 요청 스키마까지 호환한다고 보장하지 않는다.
@@ -758,7 +758,7 @@ pageId 명령 확장, 임의 프로젝트 전체 변경은 허용하지 않는�
 instance의 `overrides`를 만들 때 에이전트는 이 목록에서 직접 원본 Text/Button NodeId와
 content/color를 확인한다. 새 instance의 ref는 `destinations`의 widget PageId를 쓴다.
 
-구 요청에서 `widgets`가 없으면 원본의 NodeId를 추측하지 않는다. 화면 로컬 Command 0.2는
+구 요청에서 `widgets`가 없으면 원본의 NodeId를 추측하지 않는다. 화면 로컬 Command 0.3은
 다른 페이지를 편집하지 않는다. 단, protocol 2 응답의 선택 `projectCommand`로
 `extractAndPlaceWidget` 한 종류를 받는다. 현재 선택한 루트 아닌 frame의 `pageId`·`nodeId`,
 새 `widgetId`·`name`, 기존의 다른 kind=page `targetPageId`를 명시한다. `commands`와 함께 쓰지
@@ -766,4 +766,5 @@ content/color를 확인한다. 새 instance의 ref는 `destinations`의 widget P
 instance를 추가해 **최종 프로젝트 전체를 검증하고 한 Undo 단계로** 커밋한다. 대상 화면의
 노드 트리를 에이전트에 노출하거나 에이전트가 부모 NodeId를 추측하게 하지 않는다.
 대기 중 문서·화면 변경 거부는 그대로다. 분리와 임의 여러 페이지 편집은 GUI에 남긴다.
-fixture 검증은 실제 모델 실행을 뜻하지 않는다.
+이 구형 단일 `projectCommand` 응답만 `commandVersion: "0.2"` 표식을 사용한다. 일반 `commands`
+배열 응답은 현재 Command 0.3 계약을 따른다. fixture 검증은 실제 모델 실행을 뜻하지 않는다.
