@@ -48,7 +48,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
-import { withWorkspaceMutation } from "./workspaceMutation";
+import { withWorkspaceMutation } from "./workspaceMutation.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { basename, dirname, extname, join, resolve } from "node:path";
 
@@ -76,20 +76,20 @@ import {
   WORKSPACE_MAX_BODY_BYTES as MAX_BODY_BYTES,
   projectRuntimeRecordKind,
   isCanonicalProjectRuntimePath,
-} from "./protocol";
-import { migrateToV03, migrateToV04, migrateV01 } from "../editor/schema/migrate";
-import type { ProjectSpec, VisualSpec } from "../editor/schema/types";
-import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate";
-import { projectFileName } from "./projectName";
-import { checkRequestOrigin } from "./requestOrigin";
-import { acquireRequestLock, holdsRequestLock, releaseRequestLock, renewRequestLock, writeIfLockHeld, writeTicketRecord } from "./requestLock";
+} from "./protocol.ts";
+import { migrateToV03, migrateToV04, migrateV01 } from "../editor/schema/migrate.ts";
+import type { ProjectSpec, VisualSpec } from "../editor/schema/types.ts";
+import { validateProjectSpec, validateVisualSpec } from "../editor/schema/validate.ts";
+import { projectFileName } from "./projectName.ts";
+import { checkRequestOrigin } from "./requestOrigin.ts";
+import { acquireRequestLock, holdsRequestLock, releaseRequestLock, renewRequestLock, writeIfLockHeld, writeTicketRecord } from "./requestLock.ts";
 import {
   isInsideWorkspace,
   matchWorkspaceRoute,
   resolveWorkspaceDir,
   resolveWorkspaceFile,
   type RejectReason,
-} from "./workspacePath";
+} from "./workspacePath.ts";
 
 /**
  * `bin/visual-spec.mjs`가 GUI에 작업공간 위치를 알려주는 환경 변수.

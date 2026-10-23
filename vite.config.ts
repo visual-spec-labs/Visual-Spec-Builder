@@ -4,12 +4,12 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
 
-import { THEME_STORAGE_KEY } from "./src/features/editor/ui/theme-storage";
+import { THEME_STORAGE_KEY } from "./src/features/editor/ui/theme-storage.ts";
 import {
   createWorkspaceMiddleware,
   ensureWorkspaceDirs,
   resolveWorkspaceRoot,
-} from "./src/features/workspace/workspaceServer";
+} from "./src/features/workspace/workspaceServer.ts";
 
 /**
  * 첫 페인트 전에 저장된 테마를 <html data-theme>로 적용해 FOUC를 방지한다.

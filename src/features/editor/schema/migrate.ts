@@ -1,5 +1,5 @@
-import type { PageId, ProjectSpec, ScreenSpec, VisualSpec } from "./types";
-import { validateProjectSpec } from "./validate";
+import type { PageId, ProjectSpec, ScreenSpec, VisualSpec } from "./types.ts";
+import { validateProjectSpec } from "./validate.ts";
 
 /**
  * 화면 문서를 넓힐 때 쓰는 페이지 id.

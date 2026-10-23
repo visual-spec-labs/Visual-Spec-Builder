@@ -1,5 +1,5 @@
-import type { ProjectSpec } from './types';
-import type { ValidationIssue } from './validate';
+import type { ProjectSpec } from './types.ts';
+import type { ValidationIssue } from './validate.ts';
 
 type Edge = { target: string; path: string };
 

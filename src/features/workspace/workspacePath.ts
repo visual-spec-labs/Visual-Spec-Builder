@@ -28,7 +28,7 @@
  */
 
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
-import { isWorkspaceSegment } from "./workspaceSegment";
+import { isWorkspaceSegment } from "./workspaceSegment.ts";
 
 import {
   WORKSPACE_DIR_RULES,
@@ -36,7 +36,7 @@ import {
   WORKSPACE_LIST_ROUTE,
   isWorkspaceDir,
   type WorkspaceDir,
-} from "./protocol";
+} from "./protocol.ts";
 
 /** 거부 사유. 미들웨어가 HTTP 상태 코드로 옮긴다. */
 export type RejectReason =

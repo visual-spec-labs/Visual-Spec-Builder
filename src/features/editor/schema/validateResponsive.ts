@@ -1,7 +1,7 @@
 import Ajv2020 from "ajv/dist/2020";
-import visualSpecJsonSchema from "./visual-spec.schema.json";
-import type { ScreenSpec } from "./types";
-import type { ValidationIssue } from "./validate";
+import visualSpecJsonSchema from "./visual-spec.schema.json" with { type: "json" };
+import type { ScreenSpec } from "./types.ts";
+import type { ValidationIssue } from "./validate.ts";
 
 type Validator = ReturnType<InstanceType<typeof Ajv2020>["compile"]>;
 const validators = new Map<string, Validator>();
