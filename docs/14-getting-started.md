@@ -22,6 +22,15 @@ corepack pnpm install --frozen-lockfile
 VSB_REPO="$(pwd)"
 ```
 
+Windows PowerShell에서는 같은 절차를 다음처럼 실행한다.
+
+```powershell
+git clone --branch develop https://github.com/visual-spec-labs/Visual-Spec-Builder.git
+Set-Location Visual-Spec-Builder
+corepack pnpm install --frozen-lockfile
+$env:VSB_REPO = (Get-Location).Path
+```
+
 Corepack이 없는 환경에서는 pnpm 10.33.0을 준비하고 `corepack pnpm` 대신 `pnpm`을 사용한다.
 기존 체크아웃을 쓴다면 변경 사항을 보존한 채 사용할 브랜치와 커밋을 먼저 확인한다. 아래 기능이 아직 기본 브랜치에 병합되지 않았다면 해당 기능을 포함한 검토 브랜치가 필요하다.
 
@@ -63,6 +72,17 @@ node "$VSB_REPO/bin/visual-spec.mjs" init
 node "$VSB_REPO/bin/visual-spec.mjs" skills
 cp "$VSB_REPO/examples/login-screen.json" .visual-spec/specs/login-screen.json
 node "$VSB_REPO/bin/visual-spec.mjs"
+```
+
+PowerShell에서는 별도 작업 폴더를 만들고 다음처럼 실행한다.
+
+```powershell
+New-Item -ItemType Directory -Force ..\visual-spec-demo | Out-Null
+Set-Location ..\visual-spec-demo
+node "$env:VSB_REPO\bin\visual-spec.mjs" init
+node "$env:VSB_REPO\bin\visual-spec.mjs" skills
+Copy-Item "$env:VSB_REPO\examples\login-screen.json" .visual-spec\specs\login-screen.json
+node "$env:VSB_REPO\bin\visual-spec.mjs"
 ```
 
 **마지막 명령은 인자가 없다.** `visual-spec gui`라는 명령은 없다. 터미널에 표시된 localhost 주소를 열고 서버 프로세스는 유지한다.
@@ -126,11 +146,21 @@ Claude Code를 사용한다면 같은 폴더에서 `codex` 대신 `claude`를 �
 
 ## 3. 로그인 예제 편집·저장
 
+### 빈 캔버스에서 시작하기
+
+프로젝트 목록이 비어 있는 홈 화면에서 **빈 캔버스에서 시작**을 선택한다. 에디터가 빈 페이지를 연다. 왼쪽 레이어 트리에서 노드를 추가하고 캔버스나 속성 패널에서 편집한 뒤 **파일 → 저장** 또는 **파일 → 다른 이름으로 저장**으로 보관한다.
+처음 저장할 때는 파일 이름을 정한다. 이 경로는 자연어 초안 없이 직접 화면을 만드는 방법이다.
+
+### 홈에서 자연어 초안 만들기
+
+프로젝트 목록이 비어 있는 홈 화면에서 **자연어로 초안 만들기**를 고른다. 입력칸에 만들 화면을 설명하거나 예시를 고른 뒤 **초안 만들기**를 누르면 빈 프로젝트가 에디터에서 열린다.
+문구는 하단 자연어 입력칸에 채워지지만 자동 전송되지는 않는다. 에이전트를 준비하고 입력 범위를 확인한 뒤 **요청**을 눌러 전송한다. 이 타일은 프로젝트 목록이 비어 있을 때만 표시된다.
+
 1. 홈에서 Login 카드를 열거나, 에디터의 **파일 → 열기**(File → Open)에서 `login-screen.json`을 선택한다. 작업공간 목록 선택창에는 파일명이나 표시된 번호를 넣는다.
 2. 왼쪽 레이어 트리에서 `Card`를 펼쳐 **LoginButton**을 선택한다. 이 예제에는 이메일·비밀번호 입력 노드와 실제 `button` 노드가 있다.
 3. 오른쪽 버튼 속성 **Content**의 **텍스트**를 `계속하기`로 바꾸고 입력칸 밖을 클릭한다. 캔버스 문구가 바뀌는지 확인한다. GUI의 input·button은 시각 편집 대상이며 실제 로그인 기능은 포함하지 않는다.
 4. **파일 → 저장**을 실행한다. 저장 알림과 메뉴바 파일명을 확인한다. `.visual-spec/specs/login-screen.json`에 저장되며 저장소의 `examples/login-screen.json`은 바뀌지 않는다.
-5. 새로고침하거나 다시 열기로 연 뒤 문구를 확인한다. 최초 단일 화면 예제는 로드 시 프로젝트 상태로 확장되고, 저장 결과는 0.3 `ProjectSpec`(`pages`·`pageOrder`)이다.
+5. 새로고침하거나 다시 열기로 연 뒤 문구를 확인한다. 최초 단일 화면 예제는 로드 시 프로젝트 상태로 확장되고, 저장 결과는 0.4 `ProjectSpec`(`pages`·`pageOrder`)이다.
 
 **파일 → 다른 이름으로 저장**은 새 이름으로 저장하고 그 파일을 다음 저장 대상으로 삼는다. **파일 → JSON 내보내기**와 속성 패널 아래의 **JSON 내보내기** 버튼은 스펙 JSON 다운로드다. React 코드는 뒤의 **코드 내보내기**를 사용한다.
 localStorage 자동 복원과 명시적인 저장은 별개다. 다른 탭 변경을 감지하면 자동저장과
@@ -169,14 +199,14 @@ GUI 입력창을 쓰지 않고 에이전트 대화에서 바로 "제목을 크�
 
 ## 5. 구현 티켓으로 코드 생성
 
-메뉴바의 **구현 티켓**을 열면 현재 활성 페이지의 컴포넌트·페이지 티켓과 의존성을 볼 수 있다. **전체 실행**은 지금 준비된 티켓 묶음을 `.visual-spec/runtime/ticket-request.json`에 기록한다.
+메뉴바의 **구현 티켓**을 열면 현재 활성 페이지의 컴포넌트·페이지 티켓과 의존성을 볼 수 있다. **에이전트에 전달**은 지금 준비된 티켓 묶음을 `.visual-spec/runtime/ticket-request.json`에 기록한다.
 외부 에이전트에 다음처럼 요청한다.
 
 > `.claude/skills/visual-spec-ticket-response/SKILL.md`와 그 스킬이 참조하는 `visual-spec-to-react` 지침을 읽고, 현재 `.visual-spec/runtime/ticket-request.json`의 한 웨이브를 처리해 줘. 요청된 파일을 실제로 생성·확인한 뒤 결과 응답을 써 줘. 수행한 검증과 미실행 검증을 구분해 줘.
 
 에이전트는 요청의 `filePath`를 **`.visual-spec/generated/` 기준 상대 경로**로 해석한다. 응답은 Ticket 객체나 Command 배열이 아니라 `requestId`와 티켓별 `results`다. 직접 ID나 성공 응답을 복사해 넣는 대신 현재 요청을 처리하게 한다.
 
-GUI가 성공 응답을 받으면 의존성이 풀린 **다음 웨이브를 새 ID로 요청**한다. 전체 티켓이 끝날 때까지 새 요청마다 같은 스킬로 처리하도록 외부 에이전트에 지시한다. GUI의 “전체 실행”은 에이전트를 자동 호출하거나 상시 감시 작업을 설치하지 않는다. 개별 “실행”은 티켓 하나만 요청한다.
+GUI가 성공 응답을 받으면 의존성이 풀린 **다음 웨이브를 새 ID로 요청**한다. 전체 티켓이 끝날 때까지 새 요청마다 같은 스킬로 처리하도록 외부 에이전트에 지시한다. GUI의 **에이전트에 전달**은 에이전트를 자동 호출하거나 상시 감시 작업을 설치하지 않는다. 개별 티켓의 **에이전트에 전달**은 그 티켓만 요청한다. 실행 중 버튼은 **중지**로 바뀌며 GUI의 응답 대기를 멈춘다. 외부 에이전트 프로세스는 별도로 멈춰야 한다.
 
 실패가 있으면 해당 티켓의 원인을 확인한다. 실패한 티켓에 의존하는 후행 티켓은 진행되지 않는다. 중지는 GUI 대기를 멈추므로 외부 에이전트에도 중지를 알려야 한다. 스펙을 바꿨다면 변경된 페이지로 티켓을 다시 컴파일하고 필요한 코드를 다시 생성한다.
 

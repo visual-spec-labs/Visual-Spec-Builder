@@ -53,7 +53,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 
 ## 현재 구현 상태
 
-문서 스키마 0.3과 검증기, 노드 5종의 GUI 편집·그룹화·Undo/Redo, CLI 작업공간 저장·복원,
+문서 스키마 0.4와 검증기, 노드 5종의 GUI 편집·그룹화·Undo/Redo, CLI 작업공간 저장·복원,
 solid·linear·image 다중 배경 편집, 반응형(breakpoint·override) 편집과 코드 생성 지침,
 자연어 Command 적용, 구현 티켓 요청·응답, 생성 코드 ZIP Export가 구현돼 있다.
 자연어 응답과 React 코드 생성은 별도로 실행한 Claude Code·Codex 등 외부 에이전트가 담당한다.
