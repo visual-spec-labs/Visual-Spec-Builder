@@ -195,6 +195,12 @@ describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
 
         expect(output).toMatch(/Local:\s*http/);
 
+        // vite.config.ts와 그 Node 쪽 의존 그래프(workspaceServer.ts 등)의 확장자 없는
+        // 상대 import·import attributes 없는 JSON import 때문에, `configLoader: 'native'`가
+        // "Local:" 줄보다 먼저 약 30줄짜리 경고를 찍어 설치 실패로 오해하기 쉬웠다(#448).
+        // 이 기동을 다시 하느니 같은 output으로 함께 확인한다.
+        expect(output).not.toContain("configLoader: 'native'");
+
         // **작업공간 연결까지 여기서 함께 본다**(#133). 서버가 실제로 뜬 상태에서만
         // 확인할 수 있는 것이고, 이 20초짜리 기동을 한 번 더 하느니 같이 본다:
         // 개발 서버 플러그인이 환경 변수로 받은 경로 — 즉 **사용자 cwd** 아래 —

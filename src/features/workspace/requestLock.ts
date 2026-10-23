@@ -20,7 +20,7 @@
 import { mkdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { REQUEST_LOCK_FILES, REQUEST_LOCK_TTL_MS, RUNTIME_DIR, type RequestLockKind } from "./protocol";
+import { REQUEST_LOCK_FILES, REQUEST_LOCK_TTL_MS, RUNTIME_DIR, type RequestLockKind } from "./protocol.ts";
 
 interface LockRecord {
   owner: string;

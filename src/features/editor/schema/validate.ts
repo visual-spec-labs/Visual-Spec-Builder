@@ -1,12 +1,12 @@
-import { validateResponsive } from "./validateResponsive";
-import { validateScreenRelations } from "./validateScreenRelations";
-import { validateInstances } from "./validateInstances";
+import { validateResponsive } from "./validateResponsive.ts";
+import { validateScreenRelations } from "./validateScreenRelations.ts";
+import { validateInstances } from "./validateInstances.ts";
 
 import Ajv2020 from "ajv/dist/2020";
 import type { ErrorObject } from "ajv/dist/2020";
 
-import visualSpecJsonSchema from "./visual-spec.schema.json";
-import type { ProjectSpec, ScreenSpec, VisualSpec } from "./types";
+import visualSpecJsonSchema from "./visual-spec.schema.json" with { type: "json" };
+import type { ProjectSpec, ScreenSpec, VisualSpec } from "./types.ts";
 
 export type IssueCode =
   | "schema"

@@ -1,5 +1,5 @@
-import type { PageId, ProjectSpec, ScreenKind, ScreenSpec } from "./types";
-import type { ValidationIssue } from "./validate";
+import type { PageId, ProjectSpec, ScreenKind, ScreenSpec } from "./types.ts";
+import type { ValidationIssue } from "./validate.ts";
 
 function pointer(value: string): string {
   return value.replace(/~/g, "~0").replace(/\//g, "~1");
