@@ -36,22 +36,40 @@ try {
   await name.press("Escape");
   assert.equal(await name.evaluate(element => document.activeElement !== element), true, "Escape must leave the name field");
   await page.keyboard.type("t");
-  const editedName = await page.evaluate(() => editor.getState().spec.screen.nodes.headerTitle.name);
+  const editedName = await page.evaluate(() => {
+    const state = editor.getState();
+    return state.spec.pages[state.activePageId].nodes.headerTitle.name;
+  });
   assert.equal(editedName, "MenuImage", "typing after Escape must not append to the node name");
 
   await page.getByRole("button", { name: "Header", exact: true }).click();
-  const beforeRadius = await page.evaluate(() => editor.getState().spec.screen.nodes.header.border);
+  const beforeRadius = await page.evaluate(() => {
+    const state = editor.getState();
+    return state.spec.pages[state.activePageId].nodes.header.border;
+  });
   assert.equal(beforeRadius, undefined);
   await page.getByRole("spinbutton", { name: "모서리 반경" }).fill("12");
-  await page.waitForFunction(() => editor.getState().spec.screen.nodes.header.border?.radius === 12);
-  const radiusBorder = await page.evaluate(() => editor.getState().spec.screen.nodes.header.border);
+  await page.waitForFunction(() => {
+    const state = editor.getState();
+    return state.spec.pages[state.activePageId].nodes.header.border?.radius === 12;
+  });
+  const radiusBorder = await page.evaluate(() => {
+    const state = editor.getState();
+    return state.spec.pages[state.activePageId].nodes.header.border;
+  });
   assert.deepEqual(radiusBorder, { width: 0, color: "#000000", radius: 12 });
   assert.equal(await page.getByRole("textbox", { name: "테두리색" }).inputValue(), "#000000");
 
   await titleNode.click();
   await page.getByRole("spinbutton", { name: "크기" }).fill("18");
-  await page.waitForFunction(() => editor.getState().spec.screen.nodes.headerTitle.typography.fontSize === 18);
-  const typography = await page.evaluate(() => editor.getState().spec.screen.nodes.headerTitle.typography);
+  await page.waitForFunction(() => {
+    const state = editor.getState();
+    return state.spec.pages[state.activePageId].nodes.headerTitle.typography.fontSize === 18;
+  });
+  const typography = await page.evaluate(() => {
+    const state = editor.getState();
+    return state.spec.pages[state.activePageId].nodes.headerTitle.typography;
+  });
   assert.equal(typography.fontSize, 18);
   assert.equal(typography.lineHeight, 20, "px line height is an independent typography field");
   assert.equal(await page.getByRole("spinbutton", { name: "행간" }).inputValue(), "20");
