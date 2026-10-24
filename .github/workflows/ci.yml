@@ -165,6 +165,11 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/issue448-a7-image-path.mjs
 
+      - name: 속성 패널 이름 입력 및 A-12 계약 확인 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/issue448-a11-a12-panel.mjs
+
       - name: 자연어 읽기 전용 대상·현재 페이지 편집 (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium

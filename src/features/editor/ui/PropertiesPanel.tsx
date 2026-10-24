@@ -59,6 +59,12 @@ function NodeHeader({
           title={breakpoint ? "노드 이름은 기본값(base)에서 편집합니다." : "선택한 노드의 이름"}
           value={name ?? ""}
           onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.blur();
+          }}
           className="min-w-0 flex-1 rounded-control border border-transparent px-1.5 py-1 text-sm font-semibold text-content hover:border-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content"
         />
         <span className="shrink-0 rounded-control bg-surface-raised px-1.5 py-0.5 text-xs text-content-muted">
