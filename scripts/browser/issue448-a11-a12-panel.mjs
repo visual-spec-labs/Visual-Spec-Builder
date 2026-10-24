@@ -26,8 +26,7 @@ try {
   await page.getByRole("button").filter({ hasText: /Issue448Panel.*페이지/s }).click();
   await page.evaluate(async () => { window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore; });
 
-  const titleNode = page.getByRole("button", { name: "Title", exact: true });
-  await titleNode.click();
+  await page.getByRole("button", { name: "Title", exact: true }).click();
   const name = page.getByRole("textbox", { name: "노드 이름" });
   await name.fill("MenuImage");
   await name.press("Enter");
@@ -58,9 +57,9 @@ try {
     return state.spec.pages[state.activePageId].nodes.header.border;
   });
   assert.deepEqual(radiusBorder, { width: 0, color: "#000000", radius: 12 });
-  assert.equal(await page.getByRole("textbox", { name: "테두리색" }).inputValue(), "#000000");
+  assert.equal(await page.getByRole("textbox", { name: "테두리색 hex" }).inputValue(), "#000000");
 
-  await titleNode.click();
+  await page.getByRole("button", { name: "MenuImage", exact: true }).click();
   await page.getByRole("spinbutton", { name: "크기" }).fill("18");
   await page.waitForFunction(() => {
     const state = editor.getState();
