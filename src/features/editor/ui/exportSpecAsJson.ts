@@ -2,6 +2,7 @@ import { validationFailureMessage } from "@/features/editor/store/validationGuid
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { sameSpecSnapshot, usePersistenceStatusStore, type SaveAttempt } from "@/features/editor/store/persistenceStatusStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
+import { saveSpecToStorage } from "@/features/editor/store/specStorage";
 import type { ProjectSpec } from "@/features/editor/schema";
 import { createProjectIdentity, ensureProjectIdentity } from "@/features/editor/store/projectIdentity";
 import { useDocumentStore } from "@/features/editor/store/documentStore";
@@ -119,6 +120,11 @@ async function saveAndObserve(spec: ProjectSpec, filename: string, json: string,
       else useDocumentStore.getState().setFileName(filename, saved.revision);
       if (useEditorStore.getState().spec.name === originalProjectName && spec.name !== originalProjectName) {
         useEditorStore.getState().renameProject(spec.name);
+      }
+      if (!saved.downloaded) {
+        const current = useEditorStore.getState();
+        const savedDocument = useDocumentStore.getState();
+        saveSpecToStorage(current.spec, savedDocument.fileName, savedDocument.diskRevision);
       }
       phase = saved.downloaded ? "downloaded" : null;
       return true;

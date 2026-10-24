@@ -319,6 +319,15 @@ describe("same-project autosave conflict preservation", () => {
     expect(event.preventDefault).toHaveBeenCalledOnce();
     finish(true); await saving;
   });
+  it("does not warn when only the saved disk revision is newer than the browser cache", () => {
+    saveSpecToStorage(initial, "same.json", "before-save");
+    useDocumentStore.getState().setFileName("same.json", "after-save");
+    useEditorStore.getState().setProjectId("saved-project-id");
+    stop = startSpecAutosave();
+    const event = { preventDefault: vi.fn(), returnValue: undefined };
+    listeners.get("beforeunload")?.(event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
   it("genuine reload keeps the untitled recovery key", async () => {
     stop = startSpecAutosave(); await newSpec(); await vi.advanceTimersByTimeAsync(500);
     const originalKey = readRecovery()!.key;
