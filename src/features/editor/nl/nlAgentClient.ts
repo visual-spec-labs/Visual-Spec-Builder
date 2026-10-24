@@ -205,7 +205,7 @@ async function waitForNlResponse(
           }
         : {
             kind: "timeout",
-            message: "대기 시간 안에 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요.",
+            message: "대기 시간 안에 응답이 오지 않았습니다. 에이전트가 요청을 처리했는지 확인하세요. 처리하지 않았다면 입력칸 오른쪽의 '요청'을 다시 눌러 새 지시를 전달하세요.",
           };
     }
     await sleep(NL_POLL_INTERVAL_MS);
