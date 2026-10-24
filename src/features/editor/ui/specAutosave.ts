@@ -202,8 +202,8 @@ export function startSpecAutosave() {
     const cachedContentMatches = cached !== undefined && cached.fileName === document.fileName &&
       cached.downloadFileName === document.downloadFileName &&
       JSON.stringify(withoutProjectIdentity(cached.spec)) === JSON.stringify(withoutProjectIdentity(document.spec));
-    preserve();
-    if (conflicted || !cachedContentMatches) {
+    const preserved = preserve();
+    if (!preserved || conflicted || !cachedContentMatches) {
       event.preventDefault();
       event.returnValue = "";
     }
