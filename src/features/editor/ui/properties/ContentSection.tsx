@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { describeImageSrc, EMPTY_IMAGE_SRC, imageSrcFromInput } from "./imageSrc";
 import type { NodeType } from "./nodeSections";
 import { PropertySection } from "./PropertySection";
@@ -49,23 +48,6 @@ function ImageFields() {
   const [fit, setFit] = useNodeField<ImageFit>("fit");
 
   const display = describeImageSrc(src);
-  const pathValue = display.kind === "path" ? display.value : undefined;
-  const [pathDraft, setPathDraft] = useState(pathValue ?? "");
-  const pathDraftRef = useRef(pathDraft);
-
-  // Applying each typed prefix to the spec makes the canvas request that image URL immediately.
-  // Keep the path in this field until blur, then update the canvas once with the final value.
-  useEffect(() => {
-    if (pathValue === undefined) return;
-    pathDraftRef.current = pathValue;
-    setPathDraft(pathValue);
-  }, [pathValue]);
-
-  function commitPath() {
-    if (pathValue !== undefined && pathDraftRef.current !== pathValue) {
-      setSrc(imageSrcFromInput(pathDraftRef.current));
-    }
-  }
 
   return (
     <>
@@ -79,9 +61,8 @@ function ImageFields() {
       {display.kind === "path" ? (
         <TextField
           label="경로 (src)"
-          value={pathDraft}
-          onChange={(value) => { pathDraftRef.current = value; setPathDraft(value); }}
-          onBlur={commitPath}
+          value={display.value}
+          onChange={(value, continueEdit) => setSrc(imageSrcFromInput(value), continueEdit)}
           placeholder="assets/hero.png"
         />
       ) : (

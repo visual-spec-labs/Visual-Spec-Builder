@@ -10,8 +10,6 @@ interface TextFieldProps {
   placeholder?: string;
   /** 여러 줄 입력 (텍스트 content 등) */
   multiline?: boolean;
-  /** 입력 포커스를 벗어날 때 별도 확정 동작이 필요할 때 사용한다. */
-  onBlur?: () => void;
 }
 
 /**
@@ -30,7 +28,6 @@ export function TextField({
   onChange,
   placeholder,
   multiline,
-  onBlur,
 }: TextFieldProps) {
   const id = useId();
   const burst = useEditBurst();
@@ -58,7 +55,7 @@ export function TextField({
           value={shown}
           placeholder={placeholder}
           onChange={(event) => handleChange(event.target.value)}
-          onBlur={() => { burst.end(); onBlur?.(); }}
+          onBlur={burst.end}
         />
       ) : (
         <input
@@ -68,7 +65,7 @@ export function TextField({
           value={shown}
           placeholder={placeholder}
           onChange={(event) => handleChange(event.target.value)}
-          onBlur={() => { burst.end(); onBlur?.(); }}
+          onBlur={burst.end}
         />
       )}
     </Field>
