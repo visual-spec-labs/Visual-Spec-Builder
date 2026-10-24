@@ -160,6 +160,11 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/image-clear.mjs
 
+      - name: 이미지 경로 입력 중 부분 요청 방지 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/issue448-a7-image-path.mjs
+
       - name: 자연어 읽기 전용 대상·현재 페이지 편집 (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium
