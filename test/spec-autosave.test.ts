@@ -3,7 +3,7 @@ import { documentDownloadName, useDocumentStore } from "@/features/editor/store/
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
-import { loadStoredSpec, loadStoredDownloadFileName, saveSpecToStorage, parseStoredDocument, projectStorageKey, readRecovery, prepareProjectRename, publishProjectRename, SPEC_STORAGE_KEY } from "@/features/editor/store/specStorage";
+import { loadStoredSpec, loadStoredDownloadFileName, saveSpecToStorage, parseStoredDocument, projectStorageKey, readRecovery, prepareProjectRename, publishProjectRename, RECOVERY_KEY, SPEC_STORAGE_KEY } from "@/features/editor/store/specStorage";
 import { newSpec } from "@/features/editor/ui/newSpec";
 import { blankSpec } from "@/features/editor/store/blankSpec";
 import { startSpecAutosave } from "@/features/editor/ui/specAutosave";
@@ -318,6 +318,37 @@ describe("same-project autosave conflict preservation", () => {
     listeners.get("beforeunload")?.(event);
     expect(event.preventDefault).toHaveBeenCalledOnce();
     finish(true); await saving;
+  });
+  it("does not warn when only the saved disk revision is newer than the browser cache", () => {
+    saveSpecToStorage(initial, "same.json", "before-save");
+    useDocumentStore.getState().setFileName("same.json", "after-save");
+    useEditorStore.getState().setProjectId("saved-project-id");
+    stop = startSpecAutosave();
+    const event = { preventDefault: vi.fn(), returnValue: undefined };
+    listeners.get("beforeunload")?.(event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+  it("keeps the unload warning when writing current recovery fails and stale tab recovery would win", async () => {
+    stop = startSpecAutosave();
+    edit("older tab recovery");
+    await vi.advanceTimersByTimeAsync(500);
+    const staleRecovery = readRecovery();
+    expect(staleRecovery?.document.spec.name).toBe("older tab recovery");
+
+    const current = { ...useEditorStore.getState().spec, name: "current saved cache" };
+    useEditorStore.getState().loadSpec(current);
+    saveSpecToStorage(current, "same.json", "saved-revision");
+    vi.stubGlobal("sessionStorage", {
+      getItem: (storageKey: string) => storageKey === RECOVERY_KEY ? JSON.stringify(staleRecovery) : null,
+      setItem: () => { throw new DOMException("blocked", "QuotaExceededError"); },
+      removeItem: () => {},
+    });
+
+    const event = { preventDefault: vi.fn(), returnValue: undefined };
+    listeners.get("beforeunload")?.(event);
+    expect(parseStoredDocument(localStorage.getItem(SPEC_STORAGE_KEY))?.spec.name).toBe("current saved cache");
+    expect(loadStoredSpec()?.name).toBe("older tab recovery");
+    expect(event.preventDefault).toHaveBeenCalledOnce();
   });
   it("genuine reload keeps the untitled recovery key", async () => {
     stop = startSpecAutosave(); await newSpec(); await vi.advanceTimersByTimeAsync(500);

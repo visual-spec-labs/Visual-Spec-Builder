@@ -197,7 +197,13 @@ export function startSpecAutosave() {
   function beforeUnload(event: BeforeUnloadEvent) {
     // Async lock acquisition cannot be relied on during unload. Recovery is synchronous.
     const cached = parseStoredDocument(read(SPEC_STORAGE_KEY));
-    if (!preserve() || conflicted || !cached || serializeStoredDocument(document) !== serializeStoredDocument(cached)) {
+    // A successful Save updates the disk revision before the debounced browser cache.
+    // That metadata-only gap must not look like unsaved content during an immediate reload.
+    const cachedContentMatches = cached !== undefined && cached.fileName === document.fileName &&
+      cached.downloadFileName === document.downloadFileName &&
+      JSON.stringify(withoutProjectIdentity(cached.spec)) === JSON.stringify(withoutProjectIdentity(document.spec));
+    const preserved = preserve();
+    if (!preserved || conflicted || !cachedContentMatches) {
       event.preventDefault();
       event.returnValue = "";
     }
