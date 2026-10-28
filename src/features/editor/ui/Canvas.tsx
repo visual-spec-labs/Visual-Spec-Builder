@@ -46,6 +46,14 @@ import { ModalPreview } from "./ModalPreview";
 import { RenderNode } from "./CanvasNode";
 import { handleBackgroundClick } from "./canvasSelection";
 
+function measureViewport(node: HTMLElement) {
+  const style = getComputedStyle(node);
+  return {
+    width: Math.max(0, node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)),
+    height: Math.max(0, node.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)),
+  };
+}
+
 /**
  * 중앙 DOM 캔버스(#236). 현재 렌더러를 유지하며 엔진 교체를 전제하지 않는다.
  * Canvas는 뷰포트·팬·줌·오버레이를 조립하고, 역할별 구현은 이웃에 둔다.
@@ -236,13 +244,7 @@ export function Canvas() {
 
     function report() {
       if (node === null) return;
-      const style = getComputedStyle(node);
-      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-      const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      useViewStore.getState().setViewport({
-        width: Math.max(0, node.clientWidth - padX),
-        height: Math.max(0, node.clientHeight - padY),
-      });
+      useViewStore.getState().setViewport(measureViewport(node));
     }
 
     report();
@@ -291,9 +293,16 @@ export function Canvas() {
   useEffect(() => {
     if (viewport === null) return;
     if (fittedFor.current === activePageId) return;
+    const surface = mainRef.current;
+    const artboard = artboardRef.current;
+    // 페이지 전환 직후에는 이전 아트보드 높이와 이전 안내 행의 viewport가 남는다.
+    // 새 높이가 반영되어 안내 행이 갱신된 뒤, ResizeObserver의 다음 통지를 기다리지
+    // 않고 최종 스크롤 면을 직접 재어 Fit한다. 이후 편집/창 크기 변경은 수동 줌을 유지한다.
+    if (!surface || !artboard || artboardHeight !== Math.round(artboard.offsetHeight)) return;
+    useViewStore.getState().setViewport(measureViewport(surface));
     fittedFor.current = activePageId;
     useViewStore.getState().fitToScreen();
-  }, [viewport, activePageId, size]);
+  }, [viewport, activePageId, size, artboardHeight]);
 
   const scale = zoom / 100;
   // 줌 배지는 스크롤 면의 모서리에 고정한다.

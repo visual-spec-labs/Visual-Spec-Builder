@@ -38,6 +38,8 @@ try {
   await page.evaluate(async () => {
     window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore;
     window.view = (await import("/src/features/editor/store/viewStore.ts")).useViewStore;
+    window.fitZoom = (await import("/src/features/editor/store/viewStore.ts")).fitZoom;
+    window.responsive = (await import("/src/features/editor/responsive/responsiveViewStore.ts")).useResponsiveViewStore;
   });
   const surface = page.getByTestId("editor-canvas-surface");
   const initialSpec = await page.evaluate(() => editor.getState().spec);
@@ -90,7 +92,20 @@ try {
   await notice.waitFor({ state: "detached" });
   await page.evaluate(() => editor.getState().selectPage("long"));
   await notice.waitFor();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => { responsive.getState().setWidth("long", 384); responsive.getState().setWidth("short", 384); });
+  for (const pageId of ["short", "long", "short"]) {
+    await page.evaluate(id => editor.getState().selectPage(id), pageId);
+    await page.waitForTimeout(150);
+    const fit = await page.evaluate(() => { const s = view.getState(); return { zoom: s.zoom, expected: fitZoom(s.viewport, s.content), viewport: s.viewport }; });
+    console.log(JSON.stringify({ autoFitPage: pageId, ...fit }));
+    assert.equal(fit.zoom, fit.expected, "page auto-fit must use the final viewport after the notice changes height");
+  }
+  await page.evaluate(() => view.getState().setZoom(83));
+  await page.setViewportSize({ width: 1440, height: 880 });
+  await page.waitForTimeout(150);
+  assert.equal(await page.evaluate(() => view.getState().zoom), 83, "resizing the same page must preserve manual zoom");
   assert.deepEqual(await page.evaluate(() => editor.getState().spec), initialSpec, "view changes must not change the document");
   assert.deepEqual(errors, []);
-  console.log(`PASS overflow notice: ${checked} viewport/preview/zoom combinations, last button unobscured, modal trigger separate, no-overflow page removes notice; no model call`);
+  console.log(`PASS overflow notice: ${checked} viewport/preview/zoom combinations, button reachable, modal trigger separate, page switching auto-fits the final viewport, manual zoom retained; no model call`);
 } finally { try { await runner?.close(); } finally { await rm(workspace, { recursive: true, force: true }); } }
