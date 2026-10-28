@@ -175,6 +175,16 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/nl-destinations.mjs
 
+      - name: 자연어 취소 안내·늦은 응답 무시·Undo 선택 유지 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/nl-cancel-undo.mjs
+
+      - name: 낮은 창의 페이지 넘침 안내·콘텐츠 가림 방지 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/canvas-overflow-notice.mjs
+
       - name: 공유 위젯 자연어 문맥·재정의·Undo (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium
