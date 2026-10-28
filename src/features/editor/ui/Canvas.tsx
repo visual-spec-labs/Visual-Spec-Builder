@@ -296,8 +296,7 @@ export function Canvas() {
   }, [viewport, activePageId, size]);
 
   const scale = zoom / 100;
-  // 줌·넘침 배지가 같은 "캔버스 모서리에 고정된 칩" 모양을 쓴다 — 한쪽만 고치고
-  // 잊는 일이 없도록 한 곳에 둔다(#446 자체 code-review).
+  // 줌 배지는 스크롤 면의 모서리에 고정한다.
   const pinnedBadgeClass = "rounded-control bg-surface-raised px-2 py-1 text-xs text-content-muted shadow-card";
   // 노드를 끄는 동안(#187)은 도구와 무관하게 쥔 손이다. 자손까지 강제하는 이유는
   // button·input 노드가 인라인 `cursor: default`를 가져 상속이 끊기기 때문이다.
@@ -316,7 +315,15 @@ export function Canvas() {
     // 부모 높이가 확정돼야 풀리는데, 그게 어긋나면 main 이 캔버스 영역을 다 덮지
     // 못한다 — 안 덮인 자리에서는 Ctrl+휠이 main 에 닿지 않아 캔버스 줌 대신
     // 브라우저 페이지 줌이 일어난다. inset-0 은 그 조건을 안 탄다.
-    <div className="relative overflow-hidden bg-surface-canvas [grid-area:canvas]">
+    <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-surface-canvas [grid-area:canvas]">
+      {/* 안내는 스크롤 면 밖의 행을 차지한다. 낮은 창에서도 콘텐츠 위에 얹거나
+          고정 top 좌표로 잘리지 않으며, 줄바꿈한 실제 높이만큼 캔버스가 줄어든다. */}
+      {overflowedHeight && (
+        <div role="status" className="shrink-0 border-b border-line bg-surface-raised px-3 py-1 text-xs wrap-anywhere text-content-muted">
+          페이지 높이 {size.height}px 넘침 — 스크롤하면 더 있습니다
+        </div>
+      )}
+      <div className="relative min-h-0 flex-1">
       {/*
         격자는 스크롤 컨테이너 **바깥**이다. 안에 두면 absolute 라도 내용과 함께
         흘러가, 확대하거나 아래로 내리는 순간 격자가 화면 밖으로 빠져나가 맨바닥이
@@ -618,39 +625,6 @@ export function Canvas() {
       </div>
 
       {/*
-        넘침 배지(#446)의 고정 자리 설계. <main> 보다 먼저 오는 형제로 뒀을 때는
-        z-index:auto라 DOM 순서로 쌓여, main 안의 불투명한 콘텐츠가 스크롤
-        몇십 px만 해도 그 위를 덮었다(#446 PR 리뷰 4차) — </main> 뒤에 둬 DOM
-        순서로 그 문제를 푼다.
-
-        z-index는 일부러 안 준다 — z-10(모달 미리보기 버튼과 같은 값)을 주면
-        MenuBar.tsx의 드롭다운(top-full left-0 z-10)이 캔버스 왼쪽 위까지
-        뻗어올 때 이 배지가 열린 메뉴 위를 덮어 버린다(#446 PR 리뷰 6차) —
-        EditorLayout이 MenuBar·Canvas 사이에 별도 쌓임 맥락을 안 둬서 z-index가
-        전역으로 경쟁한다. z-auto로 두면 main(z-auto)에는 DOM 순서로 이기고
-        z-10인 드롭다운·모달 버튼에는 그냥 진다 — 메뉴가 열려 있거나 모달
-        버튼과 겹칠 가능성이 있는 동안만 배지가 양보하는 셈이라 바람직하다.
-
-        top-14(56px)인 이유: top-3(12px) 줄에는 모달 미리보기 버튼(right-3
-        top-3, 세로로 약 12~44px)과 스크린 이름 라벨(screenName, outerRef 바로
-        위 bottom-full이라 main의 p-8 때문에 스크롤 맨 위에서 대략 12~28px에
-        온다— #446 PR 리뷰 8차에서 실제로 겹치는 걸 확인했다)이 이미 있다.
-        그 줄을 완전히 피해 한 줄 아래(56px)에 두면 가로 폭과 무관하게 세
-        요소 모두와 겹칠 일이 없다 — 가로(모달 버튼)만 보던 max-w-32 방어보다
-        근본적인 분리다.
-
-        남는 한계: z-index 없이 DOM 순서·자리로만 피하므로, MenuBar 드롭다운이
-        이 높이(56px)보다 길게 뻗어오면(흔한 길이의 메뉴라면 그렇다) 배지가
-        그 드롭다운 아래 깔린다 — 메뉴가 열려 있는 동안만 생기는 일시적 가림이라
-        받아들인다.
-      */}
-      {overflowedHeight && (
-        <span role="status" className={`pointer-events-none absolute left-3 top-14 max-w-32 ${pinnedBadgeClass}`}>
-          페이지 높이 {size.height}px 넘침 — 스크롤하면 더 있습니다
-        </span>
-      )}
-
-      {/*
         컨텍스트 메뉴(#152)는 여기 둔다 — transform이 걸린 조상(아트보드) 밖이라
         position: fixed가 진짜 뷰포트 기준으로 뜬다. transform이 있는 조상 안에
         두면 fixed가 그 조상 기준으로 다시 잡혀 커서 좌표와 어긋난다.
@@ -662,6 +636,7 @@ export function Canvas() {
           onClose={() => useContextMenuStore.getState().close()}
         />
       )}
+      </div>
     </div>
   );
 }
