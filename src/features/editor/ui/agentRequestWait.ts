@@ -31,7 +31,7 @@ export interface AgentWaitProgress {
   phase: AgentWaitPhase;
   /** 기한(epoch ms). 요청 파일을 쓰기 전(`saving`)에는 아직 없다. */
   deadline: number | null;
-  /** 티켓만: 이 요청의 임시 출력 폴더에서 보인 파일 수. 에이전트 활동의 유일한 직접 근거다. */
+  /** 티켓만: 이 요청의 임시 출력 폴더에서 보인 파일 수. 진행 신호 파일은 이 개수에 포함하지 않는다. */
   stagedFiles?: number;
 }
 
@@ -39,7 +39,7 @@ export interface AgentRequestWait {
   /** 진행 중이면 기한을 `max(지금 기한, 지금 + 창)`으로 미루고 true. 시작 전·끝난 뒤면 false. */
   extend: () => boolean;
   /** 요청 파일을 쓴 직후 클라이언트가 부른다. 기한이 여기서 정해진다. */
-  start: () => void;
+  start: (maxDurationMs?: number) => void;
   /** 기한이 지났는가. 시작 전이면 false. */
   expired: () => boolean;
   /**
@@ -72,14 +72,15 @@ export interface AgentRequestWait {
  * 순간에도 거절하지 않는다: 폴링 루프가 매 회차 `report()` 뒤에 `expired()`를 보므로, 증거가
  * 도착한 그 회차 안에서 바로 살려야 뜻이 있다. 반대로 둘 다 없는 채(= 증거 없음) 창이 다
  * 지나면 여전히 timeout이다 — 그래야 "무한정 기다리면 다음 요청을 못 한다"는 원래
- * 안전장치가 깨지지 않는다. 첫 임시 출력이 나오기 전부터 조용히 오래 걸리는 경우는 이
- * 증거들로도 가릴 수 없는 남은 한계다(docs/26 `#432` 절).
+ * 안전장치가 깨지지 않는다. 티켓은 첫 출력 전에도 요청별 진행 신호의 증가를 activityEvidence로 전달한다(#472).
+ * start(maxDurationMs)는 수동/자동 연장을 모두 제한하는 절대 상한이다.
  */
 export function createAgentRequestWait(
   onProgress: (progress: AgentWaitProgress) => void = () => {},
   now: () => number = Date.now,
 ): AgentRequestWait {
   let deadline: number | null = null;
+  let hardDeadline = Infinity;
   let settled = false;
   let phase: AgentWaitPhase = "saving";
   let stagedFiles: number | undefined;
@@ -93,7 +94,7 @@ export function createAgentRequestWait(
   /** `extend()`·자동연장이 공유하는 "지금부터 창 하나" 규칙. 기한이 없으면(시작 전) 아무것도 안 한다. */
   function extendDeadline(): void {
     if (deadline === null) return;
-    deadline = Math.max(deadline, now() + AGENT_WAIT_WINDOW_MS);
+    deadline = Math.min(hardDeadline, Math.max(deadline, now() + AGENT_WAIT_WINDOW_MS));
   }
 
   return {
@@ -103,9 +104,10 @@ export function createAgentRequestWait(
       emit();
       return true;
     },
-    start() {
-      if (settled) return;
-      deadline = now() + AGENT_WAIT_WINDOW_MS;
+    start(maxDurationMs = Infinity) {
+      if (settled || deadline !== null) return;
+      hardDeadline = now() + maxDurationMs;
+      deadline = Math.min(hardDeadline, now() + AGENT_WAIT_WINDOW_MS);
       phase = "waiting";
       emit();
     },

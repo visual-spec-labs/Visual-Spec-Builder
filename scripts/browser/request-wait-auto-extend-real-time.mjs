@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startBrowserWorkspace, writeFileAtomic } from "./harness.mjs";
 
+const PROGRESS_ONLY = process.argv.includes('--progress-only');
 const WAIT_WINDOW_MS = 180_000; // ui/agentRequestWait.ts AGENT_WAIT_WINDOW_MS
 const workspace = await mkdtemp(join(tmpdir(), "vs-request-wait-auto-extend-"));
 const exists = path => access(path).then(() => true, () => false);
@@ -28,6 +29,11 @@ async function stage(request, text) {
   const path = join(workspace, request.tickets[0].outputPath);
   await mkdir(join(path, ".."), { recursive: true });
   await writeFile(path, text);
+}
+async function progress(request, sequence) {
+  const path = join(workspace, 'staging', request.id, 'progress.json');
+  await mkdir(join(path, '..'), { recursive: true });
+  await writeFileAtomic(path, JSON.stringify({ requestId: request.id, sequence }));
 }
 async function respond(request) {
   await writeFileAtomic(join(workspace, request.responsePath), JSON.stringify({ protocol: request.protocol, requestId: request.id,
@@ -66,8 +72,13 @@ try {
   const request = await start();
   const startedAt = Date.now();
   const before = await waitState();
+  if (PROGRESS_ONLY) {
+    await progress(request, 1);
+    await page.waitForTimeout(1500);
+  } else {
   await stage(request, "export function Fixture() { return <div>draft 1</div>; }");
   await page.getByText("에이전트가 이 요청의 임시 출력 1/1개를 썼습니다", { exact: false }).waitFor();
+  }
   const afterFirstEvidence = await waitState();
   assert.ok(afterFirstEvidence.deadline >= before.deadline, "첫 증거(개수 0→1)도 기한을 줄이지 않아야 한다");
 
@@ -76,7 +87,8 @@ try {
   assert.ok(await running(), "175초 지점에서는 원래 창 안이라 당연히 살아 있어야 한다");
 
   // 같은 경로, 다른 내용 — 개수는 안 늘지만 activityEvidence로 또 연장된다.
-  await stage(request, "export function Fixture() { return <div>draft 2</div>; }");
+  if (PROGRESS_ONLY) await progress(request, 2);
+  else await stage(request, "export function Fixture() { return <div>draft 2</div>; }");
   await page.waitForTimeout(3000); // 폴링 간격(1초)보다 넉넉히 둬 내용 변화를 관찰할 시간을 준다
   const afterSecondEvidence = await waitState();
   assert.ok(
@@ -91,6 +103,10 @@ try {
   assert.ok(await running(), "자동연장 없이는 이미 timeout됐을 시점에도 수동 클릭 없이 살아 있어야 한다");
   assert.equal((await readRequest()).id, request.id); // 여전히 같은 요청 — 재시도(새 ID)가 아니다
 
+  if (PROGRESS_ONLY) {
+    assert.equal((await waitState()).stagedFiles, 0, 'progress must not count as a generated output');
+    await stage(request, "export function Fixture() { return <div>draft 2</div>; }");
+  }
   await respond(request);
   await page.waitForFunction(() => !tickets.getState().running);
   const totalElapsed = Date.now() - startedAt;
@@ -100,7 +116,7 @@ try {
   await waitForRequestRemoved();
 
   assert.deepEqual(errors, []);
-  console.log(`PASS real elapsed: auto-extend via activityEvidence (no manual "대기 연장") survived ${totalElapsed}ms (> ${WAIT_WINDOW_MS}ms window); same request accepted; page errors 0`);
+  console.log(`PASS real elapsed: auto-extend via ${PROGRESS_ONLY ? 'pre-output progress' : 'staging activityEvidence'} (no manual "대기 연장") survived ${totalElapsed}ms (> ${WAIT_WINDOW_MS}ms window); same request accepted; page errors 0`);
 } finally {
   await runner?.close();
   await rm(workspace, { recursive: true, force: true });

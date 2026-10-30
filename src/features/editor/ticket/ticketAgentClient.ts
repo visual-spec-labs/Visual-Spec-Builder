@@ -52,6 +52,8 @@ export const TICKET_POLL_INTERVAL_MS = 1000;
  * (`ui/agentRequestWait.ts`, #284). 고정 기한이 아니라 사용자가 "대기 연장"으로 미룰 수 있다.
  */
 export const TICKET_TIMEOUT_MS = AGENT_WAIT_WINDOW_MS;
+/** A live heartbeat cannot retain a request indefinitely. */
+export const TICKET_MAX_WAIT_MS = 30 * 60_000;
 
 export type TicketBatchOutcome<Result = TicketResponseResult> =
   | { kind: "unsupported"; message: string }
@@ -240,7 +242,8 @@ async function waitForTicketResponse<Result extends { kind: string }>(
       : { kind: "writeFailed", message: `요청을 저장하지 못했습니다 — ${written.error}` };
   }
 
-  wait.start();
+  wait.start(TICKET_MAX_WAIT_MS);
+  let lastProgressSequence = 0;
   // timeout 문구에 쓴다 — 기다림이 끝난 뒤에는 `wait`의 진행 상태가 화면에서 사라지므로
   // (#432) 몇 개를 버렸는지는 이 메시지에만 남는다.
   let lastKnownStaged: number | undefined;
@@ -266,13 +269,16 @@ async function waitForTicketResponse<Result extends { kind: string }>(
     if (files === null) {
       wait.report("connectionLost");
     } else {
-      // 이 요청의 임시 출력이 보이는지 — GUI가 가진 유일한 에이전트 활동 근거다. 표시용일 뿐
+      // 이 요청의 임시 출력이 보이는지 — 에이전트 활동 근거다. 표시용일 뿐
       // 수용 판단에는 쓰지 않는다(확정은 경로별로 직접 읽는다). 경로를 알고 있는 만큼만
       // 하나씩 확인한다 — 서버의 재귀 목록(2,000개 상한)은 전체 staging/ 아래를 보므로
       // 오래된 다른 요청의 파일이 그 상한을 채우면 이 요청의 새 파일이 아예 안 보일 수
       // 있다(#432 리뷰 대응).
       let changed = false;
-      const probes = await Promise.all(request.stagingFiles.map((path) => readWorkspaceTextFileStrict(path)));
+      const [progress, ...probes] = await Promise.all([
+        readWorkspaceTextFileStrict(`${STAGING_DIR}/${request.id}/progress.json`),
+        ...request.stagingFiles.map((path) => readWorkspaceTextFileStrict(path)),
+      ]);
       request.stagingFiles.forEach((path, index) => {
         const probe = probes[index];
         // 이 파일 하나만 읽기 실패할 수 있다 — 그 회차는 직전까지 알던 상태를 그대로 둔다
@@ -284,6 +290,18 @@ async function waitForTicketResponse<Result extends { kind: string }>(
           lastContent.set(path, probe.text);
         }
       });
+      // Progress is advisory evidence only, never an output or acceptance candidate.
+      if (progress.ok && progress.text !== null && progress.text.length <= 1024) {
+        try {
+          const value: unknown = JSON.parse(progress.text);
+          if (value !== null && typeof value === 'object' && 'requestId' in value && value.requestId === request.id
+            && 'sequence' in value && typeof value.sequence === 'number' && Number.isSafeInteger(value.sequence)
+            && value.sequence > lastProgressSequence) {
+            lastProgressSequence = value.sequence;
+            changed = true;
+          }
+        } catch { /* partial/malformed progress must not end or extend the request */ }
+      }
       lastKnownStaged = [...lastContent.values()].filter((text) => text !== null).length;
       wait.report("waiting", lastKnownStaged, changed);
     }
@@ -321,7 +339,7 @@ async function waitForTicketResponse<Result extends { kind: string }>(
               (lastKnownStaged !== undefined && lastKnownStaged > 0
                 ? `에이전트가 이 요청의 임시 출력 ${lastKnownStaged}개를 \`${STAGING_DIR}/${request.id}/\`에 썼지만, 대기 시간 안에 응답을 받지 못해 확정하지 않았습니다 — 그 파일들은 generated/에 반영되지 않습니다. `
                 : "대기 시간 안에 응답이 오지 않았습니다. ") +
-              "에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요. 다시 전달하면 새 요청 ID와 새 임시 출력 폴더로 진행되며, 버려진 임시 출력은 다시 쓰지 않습니다. " +
+              "티켓은 활동이 없으면 3분, 연장하더라도 요청 저장부터 최대 30분 기다립니다. 에이전트가 요청을 처리했는지 확인한 뒤, 안 됐다면 다시 요청해 새 지시를 전달하세요. 다시 전달하면 새 요청 ID와 새 임시 출력 폴더로 진행되며, 버려진 임시 출력은 다시 쓰지 않습니다. " +
               `에이전트가 티켓 요청 규약 버전이 다르다고 알렸다면 \`visual-spec skills\`로 스킬을 갱신한 뒤 다시 전달하세요(이 GUI는 규약 v${request.protocol}).`,
           };
     }

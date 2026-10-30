@@ -30,7 +30,7 @@ const { values: args, positionals: [phase] } = parseArgs({ allowPositionals: tru
   doc: { type: "string", default: "real-flow" }, card: { type: "string" }, page: { type: "string" },
   instruction: { type: "string" }, node: { type: "string" }, field: { type: "string" }, value: { type: "string" },
   file: { type: "string" }, append: { type: "string" }, overwrite: { type: "string", default: "backup" },
-  label: { type: "string" },
+  label: { type: "string" }, "no-manual-extend": { type: "boolean", default: false },
 } });
 if (!args.root) throw new Error("--root <QA 폴더>가 필요합니다.");
 const root = resolve(args.root);
@@ -99,6 +99,7 @@ async function runAgent(page, instruction, tag) {
   let run;
   try {
     run = await runAgentProcess(plan, { cwd: ws, env, input: instruction, step: tag, onTick: async () => {
+      if (args["no-manual-extend"]) return;
       const extend = page.getByRole("button", { name: "대기 연장", exact: true });
       if (await extend.count() > 0 && await extend.first().isVisible()) { await extend.first().click(); extensions += 1; }
     } });
