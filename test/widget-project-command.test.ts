@@ -1,3 +1,4 @@
+import { insertWidget } from '@/features/editor/ui/insertControl';
 import { describe, expect, it } from 'vitest';
 import { applyWidgetProjectCommand } from '@/features/editor/command/widgetProjectCommand';
 import { validateProjectSpec, type ProjectSpec } from '@/features/editor/schema';
@@ -204,4 +205,34 @@ describe('project widget commands', () => {
     expect(Object.hasOwn(result.spec.pages.login.responsive!.overrides.__proto__, '__proto__')).toBe(true);
     expect(validateProjectSpec(result.spec).valid).toBe(true);
   });
+});
+
+
+it.each([
+  { width: 'fill' as const, height: 'auto' as const },
+  { width: 'auto' as const, height: 'auto' as const },
+  { width: 240, height: 72 },
+  { width: 'fill' as const, height: 80 },
+])('#474 extraction/reinsertion preserves %j across page sizes and save/load', box => {
+  const before = project();
+  before.pages.login.size = { width: 1440, height: 900 };
+  before.pages.dashboard.size = { width: 390, height: 844 };
+  before.pages.login.nodes.card.box = box;
+  const result = applyWidgetProjectCommand(before, { version: '0.1', type: 'extractAndPlaceWidget',
+    pageId: 'login', nodeId: 'card', widgetId: 'sharedCard', name: 'Shared card', targetPageId: 'dashboard' });
+  if (!result.ok) throw Error(result.message);
+  expect(result.spec.pages.sharedCard.defaultInstanceBox).toEqual(box);
+  const placed = Object.values(result.spec.pages.dashboard.nodes).find(node => node.type === 'instance' && node.ref === 'sharedCard');
+  expect(placed?.box).toEqual(box);
+  useEditorStore.getState().loadSpec(JSON.parse(JSON.stringify(result.spec)) as ProjectSpec);
+  useEditorStore.getState().selectPage('dashboard');
+  useEditorStore.setState({ selectedId: null });
+  insertWidget('sharedCard');
+  const { spec, selectedId } = useEditorStore.getState();
+  expect(spec.pages.dashboard.nodes[selectedId!].box).toEqual(box);
+  expect(spec.pages.dashboard.nodes[selectedId!].box).not.toBe(spec.pages.sharedCard.defaultInstanceBox);
+  useEditorStore.getState().undo();
+  expect(useEditorStore.getState().spec.pages.dashboard.nodes[selectedId!]).toBeUndefined();
+  useEditorStore.getState().redo();
+  expect(useEditorStore.getState().spec.pages.dashboard.nodes[selectedId!].box).toEqual(box);
 });

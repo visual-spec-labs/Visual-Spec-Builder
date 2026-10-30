@@ -1,3 +1,4 @@
+import { widgetInstanceBox } from '@/features/editor/schema/widgetInstanceBox';
 import { canRemovePage } from "@/features/editor/store/pageRemoval";
 import { confirmPageRemoval } from "./confirmPageRemoval";
 
@@ -561,7 +562,7 @@ export function LayerTree() {
     const parentId = resolveImportParent(page, selectedId);
     insertNode(parentId, generateNodeId("instance", page.nodes), {
       type: "instance", name: widget.name, ref,
-      box: { width: widget.size.width, height: widget.size.height },
+      box: widgetInstanceBox(widget),
     });
   }
 

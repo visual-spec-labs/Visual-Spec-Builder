@@ -91,6 +91,7 @@ export interface ScreenSpec {
   };
   responsive?: Responsive;
   kind?: ScreenKind;
+  defaultInstanceBox?: Box1;
 }
 export interface FrameNode {
   type: "frame";
@@ -440,6 +441,13 @@ export interface InputOverride {
 export interface InstanceOverride {
   visible?: boolean;
   box?: PartialBox;
+}
+/**
+ * Widget placement defaults, independent of the editing canvas size. Existing instances are not resized.
+ */
+export interface Box1 {
+  width: Size;
+  height: Size;
 }
 
 /**

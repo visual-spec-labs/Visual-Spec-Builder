@@ -240,6 +240,11 @@ jobs:
           CHROME_BIN: /usr/bin/chromium
         run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/widget-extract-detach.mjs
 
+      - name: 위젯 추출 크기 모드와 모바일 재배치 (fixture)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/widget-placement-sizing.mjs
+
       - name: 위젯 삽입·컨텍스트 메뉴 (fixture, 실제 모델 없음)
         env:
           CHROME_BIN: /usr/bin/chromium
