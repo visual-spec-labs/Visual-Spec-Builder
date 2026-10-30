@@ -12,7 +12,7 @@ export function compileCurrentTicketPlan():void {
 }
 
 /**
- * 구현 티켓 패널을 열고 현재 페이지로 (다시) 컴파일한다. `MenuBar`("구현
+ * 구현 티켓 패널을 연다. 실행 중이면 기존 계획·대기를 유지하고, 아니면 현재 페이지로 컴파일한다. `MenuBar`("구현
  * 티켓")와 `ExportPanel`(생성된 코드가 없을 때의 다음 행동) 둘이 쓴다(#283) —
  * `openExportPanel.ts`와 같은 이유로 한 곳에 모아 둔다.
  *
@@ -33,5 +33,8 @@ export function openTicketPanel(): void {
   // 저장된 폭을 Canvas 최소 폭 기준으로 보정한다(#287 리뷰 4차 대응).
   if (view.propsCollapsed) togglePropsPanel();
   if (useExportStore.getState().isOpen) useExportStore.getState().close();
-  compileCurrentTicketPlan();
+  // Closing/reopening is navigation, not a request to cancel the active wave.
+  // Preserve generation, wait and overwrite review so the runner keeps ownership.
+  if (useTicketStore.getState().running) useTicketStore.setState({ isOpen: true });
+  else compileCurrentTicketPlan();
 }

@@ -93,3 +93,36 @@ describe("openExportPanel/openTicketPanel — 접힌 속성 패널을 함께 편
     expect(useViewStore.getState().propsWidth).toBeLessThan(480);
   });
 });
+
+
+describe("#473 reopen an active plan", () => {
+  beforeEach(() => {
+    useEditorStore.getState().loadSpec(seedSpec);
+    useTicketStore.setState({ running: false });
+    useViewStore.setState({ showPanels: true, propsCollapsed: false });
+  });
+  afterEach(() => useTicketStore.setState({ running: false }));
+
+  it.each([false, true])("preserves all active state (project=%s) across repeated close/reopen", project => {
+    const { spec, activePageId } = useEditorStore.getState();
+    if (project) useTicketStore.getState().compileProject(spec);
+    else useTicketStore.getState().compile(activePageId, spec.pages[activePageId]);
+    useTicketStore.setState({ running: true, wait: { phase: "waiting", deadline: 123456, stagedFiles: 1 } });
+    const before = useTicketStore.getState();
+    for (let i = 0; i < 3; i++) {
+      useTicketStore.getState().close();
+      useExportStore.setState({ isOpen: true });
+      openTicketPanel();
+      expect(useTicketStore.getState()).toEqual(before);
+      expect(useExportStore.getState().isOpen).toBe(false);
+    }
+  });
+
+  it("still compiles the current page when idle", () => {
+    openTicketPanel();
+    const generation = useTicketStore.getState().generation;
+    useTicketStore.getState().close();
+    openTicketPanel();
+    expect(useTicketStore.getState().generation).toBe(generation + 1);
+  });
+});

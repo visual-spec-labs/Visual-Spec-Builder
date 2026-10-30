@@ -8,6 +8,8 @@ import { buildProjectTicketRequest } from '@/features/editor/ticket/projectTicke
 import { projectProvenanceContext } from '@/features/editor/export/projectGenerationProvenance';
 import { parseProjectInputSnapshot } from '@/features/editor/ticket/projectInputSnapshot';
 import { runProjectTickets, cancelProjectTicketRun, isProjectTicketPlanCurrent, discoverPendingProjectRun } from '@/features/editor/ui/projectTicketRunner';
+import { openTicketPanel } from '@/features/editor/ui/openTicketPanel';
+import { useViewStore } from '@/features/editor/store/viewStore';
 import fixture from './fixtures/screen-relations-project.json';
 const io=vi.hoisted(()=>({sequence:0,requests:[] as string[][],release:vi.fn(),beforeResponse:vi.fn(),commit:vi.fn(),failed:false,committed:false,review:false,find:vi.fn()}));
 vi.mock('@/features/editor/ui/projectPendingRecovery',()=>({findPendingProjectRecovery:io.find}));
@@ -101,4 +103,23 @@ it('discards discovery from a document identity that changed while reading',asyn
   const pending=discoverPendingProjectRun();useDocumentStore.setState({projectIdentity:99});
   finish({runId:'wrong-context',context:{}});await pending;
   expect(useTicketStore.getState().lastProjectRun).toBeNull();expect(useTicketStore.getState().running).toBe(false);
+});
+
+it('#473 reopening a running project does not duplicate or cancel waves', async () => {
+  useViewStore.setState({ showPanels: true, propsCollapsed: false });
+  const generation = useTicketStore.getState().generation;
+  io.beforeResponse.mockImplementation(async () => {
+    for (let i = 0; i < 3; i++) {
+      useTicketStore.getState().close();
+      openTicketPanel();
+      expect(useTicketStore.getState().generation).toBe(generation);
+      expect(useTicketStore.getState().running).toBe(true);
+      await runProjectTickets(); // repeated delivery while running is a no-op
+    }
+  });
+  await runProjectTickets();
+  expect(useTicketStore.getState().tickets.every(ticket => ticket.status === 'done')).toBe(true);
+  const ids = io.requests.flat();
+  expect(new Set(ids).size).toBe(ids.length);
+  expect(io.release).toHaveBeenCalledTimes(io.requests.length);
 });
