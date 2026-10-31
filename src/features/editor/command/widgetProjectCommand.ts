@@ -1,3 +1,4 @@
+import { widgetInstanceBox } from '@/features/editor/schema/widgetInstanceBox';
 import { collectSubtreeIds } from './applyCommand';
 import { generateNodeId, generateNodeIds } from '@/features/editor/store/nodeId';
 import { validateProjectSpec, type NodeId, type PageId, type ProjectSpec, type Responsive, type ScreenSpec } from '@/features/editor/schema';
@@ -57,7 +58,7 @@ function extract(project: ProjectSpec, command: Extract<WidgetProjectCommand, { 
     if (Object.keys(widgetOverrides).length) widgetResponsive = { breakpoints: structuredClone(page.responsive!.breakpoints), overrides: widgetOverrides };
   }
   const widget: ScreenSpec = {
-    kind: 'widget', name: command.name,
+    kind: 'widget', name: command.name, defaultInstanceBox: structuredClone(source.box),
     size: { width: typeof source.box.width === 'number' && source.box.width > 0 ? source.box.width : page.size.width,
       height: typeof source.box.height === 'number' && source.box.height > 0 ? source.box.height : page.size.height },
     root: command.nodeId, nodes: moved, ...(widgetResponsive ? { responsive: widgetResponsive } : {}),
@@ -126,7 +127,7 @@ function extractAndPlace(project: ProjectSpec, command: Extract<WidgetProjectCom
   if (root.type !== 'frame' || sourceInstance.type !== 'instance') return fail('배치할 페이지 루트를 찾을 수 없습니다.');
   const id = generateNodeId('instance', destination.nodes);
   destination.nodes[id] = { type: 'instance', name: command.name,
-    box: structuredClone(sourceInstance.box), ref: command.widgetId };
+    box: widgetInstanceBox(extraction.spec.pages[command.widgetId]), ref: command.widgetId };
   root.children.push({ node: id });
   return checked({ ...extraction.spec, pages: { ...extraction.spec.pages, [command.targetPageId]: destination } }, command.nodeId);
 }

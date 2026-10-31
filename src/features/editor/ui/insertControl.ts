@@ -1,3 +1,4 @@
+import { widgetInstanceBox } from '@/features/editor/schema/widgetInstanceBox';
 import type { PageId, ProjectSpec } from "@/features/editor/schema";
 import { createNode } from "@/features/editor/store/createNode";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -22,7 +23,7 @@ export function insertWidget(ref: PageId): void {
   if (!screen || widget?.kind !== "widget") return;
   const parentId = resolveInsertParent({ nodes: screen.nodes, root: screen.root, clickedId: selectedId ?? screen.root });
   insertNode(parentId, generateNodeId("instance", screen.nodes), {
-    type: "instance", name: widget.name, ref, box: { width: widget.size.width, height: widget.size.height },
+    type: "instance", name: widget.name, ref, box: widgetInstanceBox(widget),
   });
 }
 

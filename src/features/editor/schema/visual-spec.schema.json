@@ -34,7 +34,8 @@
           "additionalProperties": { "$ref": "#/$defs/Node" }
         },
         "responsive": {"$ref": "#/$defs/Responsive", "description": "생략하면 기존 단일 레이아웃이다. 기본 nodes 위에 minWidthPx 오름차순으로 희소 override를 누적한다. GUI·코드 생성 지원과는 별도 계약이다."},
-        "kind": { "$ref": "#/$defs/ScreenKind" }
+        "kind": { "$ref": "#/$defs/ScreenKind" },
+        "defaultInstanceBox": { "$ref": "#/$defs/Box", "description": "Widget placement defaults, independent of the editing canvas size. Existing instances are not resized." }
       }
     },
     "ScreenKind": {
