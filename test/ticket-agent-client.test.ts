@@ -331,3 +331,67 @@ it("응답 GET 중 소유권이 바뀌면 응답 ID가 맞아도 거절한다", 
   resume();
   await expect(outcome).resolves.toMatchObject({ kind: "lockLost" });
 });
+
+describe('#472 progress before first output', () => {
+  const path = 'staging/req-1/progress.json';
+  const progress = (sequence: number, requestId = 'req-1') => workspace.files.set(path, JSON.stringify({ requestId, sequence }));
+
+  it('accepts a >3 minute silent-output wave using only request progress, without inflating staged count', async () => {
+    const { outcome, progress: states } = startTicket();
+    await vi.advanceTimersByTimeAsync(100_000);
+    progress(1);
+    await vi.advanceTimersByTimeAsync(100_000);
+    progress(2);
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(states.every(state => (state.stagedFiles ?? 0) === 0)).toBe(true);
+    respondTicket('req-1');
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(outcome).resolves.toMatchObject({ kind: 'response', result: { kind: 'results' } });
+    expect(workspace.released).toEqual(['req-1']);
+  });
+
+  it.each(['stale', 'repeat', 'decrease', 'malformed', 'oversized'])('does not extend for %s progress', async kind => {
+    const { outcome } = startTicket();
+    await vi.advanceTimersByTimeAsync(1000);
+    progress(2);
+    await vi.advanceTimersByTimeAsync(100_000);
+    if (kind === 'stale') progress(3, 'old-request');
+    if (kind === 'repeat') progress(2);
+    if (kind === 'decrease') progress(1);
+    if (kind === 'malformed') workspace.files.set(path, '{');
+    if (kind === 'oversized') workspace.files.set(path, JSON.stringify({ requestId: 'req-1', sequence: 3, padding: 'x'.repeat(1024) }));
+    await vi.advanceTimersByTimeAsync(82_000);
+    await expect(outcome).resolves.toMatchObject({ kind: 'timeout' });
+  });
+
+  it('still times out at the hard cap with continuous progress and rejects a late response', async () => {
+    const { outcome, wait } = startTicket();
+    for (let sequence = 1; sequence <= 30; sequence++) {
+      progress(sequence);
+      await vi.advanceTimersByTimeAsync(60_000);
+      wait.extend();
+    }
+    await expect(outcome).resolves.toMatchObject({ kind: 'timeout' });
+    respondTicket('req-1');
+    progress(31);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(wait.extend()).toBe(false);
+    await expect(outcome).resolves.toMatchObject({ kind: 'timeout' });
+    expect(workspace.released).toEqual(['req-1']);
+  });
+
+  it('cancel wins over progress and a response; retry isolates old request evidence', async () => {
+    const first = startTicket();
+    progress(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    first.cancel.cancelled = true;
+    respondTicket('req-1');
+    progress(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(first.outcome).resolves.toEqual({ kind: 'cancelled' });
+    const next = startTicket('req-2');
+    await vi.advanceTimersByTimeAsync(181_000);
+    await expect(next.outcome).resolves.toMatchObject({ kind: 'timeout' });
+    expect(workspace.released).toEqual(['req-1', 'req-2']);
+  });
+});

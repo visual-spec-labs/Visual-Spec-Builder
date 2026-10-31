@@ -20,6 +20,19 @@ description: Visual Spec Builder GUI의 구현 티켓 실행 요청(.visual-spec
 파일을 쓰지 않게 GUI가 정한 자리다. 그 아래 배치(`pages/`·`components/`)와 상대 import 규칙은
 to-react와 같다.
 
+## 첫 출력 전 진행 알림 (#472)
+
+요청 ID와 경로 검증 직후, 초안·검증·typecheck 전에
+`.visual-spec/staging/<현재 요청 id>/progress.json`에
+`{"requestId":"<현재 요청 id>","sequence":1}`을 원자적으로 쓴다.
+작업을 실제로 계속할 때 60초 이내 간격으로 `sequence`를 증가시킨다.
+같은 디렉터리 임시 파일에 쓴 뒤 rename한다. 출력 파일 수에는 포함되지 않는다.
+매번 `runtime/ticket-request.json`의 ID가 여전히 같은지 확인하고, 없거나 바뀌었으면
+진행 신호와 출력 작성을 중단한다. 요청/lock 파일을 직접 연장하거나 복원하지 않는다.
+자동 타이머를 작업 종료 후 남겨 두지 않는다. 3분 동안 새 신호/출력 변화가 없으면 만료하고,
+수동/자동 연장을 포함해 요청 저장부터 30분이 절대 상한이다. 취소는 GUI 대기 종료이며
+외부 CLI 자체를 종료하지 않는다. 검증된 최종 출력·응답 절차는 아래와 동일하다.
+
 ## 요청을 읽고 범위를 확인한다
 
 1. 사용자가 GUI에서 티켓 실행을 시작한 프로젝트의 `.visual-spec/runtime/ticket-request.json`을
