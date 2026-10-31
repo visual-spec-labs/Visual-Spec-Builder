@@ -112,6 +112,16 @@ try {
   await button("에이전트에 전달").click();
   const componentWave = await nextRequest();
   assert.ok(componentWave.tickets.every(ticket => ticket.kind !== "page"), "first wave must not include the dependent page");
+  // #473: repeated panel navigation must retain the same live request and generation.
+  const generation = await page.evaluate(() => tickets.getState().generation);
+  for (let i = 0; i < 3; i++) {
+    await button("구현 티켓 닫기").click();
+    await button("구현 티켓").click();
+    await button("중지").waitFor();
+    assert.equal(await currentRequestId(), componentWave.id);
+    assert.equal(await page.evaluate(() => tickets.getState().generation), generation);
+  }
+  console.log("PASS repeated close/reopen retains active wave, request ID and generation");
   await layer("Caption").getByRole("button", { name: "숨기기", exact: true }).click();
   await staleNotice.waitFor();
   await respond(componentWave);
