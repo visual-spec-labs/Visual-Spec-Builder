@@ -157,7 +157,9 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
 $prompt = '.agents/skills/visual-spec-nl-response/SKILL.md를 읽고 현재 .visual-spec/runtime/nl-request.json에 응답해 줘. JSON은 UTF-8로 읽고 쓰고 요청 ID와 범위를 지켜 줘.'
-$prompt | codex exec -
+# Codex는 Git 작업공간을 사용한다. 2절의 새 빈 폴더라면 먼저 초기화한다.
+git init
+$prompt | codex exec --sandbox workspace-write -
 # Claude Code를 선택했다면 위 codex 명령 대신:
 # $prompt = $prompt.Replace('.agents/skills/', '.claude/skills/')
 # claude -p $prompt
