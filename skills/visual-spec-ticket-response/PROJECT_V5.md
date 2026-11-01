@@ -65,7 +65,8 @@
   dialog, focus, Escape, overlay, viewport clamp와 스크롤 복원을 담당하므로 중복 구현하지 않는다.
 - page 티켓은 default export, component 티켓은 named export다. 화면 root는 다음 구조의
   props를 받는다: `{ onNavigate:(target:string)=>void; onOpenModal:(target:string)=>void; onClose:()=>void }`.
-  필요하면 이 구조를 로컬 type으로 선언한다. 생성 전 GUI artifact를 만들거나 runtime import를
+  필요하면 이 구조를 로컬 type으로 선언한다. 실제 사용하는 prop만 구조 분해하며,
+  미사용 props·검사 설정은 아래 "미사용 props와 TypeScript 검사"를 따른다. 생성 전 GUI artifact를 만들거나 runtime import를
   추가하지 않는다. 버튼이 하위 컴포넌트면 callback을 props로 끝까지 전달한다.
 - `action: { type: "navigate", target }`는 `onNavigate(target)`,
   `action: { type: "openModal", target }`는 `onOpenModal(target)`,
@@ -136,3 +137,19 @@ typecheck/build를 실행하되 staging에 임의 helper/artifact를 추가하�
 ```json
 {"protocol":5,"requestId":"v5-example","results":[{"ticketId":"home:Home","status":"failed","message":"요청된 dependency export를 확인하지 못했습니다."}]}
 ```
+
+
+## 미사용 props와 TypeScript 검사 (#480)
+
+props 타입에는 화면 콜백 계약을 유지하되, 함수 매개변수에서는 실제 사용하거나 하위에
+전달하는 prop만 구조 분해한다. 예: `function Screen({ onNavigate }: Actions)`.
+아무 콜백도 쓰지 않는 화면은 `function Screen()`처럼 매개변수를 생략한다.
+미사용 import·지역 변수도 제거한다. `void` 사용이나 검사 옵션 해제로 경고를 숨기지 않는다.
+
+OS 임시 폴더의 검사 복사본에서 대상 앱의 tsconfig를 사용한다. 대상 설정이 없으면
+Vite React/TypeScript 기본 strict 기준으로 `strict`, `noUnusedLocals`, `noUnusedParameters`,
+`noFallthroughCasesInSwitch`, `verbatimModuleSyntax`를 true로 두고 `jsx: "react-jsx"`,
+`module: "ESNext"`, `moduleResolution: "Bundler"`, `target: "ES2022"`,
+`lib: ["ES2022", "DOM", "DOM.Iterable"]`, `noEmit: true`로 검사한다.
+타입 전용 import는 `import type`으로 작성한다. 실제 실행한 명령·tsconfig와 결과를 보고하고,
+의존성이나 도구가 없어 실행하지 못하면 컴파일 미검증으로 명시한다.

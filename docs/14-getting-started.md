@@ -144,6 +144,34 @@ Claude Code를 사용한다면 같은 폴더에서 `codex` 대신 `claude`를 �
 막히면 `VSB_REPO`의 실제 절대 경로를 함께 알려 정본과 계약 문서를 로컬에서 읽게 한다.
 검증할 수 없는 화면을 추측하거나 완료 응답을 수동으로 성공 처리하지 않는다.
 
+### Windows PowerShell에서 비대화 실행
+
+GUI 서버와 별도 터미널에서 같은 작업공간으로 이동한다. 아래는 **자연어 요청 하나**의 예다.
+티켓은 경로를 `visual-spec-ticket-response/SKILL.md`·`ticket-request.json`으로 바꾸고 5절 요청문을 사용한다.
+두 CLI 중 설치·인증한 하나만 실행한다. 한 요청에 둘을 동시에 실행하지 않는다.
+
+```powershell
+Set-Location C:\work\visual-spec-demo
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
+$prompt = '.agents/skills/visual-spec-nl-response/SKILL.md를 읽고 현재 .visual-spec/runtime/nl-request.json에 응답해 줘. JSON은 UTF-8로 읽고 쓰고 요청 ID와 범위를 지켜 줘.'
+# Codex는 Git 작업공간을 사용한다. 2절의 새 빈 폴더라면 먼저 초기화한다.
+git init
+$prompt | codex exec --sandbox workspace-write -
+# Claude Code를 선택했다면 위 codex 명령 대신:
+# $prompt = $prompt.Replace('.agents/skills/', '.claude/skills/')
+# claude -p $prompt
+```
+
+CLI의 파일 쓰기 권한 요청은 사용 중인 CLI 정책에 따라 처리한다. 권한·인증 실패나 비정상 종료는
+성공 응답이 아니다. PowerShell 5.1의 기본 리디렉션 인코딩에 기대지 말고, 프롬프트/JSON 파일은
+UTF-8로 저장한다. 직접 파일을 만들 때는 `[IO.File]::WriteAllText($path, $text, $utf8)`처럼
+인코딩을 명시하고, 외부 에이전트에도 UTF-8 입출력을 지시한다. 이미 `???`로 손상된 내용은
+인코딩 설정만으로 복구되지 않는다. 적용 결과를 Undo하고 새 GUI 요청으로 다시 처리한다.
+이미 수용된 요청 ID의 응답 파일만 고쳐도 재적용되지 않는다.
+
 ## 3. 로그인 예제 편집·저장
 
 ### 빈 캔버스에서 시작하기
@@ -168,6 +196,17 @@ localStorage 자동 복원과 명시적인 저장은 별개다. 다른 탭 변�
 파일 저장을 중지하고 내 초안을 보존한다(#258). 충돌 안내에서 내 작업을 별도 JSON으로
 보관하거나 확인 후 최신 내용을 불러온다. localhost/127.0.0.1의 오래된 Save도 서버가
 읽은 디스크 리비전으로 거부한다. 자세한 한계는 [저장 충돌](qa/tab-save-conflicts.md)을 따른다.
+
+### 재사용 위젯 추출·배치
+
+1. 기본 반응형 상태에서 root가 아닌 프레임을 선택하고 컨텍스트 메뉴의 **위젯으로 만들기** 또는 속성 패널의 **위젯으로 추출**을 누른다.
+   위젯 추출은 새 widget 화면을 만들고 원래 위치를 instance로 바꾼다.
+2. 배치할 다른 page를 선택하고 부모 프레임을 선택한 뒤 레이어 패널 아래 **위젯 배치**에서 위젯을 고른다.
+   삽입 메뉴의 `위젯: 이름`도 사용할 수 있다.
+3. 새 추출 위젯은 원본의 Fixed/Fill/Hug 크기 모드를 유지한다. 이전 버전에서 추출해 크기 메타데이터가
+   없는 위젯은 기존 고정 크기로 배치되므로 인스턴스 크기를 확인한다. 원본 변경은 공유 인스턴스에 반영된다.
+4. 인스턴스 컨텍스트 메뉴의 **원본 위젯으로 이동**으로 원본을 편집하거나 **인스턴스 분리**로 독립 요소로 만든다.
+   저장 후 프로젝트 티켓으로 생성한다. 아래 프로젝트 Export 경로를 사용한다.
 
 ## 4. 자연어로 간격 수정
 
@@ -202,7 +241,7 @@ GUI 입력창을 쓰지 않고 에이전트 대화에서 바로 "제목을 크�
 
 ## 5. 구현 티켓으로 코드 생성
 
-메뉴바의 **구현 티켓**을 열면 현재 활성 페이지의 컴포넌트·페이지 티켓과 의존성을 볼 수 있다. **에이전트에 전달**은 지금 준비된 티켓 묶음을 `.visual-spec/runtime/ticket-request.json`에 기록한다.
+메뉴바의 **구현 티켓**을 열면 티켓과 의존성을 볼 수 있다. 일반 화면은 현재 활성 페이지를, modal/widget·instance·버튼 action이 있는 프로젝트는 프로젝트 생성 범위를 사용한다. **에이전트에 전달**은 지금 준비된 티켓 묶음을 `.visual-spec/runtime/ticket-request.json`에 기록한다.
 외부 에이전트에 다음처럼 요청한다.
 
 > `.claude/skills/visual-spec-ticket-response/SKILL.md`와 그 스킬이 참조하는 `visual-spec-to-react` 지침을 읽고, 현재 `.visual-spec/runtime/ticket-request.json`의 한 웨이브를 처리해 줘. 요청된 파일을 실제로 생성·확인한 뒤 결과 응답을 써 줘. 수행한 검증과 미실행 검증을 구분해 줘.
@@ -211,44 +250,89 @@ GUI 입력창을 쓰지 않고 에이전트 대화에서 바로 "제목을 크�
 
 GUI가 성공 응답을 받으면 의존성이 풀린 **다음 웨이브를 새 ID로 요청**한다. 전체 티켓이 끝날 때까지 새 요청마다 같은 스킬로 처리하도록 외부 에이전트에 지시한다. GUI의 **에이전트에 전달**은 에이전트를 자동 호출하거나 상시 감시 작업을 설치하지 않는다. 개별 티켓의 **전달**은 그 티켓만 요청한다. 실행 중 묶음 전달 버튼은 **중지**로 바뀌며 GUI의 응답 대기를 멈춘다. 외부 에이전트 프로세스는 별도로 멈춰야 한다.
 
+대기 창은 새 활동이 없으면 **3분**이다. 최신 응답 스킬은 초안·검증·typecheck 중에도 요청별 진행 신호를
+60초 이내 간격으로 기록하며 GUI가 자동 연장한다. **대기 연장**으로 수동 연장할 수도 있지만,
+요청 저장부터 수동/자동 연장을 합쳐 **최대 30분**이다. 저장소 갱신 후 작업공간에서 `visual-spec skills`를
+다시 실행해 스킬 사본도 갱신한다(로컬 수정은 먼저 보관). 실행 중 패널을 닫고 다시 열어도 웨이브는 유지된다.
+만료된 요청은 되살리지 말고 새 요청으로 재시도한다. 실제 외부 모델 3분 초과 자동 수용 검증은
+[#472](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/472)에 남아 있으며 fixture 통과와 구분한다.
+
 실패가 있으면 해당 티켓의 원인을 확인한다. 실패한 티켓에 의존하는 후행 티켓은 진행되지 않는다. 중지는 GUI 대기를 멈추므로 외부 에이전트에도 중지를 알려야 한다. 스펙을 바꿨다면 변경된 페이지로 티켓을 다시 컴파일하고 필요한 코드를 다시 생성한다.
 
 ## 6. 코드 내보내기와 기존 React 앱 통합
 
-1. **파일 → 코드 내보내기**(File → Export Code)를 열고 검사 결과를 확인한다. 파일·상대 import·asset 경로와 티켓 포함 여부를 검사한다. 파일이 없거나 오래된 상태면 에이전트 작업 후 **다시 검사**한다.
-2. 오류 내용을 해결하고 **결과 폴더 ZIP 내려받기**로 결과를 받는다. 티켓의 `done` 상태만으로 파일의 컴파일·화면 일치까지 보장되지는 않는다.
-3. 압축을 풀면 프로젝트 이름의 폴더 아래 `pages/`, `components/`, 참조 이미지가 있을 때 `assets/`, 의존성 목록 `package.json`, 검증 결과를 담은 `README.md`가 있다.
-4. **기존 React + TypeScript + Tailwind v4 앱**의 `src/visual-spec/` 같은 위치에 이 폴더 내용을 복사한다. `pages/`·`components/`·`assets/`의 상대 위치를 유지한다. 대상 앱의 package.json을 덮어쓰지 말고 내보낸 의존성 목록을 대조해 필요한 패키지만 추가한다.
-5. 페이지 파일의 실제 이름을 확인해 앱이나 라우터에 연결한다. 예를 들어 결과가 `pages/Login.tsx`라면 다음과 같다.
+**파일 → 코드 내보내기**에서 파일·참조·티켓 검사를 확인한다. 파일이 없거나 오래됐으면 생성 후
+**다시 검사**한다. 티켓 `done`이나 Export 검사는 TypeScript 컴파일·실제 화면 일치를 보장하지 않는다.
+
+### 단일 화면 Export
+
+modal/widget·instance·버튼 action이 없는 프로젝트는 현재 활성 화면을 내보낸다.
+**결과 폴더 ZIP 내려받기**를 누르면 최상위 폴더 아래 `pages/`·`components/`·참조 이미지용 `assets/`,
+`package.json`·`README.md`가 있다. 여러 page가 있어도 관계 기능이 없으면 이 경로다.
+폴더 내용을 대상 React + TypeScript 앱의 `src/visual-spec/`로 복사하고 상대 위치를 유지한다.
+실제 페이지 파일명에 맞춰 연결한다.
 
 ```tsx
 import Login from "./visual-spec/pages/Login";
-
-export default function App() {
-  return <Login />;
-}
+export default function App() { return <Login />; }
 ```
 
-대상 Vite 앱은 React 플러그인과 `@tailwindcss/vite`가 설정돼 있고 앱이 읽는 CSS에 `@import "tailwindcss";`가 있어야 한다. 복사한 TSX의 유틸리티가 CSS 생성 대상에 포함되는지 확인한다. 이미 설정된 앱이라면 중복 설정하지 않는다.
+### 프로젝트 Export
 
-이미지가 있는 결과는 `assets/`의 파일을 **정적 import**로 참조한다(#270). Vite 같은 번들러가 개발 중 파일을 제공하고 production build에서 출력 URL로 바꾸므로, `pages/`·`components/`·`assets/`의 상대 위치만 유지하면 경로를 고칠 필요가 없다. 대체 텍스트는 스펙에 없어 보통 `alt=""`(장식용)이다 — 의미 있는 이미지라면 통합할 때 채운다.
+modal/widget·instance·버튼 action이 있으면 프로젝트 패널의 **프로젝트 ZIP 다운로드**를 사용한다.
+현재 프로젝트 전체의 출력·입력 지문·파일 참조가 맞아야 내보낼 수 있다. ZIP 구조는 다음과 같다.
+
+```text
+<폴더명>/
+  <pageId>/pages/…tsx
+  <pageId>/components/…tsx
+  <widgetPageId>/components/…tsx
+  runtime/Entry.tsx
+  runtime/Host.tsx
+  runtime/Routes.ts
+  assets/…
+  package.json
+  README.md
+```
+
+실제로 사용되는 파일만 포함되며 참조되지 않은 widget은 제외된다. `<pageId>`·`runtime`·`assets`의
+상대 위치를 유지해 `src/visual-spec/`에 복사한다. 프로젝트 진입점은 다음처럼 연결한다.
 
 ```tsx
-import heroImageUrl from "../assets/hero.png";
-// <img src={heroImageUrl} alt="" />
+import ProjectEntry from "./visual-spec/runtime/Entry";
+export default function App() { return <ProjectEntry />; }
 ```
 
-Login 예제에는 이미지가 없다. 폰트도 자동 설치되지 않으므로 예제의 Pretendard를 그대로 재현하려면 대상 앱에 폰트를 준비한다.
-대상 앱의 타입 검사·빌드를 실행하고 개발 서버에서 문구·간격·버튼·이미지를 확인한다. Vite/TypeScript 앱의 예시는 다음과 같으며 실제 프로젝트 스크립트를 우선한다.
+Host가 버튼 action에 따른 페이지 이동·모달을 관리한다. URL/history 라우터는 포함하지 않는다.
+두 Export 모두 최상위 폴더명은 프로젝트 이름을 파일명에 맞게 정리한 값이며, 한글만 있는 이름처럼
+정리 후 비면 **visual-spec-export**가 된다. 프로젝트 표시 이름과 폴더명이 같다고 가정하지 않는다.
+
+### 공통 통합·검증
+
+대상 앱의 `package.json`을 덮어쓰지 말고 내보낸 의존성 목록을 대조해 필요한 패키지만 추가한다.
+스타일은 생성 결과에 따라 정적 CSS 또는 Tailwind 유틸리티다. `<style>`·media query를 포함한
+정적 CSS는 유지한다. Tailwind 결과는 대상 앱에 해당 버전을 설정한다. Vite + Tailwind v4라면
+React 플러그인·`@tailwindcss/vite`와 앱 CSS의 `@import "tailwindcss";`를 확인하고 생성 폴더가
+클래스 검색 대상인지 확인한다. 이미 설정된 앱에는 중복 설정하지 않는다.
+
+이미지는 단일 화면 결과의 정적 import 또는 프로젝트 결과의 모듈 상대 `new URL(..., import.meta.url)`을
+번들러가 처리한다. 폴더 위치를 유지하고 개발 서버와 production build 모두에서 이미지를 확인한다.
+의미 있는 이미지의 비어 있는 `alt`는 앱 통합 시 채운다.
+
+대상 앱의 실제 타입 검사·빌드 스크립트를 실행한다. Vite React/TypeScript 기본 strict 설정의
+`noUnusedLocals`·`noUnusedParameters`도 켜 둔다. 생성 코드의 미사용 콜백 구조 분해는 제거하고,
+타입 오류를 옵션을 꺼서 숨기지 않는다.
 
 ```bash
-pnpm exec tsc -b --noEmit
+pnpm exec tsc -b
 pnpm run build
 pnpm run dev
 ```
 
-결과는 실행 앱이 아니라 화면 컴포넌트 묶음이다 — 앱 셸·라우터 설정·폼 동작·데이터 불러오기·인증·백엔드·상태 스타일·배포 설정은 들어 있지 않다([21](21-app-scope-a11y-design.md)).
-자동으로 기존 앱의 코드·라우터에 병합하거나 배포하지 않는다. Export 검사는 타입 검사·실제 브라우저 렌더 비교를 대신하지 않는다.
+브라우저에서 문구·간격·이미지·화면 이동·모달과 모바일 폭을 확인한다. 스펙에 지정한
+button/input의 hover·pressed·focus 색은 생성 결과에 포함될 수 있으므로 실제 동작을 확인한다.
+앱 셸·URL 라우터·폼 상태/검증/제출·데이터 불러오기·인증·백엔드·disabled 상태·배포 설정은
+사용자 앱에서 통합한다. 기존 앱에 자동 병합하거나 배포하지 않는다.
 
 ## 7. 반응형 분기점과 데스크톱부터 디자인하는 경로 (#438)
 

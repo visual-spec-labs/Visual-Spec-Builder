@@ -20,3 +20,13 @@ export default function Screen({ onNavigate, onOpenModal, onClose }: Actions) {
     <Photo variant="second" />
   </main>;
 }
+
+// Keep the Actions contract while binding only the callback this screen uses.
+export function NavigateOnlyScreen({ onNavigate }: Actions) {
+  return <button onClick={() => onNavigate('dashboard')}>Navigate</button>;
+}
+
+// A static screen can receive Host props without binding unused parameters.
+export function StaticScreen() {
+  return <main>Static content</main>;
+}

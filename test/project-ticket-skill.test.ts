@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import ts from 'typescript';
 import * as React from 'react';
@@ -11,6 +12,14 @@ const widgetContract=readFileSync(new URL('../skills/visual-spec-ticket-response
 const hashes=['a'.repeat(64),'b'.repeat(64)];
 
 describe('shipped project skill executable examples (not AI execution)',()=>{
+  it('typechecks full, partial and zero-action examples with strict unused checks',()=>{
+    const program=ts.createProgram([fileURLToPath(new URL('../skills/visual-spec-ticket-response/examples/Screen.tsx',import.meta.url))],{
+      target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,moduleResolution:ts.ModuleResolutionKind.Bundler,
+      jsx:ts.JsxEmit.ReactJSX,strict:true,noUnusedLocals:true,noUnusedParameters:true,
+      noFallthroughCasesInSwitch:true,verbatimModuleSyntax:true,noEmit:true,skipLibCheck:true,types:[],
+    });
+    expect(ts.getPreEmitDiagnostics(program).map(diagnostic=>ts.flattenDiagnosticMessageText(diagnostic.messageText,'\n'))).toEqual([]);
+  });
   it('ships distinct v5 response examples and shared-widget instructions',()=>{
     const request:Pick<ProjectTicketRequest,'id'|'tickets'|'protocol'>={protocol:5,id:'v5-example',tickets:[{id:'shared:Shared',sourcePageId:'shared',componentName:'Shared',kind:'component',instances:['root'],filePath:'my-app/shared/components/Shared.tsx',outputPath:'staging/v5-example/my-app/shared/components/Shared.tsx'}]};
     const examples=[...widgetContract.matchAll(/```json\n([\s\S]*?)\n```/g)].map(match=>JSON.parse(match[1]));

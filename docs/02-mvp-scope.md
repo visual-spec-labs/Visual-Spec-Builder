@@ -68,7 +68,7 @@ CLI로 띄운 GUI는 React production 빌드로 돈다(#314, `VISUAL_SPEC_REACT_
 | 노드 | Container / Text / Button / Input / Image |
 | 크기 | Fixed / Fill / Hug |
 | 반응형 | 데스크톱 · 모바일 레이아웃 |
-| 화면 관계 | 화면 종류(page·modal·widget), 버튼의 화면 이동·모달 열기·닫기, 재사용 위젯 — 범위에 넣었고 **아직 구현 전**이다(아래 "화면 관계 (#265)") |
+| 화면 관계 | 화면 종류(page·modal·widget), 버튼의 화면 이동·모달 열기·닫기, 재사용 위젯 — IR 0.4·GUI·프로젝트 생성/Export에서 지원한다(아래 "화면 관계 (#265)") |
 | 편집 | Undo / Redo |
 | 저장 | 공통 JSON 스키마 |
 | 코드 생성 | 사용자가 실행한 Claude Code·Codex에 파일로 요청·응답 전달, 실행 방법 안내 |
@@ -89,10 +89,11 @@ Insert는 선택한 프레임 안에, 비프레임 선택이면 가장 가까운
 #339의 관리자 병합이나 이번 범위 정정은 S0-1의 팀 승인, 후속 단계 착수·병합 승인을 대신하지 않는다.
 24 §7·§8의 팀 승인 조건은 남아 있다.
 
-**범위에 들어왔다는 것은 관계 기능 전체가 구현됐다는 뜻이 아니다.** #355의 S1-1은 정본 IR(0.3)에
-선택 `kind`·button `action`의 저장 형태와 Command 임시 차단을 제공한다. 관계 화면의 생성·출력 수용·Export도
-미지원으로 차단한다([06](06-schema-freeze.md#s1-1-생성export-임시-차단)). 참조 검증·GUI·자연어·관계 동작 생성과
-`instance`는 후속 미구현 범위다. 이 구현 사실이 팀의 설계·스키마 APPROVED 리뷰나 단계 합의를 뜻하지 않는다.
+**현재 구현 (2026-11-01, develop ea0a7908).** 화면 종류·버튼 action·참조 검증·관계 편집,
+위젯 추출/배치/분리와 프로젝트 티켓 생성·Export를 지원한다. 프로젝트 runtime이 화면 이동과 모달을
+관리한다. 공유 위젯은 요청 v5를 사용한다. 실제 AI 수용 검증과 미완료 항목은
+[수용 조건 표](265-acceptance-status.md)를 따른다. 아래 승인·단계 계획 표는 당시 결정 기록이며
+구현 여부와 별개다.
 아래 단계는 24 §7의 설계상 계획이며, 원래 [#265](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265)
 작업 목록과 다른 부분은 다음과 같이 구분한다.
 
@@ -108,9 +109,9 @@ Insert는 선택한 프레임 안에, 비프레임 선택이면 가장 가까운
 
 | 범위에 들어온 것 | 방향(24의 결정 ID) | 단계와 현재 상태 |
 |---|---|---|
-| 화면 종류 | 기존 `pages`의 화면에 선택 필드 `kind`(`page`·`modal`·`widget`, 생략하면 page). 첫 화면과 최소 한 장은 page다(D2) | 1차 S1-1 스키마 — [#355](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/355), IR 0.3 유지. 선택 필드 저장·Command 및 생성/Export 임시 차단은 #355에서 제공한다. 종류 선택 GUI(S1-5)는 미구현 |
-| 버튼의 화면 연결 | `button`에만 `action` 하나 — 페이지 이동(`navigate`)·모달 열기(`openModal`)·닫기(`close`). navigate/openModal의 대상은 URL이 아니라 같은 프로젝트의 PageId다. close는 target이 없고 modal/widget의 button에 허용하며, page 자체 button에서는 오류로 제안한다(D1·D3·D4·D6). 모달은 한 번에 하나만 연다(D6) | 1차 S1-1 스키마(#355) → S1-2 참조 검증 → S1-3 Command → GUI·구현 티켓·코드 생성·자연어(S1-4~S1-11). S1-1 저장 형태와 임시 차단은 #355에서 제공하며 S1-2 이후 기능은 미구현이다. 선행·합의 조건은 위 계획 차이 표와 24 §7 참고 |
-| 재사용 위젯 | 새 노드 `instance`가 widget 화면을 PageId로 참조한다. 덮어쓰기는 원본의 직접 Text/Button 내용·글자색만이다(D8·D9) | 2차 S2-1 스키마에서 IR 0.4. 1차 마감(S1-11) 뒤 착수 — 미착수 |
+| 화면 종류 | 기존 `pages`의 화면에 선택 필드 `kind`(`page`·`modal`·`widget`, 생략하면 page). 첫 화면과 최소 한 장은 page다(D2) | IR 0.4에서 저장·검증·종류 선택 GUI 지원. 관계가 있는 프로젝트는 v4/v5 생성·Export 경로를 사용한다 |
+| 버튼의 화면 연결 | `button`에만 `action` 하나 — 페이지 이동(`navigate`)·모달 열기(`openModal`)·닫기(`close`). navigate/openModal의 대상은 URL이 아니라 같은 프로젝트의 PageId다. close는 target이 없고 modal/widget의 button에 허용하며, page 자체 button에서는 오류로 제안한다(D1·D3·D4·D6). 모달은 한 번에 하나만 연다(D6) | S1-2 참조 검증(#366), S1-3 Command(#382), S1-4 참조 조작(#383)과 후속 GUI·프로젝트 생성 경로가 구현됐다. 자연어 편집은 활성 화면 범위다 |
+| 재사용 위젯 | 새 노드 `instance`가 widget 화면을 PageId로 참조한다. 덮어쓰기는 원본의 직접 Text/Button 내용·글자색만이다(D8·D9) | IR 0.4에서 instance·추출·배치·분리·재정의·공유 widget 생성/Export 지원. 새 추출의 기본 크기 모드는 보존하며, 메타데이터 없는 기존 위젯은 기존 고정 크기를 유지한다 |
 
 생성 코드는 라우터를 두지 않고 `onNavigate` 콜백과 페이지가 소유한 모달 상태로 표현하는 방향이다(D7).
 URL·history·라우터 설정은 사용자 앱의 몫으로 남는다(아래 "MVP 제외 범위").
@@ -188,11 +189,10 @@ Codex를 직접 실행하고 인증한다. GUI는 요청 파일을 작성하고 
 | 폼 상태·입력 검증·제출, 데이터 불러오기 | `value`/`onChange`/`bindings`가 IR 제외 범위다. #265는 버튼의 이동·모달 동작만 넣고 폼 동작은 넣지 않는다(24 D4). 폼 바인딩을 그 뒤 별도로 검토하는 안은 미확정 제안이다([21](21-app-scope-a11y-design.md)) |
 | 화면 관계 밖의 인터랙션 | IR의 `events`·`props`·`bindings`는 계속 제외다. #265가 넣는 것은 위 "화면 관계 (#265)"의 버튼 action 세 갈래뿐이다. 이벤트 이름·조건·외부 URL 이동, button 밖 노드(frame·text·image·input)의 동작, 중첩 모달, 애니메이션·전환 효과, 다른 프로젝트와의 연결은 넣지 않는다(24 D3·D4·D6, #265 "범위 밖") |
 | 인증·세션·백엔드 | 현재 Export가 제공하지 않는다. 로그인 화면의 모양만 만들며 장기 지원 여부는 미정이다 |
-| hover·focus·disabled 등 상태 스타일 | IR의 `states`가 제외 범위다. 브라우저 기본 focus 표시 보존은 후속 생성 규칙으로 명시·검증할 목표이며 현재 보장이 아니다([21](21-app-scope-a11y-design.md)). 후속 지원 범위는 button/input의 hover·pressed·focus와 배경·글자색·테두리 색으로 정했고(#360, 2026-10-13 리더 결정) 미구현이다. disabled 등 다른 상태는 보류다. 단계와 선행 조건은 [27 §5](27-user-design-system-scope.md#5-후속-구현-순서) |
-| 사용자 화면의 공용 스타일(이름 있는 색·글자·간격)·폰트 추가·아이콘 라이브러리 | 스타일 값은 노드마다 리터럴로 저장하고(`TokenSet` 제외), 글꼴은 Pretendard와 `system-ui`만 고를 수 있다. 아이콘은 SVG 이미지 Import로만 넣는다. 편집기 자체의 디자인 토큰([DESIGN-TOKEN-RULES](DESIGN-TOKEN-RULES.md))과 별개다. 후속 지원 범위는 이름 있는 색·글자 스타일(노드 리터럴 사본 + 연결, 생성 코드는 리터럴 유지)로 정했고(#360, 2026-10-13 리더 결정) 미구현이다. 간격 토큰·아이콘 라이브러리는 첫 버전에 만들지 않고, 추가 폰트와 CSS 변수 출력은 보류다. 단계와 선행 조건은 [27 §5](27-user-design-system-scope.md#5-후속-구현-순서) |
+| disabled 및 추가 상태 스타일 | button/input의 hover·pressed·focus 배경색·글자색·테두리색은 IR 0.4·GUI·생성 지침에서 지원한다. disabled와 다른 노드의 상태·상태별 크기 변경은 제외다([27 §5](27-user-design-system-scope.md#5-후속-구현-순서)) |
+| 간격 토큰·추가 폰트·아이콘 라이브러리·CSS 변수 출력 | 이름 있는 색·글자 스타일과 노드 연결은 IR 0.4·GUI에서 지원한다. 노드 리터럴 사본을 유지하고 생성 코드도 리터럴을 쓴다. 간격 토큰·아이콘 라이브러리는 제외, 추가 폰트·CSS 변수 출력은 보류다. 폰트는 Pretendard와 system-ui, 아이콘은 SVG 이미지 Import를 사용한다([27 §5](27-user-design-system-scope.md#5-후속-구현-순서)) |
 
-스키마 수준의 제외 범위는 [05-schema.md](05-schema.md)에 따로 있다. 05의 `InstanceNode`·`events` 제외는
-현재 정본 기준이다. `kind`·`action`은 S1-1(#355)이 05에 반영했고, `instance`는 S2-1 스키마 PR 범위다.
+스키마 수준의 제외 범위는 [05-schema.md](05-schema.md)에 따로 있다. 일반 `events`는 제외이며, `kind`·button `action`·`instance`는 현재 정본에서 지원한다.
 
 > **정정 이력 (2026-10-13, #352)**
 > "MVP 제외 범위"에 Version History와 끌어서 그리는 생성 행을 더했다. 04에 미확정(❓)으로 남아 있던 에디터 기본 동작을
@@ -208,7 +208,7 @@ Codex를 직접 실행하고 인증한다. GUI는 요청 파일을 작성하고 
 
 > **정정 이력 (2026-10-13, #360)**
 > 상태 스타일과 사용자 화면의 공용 스타일 두 행의 "후속 지원 범위 제안"을 리더 결정([#360 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/360#issuecomment-6142841712))의
-> 결론과 보류 항목으로 바꾸고 [27 §5](27-user-design-system-scope.md#5-후속-구현-순서)의 후속 순서에 연결했다. 두 항목은 여전히 미구현이라 제외 범위에 남는다.
+> 결론과 보류 항목으로 바꾸고 [27 §5](27-user-design-system-scope.md#5-후속-구현-순서)의 후속 순서에 연결했다. 당시에는 두 항목이 미구현이었다. 현재는 채택 범위 구현 완료(2026-10-16, IR 0.4)이며 위 표에는 남은 제외 범위만 적는다.
 > 결정은 방향과 구현 게이트의 채택이며, 각 단계의 스키마 PR 승인이나 제공 기능은 바뀌지 않았다.
 
 > **정정 이력 (2026-10-10, #290)**

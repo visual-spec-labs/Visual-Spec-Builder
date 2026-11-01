@@ -181,3 +181,19 @@ to-react와 같다.
   "results": [{ "ticketId": "Home", "status": "failed", "message": "staging/wave-home-1/my-app/home/pages/Home.tsx 쓰기 실패: 권한 없음" }]
 }
 ```
+
+
+## 미사용 props와 TypeScript 검사 (#480)
+
+props 타입에는 화면 콜백 계약을 유지하되, 함수 매개변수에서는 실제 사용하거나 하위에
+전달하는 prop만 구조 분해한다. 예: `function Screen({ onNavigate }: Actions)`.
+아무 콜백도 쓰지 않는 화면은 `function Screen()`처럼 매개변수를 생략한다.
+미사용 import·지역 변수도 제거한다. `void` 사용이나 검사 옵션 해제로 경고를 숨기지 않는다.
+
+OS 임시 폴더의 검사 복사본에서 대상 앱의 tsconfig를 사용한다. 대상 설정이 없으면
+Vite React/TypeScript 기본 strict 기준으로 `strict`, `noUnusedLocals`, `noUnusedParameters`,
+`noFallthroughCasesInSwitch`, `verbatimModuleSyntax`를 true로 두고 `jsx: "react-jsx"`,
+`module: "ESNext"`, `moduleResolution: "Bundler"`, `target: "ES2022"`,
+`lib: ["ES2022", "DOM", "DOM.Iterable"]`, `noEmit: true`로 검사한다.
+타입 전용 import는 `import type`으로 작성한다. 실제 실행한 명령·tsconfig와 결과를 보고하고,
+의존성이나 도구가 없어 실행하지 못하면 컴파일 미검증으로 명시한다.
