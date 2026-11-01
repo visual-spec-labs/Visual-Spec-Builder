@@ -120,11 +120,11 @@ Visual Spec Builder가 내보낸 React 화면 코드입니다. 이 폴더는 그
 
 ## 실행 방법
 
-이 폴더 자체는 앱이 아니라 컴포넌트 묶음입니다. React + Tailwind CSS가 이미 있는
+이 폴더 자체는 앱이 아니라 컴포넌트 묶음입니다. React가 있는
 프로젝트에 넣어 씁니다.
 
 **들어 있지 않은 것** — 앱 셸(\`index.html\`·\`main.tsx\`)·라우터 설정, 폼 상태·입력 검증·제출,
-데이터 불러오기, 인증·백엔드, hover·focus·disabled 상태 스타일, 배포 설정. 입력·버튼은 모양만 있는 정적 마크업이고,
+데이터 불러오기, 인증·백엔드, disabled 상태 스타일, 배포 설정. 입력·버튼은 모양만 있는 정적 마크업이고,
 표·카드의 값은 스펙에 적힌 정적 텍스트입니다. 스펙에 이미지 대체 텍스트가 없어 보통 비워 둡니다
 (\`alt=""\`, 장식용) — 의미 있는 이미지라면 통합할 때 채워 주세요.
 
@@ -141,10 +141,13 @@ npm install react
 3. 페이지 컴포넌트를 라우터에 연결합니다.
    이미지 파일은 TSX의 정적 import로 참조합니다. Vite 같은 번들러가 개발 중 파일을 제공하고,
    production build에서 출력 URL로 바꾸며, 앱의 base 설정(하위 경로 배포 포함)도 적용합니다.
-4. 스타일은 Tailwind CSS 유틸리티 클래스입니다. **Tailwind v4**(\`@tailwindcss/vite\` 등
+4. 스타일은 생성 결과에 따라 정적 CSS(\`<style>\`·media query 포함) 또는 Tailwind CSS 유틸리티입니다. 정적 CSS는 함께 유지합니다. Tailwind 클래스를 쓴 경우 해당 환경이 필요합니다. **Tailwind v4**(\`@tailwindcss/vite\` 등
    Vite 플러그인 방식)는 모듈 그래프를 자동으로 훑어 별도 설정 없이도 이 폴더의
    클래스를 찾아냅니다. **v3 이하**를 쓴다면 \`tailwind.config\`의 \`content\` 배열에 이
    폴더를 직접 추가해야 클래스가 적용됩니다.
+
+스펙에 지정한 button/input의 hover·pressed·focus 색은 생성 지침에 따라 포함될 수 있습니다.
+\`hover:\`·\`active:\`·\`focus-visible:\` 또는 대응 CSS와 실제 브라우저 동작을 확인하세요.
 
 자동 병합은 하지 않습니다 — 통합은 사용자가 직접 합니다(\`docs/02-mvp-scope.md\` MVP 제외 범위).
 

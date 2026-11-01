@@ -1,7 +1,9 @@
 > 2026-10-15 S1-4 구현: #381의 §10 계약에 따라 유입 참조 정리/첫 page 최소 재배치/전체 후보 검증을
 > 한 history 단계로 적용한다. 삭제 확인은 spec·문서 변경 시 영구 무효화하고 clipboard는 출처를
 > 검증한다. 과거 관계 오류 자동 저장본은 그대로 복원하며 엄격한 Save/Open 경계는 유지한다.
-> 아래 제안/미구현 표기는 이전 설계 시점 기록이다. 재사용 widget/S2와 관계 생성 기능은 구현하지 않았다.
+> 아래 제안/미구현 표기는 이전 설계 시점 기록이다. 현재(2026-11-01, develop ea0a7908)는
+> 재사용 widget/instance 추출·배치·분리와 프로젝트 관계 생성/Export가 구현됐다. 현재 계약은
+> [05](05-schema.md)·[26](26-agent-request-generation-contract.md), 실제 AI 검증 상태는 [수용 조건 표](265-acceptance-status.md)를 따른다.
 
 # 화면 종류·연결·재사용 위젯 설계 초안 (#265 S0-1)
 
@@ -10,8 +12,8 @@
 2026-10-13 팀 리더 @Yumesa2025가 [#265 결정 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265#issuecomment-6142842414)로
 이 문서(#339)를 사후 승인하고 D10·D11을 확정했다. 확정된 것은 §2·§8에 적은 범위뿐이다. 명령 필드·문맥 필드 같은
 세부는 각 계약 PR(S1-3은 [09](09-command-schema-freeze.md), S1-8/9는 [11](11-ticket-schema-freeze.md)·[26](26-agent-request-generation-contract.md))에서 정한다.
-JSON 조각은 여전히 설계이며, 현재 정본에 들어간 것은 S1-1(#355)의 kind·action과 S1-2(#366)의 검증 코드뿐이다.
-최신 소스 대조 기준: develop `2b0099c90ac82bacb5738d18239a9ddab913ebb5`(2026-10-10, #282·#284·#290 문서 병합 후),
+아래 JSON 조각과 단계별 현재/미구현 표기는 당시 설계 기록이며 현재 정본 fixture로 사용하지 않는다. 당시 정본에는 S1-1(#355)의 kind·action과 S1-2(#366)의 검증 코드가 들어 있었다.
+당시 소스 대조 기준: develop `2b0099c90ac82bacb5738d18239a9ddab913ebb5`(2026-10-10, #282·#284·#290 문서 병합 후),
 [#265](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265) 본문(2026-10-09 확인).
 리더 결정 반영 기준: develop `694f2d6`, #265 본문 "버전" 표(2026-10-13 갱신 확인). 본문 곳곳의 "#357 미병합" 표기는
 2026-10-09 작성 시점 기준이며 PR #357은 2026-10-10 병합됐다.

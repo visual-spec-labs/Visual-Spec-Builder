@@ -74,10 +74,10 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
   - Opacity — `frame` · `text` · `image`, 생략 시 `1`
   - Blur — `frame` · `text` · `image`, 생략 시 `0` (레이어 블러)
 - 멀티 페이지 (`ProjectSpec` / `PageId` — `pages` 맵 + `pageOrder` 배열, 페이지마다 선택 `kind`)
+- InstanceNode (`type: "instance"`): 같은 프로젝트 widget 참조, box 및 직접 Text/Button 내용·글자색 재정의.
 
 ## MVP 제외 범위
 
-- InstanceNode
 - ComponentSpec
 - 일반 TokenSet / spacing 토큰 (이름 있는 색·글자 스타일은 v0.4에서 지원)
 - props
