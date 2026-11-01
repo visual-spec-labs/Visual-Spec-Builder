@@ -14,7 +14,7 @@ try {
   const project = JSON.parse(await readFile(new URL("../../examples/dashboard-cards.json", import.meta.url), "utf8"));
   project.screen.name = "Issue448Panel";
   project.screen.nodes.headerTitle.typography = {
-    fontFamily: "Pretendard", fontSize: 14, fontWeight: 700, lineHeight: 20, letterSpacing: 0, textAlign: "left",
+    fontFamily: "Pretendard", fontSize: 14, fontWeight: 800, lineHeight: 20, letterSpacing: 0, textAlign: "left",
   };
   await writeFile(join(workspace, "specs/inspector.json"), JSON.stringify(project));
 
@@ -27,6 +27,16 @@ try {
   await page.evaluate(async () => { window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore; });
 
   await page.getByRole("button", { name: "Title", exact: true }).click();
+  const weight = page.getByRole("combobox", { name: "굵기", exact: true });
+  assert.equal(await weight.inputValue(), "800");
+  assert.equal(await weight.locator("option:checked").textContent(), "Extra Bold (800)");
+  assert.deepEqual(await weight.locator("option").evaluateAll(options => options.map(option => option.value)),
+    ["100", "200", "300", "400", "500", "600", "700", "800", "900"]);
+  await weight.selectOption("900");
+  await page.waitForFunction(() => editor.getState().spec.pages[editor.getState().activePageId].nodes.headerTitle.typography.fontWeight === 900);
+  await page.evaluate(() => editor.getState().undo());
+  await page.getByRole("button", { name: "Title", exact: true }).click();
+  assert.equal(await weight.inputValue(), "800");
   const name = page.getByRole("textbox", { name: "노드 이름" });
   await name.fill("MenuImage");
   await name.press("Enter");
@@ -70,6 +80,7 @@ try {
     return state.spec.pages[state.activePageId].nodes.headerTitle.typography;
   });
   assert.equal(typography.fontSize, 18);
+  assert.equal(typography.fontWeight, 800, "unrelated edits preserve the displayed weight");
   assert.equal(typography.lineHeight, 20, "px line height is an independent typography field");
   assert.equal(await page.getByRole("spinbutton", { name: "행간" }).inputValue(), "20");
 

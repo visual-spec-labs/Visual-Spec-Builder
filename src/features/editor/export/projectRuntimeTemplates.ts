@@ -96,6 +96,9 @@ export default function ProjectHost() {
     if (modalId === null) trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setModalId(target);
   }, [modalId]);
+  // Run after modal cleanup restores its saved scroll position. Closing a modal alone
+  // must retain the current page position; only a different page resets it.
+  useEffect(() => { window.scrollTo({ left: 0, top: 0, behavior: "instant" }); fallback.current?.scrollTo({ left: 0, top: 0, behavior: "instant" }); }, [pageId]);
   const actions = { onNavigate, onOpenModal, onClose };
   const Page = pageScreens.get(pageId)!;
   return <div ref={fallback} tabIndex={-1} data-vsb-project-host="">

@@ -52,6 +52,23 @@ try {
   assert.equal(await page.locator('[data-vsb-project-host]').evaluate(el => document.activeElement === el), true);
   assert.equal(await page.evaluate(() => window.scrollY), scroll);
   assert.deepEqual(await page.evaluate(() => [document.documentElement.style.overflow, document.body.style.overflow]), ['auto', 'auto']);
+  // #481: a long mobile page must reset after navigation, including modal cleanup.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addStyleTag({ content: 'html { scroll-behavior: smooth; }' });
+  await page.evaluate(() => window.scrollTo({ top: 183, behavior: 'instant' }));
+  assert.equal(await page.evaluate(() => window.scrollY), 183);
+  await page.locator('#navigate').evaluate(el => el.click());
+  await page.locator('#dashboard').waitFor();
+  await page.waitForFunction(() => window.scrollY === 0);
+  assert.ok((await page.locator('#dashboard').boundingBox()).y >= 0);
+  await page.locator('#back').click();
+  await page.evaluate(() => window.scrollTo({ top: 183, behavior: 'instant' }));
+  await page.locator('#open').evaluate(el => el.click());
+  await panel.waitFor();
+  await page.locator('#modal-navigate').click();
+  await page.locator('#dashboard').waitFor();
+  await page.waitForFunction(() => window.scrollY === 0);
+  assert.equal(await dialog.count(), 0);
   assert.deepEqual(errors, []);
   console.log('PASS generated runtime: typechecked production fixture; navigate, replace, Escape/close, backdrop, focus fallback, viewport sizing, scroll containment/restoration; no model execution');
 } finally { await browser.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
