@@ -1,5 +1,7 @@
 # visual-spec-ticket-response — 설명
 
+> 진행 신호·30분 상한·수동 실행은 [14](../14-getting-started.md), 현재 GUI/Export 연결은 [프로젝트 계약](../PROJECT_GENERATION_GUI.md)을 따른다. 실제 모델 180초 초과 실행은 fixture 통과와 별도로 미확인이다.
+
 [배포 스킬](../../skills/visual-spec-ticket-response/SKILL.md)은 GUI가 남긴
 `.visual-spec/runtime/ticket-request.json`을 읽고, 해당 웨이브의 React/Tailwind 파일과
 `ticket-response.json`을 작성하는 외부 에이전트 지침이다. 앱이 AI를 직접 호출하는 기능이나
@@ -17,7 +19,7 @@
    GUI가 확정할 `.visual-spec/generated/` 기준 자리이고, 요청의 `generatedRoot`
    (`<프로젝트 폴더>/<pageId>`, 규약 v3 · #281) 아래다 — 다른 프로젝트·페이지의 같은 이름이 같은 파일을 쓰지
    않는다. 이전 웨이브의 의존 파일은 같은 자리에서 읽고 보존한다.
-   현재 GUI는 **티켓 요청 규약 v3**을 보낸다. 스킬은 v3과 구버전 GUI의 v2 요청을 처리하고, 요청과 같은 번호로
+   현재 GUI의 **단일 화면은 v3**, 프로젝트는 **v4**, 참조 위젯 티켓이 있으면 **v5**를 보낸다. 스킬은 v2/v3와 별도 PROJECT_V4/PROJECT_V5 절차를 제공하며 요청과 같은 번호로
    응답한다. 이미 설치된 v2 전용 스킬은 v3 요청을 받으면 쓰기 전에 멈추고 버전 불일치를 알린다 — GUI에는
    만료로 보이며, 그 안내와 v2 응답을 받았을 때의 오류가 모두 `visual-spec skills`로 스킬을 갱신하라고 알린다
    ([26](../26-agent-request-generation-contract.md) "#281 티켓 요청 규약 v3").
@@ -33,7 +35,7 @@ Ticket 스키마나 자연어 `commands` 형식을 응답에 쓰지 않는다. �
 
 ## 한계
 
-프로젝트 요청 v4는 [별도 배포 절차](../../skills/visual-spec-ticket-response/PROJECT_V4.md)로
+프로젝트 요청 v4는 [v4 배포 절차](../../skills/visual-spec-ticket-response/PROJECT_V4.md), v5는 [위젯 배포 절차](../../skills/visual-spec-ticket-response/PROJECT_V5.md)로
 분기한다. 불변 입력 snapshot/hash, sourcePageId와 전체 plan, 정적 자산 token, 실제 IR action의
 callback을 사용한다. v2/v3는 기존 단일 화면 절차를 유지한다. 이 스킬 전달만으로 프로젝트
 GUI producer/Export 연결이나 실제 모델 생성 품질이 검증되는 것은 아니다.

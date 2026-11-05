@@ -5,6 +5,8 @@ description: Visual Spec Builder GUI가 `.visual-spec/runtime/nl-request.json`�
 
 # 자연어 요청에 Command로 응답하기
 
+현재 범위 구분: 화면 로컬 명령과 달리 공용 색·글자 스타일 수정/삭제는 프로젝트 전체의 연결된 노드에 영향을 준다. 일반 Command gate는 선택 노드 scope를 인자로 받지 않으므로 선택 범위 준수는 요청·스킬 계약이며 별도 서버 권한 검증으로 주장하지 않는다. 명시적 위젯 추출·배치는 별도 projectCommand 경로다.
+
 이 스킬이 지금 상황에 맞지 않으면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)를 대신 연다.
 
 ## 이 스킬과 `visual-spec-authoring`의 차이
@@ -18,7 +20,7 @@ description: Visual Spec Builder GUI가 `.visual-spec/runtime/nl-request.json`�
 | 트리거 | 파일을 콕 집어 "이 JSON 고쳐줘"(GUI가 꺼져 있을 때) | GUI가 `nl-request.json`을 써 둔 상태, 또는 GUI가 열려 있는데 대화에서 화면 수정을 요청받음 |
 | Undo | 없음(파일을 덮어씀) | GUI의 Undo 스택에 한 단계로 들어감 |
 
-노드 타입 5종 제약, `examples/`(사용자 프로젝트에서는 함께 설치된 `../visual-spec/contract/examples/`)가 지키는 관용구, `examples/invalid/`가 보여주는 자주 틀리는
+IR 0.4 노드 6종 제약, `examples/`(사용자 프로젝트에서는 함께 설치된 `../visual-spec/contract/examples/`)가 지키는 관용구, `examples/invalid/`가 보여주는 자주 틀리는
 지점 같은 **Visual Spec 자체의 지식은 여기서 다시 적지 않는다** —
 [visual-spec-authoring](../visual-spec-authoring/SKILL.md)이 이미 갖고 있고, 이 스킬이 만드는
 Command의 `node`/`layout`/`value` 필드도 결국 그 지식을 그대로 따라야 한다. 모르면 그 스킬을
@@ -522,7 +524,7 @@ Command 9개, 3종(`updateScreen`·`setLayout`·`createNode`)으로 만든다.
 
 ## 표현할 수 없는 것
 
-[visual-spec-authoring](../visual-spec-authoring/SKILL.md)의 v0.1 제약(노드 타입 5종,
+[visual-spec-authoring](../visual-spec-authoring/SKILL.md)의 현재 IR 제약(노드 타입 6종,
 `onClick`/`value`/`onChange` 없음)에 더해 이 경로만의 제약이다(`docs/08-natural-language.md`
 7.2):
 

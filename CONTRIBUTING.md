@@ -11,7 +11,7 @@ npm으로 설치하지 않는다. Node 지원 범위는 `^20.19.0 || >=22.12.0`�
 ```bash
 git clone https://github.com/visual-spec-labs/Visual-Spec-Builder.git
 cd Visual-Spec-Builder
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev            # vite 개발 서버(React 개발 모드). CLI로 띄우는 사용자 GUI는 production 모드다(#314)
 ```
 
@@ -88,7 +88,7 @@ docs: 기여 규칙과 라이선스 파일 추가
   기존 fixture의 `/usr/bin/chromium` 경로도 이 브라우저로 연결하고 opt-in 검사 3개를 명시 실행한다.
   Grid도 Playwright로 CSS viewport를 직접 지정해 브라우저 창 테두리와 `--dump-dom` 종료에 의존하지 않는다.
   이어서 Node Playwright 1.62.0을 runner 임시 폴더에 설치하고 Export·프로젝트 대화상자·문서 전환·
-  이름 없는 초안 복구·저장 상태·낡은 티켓·다중 탭 요청·수동 변경 보호·생성 출력 소유권의 Node 여정 9개를 순차 실행한다. 각 여정은 120초 제한이며
+  이름 없는 초안 복구·저장 상태·낡은 티켓·다중 탭 요청·수동 변경 보호·생성 출력 소유권·편집 문맥의 Node 여정 10개를 순차 실행한다. 추가 여정과 각 제한 시간의 정본은 `.github/workflows/ci.yml`이다. 기본 여정은 120초 제한이며
   실패/timeout은 browser 잡과 필수 build 체크를 실패시킨다. 제품 의존성·권한·secrets는 늘리지 않는다.
   이는 fixture의 DOM/레이아웃과 지정 사용자 경로 검사이며 실제 AI 실행이나 #292 전체 완료 검증은 아니다.
   이어서 `screen-relations-guard.mjs`와 `recovery-provenance.mjs`를 각각 별도 120초 제한으로 실행한다.
@@ -167,7 +167,7 @@ pnpm run generate:types
 안 그러면 CI의 스키마 드리프트 검사에서 막힌다. 이 검사는 `generate:types`를 다시 돌린 뒤
 `git diff`가 비어야 통과한다.
 
-스키마 v0.1은 **동결 상태**다. 무엇을 바꿀 수 있고 절차가 어떻게 되는지는
+현재 IR v0.4는 **동결 계약의 변경 절차를 따른다**. v0.1은 최초 동결 시점이다. 무엇을 바꿀 수 있고 절차가 어떻게 되는지는
 [`docs/06-schema-freeze.md`](docs/06-schema-freeze.md)에 있다. 스키마를 건드리기 전에 반드시 읽는다.
 
 ## 문서 구조

@@ -75,9 +75,11 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
 
 ## 제약
 
-v0.1 의 노드 타입은 **`frame`, `text`, `image`, `button`, `input` 다섯뿐이다.** `component`
+현재 IR 0.4의 노드 타입은 **`frame`, `text`, `image`, `button`, `input`, `instance` 6종이다.** `component`
 같은 타입은 여전히 없다 — 지어내지 않는다. 표현할 수 없는 요구가 오면 프레임과 텍스트로
 근사하고, 근사했다는 사실을 사용자에게 알린다.
+
+`instance`는 같은 프로젝트 widget의 PageId를 참조한다. 직접 Text/Button의 내용·글자색 재정의와 box만 지원하며, 참조·순환·종류는 프로젝트 검증기로 확인한다. 화면 관계와 위젯이 있는 문서는 프로젝트 문맥을 보존한다.
 
 `ImageNode`는 `background`·`border`·`children`을 갖지 않는다(leaf 노드, `text`와 같은
 성격). 필수 필드는 `type`(`"image"`), `name`, `box`, `src`(워크스페이스 assets를 가리키는
@@ -86,8 +88,7 @@ v0.1 의 노드 타입은 **`frame`, `text`, `image`, `button`, `input` 다섯�
 
 `ButtonNode`/`InputNode`도 leaf 노드다. 둘 다 `text`처럼 `typography`·`color`가 필수고,
 `background`·`border`는 선택이다. `ButtonNode`는 `content`(버튼 라벨, 빈 문자열 불가),
-`InputNode`는 `placeholder`(빈 문자열 허용)가 각각 필수 텍스트 필드다. **둘 다 표시용
-텍스트만 있다** — `onClick`·`value`·`onChange` 같은 이벤트·바인딩은 스키마에 없다("버튼
+`InputNode`는 `placeholder`(빈 문자열 허용)가 각각 필수 텍스트 필드다. 표시 텍스트와 button의 선택 `action`(navigate/openModal/close)을 지원한다. 일반 `onClick`·`value`·`onChange` 같은 이벤트·바인딩은 스키마에 없다("버튼
 누르면 로그인" 같은 동작 요구는 표현할 수 없다고 알린다). 실물은 `examples/form-grid.json`이다.
 
 `background`(`frame`·`button`·`input`)는 **채우기 겹의 배열**이다 — 문서 버전 `"0.3"`부터.

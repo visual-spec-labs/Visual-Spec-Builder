@@ -1,8 +1,10 @@
 # GUI와 생성 앱의 화면 크기·폰트·배치 통합 계약과 실측 (#280)
 
+> 현재 자료 구분: 아래 실측은 당시 수동 fixture 기록이다. 이후 실제 모델 산출물 기록은 [15](15-workflow-qa.md)·[28](28-real-flow-regression.md)에 따로 있다. 이 문서의 측정 결과를 실제 모델 전면 검증으로 확대하지 않는다.
+
 상태: **Part of #280.** 계약·측정 조건·허용 오차를 정하고, 실제 GUI DOM과 생성 앱 DOM을 같은
 Chromium에서 비교하는 실측 도구를 만들어 실행했다. 생성 쪽은 **스킬 매핑을 사람이 옮긴 fixture**다.
-실제 AI가 생성한 TSX는 저장소에 없고(아래 "남은 일"), 이 작업에서 새 모델 호출도 하지 않았다.
+이 실측 당시 실제 AI가 생성한 TSX는 저장소에 없었고(아래 당시 "남은 일"), 이 작업에서 새 모델 호출도 하지 않았다. 이후 실제 산출물은 [2026-10-17 기록](qa/2026-10-17-issue-364/README.md)에 보존됐다.
 따라서 아래 수치는 "계약을 따른 생성 코드라면 GUI와 같은 배치가 된다"는 증거이며 실제 AI 출력의
 배치 정확도를 증명하지 않는다.
 
@@ -10,8 +12,7 @@ Chromium에서 비교하는 실측 도구를 만들어 실행했다. 생성 쪽�
 그대로 이어받고, 폰트·측정·판정 규칙을 이 문서가 정본으로 대신한다. 구체 CSS 출력은
 [`visual-spec-to-react` 스킬](../skills/visual-spec-to-react/SKILL.md#페이지-viewport와-브라우저-기본-스타일),
 GUI 쪽 정본은 `src/features/editor/ui/nodeStyles.ts`·`canvasLayout.ts`·`src/styles/fonts.css`다.
-page 종류의 계약만 다룬다. 아직 승인되지 않은 modal/widget 개념(#265, 설계 PR #339)에는 이 셸을
-적용하지 않는다.
+page 종류의 셸 계약만 다룬다. 현재 구현된 modal/widget에는 page 최소 높이 셸을 그대로 적용하지 않으며 [화면 관계](24-screen-relations-design.md)·[S2](S2_WIDGET_CONTRACT.md)의 별도 계약을 따른다.
 
 ## 1. 렌더링 계약
 

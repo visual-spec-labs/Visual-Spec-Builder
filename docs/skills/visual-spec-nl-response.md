@@ -5,6 +5,8 @@
 
 ## 이 스킬이 하는 일
 
+현재 범위 구분: 화면 로컬 명령과 달리 공용 색·글자 스타일 수정/삭제는 프로젝트 전체의 연결된 노드에 영향을 준다. 일반 Command gate는 선택 노드 scope를 인자로 받지 않으므로 선택 범위 준수는 요청·스킬 계약이며 별도 서버 권한 검증으로 주장하지 않는다. 명시적 위젯 추출·배치는 별도 projectCommand 경로다.
+
 Visual Spec Builder **GUI**(`npx visual-spec`)가 자연어 입력창(`NaturalLanguageBar`)에서
 받은 요청을 `.visual-spec/runtime/nl-request.json`에 써 두면, 그걸 읽고 **Command 배열**을
 `.visual-spec/runtime/nl-response.json`에 써서 답한다. 산출물은 스펙 JSON 문서 전체가 아니라
@@ -24,7 +26,7 @@ GUI는 LLM을 직접 부르지 않고(앱이 API 키를 들고 있지 않다), �
 - **GUI가 `nl-request.json`을 이미 써 둔 상태**라면(사용자가 GUI 안에서 자연어 입력창에
   요청을 넣은 것) → 이 스킬 (산출물: Command 배열)
 
-노드 타입 5종 제약, `layout`/`typography` 필드를 전부 채우는 규칙, 자주 틀리는 지점
+IR 0.4 노드 6종 제약, `layout`/`typography` 필드를 전부 채우는 규칙, 자주 틀리는 지점
 (child-missing·orphan-node 등) 같은 **Visual Spec 자체의 지식은 이 스킬에 없다** —
 `visual-spec-authoring`이 이미 갖고 있는 걸 그대로 참조한다. 이 스킬이 더하는 건 "그 지식을
 Command 배열이라는 다른 그릇에 담는 법"이다.

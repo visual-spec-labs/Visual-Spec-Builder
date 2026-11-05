@@ -1,5 +1,7 @@
 # Visual Spec Builder
 
+전체 문서의 역할과 점검 범위는 [문서 안내](docs/README.md)에 정리했다.
+
 체크아웃에서 localhost로 실행하는 화면 설계 GUI 도구다.
 사용자는 자연어 또는 직접 조작으로 화면을 구성하고, 도구는 이를 JSON Visual Spec으로 저장한다.
 Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현한다.

@@ -1,5 +1,7 @@
 # 11. Ticket Schema v0.1 확정 및 동결
 
+> 현재 계약(2026-11-05): 단일 Ticket v0.1과 프로젝트 ProjectTicket v0.2가 별도 정의로 공존한다. `compileProjectTickets`와 v4/v5 전송·GUI·Export가 구현됐다. 아래 예정·미구현 제목의 절은 2026-10-13~16의 결정/리뷰 이력이며 최신 지원 여부가 아니다. 정본은 `ticket.schema.json`의 루트 및 `$defs.ProjectTicket`, 실행 계약은 [26](26-agent-request-generation-contract.md)·[프로젝트 GUI](PROJECT_GENERATION_GUI.md)·[S2](S2_WIDGET_CONTRACT.md)를 따른다.
+
 동결 시작: 2026-09-29 · 이슈 #179
 
 ## 정본과 공개 표면
@@ -52,7 +54,7 @@ v0.1 변경은 다음을 한 PR에서 함께 수행한다.
 
 ## Ticket v0.2 · 티켓 요청 규약 v4 예정 — #265 D11
 
-현재 상태: **예정.** 지금 정본은 위의 v0.1 그대로다. 이 절은 2026-10-13 리더 결정
+당시 상태(2026-10-13): **예정.** 당시 정본은 위의 v0.1이었다. 이 절은 2026-10-13 리더 결정
 ([#265 결정 댓글](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/265#issuecomment-6142842414))을
 기록할 뿐이며 `ticket.schema.json`·`ticket/types.ts`·`compileTickets`·테스트를 바꾸지 않는다. 실제 변경은
 **#265 S1-8/9 착수 전 계약 PR**이 위 "변경 절차"대로 한다. 설계 배경은 [24 §6](24-screen-relations-design.md#6-ticket생성export-추천-경계)에 있다.

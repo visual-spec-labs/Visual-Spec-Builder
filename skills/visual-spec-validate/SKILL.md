@@ -22,8 +22,8 @@ description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해
 ## 먼저 알아야 할 것 — issues 만 봐서는 모르는 규칙
 
 - **`code: "schema"` 의 `message` 는 어느 필드인지 말해주지만, 대부분은 탈락한 갈래의
-  추측이다.** 노드 스키마가 `frame`·`text`·`image`·`button`·`input` 다섯을 `oneOf` 로 묶고
-  있어 검증기가 **다섯 갈래**를 각각 대본 뒤 실패 이유를 전부 낸다. 갈래마다
+  추측이다.** 노드 스키마가 `frame`·`text`·`image`·`button`·`input`·`instance` 여섯을 `oneOf` 로 묶고
+  있어 검증기가 **여섯 갈래**를 각각 대본 뒤 실패 이유를 전부 낸다. 갈래마다
   `필수 필드 …가 없습니다.` `허용되지 않는 필드 …가 있습니다.` 가 따로 나오므로, 노드
   하나가 틀려도 이슈는 열 개를 넘기 일쑤다. 갈래별 잡음 개수는 노드가 그 타입과 얼마나
   비슷한 모양이냐에 달려 있다 — `color`·`typography`는 `text`·`button`·`input` 셋 다
@@ -33,30 +33,15 @@ description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해
   없는 갈래다.** 이것이 잡음을 걷어내는 유일한 신호다. 같은 노드 `path` 에
   `값이 "frame"이어야 합니다.` 가 있으면 그 노드는 `frame` 갈래에서 탈락한 것이므로 그 갈래가 낸
   이슈는 전부 잡음이다. **살아남은 갈래가 낸 이슈만 믿는다.**
-  `text-without-content.json` 은 이슈 **16개**를 내는데 `.../type` 이슈가 `"frame"`(5번째),
-  `"image"`(11번째), `"button"`(13번째), `"input"`(15번째) 넷뿐이다 — `"text"` 가 없으니
-  `text` 갈래가 살아남았고, 진짜는 그 갈래가 낸 **6번째** `필수 필드 "content"가 없습니다.`
-  하나다. 나머지 15개는 `frame` 갈래 5개(1~5번째), `image` 갈래 5개(7~11번째), `button`
-  갈래 2개(12~13번째), `input` 갈래 2개(14~15번째), 맨 끝 `oneOf` 요약 1개(16번째)다.
-  `button`·`input` 갈래가 2개뿐인 건 이 노드가 이미 `typography`·`color`를 갖고 있어
-  "허용되지 않는 필드" 잡음이 안 생기고 필수 필드 누락(`content`/`placeholder`)과
-  타입 불일치만 남기 때문이다.
-- **`.../type` 에 다섯 값(`"frame"`·`"text"`·`"image"`·`"button"`·`"input"`)이 전부
-  나오면 갈래가 전멸한 것이다.** 그때는 개별 필드가 아니라 `type` 자체가 틀렸고, 그 다섯
-  메시지에 적힌 값이 v0.1 의 허용값 전부다. `unsupported-node-type.json`(`type: "shape"`)이
-  이 모양으로 19개를 낸다.
-- **배경(`background`) 오류는 같은 묶음이 세 번 반복된다.** `background` 는 채우기 겹의
-  배열(`Fill[]`)이고 겹 하나가 다시 `solid`·`linear` 두 갈래의 `oneOf` 다. 그런데 `background` 를
-  갖는 노드 갈래가 `frame`·`button`·`input` 셋이라, 겹 하나가 틀리면 그 겹의 이슈 묶음이
-  노드 갈래마다 한 벌씩 나온다(`login-screen` 의 root 배경 겹 하나만 틀려도 41~44개).
-  `path` 가 `.../background/<i>` 인 이슈만 골라 중복을 지우면 한 벌이 남는다. 그 안에서는 노드
-  `oneOf` 와 같은 방법으로 읽는다 — `.../background/<i>/type` 의 `값이 "solid"이어야 합니다.`·
-  `값이 "linear"이어야 합니다.` 중 **나오지 않은 쪽이 살아남은 갈래**이고, 그 갈래의 이슈가
-  진짜다. 예: `{ "type": "solid" }` 은 `"linear"` 탈락만 나오므로 진짜는 `필수 필드 "color"가
-  없습니다.` 다. 두 값이 다 나오면 `type` 자체가 틀렸다(`"radial"` 같은 없는 종류 — 허용값은
-  `solid`·`linear` 둘뿐이다).
+  `text-without-content.json`에서는 text 갈래의 content 누락을 고친다. 이슈 개수·순서로 원인을 고정하지 않는다.
+- **`.../type` 에 여섯 값(`"frame"`·`"text"`·`"image"`·`"button"`·`"input"`·`"instance"`)이 전부
+  나오면 갈래가 전멸한 것이다.** 그때는 개별 필드가 아니라 `type` 자체가 틀렸고, 그 여섯
+  메시지에 적힌 값이 IR 0.4의 허용값 전부다. `unsupported-node-type.json`(`type: "shape"`)이
+  이 모양으로 여러 이슈를 낸다. 개수는 정본에 따라 달라진다.
+- **배경 오류는 노드 갈래와 Fill 갈래가 겹쳐 반복된다.** Fill은 `solid`·`linear`·`image` 세 종류다. `path`와 실제 type으로 해당 갈래를 찾고 필수 필드·추가 속성을 확인한다. 이슈 개수나 순서를 고정하지 않는다. 예를 들어 `{ "type": "solid" }`의 실제 문제는 color 누락이다.
+
 - **`.../background` 에 `값의 타입이 "array"이어야 합니다.` 가 나오면 0.2까지의 옛 모양이다.**
-  `{ "color": c }` → `[{ "type": "solid", "color": c }]` 로 고친다. 문서 버전도 `"0.3"` 이어야
+  `{ "color": c }` → `[{ "type": "solid", "color": c }]` 로 고친다. 현재 문서 버전은 `"0.4"` 이어야
   한다(옛 0.1·0.2 파일은 앱이 열 때 변환하지만 `validateVisualSpec` 은 변환하지 않는다).
 - **맨 끝의 `정의된 대안 스키마 중 어느 것과도 일치하지 않습니다.` 는 원인이 아니라 요약이다.**
   `oneOf` 가 실패했다는 사실만 말한다. 같은 `path` 의 다른 이슈로 되돌아가서 읽는다.
@@ -82,19 +67,19 @@ description: Visual Spec 을 검증하거나, 검증이 실패해 issues 를 해
 | `cycle` | 자식이 조상을 다시 참조한다. 이동 작업에서 부모/자식을 뒤집으면 생긴다 | `path` 가 가리키는 참조를 끊는다 |
 | `root-missing` | `screen.root` 값이 `nodes` 의 키와 다르다 | 둘 중 하나를 상대에 맞춘다 |
 | `root-not-frame` | 루트를 `text` 로 만들었다. 텍스트 한 줄짜리 화면에서 자주 나온다 | 루트 프레임을 만들고 그 텍스트를 자식으로 넣는다 |
-| `schema` at `.../<node>` (`text-without-content`) | TextNode 에 `content` 가 없다. **필수 필드 누락은 전부 이 모양으로 나온다.** 이슈 16개 중 6번째 `필수 필드 "content"가 없습니다.` 만 진짜고 나머지는 `frame`·`image`·`button`·`input` 갈래의 잡음이다 | 정본 스키마의 `required` 와 그 노드를 대조해, `message` 가 지목한 빠진 필드를 채운다 |
+| `schema` at `.../<node>` (`text-without-content`) | TextNode 에 `content` 가 없다. **필수 필드 누락은 전부 이 모양으로 나온다.** text 갈래의 `필수 필드 "content"가 없습니다.`가 원인이고 다른 갈래의 실패는 잡음이다 | 정본 스키마의 `required` 와 그 노드를 대조해, `message` 가 지목한 빠진 필드를 채운다 |
 | `gradient-stop-order` | `linear` 겹의 `stops` 에서 `at` 이 앞 stop보다 작다. JSON Schema로는 원소끼리 비교할 수 없어 스키마 검사를 통과한 뒤 따로 잡는다. `path` 는 순서가 어긋난 stop의 `.../stops/<j>/at` 이다 | stop을 `at` 오름차순으로 정렬한다. 같은 값이 이어지는 것은 허용된다(딱 끊기는 경계) |
 | `schema` at `.../background` (`값의 타입이 "array"`) | 0.2까지의 `{ "color": c }` 배경을 그대로 썼다 | `[{ "type": "solid", "color": c }]` 로 바꾼다 |
 | `schema` at `.../background/<i>/...` (`linear` 갈래가 살아남음) | linear 겹의 값이 범위 밖이다. `.../stops/<j>/at` 의 `값이 허용 범위를 벗어났습니다 (maximum: 1)` 는 `at` 을 퍼센트(`50`)로 썼다는 뜻, `.../stops` 의 `JSON 스키마 규칙(minItems)을 위반했습니다.` 는 stop이 1개뿐이라는 뜻, `.../angle` 의 `(exclusiveMaximum: 360)` 은 각도에 `360` 이상을 썼다는 뜻이다 | `at` 은 `0`..`1` 비율로(50% → `0.5`), stop은 2개 이상으로(한 색이면 solid 겹으로 바꾼다), 각도는 `[0, 360)` 으로(`360` → `0`) 고친다 |
-| `schema` at `.../<node>/type` (`unsupported-node-type`) | `shape` 처럼 v0.1 에 없는 `type` 을 썼다. `값이 "frame"`·`"text"`·`"image"`·`"button"`·`"input"` 다섯 이슈가 **함께** 나오는 것이 신호다 | 그 다섯 메시지의 값이 허용값 전부다 — v0.1 은 `frame`, `text`, `image`, `button`, `input` 다섯뿐이다. 다섯 중 가장 가까운 것으로 근사한다 |
+| `schema` at `.../<node>/type` (`unsupported-node-type`) | 정본에 없는 type을 사용해 모든 Node 갈래가 실패했다 | IR 0.4의 frame/text/image/button/input/instance 중 의미에 맞는 것을 사용한다. instance는 프로젝트 widget 참조이며 임의 도형 대체가 아니다 |
 
 ## 절차
 
 1. `code: "schema"` 가 하나라도 있으면 그것부터. `path` 를 중복 제거해 대상 노드를 좁힌다.
 2. 그 노드의 실제 `type` 값을 확인하고, `.../type` 의 `값이 "X"이어야 합니다.` 로 탈락한
-   갈래를 지운다. **다섯 갈래(`frame`·`text`·`image`·`button`·`input`) 중 그 메시지가 나오지
+   갈래를 지운다. **여섯 갈래(`frame`·`text`·`image`·`button`·`input`·`instance`) 중 그 메시지가 나오지
    않은 하나가 살아남은 갈래다.** 남은 이슈의 `message` 가 가리키는 필드가 고칠 대상이다.
-   다섯 개가 전부 나왔으면 갈래가 전멸한 것이니 `type` 부터 고친다.
+   여섯 개가 전부 나왔으면 갈래가 전멸한 것이니 `type` 부터 고친다.
 3. 그 노드를 정본 스키마(사용자 프로젝트는 `../visual-spec/contract/schema/visual-spec.schema.json`,
    저장소 안은 `src/features/editor/schema/visual-spec.schema.json`)의 `required` 및
    `additionalProperties: false` 와 눈으로 대조한다. 정의를 외워서 판단하지 않는다.
