@@ -1,5 +1,19 @@
 # 04. GUI 명세
 
+> **현재 GUI를 읽는 기준 (`develop` `49e7f617`).** 이 문서에는 초기 설계 그림과 날짜별
+> 구현 대조가 함께 있다. ✅는 범위 포함을 뜻하며 모든 그림·문구의 현재 구현 완료 표시는 아니다.
+> 실제 따라 하기에는 [14](14-getting-started.md), 현재 기능 요약에는 [07](07-implementation-status.md)을 쓴다.
+>
+> - 실행은 체크아웃/로컬 설치본의 인자 없는 `visual-spec`이며 주소는 터미널 출력을 따른다.
+> - 홈은 프로젝트 파일 목록이다. 읽기·검증 실패는 “손상된 파일” 영역에 사유와 다시 확인·원본 다운로드를 표시한다.
+> - **파일 → 열기**는 작업공간 목록 항목을 클릭하는 모달이다. 작업공간이 없거나 비면 파일 선택창으로 전환한다.
+> - 자연어 초안은 에디터 입력칸을 채울 뿐 자동 전송하거나 에이전트를 시작하지 않는다.
+> - 기본 노드 5종 외에 위젯 instance, 프로젝트 색·글자 스타일, button/input 상태 스타일을 편집한다.
+> - 반응형의 실제 적용 폭은 별도 미리보기 폭이며, 아직 설정하지 않았으면 `screen.size.width`를 사용한다.
+>
+> 근거: `HomeScreen.tsx`·`openSpecFromFile.ts`·`DesignStylesSection.tsx`·`StateStylesSection.tsx`·
+> `useResponsiveScreen.ts`. 아래 2026-10-05 표와 초기 그림은 당시 기록으로 보존한다.
+
 > 출처: ClickUp 팀 문서 `GUI 내용 정리`, `PRD 1차` 2·9장
 > 홈화면 절은 2026-08-15 설계 논의에서 새로 확정했다. 근거는 [설계 문서](superpowers/specs/2026-08-15-docs-restructure-and-home-screen-design.md) 참고.
 
@@ -36,16 +50,16 @@ Studio는 두 개의 최상위 화면으로 구성된다.
 
 | 화면 | 진입 시점 | 역할 |
 |---|---|---|
-| 홈 | `npx visual-spec` 실행 직후 | 화면 목록 탐색, 새 화면 시작 |
+| 홈 | 인자 없는 `visual-spec` 실행 직후 | 화면 목록 탐색, 새 화면 시작 |
 | 에디터 | 홈에서 화면을 열면 | 실제 편집 작업 |
 
 ---
 
 ## 2. 홈(진입) 화면
 
-`npx visual-spec` 실행 후 `localhost:4173`에서 처음 만나는 화면이다.
+인자 없는 `visual-spec` 실행 후 터미널에 표시된 localhost 주소에서 처음 만나는 화면이다.
 
-> **현재 상태 (2026-10-05, develop `3d57903` 기준)**
+> **당시 구현 대조 기록 (2026-10-05, develop `3d57903` 기준)**
 >
 > 아래 2026-09-01 블록의 "재설계는 아직 하지 않았다"는 이제 절반만 맞다. 코드(`src/features/editor/ui/HomeScreen.tsx`·`homeProjects.ts`·`homePreview.ts`, `store/navigationStore.ts`)의 실제 동작은 다음과 같다.
 >

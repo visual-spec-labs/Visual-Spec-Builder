@@ -42,7 +42,11 @@
 }
 ```
 
-기본 `nodes` 값은 모든 폭의 기반 값이다. breakpoint override는 그 `minWidthPx` 이상에서 적용되며, 더 큰 폭에서는 낮은 breakpoint 값 위에 누적 적용한다. 같은 노드와 속성이 여러 breakpoint에 있으면 가장 큰 적용 breakpoint의 값이 우선한다. 속성 일부만 덮어쓰며, 생략된 속성은 앞선 값에서 상속한다. 따라서 작은 화면 우선의 기본 레이아웃은 기존 필드에 두고 큰 화면용 변경을 breakpoint에 기록한다. `size.width`는 아트보드/초기 미리보기 크기이며 breakpoint 정의를 선택하거나 대체하지 않는다.
+기본 `nodes` 값은 모든 폭의 기반 값이다. breakpoint override는 그 `minWidthPx` 이상에서 적용되며, 더 큰 폭에서는 낮은 breakpoint 값 위에 누적 적용한다. 같은 노드와 속성이 여러 breakpoint에 있으면 가장 큰 적용 breakpoint의 값이 우선한다. 속성 일부만 덮어쓰며, 생략된 속성은 앞선 값에서 상속한다. 따라서 작은 화면 우선의 기본 레이아웃은 기존 필드에 두고 큰 화면용 변경을 breakpoint에 기록한다. `size.width`는 화면의 기본 폭이며 breakpoint 정의를 대체하지 않는다. 다만 GUI에서 별도
+미리보기 폭을 아직 설정하지 않았다면 그 값이 실제 적용 폭으로 쓰인다(`useResponsiveScreen`의
+`preview ?? screen.size.width`). 분기점 선택은 미리보기 폭을 해당 `minWidthPx`로 바꾸며,
+기본값(base) 선택은 첫 분기점보다 작은 폭으로 바꾼다. 미리보기 폭은 페이지별 뷰 상태라
+문서와 Undo에 저장하지 않는다. 데스크톱부터 설계한 문서의 변환은 [사용 가이드](14-getting-started.md#7-반응형-분기점과-데스크톱부터-디자인하는-경로-438)를 따른다.
 
 "속성 일부만 덮어쓴다"는 객체 칸(`box`, `layout`, `border`, `typography` 등)에 대한 규칙이다. **배열은 원소 단위로 병합하지 않는다.** 0.3부터 `background`는 채우기 겹 배열(`Fill[]`, [13](13-background-fill-design.md#반응형-ir181과의-관계))이라, override의 `background`는 그 폭에서 **배경 전체를 갈아 끼운다.** "이 폭에서 배경 없음"은 `[]`로 쓴다(생략은 상속이다). 예: `"cards": { "background": [{ "type": "solid", "color": "#F8FAFC" }] }`.
 

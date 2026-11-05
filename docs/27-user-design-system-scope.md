@@ -1,11 +1,16 @@
 # 사용자 화면의 공용 스타일·폰트·상태 지원 범위 (#290)
 
+> **현재 소스 대조: `develop` `49e7f617`.** 프로젝트 색·글자 스타일과 연결,
+> button/input의 hover·pressed·focus 편집·표현이 구현돼 있다. 아래 Q1~Q7·G1~G6 결정과
+> 추가 폰트·CSS 변수 출력 등의 보류는 변경하지 않는다. 구현 존재를 실제 AI 출력 수용이나
+> 모든 브라우저의 시각 검증 완료로 확대하지 않는다.
+
 상태: **#290 채택 범위 구현 완료 · IR v0.4 · 2026-10-16**
 (최초 Draft 2026-10-10, [#360](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/360)에서 결정).
 이 문서는 사용자가 만든 화면의 디자인 시스템을 **어디까지 지원할지**와 **후속 구현 순서**를 기록한다.
-승인 근거와 승인 범위는 [6절](#6-결정-기록)에 있다. 2-0부터 2-4까지의 채택 범위와 계약 갱신을 이 작업 브랜치에서 구현했다. 보류 단계(추가 폰트·CSS 변수)는 착수 가능한 단계가 아니다.
+승인 근거와 승인 범위는 [6절](#6-결정-기록)에 있다. 2-0부터 2-4까지의 채택 범위와 계약 갱신은 현재 소스에 구현돼 있다. 보류 단계(추가 폰트·CSS 변수)는 착수 가능한 단계가 아니다.
 정본 스키마 v0.4, 마이그레이션, GUI·프로젝트 편집, standalone 변환, 상태 렌더·생성 지침을 구현했다. 추가 폰트와 CSS 변수 출력은 Q5·Q3에 따라 보류한다.
-최신 소스 대조 기준: develop `87b1be7`(2026-10-13, #376·#378·#379 병합 후. 결정 반영 당시는 `694f2d6`). 최초 초안은 develop
+설계 당시 소스 대조 기준: develop `87b1be7`(2026-10-13, #376·#378·#379 병합 후. 결정 반영 당시는 `694f2d6`). 최초 초안은 develop
 `0733ae1e65f837f47cdba5b18310750ed70c7662`(#356·#350·#349 통합)과
 [#290](https://github.com/visual-spec-labs/Visual-Spec-Builder/issues/290) 본문(2026-10-10 확인)을 대조했다.
 
@@ -70,20 +75,20 @@ G1~G6 게이트를 충족한 뒤 별도 스키마 PR·기능 PR로 진행한다.
 | 대상 | 지금 | 근거 |
 |---|---|---|
 | 스타일 값 | 모든 값이 노드별 리터럴이다. 색은 `#RRGGBB(AA)` 문자열, 글자는 `Typography` 6필드가 모두 필수, 간격은 `layout.gap`·`padding` 숫자 | 정본 `$defs.Color`·`Typography`·`Layout`(`schema/visual-spec.schema.json`) |
-| 토큰·스타일 개념 | 없음. `TokenSet`·`variants`·`states`가 제외 범위, `token`도 미지원 | [05](05-schema.md) MVP 제외 범위, [06](06-schema-freeze.md) "지원하지 않는다" |
+| 토큰·스타일 개념 | `ProjectSpec.styles.colors`·`.typography`와 노드 `styleRefs`의 값 사본 연결을 지원. 일반 TokenSet·spacing·variants는 제외 | 정본, `schema/styleEdits.ts`, `ui/properties/DesignStylesSection.tsx` |
 | 색 입력 | 스와치 + hex + 불투명도. 문서 안에서 쓴 색 목록·프리셋은 없다 | `ui/properties/fields/ColorField.tsx` |
-| 폰트 선택지 | `Pretendard`, `system-ui` 두 개. 굵기는 400~700 네 개(스키마는 100~900) | `ui/properties/TypographySection.tsx`의 `FONT_FAMILY_OPTIONS`·`FONT_WEIGHT_OPTIONS` |
+| 폰트 선택지 | `Pretendard`, `system-ui` 두 개. 굵기는 100~900의 9개 단계 | `ui/properties/TypographySection.tsx`의 `FONT_FAMILY_OPTIONS`·`FONT_WEIGHT_OPTIONS` |
 | 폰트 공급 | [PR #350](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/350)(#280)가 병합되어 GUI와 생성 셸이 같은 **static** dynamic-subset URL을 쓴다. 이전 variable CSS의 family는 `Pretendard Variable`이라 `"Pretendard"` 텍스트가 OS 폴백으로 그려졌고 이 불일치를 수정했다([25](25-layout-parity-contract.md) §1·§4.2) | `src/styles/fonts.css`, 스킬 "페이지 viewport와 브라우저 기본 스타일" 셸 |
 | 새 노드의 글꼴 | 삽입·시드가 `fontFamily: "Pretendard"`로 만든다. 저작·자연어 스킬도 `"Pretendard"`로 통일한다 | `store/createNode.ts`, `store/seedSpec.ts`, `skills/visual-spec-authoring/SKILL.md` |
 | 이미지 | 파일 ▸ 이미지 가져오기·배경 이미지 선택은 이미지 디코딩·크기 측정에 성공하면 `.visual-spec/assets/`에 UUID를 붙인 이름으로 저장을 시도한다. 작업공간 목록 조회 불가·허용 확장자 밖·UUID 생성 불가·쓰기 실패 시 파일 읽기가 성공하면 data URI를 스펙에 넣는다. 디코딩 또는 fallback 읽기까지 실패하면 가져오지 않는다. 허용 확장자에 `.svg`가 있다. 이미 있는 자산을 고르는 목록 UI는 없고 경로를 직접 적어야 재사용된다. 미사용 자산 정리는 없다 | `ui/importImageFromFile.ts`, `features/workspace/protocol.ts`(`WORKSPACE_DIR_RULES.assets`), `ui/properties/ContentSection.tsx`·`ImageFillFields.tsx`의 "경로 (src)" 칸 |
-| 이미지 생성 | 자산은 `../assets/<파일>` 정적 import, `alt=""`(장식용 근사) | 스킬 "image 노드", [21](21-app-scope-a11y-design.md) |
-| 아이콘 | 아이콘 노드 타입이 없다. `lucide-react`는 편집기 UI에서만 쓴다. 사용자 화면의 아이콘은 SVG/PNG를 이미지로 넣는 방법뿐이고 색을 바꿀 수 없다 | 정본 `Node`(5종), `TypographySection.tsx` 등의 `lucide-react` import |
+| 이미지 생성 | 단일 화면은 정적 import, 프로젝트 출력은 모듈 상대 `new URL(..., import.meta.url)` 자산 변환 경로를 사용한다. 의미 있는 이미지의 alt는 대상 앱에서 확인·보완 | [사용 가이드](14-getting-started.md), [21](21-app-scope-a11y-design.md) |
+| 아이콘 | 아이콘 노드 타입이 없다. `lucide-react`는 편집기 UI에서만 쓴다. 사용자 화면의 아이콘은 SVG/PNG를 이미지로 넣는 방법뿐이고 색을 바꿀 수 없다 | 정본 `Node`(기본 5종 + instance), `TypographySection.tsx` 등의 `lucide-react` import |
 | Export 의존성 | `package.json`은 `react`와 생성 코드가 import한 패키지를 `*`로 나열한다 | `export/bundle.ts` `buildPackageJson` |
-| 요소 상태 | hover·focus·disabled 스타일이 없다. 캔버스 버튼은 `cursor: default`. 생성 스킬은 테두리 정렬을 `outline-*`로 옮기지 않는다(브라우저 focus 링과 겹침) | [05](05-schema.md) `states` 제외, `ui/nodeStyles.ts` `buttonStyle`, 스킬 "테두리 정렬" |
-| 공용 컴포넌트 | instance·ComponentSpec이 제외 범위. 설계는 #265 D8/D9(0.4)에서 진행 중 | [05](05-schema.md), PR #339의 `docs/24-screen-relations-design.md` |
+| 요소 상태 | button/input의 hover·pressed·focus별 background/color/borderColor를 지원. disabled·다른 노드 상태는 제외. 기본 focus 표시와 테두리 표현을 구분한다 | 정본 `NodeStates`, `ui/properties/StateStylesSection.tsx`, [05](05-schema.md) |
+| 공용 컴포넌트 | #265의 widget·InstanceNode 추출/배치/분리·공유 생성 지원. 일반 ComponentSpec·props·slots는 이 계약에 추가하지 않음 | [05](05-schema.md), [S2 위젯 계약](S2_WIDGET_CONTRACT.md) |
 | 그룹화·선택 | **단일 노드 그룹 만들기·해제는 완료**(#250, `command/groupCommands.ts`의 `buildGroupCommands`). 선택은 노드 하나(`editorStore`의 `selectedId`) | [07](07-implementation-status.md), `store/editorStore.ts` |
 
-**확인한 위험 하나(실측 범위 한정).** GUI의 `system-ui` 선택지는 캔버스에서 CSS generic 키워드
+**2026-10-10에 확인한 위험 기록(당시 실측 범위 한정).** GUI의 `system-ui` 선택지는 캔버스에서 CSS generic 키워드
 `font-family: system-ui`로 그려지지만, 생성 매핑 `[font-family:'값']`은 따옴표가 붙은 `'system-ui'`가 된다.
 CSS 명세상 따옴표 붙은 generic 이름은 키워드가 아니라 같은 이름의 폰트를 찾는다. 2026-10-10 Playwright
 MCP의 Chromium 154(Windows)에서 두 표기를 CDP `CSS.getPlatformFontsForNode`로 재 보니 **둘 다
@@ -93,8 +98,9 @@ MCP의 Chromium 154(Windows)에서 두 표기를 CDP `CSS.getPlatformFontsForNod
 
 ## 3. 항목별 지원 범위 (완료 조건 1)
 
-각 항목의 지원 수준 앞에 근거(Q 결론·보류·결정 범위 밖 제안)를 적었다. "저장 위치"의 필드 이름
-(`styles.colors` 등)은 예시이며 정확한 형태는 해당 스키마 PR에서 정한다. 스키마 영향이 있는 단계는 모두
+각 항목의 지원 수준 앞에 근거(Q 결론·보류·결정 범위 밖 제안)를 적었다. 아래 표의 단계 번호와
+“스키마 PR에서 정한다”는 문구는 결정 당시 구현 순서다. 현재 `styles.colors`·`styles.typography`·
+`styleRefs`·`states`의 정확한 형태는 [05](05-schema.md)와 정본 스키마를 따른다. 스키마 영향이 있는 단계는 모두
 [06 변경 규칙](06-schema-freeze.md#변경-규칙)대로 **기능과 분리한 별도 스키마 PR, 최소 1명 팀 승인,
 `pnpm run generate:types`와 예제·테스트 갱신**을 거친다. Command 편집 경로가 늘면
 [09](09-command-schema-freeze.md)의 공개 계약 리뷰도 함께 받는다.

@@ -1,3 +1,48 @@
+# 07. 구현 현황
+
+## 현재 상태 요약 — develop 49e7f617
+
+소스 기준은 `49e7f617d8593d89c16df77748e7e7850c575605`(2026-11-01 병합)다.
+이 요약은 현재 코드와 계약을 대조한 것으로, 아래 과거 테스트 집계를 새로 실행한 결과로
+바꾸지 않는다. 실제 조작은 [14](14-getting-started.md), 제품 범위는 [02](02-mvp-scope.md)를 따른다.
+
+| 구현 단위 | 현재 제공 범위 | 근거·경계 |
+|---|---|---|
+| IR·스키마 | VisualSpec·ProjectSpec 모두 0.4. 기본 노드 5종 + InstanceNode, 화면 관계, 반응형, 다중 배경, 프로젝트 스타일·컨트롤 상태 | [05](05-schema.md), [06](06-schema-freeze.md), `schema/migrate.ts`. 과거의 0.3·5종 표는 당시 기록 |
+| Command Engine | Command 0.3의 15종(화면 명령 7종 + 스타일 명령 8종), 프로젝트 후보 검증·Undo | [09](09-command-schema-freeze.md), `command/types.ts`·`transactionGate.ts`. 위젯 추출·분리는 별도 프로젝트 명령 |
+| 자연어 | 화면 로컬 선택 요소/현재 화면 파일 교환, NL protocol 2, 배경 변경 확인, 외부 agent-edit. 공용 스타일은 프로젝트 전체 참조를 갱신/해제하며 위젯 구조 변경은 별도 extractAndPlaceWidget 경로 | [08](08-natural-language.md), `nl/nlProtocol.ts`·`ui/NaturalLanguageBar.tsx`. 일반 전체 프로젝트 범위나 에이전트 자동 실행은 없음 |
+| Ticket Compiler·Agent | 관계 없는 활성 화면 v3, 프로젝트 v4, 참조 위젯 티켓이 있는 프로젝트 v5. 요청별 staging을 검증·수락한 뒤 다음 wave | [프로젝트 GUI](PROJECT_GENERATION_GUI.md), [수락·복구](PROJECT_OUTPUT_ACCEPTANCE.md). 요청 파일·done 응답만으로 수락 완료가 아님 |
+| localhost GUI·Canvas | 편집·저장/복원·프로젝트 목록, 관계/위젯 편집, 프로젝트 색·글자 및 button/input 상태 편집, 반응형 미리보기 | `ui/HomeScreen.tsx`, `ui/properties/DesignStylesSection.tsx`·`StateStylesSection.tsx`, `responsive/`. 설계 그림·과거 UI 표와 현재 안내를 구분 |
+| Export·검증 | 수락된 활성 화면 또는 프로젝트 전체 ZIP, 파일·참조·입력 지문/출력 정합성 확인 | [14](14-getting-started.md), [프로젝트 GUI](PROJECT_GENERATION_GUI.md). 임의 생성 코드의 typecheck·build·시각 일치 보증은 아님 |
+
+### 현재 경계를 읽을 때 주의할 것
+
+- 공유 widget은 여러 화면이 같은 원본을 참조한다. 추출·배치·분리·원본 편집을 지원하며,
+  참조 위젯만 프로젝트 생성 계획과 ZIP에 포함한다. [S2 계약](S2_WIDGET_CONTRACT.md) 참고.
+- 기본 반응형 값은 모든 폭의 기반이다. 별도 미리보기 폭이 없으면 `screen.size.width`에서
+  min-width 분기점을 적용한다. base 편집은 패널에서 기본값을 선택해 확인한다.
+- CLI는 스킬과 **설치 버전의 로컬 계약**을 함께 복사한다. 외부 에이전트는 설치본과 다른
+  GitHub 최신 계약을 추측해 사용하지 않는다. GUI는 에이전트 프로세스를 실행·종료하지 않는다.
+- 티켓 대기는 새 활동이 없는 3분 창과 수동/자동 연장, 요청 저장부터 최대 30분 상한을 구분한다.
+  [26의 진행 신호 계약](26-agent-request-generation-contract.md#472-첫-staging-출력-전-진행-신호와-상한)을 따른다.
+- 일반 이벤트·폼 상태/검증/제출·인증·백엔드·URL/history 라우터는 대상 앱 통합 범위다.
+  추가 폰트·CSS 변수 출력 등의 보류 결정은 [27](27-user-design-system-scope.md)을 유지한다.
+
+### 구현·fixture·실제 모델 검증은 별개다
+
+현재 코드가 존재한다는 사실과 특정 테스트의 통과, 실제 외부 모델이 생성한 앱의 수용은
+같은 완료 조건이 아니다. [15의 실행 기록](15-workflow-qa.md), [#265 수용 조건](265-acceptance-status.md),
+[28의 fixture/실제 모델 구분](28-real-flow-regression.md)에서 예제·커밋·환경별 결과를 확인한다.
+과거 로그인 사례의 성공을 위젯·반응형·모든 임의 입력의 성공으로 일반화하지 않는다.
+
+## 날짜별 구현·검증 기록
+
+아래는 이전 본문 전체를 보존한 기록이다. “현재”, “완료”, “미착수”와 테스트 개수는
+각 블록에 적힌 기준 커밋·날짜에 한정한다. 위 최신 요약과 충돌하는 항목을 현재 기능 판단에 쓰지 않는다.
+
+<details>
+<summary>이전 기준선·단계별 구현 표·QA 기록 펼치기</summary>
+
 > 2026-10-17 #265 S2 구현 진행: IR 0.4 instance·공유 widget 검증, GUI 배치·재정의·추출·detach,
 > 참조 widget v5 프로젝트 티켓·ZIP, NL의 참조 원본 읽기 문맥을 연결했다. 코드·fixture 상태와
 > 미검증 실제 AI 조건은 [#265 수용 조건 표](265-acceptance-status.md)를 따른다. 이전
@@ -29,7 +74,7 @@
 > protocol 2와 commandVersion/capabilities 이전. 구 소비자 fixture, 새 G1~G3와 GUI 원자성 회귀 검사 추가.
 > S1-5 이후 UI/생성, S1-10 대상 카탈로그는 아직 별도 작업이다.
 
-# 07. 구현 현황
+### 2026-10-05 기준선과 후속 기록
 
 > **현재 검증 코드: 2026-10-05 · `develop` `26ba851` (#237~#261 병합 완료).** #261은 문서만 바꿨으므로 코드는 `5670bfb`와 같다.
 > 타입 검사·린트·빌드·생성 타입 일치와 **86파일 1,456테스트**가 통과했다(선택적 Chromium 1파일·1테스트는 건너뜀, 총 87파일·1,457테스트 — `26ba851` CI 실측, 아래 "확인 방법"). 선택적 Chromium 반응형 테스트는 별도 실행했고, 저장·rename 회귀도 실제 브라우저에서 재검증했다.
@@ -661,3 +706,5 @@ Node 24.19.0·pnpm 10.33.0 환경이다. 이번 문서 갱신에서 typecheck·b
 **통합 실행 기록(#220·#221)** — 코드 `bad0240` + 가이드 `1d89835`에서 `pnpm test`는 **68파일 1,239케이스 통과**다.
 GUI Open·버튼 문구 편집·Save는 확인했고, 외부 Codex는 위 환경 오류로 모델 호출 전에 종료됐다.
 실제 AI 왕복과 fixture 응답 검증을 구분한 상세 기록·최종 검사 결과는 [15](15-workflow-qa.md)를 따른다.
+
+</details>

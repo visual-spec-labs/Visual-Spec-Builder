@@ -1,5 +1,10 @@
 # 06. Visual Spec IR 스키마 동결 계약과 변경 절차
 
+> **현재 계약 안내 (`develop` `49e7f617`).** IR 0.4는 기본 노드 5종과 `InstanceNode`,
+> 화면 관계, 프로젝트 색·글자 스타일과 button/input 상태를 지원한다. 현재 구조 요약은
+> [05](05-schema.md), 위젯 제약은 [S2](S2_WIDGET_CONTRACT.md)에 있다. 아래 각 버전·단계의
+> 제안과 임시 차단 설명은 도입 당시 기록이며, 스키마 변경 절차 자체는 계속 적용한다.
+
 동결 시작: 2026-07-30
 
 이 문서는 v0.1 계약이 무엇을 보장하고 무엇을 보장하지 않는지, 그리고 언제 바꿀 수 있는지를 적는다.
@@ -7,7 +12,7 @@
 > **현재 버전은 0.4이다 (2026-10-16 기준).** 정본 `src/features/editor/schema/visual-spec.schema.json`의
 > `VisualSpec`·`ProjectSpec` 모두 `version: "0.4"`이다. 동결은 v0.1에서 시작했고, 이후 변경은 아래
 > "변경 규칙" 절차를 거쳐 절 단위로 추가됐다 — [v0.2 — ProjectSpec](#v02--projectspec-2026-09-01-추가)(#60),
-> [v0.3 — 배경 채우기 겹 배열](#v03--배경-채우기-겹-배열-2026-10-04-추가-127)(#127), [v0.4 — 프로젝트 스타일과 상태 스타일](#v04--프로젝트-스타일과-컨트롤-상태-스타일-2026-10-16),
+> [v0.3 — 배경 채우기 겹 배열](#v03--배경-채우기-겹-배열-2026-10-04-추가-127)(#127), [v0.4 — 프로젝트 스타일과 상태 스타일](#v04--프로젝트-스타일과-컨트롤-상태-스타일-2026-10-16-290),
 > 그리고 버전을 올리지 않은 선택 확장인 [반응형](#반응형-선택-확장--222-pr-제안)(#245)과
 > [이미지 배경](#이미지-배경-추가-계약-235-팀-리뷰-필요)(#254·#257). 각 절은 추가 당시의 기록이므로
 > 본문의 "v0.1" 표기는 그 시점 기준으로 읽는다. 제목은 버전을 빼고 이 문서의 역할로 바꿨다(파일 경로는 그대로).
@@ -24,6 +29,7 @@
 - `image`
 - `button`
 - `input`
+- `instance` — 같은 프로젝트 widget의 재사용 참조. 구조·순환·재정의 제약은 [S2 위젯 계약](S2_WIDGET_CONTRACT.md).
 - `layout` (`direction`: `row` | `column` | `grid`)
 - `box`
 - `background` (채우기 겹 배열 `Fill[]` — `solid`·`linear`·`image`. 0.3부터, 아래 "v0.3" 절)
@@ -43,7 +49,9 @@
 - 배경의 `radial` 채우기와 겹 표시 토글 — 정본에 없다. `solid`·`linear` 여러 겹은 정본(아래 "v0.3" 절 — `Background`가 `Fill[]`)·캔버스·패널·스킬이 모두 지원한다(#127 후속 1~5단계, 결정은 [13-background-fill-design.md](13-background-fill-design.md)). `image` 겹도 정본(#254)·편집·렌더·Export(#257)가 지원한다(아래 "이미지 배경 추가 계약" 절). 둘 다 기존 문서를 깨지 않는 추가 변경이라 필요해질 때 따로 연다.
 
 [`docs/05-schema.md`](05-schema.md)의 MVP 제외 범위도 그대로 유효하다.
-`instance`, `props`, `bindings`, `variants`, 다른 노드/상태의 states, `slots`, Tailwind 클래스 변환, React 코드 생성이 여기 해당한다.
+`props`, `bindings`, `variants`, 다른 노드/상태의 states, `slots`가 여기 해당한다.
+Tailwind/CSS 매핑과 React 코드 생성은 IR 스키마 자체가 실행·보증하는 기능은 아니며,
+제품의 별도 생성 계층에서 제공한다. `instance`는 현재 0.4 계약의 지원 범위다.
 
 ---
 
@@ -379,7 +387,9 @@ import {
 
 ## v0.4 — 프로젝트 스타일과 컨트롤 상태 스타일 (2026-10-16, #290)
 
-VisualSpec과 ProjectSpec 모두 버전은 `"0.4"`이다. 0.1~0.3 문서는 `migrateToV03` 후 `migrateToV04`를 거쳐 열며 기존 리터럴 렌더 결과를 보존한다.
+VisualSpec과 ProjectSpec 모두 버전은 `"0.4"`이다. 현재 입구는 `migrateToV04`이며 내부에서
+필요한 0.1/0.2 배경 변환에 `migrateToV03`를 사용한다. 구버전에 0.4 전용 instance가 숨어
+있으면 승격하지 않는다. 유효한 기존 리터럴 문서의 값을 보존하고 변환 뒤 검증한다.
 
 - `ProjectSpec.styles.colors`와 `.typography`는 stable ID 키의 카탈로그다. 표시 이름은 종류별 대소문자 무시 중복을 금지한다. 노드 `styleRefs`는 타깃별 색 ID 또는 타이포그래피 ID를 기록하며, 노드 리터럴은 값 사본으로 남는다. 프로젝트 검증기는 카탈로그 참조와 사본 일치를 확인한다.
 - 스타일을 연결/수정/삭제하는 편집은 전체 후보 프로젝트를 검증한 뒤 한 번의 history 편집으로 커밋한다. 일반 속성 직접 수정은 해당 색 연결 또는 타이포그래피 묶음 연결을 끊고 해당 값만 변경한다.
@@ -388,18 +398,6 @@ VisualSpec과 ProjectSpec 모두 버전은 `"0.4"`이다. 0.1~0.3 문서는 `mig
 - 일반 spacing token, 추가 폰트, CSS 변수 출력은 #290의 채택 범위 밖/보류로 남는다.
 
 검증 범위는 schema·migration·store·standalone 변환·GUI 상태 미리보기·생성 지침·Ticket 구조 식별 회귀 테스트다. Command 계약은 기존 Transaction v0.3을 유지하며 프로젝트 스타일 작업은 프로젝트 store API로 수행한다.
-
-## v0.4 — 프로젝트 스타일과 컨트롤 상태 스타일 (2026-10-16, #290)
-
-VisualSpec과 ProjectSpec 모두 `"0.4"`이다. 0.1~0.3 문서는 `migrateToV03` 후 `migrateToV04`를 거쳐 열며 기존 리터럴 렌더 결과를 보존한다.
-
-- `ProjectSpec.styles.colors`와 `.typography`는 stable ID 키의 카탈로그다. 표시 이름은 종류별 대소문자 무시 중복을 금지한다. 노드 `styleRefs`는 타깃별 색 ID 또는 타이포그래피 ID를 기록하며, 노드 리터럴은 값 사본으로 남는다. 프로젝트 검증기는 카탈로그 참조와 사본 일치를 확인한다.
-- 스타일 연결·수정·삭제 편집은 전체 후보 프로젝트를 검증한 뒤 한 번의 history 편집으로 커밋한다. 일반 속성 직접 수정은 해당 색 연결 또는 타이포그래피 묶음 연결을 끊고 해당 값을 변경한다.
-- `toStandaloneVisualSpec(project, pageId)`는 검증 후 페이지 복사본의 스타일 연결만 제거한다. 값 사본과 원본 프로젝트는 보존된다. `toVisualSpec(page)`는 연결이 남은 화면을 거부한다.
-- Button/Input은 `states.hover|pressed|focus`에서 `background`, `color`, `borderColor`를 선택할 수 있다. 상태 배경은 전체 배경을 대체하는 단색이다. 캔버스와 생성 지침은 동시 상태 순서를 pressed > focus > hover로 적용하고 기본 focus-visible 표시를 유지한다.
-- 일반 spacing token, 추가 폰트, CSS 변수 출력은 #290의 채택 범위 밖 또는 보류로 남는다.
-
-검증 범위는 schema·migration·store·standalone 변환·GUI 상태 렌더·생성 지침·Ticket 구조 식별 회귀다. Command Transaction은 v0.3이며 프로젝트 스타일 편집은 프로젝트 API를 거친다.
 
 ## 변경 규칙
 
@@ -513,9 +511,9 @@ ImageNode 자체를 배경으로 삽입하지 않는다. leaf 노드의 box/선�
 
 ## 화면 종류·연결 선택 확장 — #265 S1-1 PR 제안
 
-현재 상태: #265 S1-1 스키마 PR의 제안이다. 설계 근거는 [24](24-screen-relations-design.md)의
-D1~D4·§3·§5 권고안이며, 그 문서(#339)의 팀 승인·병합 전에는 이 절도 병합하지 않는다.
-승인 결과가 권고안과 다르면 이 절과 정본을 함께 고친다. 최소 1명의 팀 승인이 필요하다.
+**도입 당시 S1-1 제안 기록.** 설계 근거는 [24](24-screen-relations-design.md)의 D1~D4·§3·§5다.
+현재 저장·참조 검증·Command/GUI 편집과 프로젝트 생성 경로는 구현됐다. 아래 0.3 선택 확장과
+임시 가드는 당시 호환성 결정이며 현재 문서는 0.4다. 향후 스키마 변경의 리뷰 절차는 유지한다.
 
 정본에 `ScreenSpec.kind`와 `ButtonNode.action`을 선택 필드로 추가한다. **문서 버전 0.3 유지가
 이 PR의 제안**이다. 기존 0.3 문서는 변환 없이 새 검증기를 통과한다. 확장 전 0.3 validator
@@ -555,6 +553,11 @@ D1~D4·§3·§5 권고안이며, 그 문서(#339)의 팀 승인·병합 전에�
 
 ### S1-1 생성·Export 임시 차단
 
+> **당시 가드와 현재 API 경계:** 아래는 S1-1 단계의 전역 차단 근거다. 현재 GUI는
+> modal/widget·instance·action이 있는 프로젝트를 v4/v5로 생성·수락·Export한다.
+> `screenRelationsGuard.ts`는 구 단일 화면 v3 API의 기능 경계로 남아 있으며 프로젝트
+> 문맥을 버리고 한 화면으로 처리하는 것을 막는다. [현재 GUI 계약](PROJECT_GENERATION_GUI.md) 참고.
+
 선택 필드를 읽을 수 있다는 사실이 관계 동작을 생성할 수 있다는 뜻은 아니다.
 `ticket/screenRelationsGuard.ts`는 현재 처리할 **화면 한 장**이 `kind: modal/widget`이거나
 버튼 `action`을 하나라도 가지면 `unsupported`로 판정한다. 숨김 버튼·없는 target도 포함하며
@@ -578,7 +581,7 @@ Command 가드의 S1-3 해제와 별개이며, S1-2만 완료해도 이 가드�
 
 ## 화면 관계 참조 무결성 — #265 S1-2
 
-현재 상태: #265 S1-2 PR 제안이다. 설계 근거는 [24](24-screen-relations-design.md) §3·§5의 IssueCode
+도입 당시 상태: #265 S1-2 PR 제안이었다. 현재 아래 참조 검증은 구현돼 있다. 설계 근거는 [24](24-screen-relations-design.md) §3·§5의 IssueCode
 후보 표이며, 이름은 그 표 그대로 확정한다. 정본·생성 타입·IR 버전(0.3)은 바꾸지 않는다.
 
 - **`IssueCode` 14종 → 19종.** `validateProjectSpec`이 스키마·페이지별 그래프 검사 뒤에
