@@ -31,6 +31,8 @@ interface PickPromptState {
   title: string;
   message?: string;
   items: readonly string[];
+  browseLabel?: string;
+  onBrowse?: () => void;
   cancelLabel: string;
   resolve: (value: string | null) => void;
 }
@@ -109,6 +111,9 @@ export interface PickPromptOptions {
   title: string;
   message?: string;
   items: readonly string[];
+  /** Optional local-file action shown with the workspace list. */
+  browseLabel?: string;
+  onBrowse?: () => void;
   cancelLabel?: string;
 }
 
@@ -123,6 +128,8 @@ export function promptPick(options: PickPromptOptions): Promise<string | null> {
         title: options.title,
         message: options.message,
         items: options.items,
+        browseLabel: options.browseLabel,
+        onBrowse: options.onBrowse,
         cancelLabel: options.cancelLabel ?? "취소",
         resolve,
       },

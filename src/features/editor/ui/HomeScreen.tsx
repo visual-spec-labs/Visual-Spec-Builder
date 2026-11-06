@@ -74,7 +74,7 @@ const THUMBNAIL_SHORT_SIDE = Math.ceil(
  * 인라인 패널(`draftMode`)로 바뀐다. "초안 만들기"를 누르면 빈 프로젝트를 열고
  * 그 문구를 `store/homeDraft.ts`에 적재한다 — 새로 마운트되는
  * `ui/NaturalLanguageBar.tsx`가 그 문구를 한 번 읽어 입력칸에 채우고 포커스한다.
- * **전송("요청")은 보내지 않는다** — 에이전트가 아직 안 켜져 있으면 3분 뒤
+ * **전송("요청")은 보내지 않는다** — 에이전트가 아직 안 켜져 있으면 30분 뒤
  * timeout으로 끝나므로, #283이 확립한 "수동 전달" 원칙과 같은 이유로 사용자가
  * 직접 누르게 둔다(`docs/21-home-screen-nl-draft.md` "결정" 참고).
  *

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useSaveConflictStore } from "@/features/editor/store/saveConflictStore";
 import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
+import { Button } from "@/features/editor/ui/Button";
 
 /**
  * `window.prompt`를 대신하는 모달(#288). `SaveConflictDialog.tsx`와 같은 오버레이
@@ -119,7 +120,7 @@ function PickDialog({
   state,
   resolve,
 }: {
-  state: { title: string; message?: string; items: readonly string[]; cancelLabel: string };
+  state: { title: string; message?: string; items: readonly string[]; cancelLabel: string; browseLabel?: string; onBrowse?: () => void };
   resolve: (value: string | null) => void;
 }) {
   return (
@@ -146,10 +147,13 @@ function PickDialog({
           </li>
         ))}
       </ul>
-      <div className="mt-4 flex justify-end">
-        <button type="button" className="rounded border px-3 py-2" onClick={() => resolve(null)}>
+      <div className="mt-4 flex justify-between">
+        {state.browseLabel && state.onBrowse
+          ? <Button onClick={state.onBrowse}>{state.browseLabel}</Button>
+          : <span />}
+        <Button onClick={() => resolve(null)}>
           {state.cancelLabel}
-        </button>
+        </Button>
       </div>
     </section>
   );
