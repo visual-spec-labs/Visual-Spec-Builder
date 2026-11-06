@@ -62,6 +62,8 @@ try {
   await page.reload();
   await page.evaluate(async () => { window.editor = (await import("/src/features/editor/store/editorStore.ts")).useEditorStore; });
   assert.deepEqual((await state()).spec, expected);
+  await page.getByRole("button", { name: "파일", exact: true }).waitFor();
+  await page.getByRole("button", { name: "홈으로" }).click();
   await page.getByRole("button").filter({ hasText: /InteractionFlow.*페이지/s }).click();
   // Responsive UI guides the user to base-action editing without writing an override.
   await page.evaluate(() => {
