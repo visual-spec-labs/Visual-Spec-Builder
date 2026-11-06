@@ -1,78 +1,137 @@
 # Visual Spec Builder
 
-전체 문서의 역할과 점검 범위는 [문서 안내](docs/README.md)에 정리했다.
+**화면을 그리면 JSON 스펙이 되고, AI 에이전트가 그 스펙을 React 코드로 구현한다.**
 
-체크아웃에서 localhost로 실행하는 화면 설계 GUI 도구다.
-사용자는 자연어 또는 직접 조작으로 화면을 구성하고, 도구는 이를 JSON Visual Spec으로 저장한다.
-Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현한다.
+Visual Spec Builder는 내 컴퓨터(localhost)에서 실행하는 화면 설계 GUI 도구다.
+사용자는 캔버스에서 직접 조작하거나 자연어로 요청해 화면을 만들고, 도구는 결과를 JSON Visual Spec으로 저장한다.
+옆에 띄워 둔 Claude Code나 Codex가 그 스펙을 읽어 실제 React 코드를 만들고, GUI는 만들어진 코드를 검증한 뒤 ZIP으로 내보낸다.
 
-처음 실행한다면 [로그인 예제로 시작하기](docs/14-getting-started.md)를 따른다.
-공유 위젯을 두 화면에 배치한 프로젝트 JSON은 [예제](examples/shared-widget-project.json)에서 볼 수 있다.
-패키지는 `private: true`라 레지스트리에 공개하지 않는다. `pnpm pack`으로 만든 로컬 tarball은 별도 폴더에 설치해 CLI와 GUI 런타임을 검증할 수 있다.
+![Visual Spec Builder 에디터 — 레이어 트리, 캔버스, 속성 패널, 자연어 입력창](docs/images/readme-editor.png)
+
+## 왜 만들었나
+
+AI에게 "로그인 화면 만들어 줘"라고 하면 코드는 바로 나오지만, 화면 구조를 먼저 보고 고칠 기회가 없다.
+결과가 마음에 들지 않으면 코드 단위로 다시 설명해야 하고, 같은 요청도 실행할 때마다 다른 구조가 나온다.
+
+Visual Spec Builder는 그 사이에 **눈으로 확인하고 고칠 수 있는 화면 스펙**을 둔다.
+
+- **화면 생성과 코드 생성을 나눈다.** 자연어 요청은 캔버스만 바꾼다. 코드는 사용자가 화면을 확인한 뒤 따로 만든다.
+- **GUI와 자연어가 같은 데이터를 만진다.** 버튼을 직접 옮기든 자연어로 옮기든 같은 편집 명령(Command)이 실행되고, 요청 하나는 Undo 한 번으로 되돌아간다.
+- **앱은 API 키를 갖지 않는다.** GUI는 AI 모델을 직접 부르지 않고, 사용자가 실행한 에이전트와 작업공간의 파일로 요청과 응답을 주고받는다.
+- **기존 프로젝트를 건드리지 않는다.** 전용 작업공간(`.visual-spec/`)에서 화면을 만들고, 완성된 코드만 내보낸다.
+
+설계 근거는 [01. 제품 개요](docs/01-overview.md)와 [08. 자연어 설계](docs/08-natural-language.md)에 있다.
+
+## 어떻게 동작하나
+
+```mermaid
+flowchart LR
+    U["사용자<br/>직접 조작 · 자연어"] --> G["GUI 에디터<br/>캔버스 · 레이어 · 속성"]
+    G -->|"Command<br/>검증 후 적용"| S[("JSON Visual Spec<br/>.visual-spec/specs")]
+    S -->|"구현 티켓"| A["외부 에이전트<br/>Claude Code · Codex"]
+    A -->|"React 코드<br/>요청별 staging"| G
+    G -->|"검증 · 수락"| Z["코드 ZIP Export<br/>→ 대상 React 앱"]
+```
+
+1. `visual-spec init`으로 작업공간을 만들고 `visual-spec skills`로 에이전트용 스킬을 설치한다.
+2. `visual-spec`으로 GUI를 띄워 화면을 만든다. 자연어 요청은 에이전트가 Command 배열로 답하고, GUI가 검증한 뒤 적용한다.
+3. **구현 티켓**을 실행하면 GUI가 화면을 컴포넌트 단위 티켓으로 나눠 에이전트에 넘긴다. 에이전트는 의존성 순서(웨이브)대로 코드를 만든다.
+4. GUI가 각 웨이브의 출력을 검증하고 수락한 뒤, 코드 ZIP으로 내보낸다.
+
+## 주요 기능
+
+| 기능 | 내용 |
+|---|---|
+| 직접 편집 | 노드 5종(frame·text·image·button·input), Auto Layout·Grid, 다중 배경(단색·그라디언트·이미지), 그림자·테두리, 그룹화, Undo/Redo, 단축키 |
+| 자연어 편집 | 선택한 요소나 현재 화면을 말로 고친다. 바뀌는 배경은 적용 전에 확인하고, 에이전트 대화에서 고친 내용도 열린 GUI에 바로 반영된다 |
+| 반응형 | 분기점(breakpoint)별 재정의와 폭별 미리보기 |
+| 여러 화면 | 화면 종류(page·modal·widget), 버튼으로 화면 이동·모달 열기, 여러 화면이 같은 원본을 쓰는 공유 위젯 |
+| 디자인 스타일 | 프로젝트 공용 색·글자 스타일, 버튼·입력의 hover·focus 등 상태 스타일 |
+| 구현 티켓 | 화면을 컴포넌트 티켓으로 나누고, 에이전트 출력을 웨이브마다 검증·수락한다. 수동으로 고친 생성 파일은 덮어쓰기 전에 확인한다 |
+| 코드 Export | 수락된 화면이나 프로젝트 전체를 ZIP으로 내보내고, 파일·참조·입력 지문을 다시 검사한다 |
+| CLI | `init`·`skills`·`validate`와 GUI 실행. 작업공간 저장·복원, 홈 화면의 프로젝트 목록 |
+
+기능별 현재 범위와 경계는 [07. 구현 현황](docs/07-implementation-status.md)에 있다.
+
+## 실제로 만들어 본 결과
+
+실제 AI 모델로 화면을 만들고, 생성된 코드를 **고치지 않은 채** 별도 React 앱에 넣어 빌드·실행했다.
+
+| 날짜 | 에이전트 | 한 일 | 결과 |
+|---|---|---|---|
+| 2026-10-10 | Claude Code (`claude-opus-5-5`) | 자연어로 로그인·랜딩(반응형) 화면 생성 → GUI 수정 → 코드 생성·재생성 → Export | 두 화면 각 4티켓 완료, 독립 앱 `tsc`·`vite build` 통과, 360·768·1440px 표시 확인 ([28](docs/28-real-flow-regression.md)) |
+| 2026-10-17 | Codex CLI | 로그인·대시보드·모달과 공유 위젯으로 된 프로젝트의 코드 생성 | 14/14 티켓, 4웨이브 수락, 프로젝트 ZIP을 독립 앱에서 빌드하고 화면 이동·모달·공유 위젯 동작 확인 ([15](docs/15-workflow-qa.md)) |
+
+<p>
+  <img src="docs/qa/2026-10-10-real-model-app-login.png" alt="실제 모델이 생성한 로그인 화면을 독립 앱에서 표시" height="360">
+  <img src="docs/qa/2026-10-10-real-model-app-landing-768.png" alt="실제 모델이 생성한 랜딩 화면 768px" height="360">
+</p>
+
+각 기록은 그 날짜·커밋·환경의 한 번 실행이며, 임의의 화면에 대한 생성 코드의 빌드나 시각 일치를 보장하지는 않는다.
+
+## 품질 관리
+
+- **단위 테스트**: Vitest로 스키마·Command·스토어·자연어·티켓·Export·CLI를 검사한다.
+- **실제 브라우저 여정**: Playwright로 GUI를 띄워 저장·문서 전환·티켓 실행·Export·자연어 같은 사용자 흐름을 fixture 응답으로 끝까지 돌린다.
+- **CI**: PR마다 Linux(Node 20·22·24), Windows, Chromium 여정, 레이아웃 실측 7개 작업을 돌리고, 리뷰 승인과 함께 통과를 확인한 뒤 develop에 머지한다.
+- **실사용 테스트**: 처음 쓰는 사람이 문서와 화면만 보고 끝까지 진행하는 테스트를 두 차례 진행하고, 나온 문제를 이슈로 고쳤다.
+
+fixture 검증과 실제 모델 검증은 [28. 실제 사용자 흐름 회귀](docs/28-real-flow-regression.md)에서 구분한다.
+
+## 시작하기
+
+Node `^20.19.0 || >=22.12.0`, pnpm 10.33.0이 필요하다.
+
+```bash
+git clone --branch develop https://github.com/visual-spec-labs/Visual-Spec-Builder.git
+cd Visual-Spec-Builder
+corepack pnpm install --frozen-lockfile
+VSB_REPO="$(pwd)"
+
+mkdir ../visual-spec-demo && cd ../visual-spec-demo
+node "$VSB_REPO/bin/visual-spec.mjs" init
+node "$VSB_REPO/bin/visual-spec.mjs" skills
+cp "$VSB_REPO/examples/login-screen.json" .visual-spec/specs/login-screen.json
+node "$VSB_REPO/bin/visual-spec.mjs"
+```
+
+터미널에 나온 주소를 브라우저로 열면 홈 화면에 로그인 예제가 보인다. 자연어 편집, 코드 생성, Export, Windows PowerShell 절차는
+[14. 처음부터 따라 하기](docs/14-getting-started.md)를 따른다. 패키지는 `private: true`라 레지스트리에 공개하지 않으며, `pnpm pack`으로 만든 로컬 tarball 설치를 지원한다.
+
+## 기술 스택
+
+| 영역 | 사용 |
+|---|---|
+| GUI | React 19, TypeScript, Zustand, Tailwind CSS v4, Vite |
+| 스키마·검증 | JSON Schema(Ajv), 스키마에서 생성한 TypeScript 타입 |
+| CLI·작업공간 | Node.js, Vite 개발 서버 미들웨어 |
+| 에이전트 연동 | Claude Code·Codex 스킬, 작업공간 파일 프로토콜 |
+| 테스트·CI | Vitest, Playwright, GitHub Actions |
+
+## 팀
+
+다섯 명이 2026년 7월 24일 첫 회의부터 함께 만들었다. 2026-11-06 기준 GitHub에서 PR 283개를 머지했다.
+
+| GitHub | 이름 | 주 영역 |
+|---|---|---|
+| [Yumesa2025](https://github.com/Yumesa2025) | 김태환 | 기획·통합, 스키마 v0.1, 문서·CI·기여 규칙, GUI와 작업공간 연결, 배경 채우기·반응형·이미지 배경 |
+| [GAMMJ](https://github.com/GAMMJ) | 김민재 | 공유 스토어, 캔버스, 속성 패널, 스키마 v0.2, 반응형 설계, 설치 가능한 런타임 |
+| [wook3964](https://github.com/wook3964) | 박용욱 | React 코드 생성 스킬, Command Engine과 Undo, Ticket 스키마, CLI, 자연어 생성 |
+| [dogui1018](https://github.com/dogui1018) | 김도국 | 메뉴바와 File 메뉴, 레이어 트리, 단축키, 검증 관문(G2·G3), 티켓 실행 왕복, 홈 자연어 초안 |
+| [SunMyunC](https://github.com/SunMyunC) | 정선영 | 디자인 토큰과 테마, 피그마식 UI 골격, 하단 도구 모음, GUI 회의 정리 |
+
+단계별 제작 과정은 [제작 연대기](docs/history/README.md)와 [마무리 기록](docs/history/completion.md)에 있다.
+
+---
+
+아래는 저장소에서 작업하는 팀원을 위한 안내다.
 
 ## 문서
 
-처음 사용한다면 [14. 처음부터 따라 하기](docs/14-getting-started.md), 현재 제공 범위와 남은 검증은
-[07. 구현 현황](docs/07-implementation-status.md)을 먼저 읽는다. 설계·동결·QA 문서에는
+전체 문서의 목록과 역할은 [문서 안내](docs/README.md)에 있다. 처음 사용한다면 [14. 처음부터 따라 하기](docs/14-getting-started.md),
+현재 제공 범위와 남은 검증은 [07. 구현 현황](docs/07-implementation-status.md)을 먼저 읽는다. 설계·동결·QA 문서에는
 작성 당시의 제안과 단계별 기록도 있으므로, 날짜·기준 커밋·현재 상태 안내를 함께 확인한다.
-
-| 문서 | 내용 |
-|---|---|
-| [01-overview.md](docs/01-overview.md) | 제품 정의, 전체 흐름, 핵심 원칙 |
-| [02-mvp-scope.md](docs/02-mvp-scope.md) | 무엇을 만들고 무엇을 만들지 않는가 — **범위 판단의 기준** |
-| [03-user-flow.md](docs/03-user-flow.md) | 사용자 경로, Command Engine 구조, 대표 플로우 3가지 |
-| [04-gui-spec.md](docs/04-gui-spec.md) | 홈 화면과 에디터 화면 명세 |
-| [05-schema.md](docs/05-schema.md) | JSON 스키마 (현재 0.4) |
-| [06-schema-freeze.md](docs/06-schema-freeze.md) | IR 스키마 동결 계약과 변경 절차 (v0.1에서 시작, 현재 0.4) — **스키마 수정 전 필독** |
-| [07-implementation-status.md](docs/07-implementation-status.md) | 지금 무엇이 구현됐고 무엇이 남았는가 — **다음 할 일 판단의 근거** |
-| [08-natural-language.md](docs/08-natural-language.md) | 자연어 → Command 변환 설계 |
-| [09-command-schema-freeze.md](docs/09-command-schema-freeze.md) | Command 동결 계약과 변경 절차 (v0.1에서 시작, 현재 0.3) |
-| [10-shortcuts.md](docs/10-shortcuts.md) | 편집기 단축키와 캔버스 조작 (실제 동작하는 것만) |
-| [11-ticket-schema-freeze.md](docs/11-ticket-schema-freeze.md) | Ticket 스키마 v0.1 동결 계약과 변경 절차 |
-| [12-responsive-ir-design.md](docs/12-responsive-ir-design.md) | 이슈 #181 반응형 IR 설계 결정과 후속 범위 |
-| [13-background-fill-design.md](docs/13-background-fill-design.md) | 이슈 #127 배경 그라디언트·다중 채우기 설계 결정과 후속 범위 |
-| [14-getting-started.md](docs/14-getting-started.md) | 설치 → GUI 편집·저장 → 외부 에이전트 → 코드 Export·앱 통합 |
-| [15-workflow-qa.md](docs/15-workflow-qa.md) | 전체 흐름의 실제 검증 기록과 한계 |
-| [16-responsive-codegen-qa.md](docs/16-responsive-codegen-qa.md) | 이슈 #224 반응형 React 코드 매핑 fixture 검증 기록과 한계 |
-| [17-codegen-layout-qa.md](docs/17-codegen-layout-qa.md) | 이슈 #269 크기·줄바꿈 DOM 실측과 수동 fixture 검증 기록 |
-| [18-export-asset-bundler-qa.md](docs/18-export-asset-bundler-qa.md) | 이슈 #270 이미지 정적 import의 개발·production 브라우저 로딩 검증 |
-| [19-grid-codegen-qa.md](docs/19-grid-codegen-qa.md) | 이슈 #268 Grid 열·auto/fill·교차축 정렬의 Tailwind/브라우저 비교 |
-| [20-screen-layout-contract-qa.md](docs/20-screen-layout-contract-qa.md) | 이슈 #280 viewport·폰트·reset·모든 노드 좌표 비교 계약 |
-| [21-app-scope-a11y-design.md](docs/21-app-scope-a11y-design.md) | 이슈 #285 Export 제공 범위(컴포넌트 묶음)와 입력·접근성 최소 지원 범위 후속 제안 |
-| [22-performance-baseline.md](docs/22-performance-baseline.md) | 이슈 #293 프로젝트·노드·이미지 규모별 성능 실측과 후속 우선순위 |
-| [PROJECT_GENERATION_GUI.md](docs/PROJECT_GENERATION_GUI.md) | 단일 화면·프로젝트 티켓 전달, 공유 위젯과 Export 경계 |
-| [PROJECT_OUTPUT_ACCEPTANCE.md](docs/PROJECT_OUTPUT_ACCEPTANCE.md) | 임시 생성 출력의 검증·수락·명시적 복구 계약 |
-| [S2_WIDGET_CONTRACT.md](docs/S2_WIDGET_CONTRACT.md) | IR 0.4의 공유 위젯·인스턴스 구조와 검증 계약 |
-| [24-screen-relations-design.md](docs/24-screen-relations-design.md) | 이슈 #265 화면 종류·연결·재사용 위젯의 승인 계약과 단계별 수용 조건 |
-| [265-acceptance-status.md](docs/265-acceptance-status.md) | #265 코드·fixture 검증과 실제 AI 미검증 조건의 현황 |
-| [27-user-design-system-scope.md](docs/27-user-design-system-scope.md) | 이슈 #290 사용자 화면의 공용 스타일·폰트·아이콘/이미지·상태 지원 범위와 앱 토큰 경계 — Q1~Q7·G1~G6 결정 반영(#360) |
-| [28-real-flow-regression.md](docs/28-real-flow-regression.md) | 이슈 #292 fixture 사용자 여정(CI)과 실제 모델 실행(수동)의 구분·절차·실행 기록 |
-| [EDITOR_STORE_CONTRACT.md](docs/EDITOR_STORE_CONTRACT.md) | 캔버스·레이어 트리·세부설정 패널이 공유하는 스토어 계약 |
-| [DESIGN-TOKEN-RULES.md](docs/DESIGN-TOKEN-RULES.md) | 디자인 토큰 네이밍·구조·참조 규칙 |
-| [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
-| [open-questions.md](docs/open-questions.md) | 미확정 항목 |
-| [qa/](docs/qa/) | 개별 기능 QA 기록 ([탭 저장 충돌](docs/qa/tab-save-conflicts.md), [프로젝트 이름·파일명 변경](docs/qa/project-file-rename-qa.md), [Export 이미지 자산 정합성](docs/qa/export-asset-integrity.md), [로컬 tarball GUI 런타임](docs/qa/package-tarball-runtime.md)) |
-| [skills/](docs/skills/) | 배포 스킬 7종(`skills/`)의 사람용 설명 |
-
-팀의 제작 과정과 단계별 근거는 [제작 연대기](docs/history/README.md)에 있다.
-
 설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 있다.
-
-## 현재 구현 상태
-
-문서 스키마 0.4와 검증기, 기본 노드 5종(`frame`·`text`·`image`·`button`·`input`)의
-GUI 편집·그룹화·Undo/Redo, CLI 작업공간 저장·복원이 구현돼 있다. 공유 위젯은 별도의
-`InstanceNode`(`type: "instance"`)로 참조하며 추출·배치·분리·원본 편집을 지원한다.
-solid·linear·image 다중 배경, 반응형(breakpoint·override), 자연어 Command 적용,
-페이지 이동·모달·공유 위젯을 포함한 프로젝트 티켓 생성과 코드 ZIP Export를 제공한다.
-에이전트는 요청별 staging 경로에 코드를 쓰고, GUI가 검증·수락한 출력만 generated로 확정한다.
-티켓 완료나 Export 검사 통과가 생성 앱의 typecheck·build·시각 일치까지 보증하지는 않는다.
-자연어 응답과 React 코드 생성은 별도로 실행한 Claude Code·Codex 등 외부 에이전트가 담당한다.
-GUI가 에이전트 프로세스를 자동 실행하지 않는다. 남은 한계는 구현 현황을 참고한다.
-
-MVP 구현 단위별 상세 현황, 확인된 결함, 다음에 할 만한 것은
-**[`docs/07-implementation-status.md`](docs/07-implementation-status.md)** 에 있다.
-이 절은 요약만 두고 자세한 내용은 그 문서 한 곳에서만 갱신한다.
 
 디렉터리 구조는 아래와 같다.
 
