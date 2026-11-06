@@ -12,7 +12,7 @@ importers:
         specifier: 7.28.5
         version: 7.28.5
       '@tailwindcss/vite':
-        specifier: ^4.3.3
+        specifier: 4.3.3
         version: 4.3.3(vite@8.2.1(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0))
       '@vitejs/plugin-react':
         specifier: ^6.0.5
@@ -33,7 +33,7 @@ importers:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
       tailwindcss:
-        specifier: ^4.3.3
+        specifier: 4.3.3
         version: 4.3.3
       vite:
         specifier: ^8.2.1
