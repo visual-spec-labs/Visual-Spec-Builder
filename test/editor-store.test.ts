@@ -119,6 +119,20 @@ describe("editorStore", () => {
       expect(useEditorStore.getState().focusRootId).toBeNull();
     });
 
+    it("addPage 이름은 위젯 페이지를 세지 않는다 — 화면 두 개 뒤의 새 페이지는 Page 2다", () => {
+      useEditorStore.getState().addPage();
+      const widgetA = useEditorStore.getState().activePageId;
+      useEditorStore.getState().setPageField(widgetA, "kind", "widget");
+      useEditorStore.getState().addPage();
+      const widgetB = useEditorStore.getState().activePageId;
+      useEditorStore.getState().setPageField(widgetB, "kind", "widget");
+
+      useEditorStore.getState().addPage();
+
+      const { spec, activePageId } = useEditorStore.getState();
+      expect(spec.pages[activePageId].name).toBe("Page 2");
+    });
+
     it("문맥의 노드가 지워지면 문맥도 비운다", () => {
       useEditorStore.getState().enterFocus("cardA");
       useEditorStore.getState().removeNode("cardA");
