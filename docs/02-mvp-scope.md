@@ -1,5 +1,9 @@
 # 02. MVP 범위
 
+> 현재 사용 경로는 `develop` `49e7f617` 기준으로 [14. 처음부터 따라 하기](14-getting-started.md)를
+> 따른다. 아래 날짜·단계가 붙은 결정 기록은 그 시점의 범위이며, 현재 구현 여부는
+> [07. 구현 현황](07-implementation-status.md)의 최신 요약과 구분한다.
+
 > 출처: ClickUp 팀 문서 `Visual Spec Builder MVP`
 
 이 문서가 **범위 판단의 기준**이다. `PRD 1차`와 충돌하는 내용이 있으면 이 문서를 따른다.
@@ -23,17 +27,18 @@ npx visual-spec
 > 먼저다. 그 전제가 확정되면 배포 형태는 그 위에서 정하면 되고, 지금 npm 배포를 먼저
 > 확정해 봐야 실행 방식이 바뀔 때 다시 바꿔야 한다. 배포 전환은 별도로 다룬다.
 
-지금 실제로 쓰는 방법은 이 저장소를 클론해 실행하는 것이다.
+현재는 저장소 체크아웃 또는 `pnpm pack`으로 만든 로컬 tarball 설치본을 사용한다. 아래는 체크아웃 경로다.
 
 ```bash
 # 1) 저장소를 클론하고 의존성을 받는다
-git clone https://github.com/visual-spec-labs/Visual-Spec-Builder.git
+git clone --branch develop https://github.com/visual-spec-labs/Visual-Spec-Builder.git
 cd Visual-Spec-Builder
-pnpm install
+corepack pnpm install --frozen-lockfile
 
 # 2) 화면을 만들 프로젝트 폴더에서 작업공간을 만들고 GUI를 띄운다
 cd /path/to/my-project
 node /path/to/Visual-Spec-Builder/bin/visual-spec.mjs init
+node /path/to/Visual-Spec-Builder/bin/visual-spec.mjs skills
 node /path/to/Visual-Spec-Builder/bin/visual-spec.mjs
 ```
 
@@ -54,7 +59,10 @@ CLI로 띄운 GUI는 React production 빌드로 돈다(#314, `VISUAL_SPEC_REACT_
 └── runtime/
 ```
 
-화면과 컴포넌트는 이 작업공간 안에서만 제작된다.
+`skills`는 `.claude/skills/`·`.agents/skills/`에 지침과 설치 버전의 로컬 계약을 복사한다.
+생성 요청이 시작되면 `.visual-spec/staging/<requestId>/`에 임시 출력이 생기고, GUI가
+검증·수락한 코드만 `generated/`로 확정한다. 위 폴더 표는 `init`의 기본 구조이며 staging은
+요청별로 사용한다. 화면과 컴포넌트는 이 작업공간 안에서 제작된다.
 
 ## MVP 포함 범위
 
@@ -65,7 +73,7 @@ CLI로 띄운 GUI는 React production 빌드로 돈다(#314, `VISUAL_SPEC_REACT_
 | GUI | localhost 캔버스 편집기 |
 | 생성 | 자연어 화면 생성, 자연어 부분 수정, 직접 캔버스 편집 |
 | 레이아웃 | Row / Column / Grid |
-| 노드 | Container / Text / Button / Input / Image |
+| 노드 | 기본 5종 Frame / Text / Button / Input / Image + 공유 위젯 참조 Instance |
 | 크기 | Fixed / Fill / Hug |
 | 반응형 | 데스크톱 · 모바일 레이아웃 |
 | 화면 관계 | 화면 종류(page·modal·widget), 버튼의 화면 이동·모달 열기·닫기, 재사용 위젯 — IR 0.4·GUI·프로젝트 생성/Export에서 지원한다(아래 "화면 관계 (#265)") |
@@ -83,13 +91,12 @@ Insert는 선택한 프레임 안에, 비프레임 선택이면 가장 가까운
 ### 화면 관계 (#265)
 
 여러 화면을 가진 프로젝트에서 **화면 사이의 관계**를 IR에 저장하는 일을 MVP 범위에 넣는다.
-설계는 [24](24-screen-relations-design.md)에 있다. 제품 방향 담당 @Yumesa2025가 D1~D9 방향을 승인했고
-설계 초안은 #339로 병합됐다. 팀의 설계·계약 승인은 아직 기록되지 않았다(24 §2·§8).
-이 절은 승인된 제품 방향을 범위 문서에 반영한 것이며, 팀의 계약·단계 계획 채택을 확정하지 않는다.
-#339의 관리자 병합이나 이번 범위 정정은 S0-1의 팀 승인, 후속 단계 착수·병합 승인을 대신하지 않는다.
-24 §7·§8의 팀 승인 조건은 남아 있다.
+설계와 결정 근거는 [24](24-screen-relations-design.md)에 있다. D1~D9 제품 방향,
+#339 병합 이후의 2026-10-13 리더 사후 승인과 D10·D11 결정은 그 문서 §2·§8의 기록을 따른다.
+아래 계획 차이 표의 “대기”는 최초 범위 정정 당시 상태다. 문서의 현재 구현 설명이 새 범위나
+후속 변경에 대한 승인을 대신하지는 않는다.
 
-**현재 구현 (2026-11-01, develop ea0a7908).** 화면 종류·버튼 action·참조 검증·관계 편집,
+**현재 소스 기준 (`develop` `49e7f617`).** 화면 종류·버튼 action·참조 검증·관계 편집,
 위젯 추출/배치/분리와 프로젝트 티켓 생성·Export를 지원한다. 프로젝트 runtime이 화면 이동과 모달을
 관리한다. 공유 위젯은 요청 v5를 사용한다. 실제 AI 수용 검증과 미완료 항목은
 [수용 조건 표](265-acceptance-status.md)를 따른다. 아래 승인·단계 계획 표는 당시 결정 기록이며
@@ -110,13 +117,16 @@ Insert는 선택한 프레임 안에, 비프레임 선택이면 가장 가까운
 | 범위에 들어온 것 | 방향(24의 결정 ID) | 단계와 현재 상태 |
 |---|---|---|
 | 화면 종류 | 기존 `pages`의 화면에 선택 필드 `kind`(`page`·`modal`·`widget`, 생략하면 page). 첫 화면과 최소 한 장은 page다(D2) | IR 0.4에서 저장·검증·종류 선택 GUI 지원. 관계가 있는 프로젝트는 v4/v5 생성·Export 경로를 사용한다 |
-| 버튼의 화면 연결 | `button`에만 `action` 하나 — 페이지 이동(`navigate`)·모달 열기(`openModal`)·닫기(`close`). navigate/openModal의 대상은 URL이 아니라 같은 프로젝트의 PageId다. close는 target이 없고 modal/widget의 button에 허용하며, page 자체 button에서는 오류로 제안한다(D1·D3·D4·D6). 모달은 한 번에 하나만 연다(D6) | S1-2 참조 검증(#366), S1-3 Command(#382), S1-4 참조 조작(#383)과 후속 GUI·프로젝트 생성 경로가 구현됐다. 자연어 편집은 활성 화면 범위다 |
+| 버튼의 화면 연결 | `button`에만 `action` 하나 — 페이지 이동(`navigate`)·모달 열기(`openModal`)·닫기(`close`). navigate/openModal의 대상은 URL이 아니라 같은 프로젝트의 PageId다. close는 target이 없고 modal/widget의 button에 허용하며, page 자체 button에서는 오류로 제안한다(D1·D3·D4·D6). 모달은 한 번에 하나만 연다(D6) | S1-2 참조 검증(#366), S1-3 Command(#382), S1-4 참조 조작(#383)과 후속 GUI·프로젝트 생성 경로가 구현됐다. 화면 로컬 자연어 명령은 활성 화면 범위다. 공용 스타일 수정·삭제는 프로젝트 전체 참조에 전파되며, 위젯 추출·다른 페이지 배치는 별도 projectCommand다 |
 | 재사용 위젯 | 새 노드 `instance`가 widget 화면을 PageId로 참조한다. 덮어쓰기는 원본의 직접 Text/Button 내용·글자색만이다(D8·D9) | IR 0.4에서 instance·추출·배치·분리·재정의·공유 widget 생성/Export 지원. 새 추출의 기본 크기 모드는 보존하며, 메타데이터 없는 기존 위젯은 기존 고정 크기를 유지한다 |
 
-생성 코드는 라우터를 두지 않고 `onNavigate` 콜백과 페이지가 소유한 모달 상태로 표현하는 방향이다(D7).
+현재 프로젝트 생성 결과는 라우터 없이 GUI 소유 runtime의 Host가 화면 이동·모달 상태를 관리하고 각 화면의 콜백을 연결한다(D7의 후속 구현).
 URL·history·라우터 설정은 사용자 앱의 몫으로 남는다(아래 "MVP 제외 범위").
 
-**범위 안이지만 아직 정하지 않은 것.** 팀 결정을 기다리며, 정해지기 전에는 해당 단계에 착수하지 않는다(24 §7).
+**초기 설계에서 남겼던 결정 항목(당시 기록).** 아래 목록을 현재 전부 미결정이라고 읽지 않는다.
+D10·D11은 2026-10-13 결정과 후속 [Command 계약](09-command-schema-freeze.md)·
+[프로젝트 생성 계약](26-agent-request-generation-contract.md)에 반영됐다. 모달·생성 범위의
+세부 경계도 해당 계약의 최신 절을 확인한다.
 
 - action을 지우는 Command 표현과 Command 버전 — 제거 전용 명령·v0.2를 추천했다(D10)
 - 프로젝트 단위 구현 티켓의 Ticket 버전과 다음 티켓 요청 규약 버전 — #281 신원·경로 합의 뒤, S1-8/9 착수 전에 정한다(D11)
@@ -135,7 +145,7 @@ Codex를 직접 실행하고 인증한다. GUI는 요청 파일을 작성하고 
 에이전트 자식 프로세스 실행)과 다르다. 기존 자연어·티켓 파일 교환은 그대로 유지한다.
 
 - 자연어: `runtime/nl-request.json` → 외부 에이전트의 Command 응답 → GUI 검증·Undo 한 단계.
-- 티켓: `runtime/ticket-request.json` → 외부 에이전트의 `generated/` 코드 작성·결과 응답.
+- 티켓: `runtime/ticket-request.json` → 외부 에이전트의 요청별 `staging/` 코드 작성·결과 응답 → GUI 검증·수락 후 `generated/` 확정.
 - 외부 대화 편집(#279): 사용자가 GUI 입력창이 아니라 에이전트 대화에서 바로 화면 수정을 요청한 경우다.
   GUI가 `runtime/gui-state.json`에 지금 문서·페이지·선택·상태 버전(`stateRevision`)을 공개하고(열린 동안
   10초마다 갱신), 에이전트는 스펙 파일 대신 `runtime/agent-edit.json`에 Command 배열과 읽은 상태 버전

@@ -26,13 +26,15 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 | 가르는 키 | `screen` | `pages` |
 | 정본에서의 위치 | **스키마 루트** | `$defs.ProjectSpec` |
 
-**버전 문자열은 IR 세대를 뜻한다.** 0.3에서 배경이 채우기 겹 배열로 바뀌었고, 0.4에서 프로젝트 색·글자 스타일 연결과 button/input 상태 스타일이 추가됐다. 화면 문서와 프로젝트 문서는 키(`screen` / `pages`)로 가른다. 0.1~0.3 파일은 열 때 순서대로 마이그레이션한 뒤 검증한다. 저장은 항상 0.4다 — 자세한 것은 [06의 v0.4 절](06-schema-freeze.md#v04--프로젝트-스타일과-컨트롤-상태-스타일-2026-10-16)을 참조한다.
+**버전 문자열은 IR 세대를 뜻한다.** 0.3에서 배경이 채우기 겹 배열로 바뀌었고, 0.4에서 공유 위젯 `InstanceNode`, 프로젝트 색·글자 스타일 연결과 button/input 상태 스타일이 추가됐다. 화면 문서와 프로젝트 문서는 키(`screen` / `pages`)로 가른다. 0.1~0.3 파일은 열 때 순서대로 마이그레이션한 뒤 검증한다. 저장은 항상 0.4다 — 자세한 것은 [06의 v0.4 절](06-schema-freeze.md#v04--프로젝트-스타일과-컨트롤-상태-스타일-2026-10-16-290)을 참조한다.
 
 `ProjectSpec`이 루트가 아니라 `$defs` 항목인 이유는 06의 v0.2 절 참고.
 
 **런타임은 프로젝트 문서를 쓴다.** `editorStore`가 들고 있는 상태는 `ProjectSpec`이고,
 화면 문서를 열면 `migrateV01`이 페이지 1개짜리 `ProjectSpec`으로 넓힌다(이름은 v0.1 시절
-그대로다). 반대 방향은 `toVisualSpec`이다.
+그대로다). 반대 방향에서 스타일 연결이 없는 화면은 `toVisualSpec`을 쓴다. 스타일 연결이 있으면
+`toStandaloneVisualSpec(project, pageId)`로 프로젝트를 검증한 뒤 복사본의 연결만 제거한다.
+이 변환이 다른 화면 관계나 위젯 참조를 모두 독립 화면 코드로 평탄화한다는 뜻은 아니다.
 아래 "MVP 지원 범위"는 두 갈래 모두를 합친 정본 `$defs` 기준으로 적는다.
 
 ## MVP 지원 범위
@@ -86,14 +88,15 @@ Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
 - variants
 - 다른 노드의 states, disabled 등 추가 상태
 - slots
-- 반응형 GUI·코드 생성 — IR 선택 필드는 아래 #222 PR 제안 절을 참조한다.
-- Tailwind 클래스 변환
-- React 코드 생성
+- 임의 JavaScript 이벤트 핸들러·앱 데이터·인증·백엔드
 
-`button`과 `input`이 지원 범위에 들어왔지만 상호작용은 여전히 제외다.
-두 노드의 `content` / `placeholder`는 표시용 텍스트일 뿐이고
-`onClick` / `value` / `onChange`는 정의하지 않는다.
-#265 S1-1 제안의 `ButtonNode.action`은 화면 이동·모달 열기/닫기 하나만 적는 선택 필드다.
+반응형 GUI·Tailwind/CSS 매핑·React 코드 생성은 **이 JSON 스키마가 직접 실행하는 기능은
+아니지만 제품에는 구현된 별도 계층**이다. 이를 제품의 MVP 제외 범위로 읽지 않는다.
+[반응형 계약](12-responsive-ir-design.md)과 [사용 가이드](14-getting-started.md)를 따른다.
+
+`button`과 `input`의 일반 앱 이벤트·폼 상태는 제외다. `content` / `placeholder`는
+표시용 텍스트이며 `onClick` / `value` / `onChange`는 정의하지 않는다.
+지원하는 `ButtonNode.action`은 화면 이동·모달 열기/닫기 하나만 적는 선택 필드다.
 일반 이벤트 핸들러나 `events`를 들인 것이 아니다(아래 절).
 
 ## 확정 규칙
@@ -151,8 +154,10 @@ fixture/브라우저 검증은 실제 AI 성공 검증이 아니다.
 
 ## 화면 종류·연결 선택 필드 (#265 S1-1 PR 제안)
 
-현재 상태: 스키마 PR 제안이다. 설계는 [24](24-screen-relations-design.md)의 권고안(D1~D4)을 따르고,
-그 설계 PR #339의 승인·병합 전에는 병합하지 않는다. 버전은 0.3 그대로다.
+현재 `kind`·`action`의 저장·프로젝트 참조 검증·GUI/Command 편집과 프로젝트 생성·Export가
+구현돼 있다. 최초 S1-1은 0.3의 선택 확장이었고 현재 문서 버전은 0.4다. 설계 결정은
+[24](24-screen-relations-design.md), 현재 생성 경로는 [프로젝트 GUI 계약](PROJECT_GENERATION_GUI.md)을 따른다.
+절 제목의 “S1-1 PR 제안”은 최초 계약과 기존 링크를 식별하기 위해 남긴다.
 
 | 필드 | 위치 | 값 | 생략하면 |
 |---|---|---|---|
@@ -181,17 +186,20 @@ fixture/브라우저 검증은 실제 AI 성공 검증이 아니다.
 | `first-page-kind` | `pageOrder[0]`의 화면이 page가 아니다. `pageOrder[0]`이 `pages`에 없으면 `page-order-mismatch`만 낸다 | `/pageOrder/0` |
 
 - 자기 자신을 가리키는 navigate(page)·openModal(modal), modal에서 다른 modal을 여는 교체는 유효하다.
-- 지금은 파일로만 쓸 수 있다. 자연어·Command 편집 경로는 S1-3 전까지 이 두 필드를 막는다.
+- GUI와 Command 편집을 지원한다. action 설정은 `updateNode`의 전체 객체 교체,
+  제거는 `removeNodeAction`을 쓴다. `action.type`·`action.target` 부분 쓰기는 허용하지 않는다.
 
 호환성·임시 가드·검증 경계의 전문은
 [동결 계약의 확장 절](06-schema-freeze.md#화면-종류연결-선택-확장--265-s1-1-pr-제안)을 참조한다.
 
 
-S1-1에서 `kind`·`action`의 저장 형태를, S1-2에서 참조 검증을 지원한다. 관계 코드 생성은 S1-8/9다.
-S1-4 전에는 GUI 페이지 삭제가 유입 action을 정리하지 않아 위 코드가 생길 수 있다. 자동 저장 복원은 이런
-문서를 버리지 않지만 Save는 막힌다 — [06의 S1-2 절](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)을 참조한다.
-현재 modal/widget 또는 버튼 action이 있는 화면의 요청 전송·출력 수용·코드 Export는 임시 차단한다.
-JSON 가져오기·저장은 보존하며, 상세 범위와 해제 조건은 [06의 임시 차단](06-schema-freeze.md#s1-1-생성export-임시-차단)을 따른다.
+**단계별 이력:** S1-1에서 저장 형태, S1-2에서 참조 검증, S1-4에서 페이지 삭제 시 유입
+action 정리와 전체 후보 검증을 추가했다. 과거 무효 자동 저장본의 보존과 엄격한 Save/Open
+경계는 [06의 S1-2 절](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)에 남긴다.
+
+**현재 생성 경계:** 관계 없는 활성 화면은 v3, 관계가 있는 프로젝트는 v4/v5 생성·수락·Export를
+사용한다. [S1-1 임시 차단](06-schema-freeze.md#s1-1-생성export-임시-차단)은 당시 기록이다.
+기존 단일 화면 v3 API는 여전히 화면 관계를 거부하며, GUI의 프로젝트 경로와 혼동하지 않는다.
 
 
 ### 위젯의 기본 배치 크기 (#474)
@@ -202,3 +210,13 @@ JSON 가져오기·저장은 보존하며, 상세 범위와 해제 조건은 [06
 편집용 캔버스 크기이며 배치 크기와 독립적이다. 이미 배치한 인스턴스는 바꾸지 않는다.
 이 필드가 없는 기존/직접 만든 위젯은 종전처럼 `size`의 고정 크기로 배치한다.
 추출 전에 있던 호스트의 반응형 box/visible override는 원래 인스턴스에만 남는다.
+
+### 공유 위젯 문서의 검증 경계
+
+`instance`는 호스트 트리의 leaf이며 `ref`는 같은 프로젝트의 `kind: "widget"` PageId다.
+직접 원본 Text/Button의 `content`·`color` 재정의만 허용하고, 호스트 반응형 재정의는
+instance의 `box`·`visible`만 바꾼다. root는 계속 frame이며 widget 참조의 직접·간접 순환은
+거부한다. 자세한 구조·오류 코드는 [S2 위젯 계약](S2_WIDGET_CONTRACT.md)을 따른다.
+
+`migrateToV04`는 0.1~0.3 문서에 0.4 전용 instance가 이미 있으면 버전을 올려 유효하게
+만들지 않는다. Open 자체가 원본 파일을 덮어쓰는 것은 아니며 저장 전에 검증을 거친다.

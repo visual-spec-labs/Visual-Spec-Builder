@@ -13,10 +13,11 @@ React 코드가 아니다.
 `height`는 예외 없이 `"auto"`다 등), `examples/invalid/` 8개에서 실제로 반복되는 실수 목록을
 담고 있다.
 
-### v0.1 제약 — 노드 타입은 다섯뿐이다
+### IR 0.4 제약 — 기본 노드와 공유 위젯
 
-이 스킬을 쓸 때 가장 먼저 알아야 할 제약이다. **v0.1이 지원하는 노드 타입은 `frame`,
-`text`, `image`, `button`, `input` 다섯뿐이다.** `component` 같은 타입은 여전히 없다.
+이 스킬을 쓸 때 가장 먼저 알아야 할 제약이다. **IR 0.4는 `frame`, `text`, `image`, `button`, `input`, `instance` 6종을 지원한다.** `component` 같은 타입은 여전히 없다.
+
+`instance`는 같은 프로젝트 widget의 PageId를 참조한다. 직접 Text/Button의 내용·글자색 재정의와 box만 지원하며, 참조·순환·종류는 프로젝트 검증기로 확인한다. 화면 관계와 위젯이 있는 문서는 프로젝트 문맥을 보존한다.
 
 `image`(`ImageNode`)는 `background`·`border`·`children`이 없는 leaf 노드다. 필수 필드는
 `type`, `name`, `box`, `src`(assets 상대 경로/assetId), `fit`(`cover`/`contain`/`fill`).
@@ -24,8 +25,7 @@ React 코드가 아니다.
 
 `button`(`ButtonNode`)·`input`(`InputNode`)도 leaf 노드다. `text`처럼 `typography`·`color`가
 필수고 `background`·`border`는 선택이다. `button`은 `content`(라벨), `input`은
-`placeholder`가 필수 텍스트 필드다 — **표시용 텍스트일 뿐 `onClick`/`value`/`onChange` 같은
-동작은 없다.** 실물 예제는 `layout.direction: "grid"`와 함께 쓴 `examples/form-grid.json`.
+`placeholder`가 필수 텍스트 필드다 — 일반 `onClick`/`value`/`onChange`는 없지만 button의 선택 `action`으로 화면 이동·모달 열기/닫기를 표현한다. 실물 예제는 `layout.direction: "grid"`와 함께 쓴 `examples/form-grid.json`.
 
 `background`(frame·button·input)는 채우기 겹의 배열이다(현재 문서 버전 `"0.4"`). 요구가 없으면
 단색 한 겹으로 쓰고, 그라디언트·여러 겹을 요구받았을 때만 `linear` 겹을 쓴다(배열 앞이 위 겹).
@@ -44,7 +44,7 @@ React 코드가 아니다.
 
 `text`에 `shadow`를 두지 않은 이유는 글자 모양을 따라가는 그림자가 `box-shadow`가 아니라
 `filter: drop-shadow`라 성격이 다르기 때문이다. `button`·`input`에는 `shadow`·`opacity`·
-`blur`가 아직 없다 — 속성 패널이 없어 스키마에만 있고 편집할 수 없는 필드가 되기 때문이다
+`blur`는 현재 정본의 지원 범위 밖이다
 (`border.align`과 모서리별 `radius`는 `Border`를 공유해 두 노드에도 적용된다).
 
 그래서 "버튼 누르면 로그인" 같은 동작 요구가 오면 에이전트는 타입을 지어내지 않고, 버튼
@@ -93,7 +93,7 @@ React 코드가 아니다.
 
 - React/TSX 코드 생성 → [visual-spec-to-react](./visual-spec-to-react.md)가 맡는다
 - 검증 실패 해석 → [visual-spec-validate](./visual-spec-validate.md)가 맡는다
-- v0.1에 없는 노드 타입 지어내기 (근사하고 알린다)
+- 정본에 없는 노드 타입 지어내기 (근사하고 알린다)
 - 스키마 정의 암기. 필드 판단이 필요하면 정본을 읽는다 →
   [visual-spec-docs](./visual-spec-docs.md)가 찾는 법을 준다
 

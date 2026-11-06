@@ -1,3 +1,13 @@
+> **현재 송수신 안내 (`develop` `49e7f617`).** NL은 protocol 2, 일반 `commands`는
+> Command 0.3이다. 화면 로컬 명령의 선택 요소/현재 화면 범위는 요청·스킬 계약이며, 프로젝트 공용
+> 스타일 명령의 수정·삭제는 모든 페이지의 해당 스타일 참조에 영향을 준다. `destinations`·
+> `widgets`는 읽기 전용 문맥이며 임의의 프로젝트 편집 권한이 아니다. 별도 `projectCommand`
+> `extractAndPlaceWidget`은 선택 프레임 추출·다른 일반 페이지 배치의 제한된 구조 변경 경로다.
+> GUI가 외부 에이전트를 자동 실행하지 않으며 설치 스킬과 함께 복사한 로컬 계약을 사용한다.
+> 아래 “관련 코드 없음”, 6종 명령·계획 미구현 표는 2026-09-18 설계 조사 당시 기록이다.
+> 현재 사용자 흐름은 [03](03-user-flow.md)·[14](14-getting-started.md), 정확한 필드는
+> [09](09-command-schema-freeze.md)와 이 문서 끝의 S1-10/S2 절을 따른다.
+
 > 2026-10-15 #265 S1-3: 당시 Command는 v0.2(7종), NL과 직접 agent-edit 전송은 각각 protocol 2였다.
 > 현재 요청/성공 응답의 commandVersion은 "0.3"이며 직접 경로는 gui-state capabilities도 검사한다.
 > 이전 6종/무버전 예제는 조사 시점 기록이다. 현재 송수신 계약은 [09](09-command-schema-freeze.md)와
@@ -740,9 +750,29 @@ navigate는 effective kind=page, openModal은 modal만 대상으로 삼는다. �
 첫 항목을 고르지 않고 후보 PageId로 재지정을 요청하는 error 응답을 만든다. 없는 이름/ID를 만들거나
 다른 화면을 수정해서 대상을 맞추지 않는다. close는 target 없이 현재 modal/widget 문맥에서만 쓴다.
 
-일반 Command의 수정 범위는 여전히 요청의 활성 pageId와 그 page.nodes다. 다른 화면의 NodeId,
-pageId 명령 확장, 임의 프로젝트 전체 변경은 허용하지 않는다. 아래 S2의 단일 프로젝트 명령만
-선택 프레임을 추출해 기존 다른 페이지 root에 배치한다. 응답 대기 중 문서/화면 변경 거부와 최종 **현재 프로젝트** G3를
+화면 로컬 Command의 구조·속성 수정은 요청의 활성 pageId와 그 page.nodes를 대상으로 한다.
+다른 화면의 NodeId나 임의 pageId 필드를 붙여 자유롭게 여러 페이지를 편집하는 통로는 아니다.
+다만 **Command 0.3의 프로젝트 공용 스타일 명령은 이 화면 로컬 범위와 구분한다.**
+
+- `createColorStyle`·`createTypographyStyle`: 프로젝트 카탈로그 항목을 만든다.
+- `updateColorStyle`·`updateTypographyStyle`: 카탈로그를 바꾸고 `project.pages` 전체에서
+  같은 스타일 ID를 참조하는 노드의 리터럴 값 사본도 갱신한다.
+- `deleteColorStyle`·`deleteTypographyStyle`: 프로젝트 전체에서 해당 연결을 해제하고
+  카탈로그 항목을 지운다. 연결됐던 노드의 현재 리터럴 값은 보존한다.
+- `applyColorStyle`·`applyTypographyStyle`: 요청 `pageId` 안의 `nodeId`에 스타일을 연결한다.
+
+`transactionGate.ts`가 전체 프로젝트 후보를 만들고 `styleEdits.ts`의 update/unlink가
+모든 페이지를 순회한다. 마지막에 `validateProjectSpec`을 통과해야 커밋하며 Undo도 요청 한 단계다.
+선택 요소/현재 화면 표시는 공용 스타일의 프로젝트 전체 파급을 차단하는 경계가 아니다.
+일반 `commands`의 `runTransactionGates(spec, pageId, commands)`에는 선택 노드 `scope`가
+전달되지 않는다. G1~G3는 형태·적용 가능성·프로젝트 유효성을 검사하지만, 선택 노드와 자손만
+수정하도록 별도 강제하지는 않는다. 선택 범위 준수는 요청·응답 스킬 계약으로 구분하며,
+`projectCommand` 경로에서 수행하는 `scope.kind`·원본 nodeId·현재 선택 일치 검사와 혼동하지 않는다.
+노드 값을 직접 수정하는 `updateNode`는 해당 노드의 관련 스타일 연결을 해제하는 경로이며,
+공용 스타일 원본을 바꾸는 `update*Style`과 구분한다.
+
+이와 별도로 아래 S2의 `projectCommand`가 선택 프레임을 추출해 기존 다른 페이지 root에
+배치한다. 응답 대기 중 문서/화면 변경 거부와 최종 **현재 프로젝트** G3를
 그대로 유지한다. 카탈로그는 검증 우회용 allow-list나 최신성 보장이 아니다. 삭제/종류 변경된 대상은
 기존 현재 프로젝트 검증에서 거부한다. 카탈로그의 이름을 바꾸어도 프로젝트가 바뀌지 않는다.
 
@@ -758,13 +788,15 @@ pageId 명령 확장, 임의 프로젝트 전체 변경은 허용하지 않는�
 instance의 `overrides`를 만들 때 에이전트는 이 목록에서 직접 원본 Text/Button NodeId와
 content/color를 확인한다. 새 instance의 ref는 `destinations`의 widget PageId를 쓴다.
 
-구 요청에서 `widgets`가 없으면 원본의 NodeId를 추측하지 않는다. 화면 로컬 Command 0.3은
-다른 페이지를 편집하지 않는다. 단, protocol 2 응답의 선택 `projectCommand`로
+구 요청에서 `widgets`가 없으면 원본의 NodeId를 추측하지 않는다. 화면 로컬 구조·속성
+명령과 위 절의 프로젝트 공용 스타일 명령을 구분한다. 스타일 변경은 다른 페이지의 참조에도
+전파될 수 있다. 위젯 구조 변경은 별도로 protocol 2 응답의 선택 `projectCommand`로
 `extractAndPlaceWidget` 한 종류를 받는다. 현재 선택한 루트 아닌 frame의 `pageId`·`nodeId`,
 새 `widgetId`·`name`, 기존의 다른 kind=page `targetPageId`를 명시한다. `commands`와 함께 쓰지
 않으며 필드 추가·다른 명령 종류를 거부한다. GUI가 원본을 추출한 뒤 대상 페이지 root에
 instance를 추가해 **최종 프로젝트 전체를 검증하고 한 Undo 단계로** 커밋한다. 대상 화면의
 노드 트리를 에이전트에 노출하거나 에이전트가 부모 NodeId를 추측하게 하지 않는다.
 대기 중 문서·화면 변경 거부는 그대로다. 분리와 임의 여러 페이지 편집은 GUI에 남긴다.
-이 구형 단일 `projectCommand` 응답만 `commandVersion: "0.2"` 표식을 사용한다. 일반 `commands`
-배열 응답은 현재 Command 0.3 계약을 따른다. fixture 검증은 실제 모델 실행을 뜻하지 않는다.
+이 단일 `projectCommand` 응답의 parser는 호환용 `commandVersion: "0.2"` 또는 현재
+`"0.3"`을 허용한다. 명령 자체의 `version`은 `"0.1"`이며 일반 `commands` 배열과 함께
+보내지 않는다. 일반 배열 응답은 현재 Command 0.3 계약을 따른다. fixture 검증은 실제 모델 실행을 뜻하지 않는다.

@@ -1,5 +1,7 @@
 # Visual Spec Builder
 
+전체 문서의 역할과 점검 범위는 [문서 안내](docs/README.md)에 정리했다.
+
 체크아웃에서 localhost로 실행하는 화면 설계 GUI 도구다.
 사용자는 자연어 또는 직접 조작으로 화면을 구성하고, 도구는 이를 JSON Visual Spec으로 저장한다.
 Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현한다.
@@ -10,7 +12,9 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 
 ## 문서
 
-위에서부터 순서대로 읽으면 전체가 파악된다.
+처음 사용한다면 [14. 처음부터 따라 하기](docs/14-getting-started.md), 현재 제공 범위와 남은 검증은
+[07. 구현 현황](docs/07-implementation-status.md)을 먼저 읽는다. 설계·동결·QA 문서에는
+작성 당시의 제안과 단계별 기록도 있으므로, 날짜·기준 커밋·현재 상태 안내를 함께 확인한다.
 
 | 문서 | 내용 |
 |---|---|
@@ -22,7 +26,7 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [06-schema-freeze.md](docs/06-schema-freeze.md) | IR 스키마 동결 계약과 변경 절차 (v0.1에서 시작, 현재 0.4) — **스키마 수정 전 필독** |
 | [07-implementation-status.md](docs/07-implementation-status.md) | 지금 무엇이 구현됐고 무엇이 남았는가 — **다음 할 일 판단의 근거** |
 | [08-natural-language.md](docs/08-natural-language.md) | 자연어 → Command 변환 설계 |
-| [09-command-schema-freeze.md](docs/09-command-schema-freeze.md) | Command 스키마 v0.1 동결 계약과 변경 절차 |
+| [09-command-schema-freeze.md](docs/09-command-schema-freeze.md) | Command 동결 계약과 변경 절차 (v0.1에서 시작, 현재 0.3) |
 | [10-shortcuts.md](docs/10-shortcuts.md) | 편집기 단축키와 캔버스 조작 (실제 동작하는 것만) |
 | [11-ticket-schema-freeze.md](docs/11-ticket-schema-freeze.md) | Ticket 스키마 v0.1 동결 계약과 변경 절차 |
 | [12-responsive-ir-design.md](docs/12-responsive-ir-design.md) | 이슈 #181 반응형 IR 설계 결정과 후속 범위 |
@@ -36,6 +40,9 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 | [20-screen-layout-contract-qa.md](docs/20-screen-layout-contract-qa.md) | 이슈 #280 viewport·폰트·reset·모든 노드 좌표 비교 계약 |
 | [21-app-scope-a11y-design.md](docs/21-app-scope-a11y-design.md) | 이슈 #285 Export 제공 범위(컴포넌트 묶음)와 입력·접근성 최소 지원 범위 후속 제안 |
 | [22-performance-baseline.md](docs/22-performance-baseline.md) | 이슈 #293 프로젝트·노드·이미지 규모별 성능 실측과 후속 우선순위 |
+| [PROJECT_GENERATION_GUI.md](docs/PROJECT_GENERATION_GUI.md) | 단일 화면·프로젝트 티켓 전달, 공유 위젯과 Export 경계 |
+| [PROJECT_OUTPUT_ACCEPTANCE.md](docs/PROJECT_OUTPUT_ACCEPTANCE.md) | 임시 생성 출력의 검증·수락·명시적 복구 계약 |
+| [S2_WIDGET_CONTRACT.md](docs/S2_WIDGET_CONTRACT.md) | IR 0.4의 공유 위젯·인스턴스 구조와 검증 계약 |
 | [24-screen-relations-design.md](docs/24-screen-relations-design.md) | 이슈 #265 화면 종류·연결·재사용 위젯의 승인 계약과 단계별 수용 조건 |
 | [265-acceptance-status.md](docs/265-acceptance-status.md) | #265 코드·fixture 검증과 실제 AI 미검증 조건의 현황 |
 | [27-user-design-system-scope.md](docs/27-user-design-system-scope.md) | 이슈 #290 사용자 화면의 공용 스타일·폰트·아이콘/이미지·상태 지원 범위와 앱 토큰 경계 — Q1~Q7·G1~G6 결정 반영(#360) |
@@ -53,9 +60,13 @@ Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현�
 
 ## 현재 구현 상태
 
-문서 스키마 0.4와 검증기, 노드 5종의 GUI 편집·그룹화·Undo/Redo, CLI 작업공간 저장·복원,
-solid·linear·image 다중 배경 편집, 반응형(breakpoint·override) 편집과 코드 생성 지침,
-자연어 Command 적용, 구현 티켓 요청·응답, 생성 코드 ZIP Export가 구현돼 있다.
+문서 스키마 0.4와 검증기, 기본 노드 5종(`frame`·`text`·`image`·`button`·`input`)의
+GUI 편집·그룹화·Undo/Redo, CLI 작업공간 저장·복원이 구현돼 있다. 공유 위젯은 별도의
+`InstanceNode`(`type: "instance"`)로 참조하며 추출·배치·분리·원본 편집을 지원한다.
+solid·linear·image 다중 배경, 반응형(breakpoint·override), 자연어 Command 적용,
+페이지 이동·모달·공유 위젯을 포함한 프로젝트 티켓 생성과 코드 ZIP Export를 제공한다.
+에이전트는 요청별 staging 경로에 코드를 쓰고, GUI가 검증·수락한 출력만 generated로 확정한다.
+티켓 완료나 Export 검사 통과가 생성 앱의 typecheck·build·시각 일치까지 보증하지는 않는다.
 자연어 응답과 React 코드 생성은 별도로 실행한 Claude Code·Codex 등 외부 에이전트가 담당한다.
 GUI가 에이전트 프로세스를 자동 실행하지 않는다. 남은 한계는 구현 현황을 참고한다.
 

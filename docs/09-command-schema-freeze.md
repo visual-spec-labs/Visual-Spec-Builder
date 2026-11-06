@@ -2,17 +2,20 @@
 
 동결 시작: 2026-09-19. 현재 Command 0.3 / NL protocol 2 / 직접 agent-edit protocol 2.
 
-2026-10-15 S1-3 구현: #381 승인 계약을 적용했다. 외부 Transaction은 `version: "0.3"`가
-필수이며 removeNodeAction을 포함한 7종이다. 두 전송 모두 commandVersion을 그대로 G1에 전달한다.
-GUI 관계 배치도 no-op/프로젝트 후보 오류 시 전부 거부한다. 아래 v0.1/예정/제안 절은 결정 이력이며
-새 계약의 상세 의미는 S1-3 절을 따른다. S1-4 페이지 삭제/클립보드 구현은 별도 PR이다.
+**현재 계약 (`develop` `49e7f617`):** 외부 Transaction은 `version: "0.3"`이며 화면 명령
+7종과 프로젝트 스타일 명령 8종을 합친 15종이다. 두 전송은 commandVersion을 G1에 전달한다.
+GUI 관계 배치도 no-op/프로젝트 후보 오류 시 전부 거부한다.
+
+**2026-10-15 S1-3 이력:** #381 계약을 적용할 당시에는 removeNodeAction을 포함한 화면 명령
+7종과 Command 0.2였다. 스타일 확장 뒤 현재 0.3이 됐다. 아래 v0.1/예정/제안과 S1-4 별도
+작업 표기는 그 단계의 결정 이력이며 현재 미구현 목록이 아니다.
 
 ## 정본과 공개 표면
 
 2026-10-16 #265 S2 위젯 배치: 기존 `createNode`의 `node`에 IR 0.4 `InstanceNode`를
 추가했다. 스타일 명령과 함께 명령 계약을 v0.3으로 올렸다. 프로젝트 전체 G3에서
-ref 종류·순환·override를 검사하고, 실패하면 원본과 Undo 기록을 유지한다. 구 0.3
-소비자는 IR 스키마에서 instance를 거부한다. 위젯 추출·분리는 여러 화면을 바꾸므로
+ref 종류·순환·override를 검사하고, 실패하면 원본과 Undo 기록을 유지한다. IR 0.3
+소비자는 스키마에서 instance를 거부한다. 위젯 추출·분리는 여러 화면을 바꾸므로
 이 화면 단위 Command로 표현하지 않으며 별도 프로젝트 명령 계약에서 다룬다.
 2026-10-16 (#290): 기존 screen command 7종에 스타일 create/update/delete/apply 명령 8종을 추가했다. 스타일 Command는 프로젝트 후보 전체를 갱신하고 연결된 리터럴을 원자적으로 정리한다. 화면 단위 `applyCommand`에서는 적용하지 않으며, project gate만 처리한다.
 
@@ -36,7 +39,7 @@ import {
 
 TypeScript 타입은 자동 생성하지 않는다. `CreateNodeCommand.node`와
 `SetLayoutCommand.layout`이 동결된 IR 타입을 직접 재사용하고, `update*.value`는 path에
-따라 달라 `unknown`이어야 하므로 생성 타입이 더 정확하지 않다. 대신 6종 명령을
+따라 달라 `unknown`이어야 하므로 생성 타입이 더 정확하지 않다. 대신 명령 표본을
 `satisfies Command[]`로 컴파일하고 같은 값을 런타임 스키마로 검증하는 테스트를 둔다.
 
 ## 검증 경계

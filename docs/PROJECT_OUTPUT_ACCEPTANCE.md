@@ -1,8 +1,19 @@
 # 프로젝트 출력 수락과 복구 구현 경계 (#265)
 
-이 문서는 docs/26의 v4 프로젝트 생성 계약 중 `projectOutputAcceptance.ts`의 호출 계약을
-설명한다. GUI producer, 에이전트 v4 skill, Export 연결이나 S1 전체 완료를 뜻하지 않는다.
+이 문서는 [26의 프로젝트 생성 계약](26-agent-request-generation-contract.md) 중
+`projectOutputAcceptance.ts`의 호출 계약을 설명한다. 현재 v4/v5 프로젝트 요청은 GUI 전달과
+Export에 연결돼 있으며, 참조 위젯 티켓이 있으면 v5를 사용한다. 실제 사용자 흐름은
+[프로젝트 GUI 전달](PROJECT_GENERATION_GUI.md)을 따른다. 이 모듈의 검증 기록만으로
+실제 AI 생성·독립 앱 빌드·S1/S2 전체 수용 조건이 충족됐다고 보지 않는다.
 기존 v3 수락과 자연어 transactionGate는 교체하지 않는다.
+
+에이전트가 요청의 `outputPath`에 쓴 `.visual-spec/staging/<requestId>/…`는 임시 출력이다.
+수락 모듈이 현재 입력·소유권·출력 bytes를 검증하고 최종 `.visual-spec/generated/…`와
+수락 근거를 확정한 뒤에만 완료 출력으로 사용한다. `done` 응답 파일이나 staging 파일의
+존재를 그 확정 대신 사용하지 않는다.
+
+> 최초 v4 구현 단계에서는 GUI producer·스킬·Export 연결을 별도 작업으로 구분했다.
+> 위 안내는 현재 연결 상태를 설명하며, 아래 단계별 수락·복구 기록의 검증 범위를 넓히지 않는다.
 
 ## 수락 단위와 호출자 책임
 

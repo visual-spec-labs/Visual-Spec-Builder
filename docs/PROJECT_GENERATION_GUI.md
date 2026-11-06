@@ -1,13 +1,24 @@
-# 프로젝트 v4 GUI 전달과 Export (#265 S1-9)
+# 프로젝트 v4/v5 GUI 전달과 Export (#265)
 
-프로젝트에 modal/widget 또는 버튼 action이 있으면 구현 티켓 열기/다시 생성은 전체
-ProjectPlan을 만든다. 화면 관계가 없는 기존 단일 화면 경로와 v3 API는 유지한다.
-widget은 제외 개수를 표시하고 문서에는 그대로 보존한다. 재사용 widget 생성(S2)은
-이 전달 범위에 포함하지 않는다.
+프로젝트에 modal/widget·instance 또는 버튼 action이 있으면 구현 티켓 열기/다시 생성은
+전체 ProjectPlan을 만든다. 화면 관계가 없는 활성 화면 경로와 v3 API는 유지한다.
+일반 page가 여러 장이라는 이유만으로 프로젝트 전체 생성 경로가 되는 것은 아니다.
+
+프로젝트 계획에 참조 위젯 티켓이 없으면 `protocol:4`, 있으면 `protocol:5`를 쓴다.
+참조 위젯은 공유 의존성으로 한 번 생성하고 여러 화면에서 가져온다. 참조되지 않은 위젯은
+생성·ZIP 대상에서 제외하지만 원본 문서에는 보존한다. v5는 설치 스킬의 `PROJECT_V5.md`를
+따르며 `visual-spec skills`로 설치본과 로컬 계약을 함께 갱신한다.
+
+> 초기 S1-9 문서의 “재사용 widget 생성(S2)은 범위 밖”은 당시 구현 단계 기록이다.
+> 현재 동작은 `49e7f617` 기준 소스와 [위젯 계약](S2_WIDGET_CONTRACT.md)을 따르며,
+> 실제 AI 검증 여부는 [#265 수용 조건](265-acceptance-status.md)과 별도로 확인한다.
 
 ## 전달과 취소
 
-projectTicketRunner는 기존 v4 dispatch와 프로젝트 수락 API를 연결한다. 선택 페이지가
+projectTicketRunner는 v4/v5 dispatch와 프로젝트 수락 API를 연결한다.
+에이전트의 `outputPath`는 `.visual-spec/` 기준 `staging/<requestId>/…`이고, `filePath`는
+수락 뒤 `.visual-spec/generated/` 기준의 경로다. 성공 응답만으로 최종 파일을 신뢰하지 않고
+현재 요청·입력·staging 출력을 수락 API가 검증한 뒤 generated로 확정한다. 선택 페이지가
 바뀌는 것은 프로젝트 입력 변경이 아니다. 전체 spec 참조, documentId, projectIdentity,
 컴파일 generation이 바뀌면 이전 응답을 수락하지 않는다. 현재 자산 bytes는 snapshot과
 수락 단계에서 다시 검증한다. 수동 상태 선택으로 프로젝트 티켓을 done으로 만들 수 없다.
@@ -21,7 +32,7 @@ wave 전체를 수락하지 않으며 다음 wave를 보내지 않는다. Stop/�
 
 ## 프로젝트 Export
 
-화면 관계가 있는 프로젝트는 전체 페이지·modal·GUI runtime을 한 ZIP으로 묶는다.
+화면 관계가 있는 프로젝트는 전체 페이지·modal·참조 위젯·GUI runtime을 한 ZIP으로 묶는다.
 현재 registry 소유권, 전체 provenance, 모든 출력 hash, 현재 소스 자산 fingerprint가
 검증된 current 상태만 허용한다. partial/stale/unverified 상태를 페이지 하나의 ZIP으로
 조용히 축소하거나 부분 성공으로 내보내지 않는다. 선택한 페이지가 달라도 같은 프로젝트 범위다.
@@ -41,8 +52,10 @@ commit 뒤 복구 handle 보존, 전체 ZIP 내용/이미지 중복 제거, 다�
 screen-relations-guard.mjs는 실제 GUI·HTTP·filesystem에서 결정적 fixture 응답을 주고 여러
 wave→수락→프로젝트 ZIP과 수동 출력 변경 거부를 확인한다. 원본 IR/identity도 비교한다.
 
-실제 AI agent 실행, 내려받은 임의 코드의 빌드/시각 일치, 미커밋 중간 실패를 새 lease로
-자동 복구하는 기능, S2 재사용 widget은 완료로 표시하지 않는다. Epic #265를 닫지 않는다.
+이 문서의 fixture 검증 설명만으로 실제 AI agent 실행이나 내려받은 임의 코드의 빌드/시각
+일치가 검증됐다고 보지 않는다. 미커밋 중간 실패를 새 lease로 **자동** 복구하는 기능과
+아래의 사용자 요청에 따른 **명시 복구**도 구분한다. S2 재사용 위젯 생성·ZIP 경로의 구현과
+Epic #265 전체 수용 조건 완료는 별개다.
 
 
 미커밋 적용이 남은 채 reload한 경우 프로젝트 티켓 패널의 **미완료 적용 확인**으로

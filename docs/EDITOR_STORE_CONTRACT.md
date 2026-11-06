@@ -1,5 +1,7 @@
 # 에디터 상태 공유 계약 (Store Contract)
 
+> 2026-11-05: 기본 store/history 계약에 프로젝트 관계·위젯·스타일의 원자 편집이 추가됐다. 상세 정본은 `store/editorStore.ts`와 관련 store 모듈, [09](09-command-schema-freeze.md)·[S2](S2_WIDGET_CONTRACT.md)이다. 날짜·기준 커밋이 붙은 API/패널 집계는 당시 스냅샷이다.
+
 캔버스 · 레이어 트리 · 세부설정 패널이 **하나의 Zustand 스토어**를 공유해 서로 연결되는 방식을 정의한다.
 세 파트를 각자 다른 사람이 만들더라도 이 계약만 지키면 자동으로 맞물린다.
 
@@ -216,7 +218,7 @@ import type {
 
 ## 5. 지금 편집 가능한 필드 (스키마 0.3 범위)
 
-세부설정 패널은 정본(현재 0.3)에 실제로 존재하는 필드만 다룬다. 아래는 develop `3d57903` 기준
+세부설정 패널은 정본(현재 0.4)에 실제로 존재하는 필드만 다룬다. 아래는 develop `3d57903` 기준
 `ui/PropertiesPanel.tsx`와 `ui/properties/` 섹션 컴포넌트를 읽어 적었다. 어떤 타입에 어떤 섹션이
 뜨는지는 `ui/properties/nodeSections.ts`의 표 하나가 정한다(#92) — 표를 고치면 이 절도 같이 고친다.
 
@@ -286,7 +288,7 @@ GUI" 절)로 한다.
 **그룹화 (#225, #250)** 는 패널이 아니라 캔버스 컨텍스트 메뉴와 단축키에서 한다(아래 "단일 노드 Group /
 Ungroup" 절, `ui/nodeContextMenuEntries.ts`). 패널에 그룹 전용 필드는 없다 — 만들어진 wrapper는 일반 frame이다.
 
-> **X / Y / Rotation은 아직 없음.** 스키마 0.3도 Auto Layout 전용이라 절대좌표·회전 필드가 없다.
+> **X / Y / Rotation은 아직 없음.** 스키마 0.4도 Auto Layout 전용이라 절대좌표·회전 필드가 없다.
 > 필요해지면 [06의 변경 규칙](06-schema-freeze.md#변경-규칙)으로 확장한다. 패널은 그때 표(`nodeSections.ts`)와
 > 섹션 한 줄만 추가하면 되도록 설계돼 있다.
 
