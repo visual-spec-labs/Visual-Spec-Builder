@@ -18,15 +18,37 @@ try {
   runner = await startBrowserWorkspace(workspace);
   const context = await runner.newContext();
   const [tabA, tabB] = await Promise.all([context.newPage(), context.newPage()]);
-  for (const page of [tabA, tabB]) page.setDefaultTimeout(10000);
+  // This journey runs after several full Chromium journeys on the same CI
+  // worker; keep the initial workspace scan from flaking under CPU pressure.
+  for (const page of [tabA, tabB]) page.setDefaultTimeout(30000);
   const errors = [];
-  for (const page of [tabA, tabB]) page.on("pageerror", error => errors.push(error.message));
+  for (const page of [tabA, tabB]) {
+    page.on("pageerror", error => errors.push(error.message));
+  }
   const alphaCard = page => page.getByRole("button", { name: /Alpha.*파일: Alpha\.json/s });
-  await tabA.goto(runner.url);
+  const openHome = async page => {
+    await page.goto(runner.url);
+    // Vite may serve the page before the workspace middleware is ready. The
+    // home screen loads its list once, so wait for the API then reload once.
+    await page.waitForFunction(async () => {
+      try {
+        const response = await fetch("/__vs/status");
+        return response.ok && response.headers.get("x-visual-spec-workspace") === "1";
+      } catch { return false; }
+    });
+    await page.reload();
+    try {
+      await alphaCard(page).waitFor();
+    } catch (error) {
+      console.error("Home did not list Alpha", JSON.stringify({ url: page.url(), body: await page.locator("body").innerText(), errors }));
+      throw error;
+    }
+  };
+  await openHome(tabA);
   await alphaCard(tabA).click();
   await tabA.getByRole("button", { name: "홈으로" }).waitFor();
   await tabA.waitForTimeout(700);
-  await tabB.goto(runner.url);
+  await openHome(tabB);
   await alphaCard(tabB).click();
   await tabB.getByRole("button", { name: "홈으로" }).waitFor();
   await tabB.waitForTimeout(700);
@@ -54,6 +76,14 @@ try {
   });
   assert.deepEqual(pausedBeforeReload, { paused: true, name: "B recovered draft" }, "A's autosave must preserve B's pre-debounce draft");
   await tabB.reload();
+  // Reload now restores the active editor. Return Home explicitly before
+  // continuing this journey's Home recovery and project-switch assertions.
+  // The conflict dialog intentionally blocks the visible navigation button.
+  await tabB.getByRole("button", { name: "홈으로" }).waitFor();
+  await tabB.evaluate(async () => {
+    const { useNavigationStore } = await import("/src/features/editor/store/navigationStore.ts");
+    useNavigationStore.getState().openHome();
+  });
   await alphaCard(tabB).waitFor();
   assert.equal(await tabB.getByRole("alertdialog").count(), 0, "Home remains usable after restoring a conflicted tab");
   await alphaCard(tabB).click();

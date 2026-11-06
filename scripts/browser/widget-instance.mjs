@@ -70,7 +70,11 @@ try {
   await page.getByRole('menuitem', { name: '저장', exact: true }).click();
   await page.locator('[role="status"][aria-label="저장 상태"]').filter({ hasText: '파일 저장됨' }).waitFor();
   await page.reload();
-  await page.getByRole('button').filter({ hasText: /WidgetProject.*페이지/s }).click();
+  await page.getByRole('button', { name: '파일', exact: true }).waitFor();
+  await page.waitForFunction(async () => {
+    const { useEditorStore } = await import('/src/features/editor/store/editorStore.ts');
+    return useEditorStore.getState().spec.name === 'WidgetProject';
+  });
   await page.locator('[data-node-id="instance-1"]').getByText('새 알림').waitFor();
   await page.locator('[data-node-id="instance-2"]').getByText('새 알림').waitFor();
   assert.deepEqual(errors, []);

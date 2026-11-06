@@ -88,7 +88,7 @@ docs: 기여 규칙과 라이선스 파일 추가
   기존 fixture의 `/usr/bin/chromium` 경로도 이 브라우저로 연결하고 opt-in 검사 3개를 명시 실행한다.
   Grid도 Playwright로 CSS viewport를 직접 지정해 브라우저 창 테두리와 `--dump-dom` 종료에 의존하지 않는다.
   이어서 Node Playwright 1.62.0을 runner 임시 폴더에 설치하고 Export·프로젝트 대화상자·문서 전환·
-  이름 없는 초안 복구·저장 상태·낡은 티켓·다중 탭 요청·수동 변경 보호·생성 출력 소유권·편집 문맥의 Node 여정 10개를 순차 실행한다. 추가 여정과 각 제한 시간의 정본은 `.github/workflows/ci.yml`이다. 기본 여정은 120초 제한이며
+  이름 없는 초안 복구·저장 상태·낡은 티켓·다중 탭 요청·수동 변경 보호·생성 출력 소유권·편집 문맥·파일 찾아보기 및 새로고침 복구의 Node 여정 11개를 순차 실행한다. 추가 여정과 각 제한 시간의 정본은 `.github/workflows/ci.yml`이다. 기본 여정은 120초 제한이며
   실패/timeout은 browser 잡과 필수 build 체크를 실패시킨다. 제품 의존성·권한·secrets는 늘리지 않는다.
   이는 fixture의 DOM/레이아웃과 지정 사용자 경로 검사이며 실제 AI 실행이나 #292 전체 완료 검증은 아니다.
   이어서 `screen-relations-guard.mjs`와 `recovery-provenance.mjs`를 각각 별도 120초 제한으로 실행한다.

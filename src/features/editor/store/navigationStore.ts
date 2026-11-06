@@ -10,6 +10,34 @@ import { create } from "zustand";
  */
 export type AppScreen = "home" | "editor";
 
+const SCREEN_STATE_KEY = "visualSpecActiveScreen";
+type HistoryStatePort = { state: unknown; replaceState: (state: unknown, unused: string) => void };
+
+function getHistory(): HistoryStatePort | undefined {
+  return (globalThis as unknown as { window?: { history?: HistoryStatePort } }).window?.history;
+}
+
+function initialScreen(): AppScreen {
+  try {
+    const state = getHistory()?.state;
+    return typeof state === "object" && state !== null && SCREEN_STATE_KEY in state &&
+      (state as Record<string, unknown>)[SCREEN_STATE_KEY] === "editor" ? "editor" : "home";
+  } catch {
+    return "home";
+  }
+}
+
+function persistScreen(screen: AppScreen): void {
+  try {
+    const browserHistory = getHistory();
+    if (!browserHistory) return;
+    const current = browserHistory.state && typeof browserHistory.state === "object" ? browserHistory.state : {};
+    browserHistory.replaceState({ ...current, [SCREEN_STATE_KEY]: screen }, "");
+  } catch {
+    // Navigation still works when browser history state is unavailable.
+  }
+}
+
 export interface NavigationState {
   /** 지금 보여줄 화면. 시작은 항상 홈이다(docs/04-gui-spec.md §2). */
   screen: AppScreen;
@@ -18,7 +46,7 @@ export interface NavigationState {
 }
 
 export const useNavigationStore = create<NavigationState>((set) => ({
-  screen: "home",
-  openEditor: () => set({ screen: "editor" }),
-  openHome: () => set({ screen: "home" }),
+  screen: initialScreen(),
+  openEditor: () => { persistScreen("editor"); set({ screen: "editor" }); },
+  openHome: () => { persistScreen("home"); set({ screen: "home" }); },
 }));
