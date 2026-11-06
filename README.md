@@ -133,7 +133,7 @@ node "$VSB_REPO/bin/visual-spec.mjs"
 작성 당시의 제안과 단계별 기록도 있으므로, 날짜·기준 커밋·현재 상태 안내를 함께 확인한다.
 설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 있다.
 
-디렉터리 구조는 아래와 같다.
+## 디렉터리 구조
 
 ```
 bin/visual-spec.mjs              init·skills·GUI 실행 CLI
