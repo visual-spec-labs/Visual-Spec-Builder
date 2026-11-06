@@ -23,6 +23,16 @@ function setup() {
 }
 
 describe("createAgentRequestWait (#284)", () => {
+  it("호출부가 별도 대기 창을 지정할 수 있다", () => {
+    let clock = 1_000_000;
+    const thirtyMinutes = 30 * 60_000;
+    const wait = createAgentRequestWait(() => {}, () => clock, thirtyMinutes);
+
+    wait.start();
+
+    expect(wait.deadline).toBe(clock + thirtyMinutes);
+  });
+
   it("요청 파일을 쓰기 전에는 기한이 없고 연장도 거절한다", () => {
     const { wait } = setup();
     expect(wait.deadline).toBeNull();
