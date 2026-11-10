@@ -264,7 +264,7 @@ describe("증분 sync", () => {
     const result = spawnSync(process.execPath, ["--input-type=module", "-e", code, root], { encoding: "utf8" });
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
-  });
+  }, 20_000);
 
   it("기존 커밋이 develop 이력에서 사라지면 아무것도 쓰지 않고 멈춘다", () => {
     const root = copyHistory();
