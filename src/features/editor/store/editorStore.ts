@@ -592,7 +592,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // 지금은 어디서도 변형하지 않지만, 얕게 복사해 그 전제를 없앤다.
       const page: ScreenSpec = {
         ...blankSpec.screen,
-        name: `Page ${state.spec.pageOrder.length + 1}`,
+        // 위젯 페이지는 화면 번호에 들지 않는다 — 세면 "Page 4"처럼 건너뛴다.
+        name: `Page ${state.spec.pageOrder.filter((pageId) => state.spec.pages[pageId]?.kind !== "widget").length + 1}`,
         nodes: { ...blankSpec.screen.nodes },
       };
 
