@@ -203,7 +203,7 @@ export function MenuBar() {
   return (
     <header
       ref={rootRef}
-      className="flex items-center gap-4 border-b border-line bg-surface px-4 text-sm [grid-area:menu]"
+      className="relative z-20 flex items-center gap-4 border-b border-line bg-surface px-4 text-sm [grid-area:menu]"
     >
       <div className="flex shrink-0 items-center gap-4">
         <button

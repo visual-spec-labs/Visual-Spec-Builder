@@ -14,9 +14,7 @@
  */
 
 /**
- * 처음 기다리는 시간이자 연장 한 번의 길이. 3분이다 — 사람이 창을 바꿔 에이전트에 지시를
- * 옮기는 시간이 끼는 경로라 몇 초로는 모자라고(#155), 무한정 기다리면 다음 요청을 못 한다.
- * 고정 180초만 있던 것을 "연장할 수 있는 180초"로 바꿨다.
+ * 티켓의 기본 대기 시간과 연장 한 번의 길이. 자연어 요청은 별도의 더 긴 창을 전달할 수 있다.
  */
 export const AGENT_WAIT_WINDOW_MS = 180_000;
 
@@ -78,6 +76,7 @@ export interface AgentRequestWait {
 export function createAgentRequestWait(
   onProgress: (progress: AgentWaitProgress) => void = () => {},
   now: () => number = Date.now,
+  windowMs = AGENT_WAIT_WINDOW_MS,
 ): AgentRequestWait {
   let deadline: number | null = null;
   let hardDeadline = Infinity;
@@ -94,7 +93,7 @@ export function createAgentRequestWait(
   /** `extend()`·자동연장이 공유하는 "지금부터 창 하나" 규칙. 기한이 없으면(시작 전) 아무것도 안 한다. */
   function extendDeadline(): void {
     if (deadline === null) return;
-    deadline = Math.min(hardDeadline, Math.max(deadline, now() + AGENT_WAIT_WINDOW_MS));
+    deadline = Math.min(hardDeadline, Math.max(deadline, now() + windowMs));
   }
 
   return {
@@ -107,7 +106,7 @@ export function createAgentRequestWait(
     start(maxDurationMs = Infinity) {
       if (settled || deadline !== null) return;
       hardDeadline = now() + maxDurationMs;
-      deadline = Math.min(hardDeadline, now() + AGENT_WAIT_WINDOW_MS);
+      deadline = Math.min(hardDeadline, now() + windowMs);
       phase = "waiting";
       emit();
     },

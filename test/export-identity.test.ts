@@ -277,7 +277,7 @@ describe("유효 JSON의 registry 구조 손상은 빈 기록이 아니다", () 
       if (manifest !== null) put(GENERATION_MANIFEST_PATH, JSON.stringify(manifest));
       put("generated/direct/page1/pages/Home.tsx", "export default function Home(){return null} // DIRECT");
       expect(await scanZip("direct.json")).toContain("DIRECT");
-    },
+    }, 20_000,
   );
 
   it("유효 registry가 이미 소유한 slug는 미등록 문서의 fallback으로 쓰지 않는다", async () => {

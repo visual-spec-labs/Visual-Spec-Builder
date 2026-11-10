@@ -207,6 +207,42 @@ describe("Open 다음의 Save는 연 그 파일에 쓴다 (PR #145 리뷰)", () 
     expect(useDocumentStore.getState().fileName).toBe("before.json");
   });
 
+  it("작업공간 목록에서 파일 찾아보기를 눌러 로컬 JSON을 연다", async () => {
+    const click = vi.fn();
+    let input!: { files: Array<{ name: string; text: string }> | null; onchange: (() => void) | null; click: () => void };
+    vi.stubGlobal("document", { createElement: () => input = { files: null, onchange: null, click } });
+    vi.stubGlobal("FileReader", class {
+      result: string | null = null;
+      onload: (() => void) | null = null;
+      readAsText(file: { text: string }) {
+        this.result = file.text;
+        queueMicrotask(() => this.onload?.());
+      }
+    });
+    try {
+      const pending = openSpec();
+      await vi.waitFor(() => expect(usePromptDialogStore.getState().state.kind).toBe("pick"));
+      const picker = usePromptDialogStore.getState().state;
+      expect(picker.kind).toBe("pick");
+      if (picker.kind !== "pick") throw new Error("Open picker did not appear");
+      expect(picker.browseLabel).toBe("파일 찾아보기…");
+
+      picker.onBrowse?.();
+      expect(click).toHaveBeenCalledOnce();
+      input.files = [{ name: "local-choice.json", text: JSON.stringify({ ...dashboardSpec(), name: "Local choice" }) }];
+      input.onchange?.();
+      await pending;
+      await vi.waitFor(() => expect(useEditorStore.getState().spec.name).toBe("Local choice"));
+
+      expect(useDocumentStore.getState().fileName).toBeNull();
+      expect(useDocumentStore.getState().downloadFileName).toBe("local-choice.json");
+      expect(usePromptDialogStore.getState().state.kind).toBe("closed");
+    } finally {
+      Reflect.deleteProperty(globalThis, "document");
+      Reflect.deleteProperty(globalThis, "FileReader");
+    }
+  });
+
   it("검증에 실패한 파일은 현재 문서가 되지 않는다 — 안 열린 파일을 Save가 덮어쓰면 안 된다", async () => {
     writeFileSync(join(workspaceRoot, "specs", "broken.json"), "{ 이건 JSON이 아니다");
     useDocumentStore.getState().setFileName("customer-copy.json");

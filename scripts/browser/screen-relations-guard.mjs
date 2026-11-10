@@ -55,6 +55,9 @@ try {
   assert.deepEqual(await page.evaluate(()=>editor.getState().spec),original,'generation/export preserve IR and identity');
   assert.equal(await readFile(join(workspace,'generated/pages/Old.tsx'),'utf8'),old,'unowned legacy output preserved');
   await page.reload();
+  await page.getByRole('button',{name:'파일',exact:true}).waitFor();
+  assert.deepEqual(await page.evaluate(async()=>(await import('/src/features/editor/store/editorStore.ts')).useEditorStore.getState().spec),original,'reload restores the active editor');
+  await page.getByRole('button',{name:'홈으로'}).click();
   await page.getByRole('button').filter({hasText:/RelationProject.*페이지/s}).click();await page.getByRole('button',{name:'파일',exact:true}).waitFor();
   const reopened=await page.evaluate(async()=>(await import('/src/features/editor/store/editorStore.ts')).useEditorStore.getState().spec);
   assert.deepEqual(reopened,original,'reopen retains IR and the accepted project identity');

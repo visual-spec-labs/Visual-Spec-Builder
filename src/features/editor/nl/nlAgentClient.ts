@@ -21,7 +21,6 @@ import {
 } from "@/features/editor/ui/workspaceClient";
 import { holdRequestLock, type HeldRequestLock } from "@/features/editor/ui/agentRequestLock";
 import {
-  AGENT_WAIT_WINDOW_MS,
   createAgentRequestWait,
   type AgentRequestWait,
 } from "@/features/editor/ui/agentRequestWait";
@@ -41,7 +40,7 @@ import {
 export const NL_POLL_INTERVAL_MS = 1000;
 
 /**
- * 처음 기다리는 시간. 3분이다.
+ * 처음 기다리는 시간. 30분이다.
  *
  * 에이전트가 답을 쓰기까지 사람의 조작(창 전환·요청 전달)이 끼는 경로라 몇 초로는
  * 모자라고, 무한정 기다리면 "요청 중"에 갇혀 다음 요청을 못 한다. 사용자는 "대기 연장"으로
@@ -49,7 +48,7 @@ export const NL_POLL_INTERVAL_MS = 1000;
  * 기다림이 끝나면 잠금 해제와 함께 요청 파일도 지워지고, 에이전트가 늦게 답을 써도 다음 요청은
  * `requestId`가 달라 조용히 무시된다(`parseNlResponse`의 `stale`).
  */
-export const NL_TIMEOUT_MS = AGENT_WAIT_WINDOW_MS;
+export const NL_TIMEOUT_MS = 30 * 60_000;
 
 export type NlRequestOutcome =
   | { kind: "unavailable"; message: string }
@@ -105,7 +104,7 @@ export function createNlRequestId(): string {
 export async function requestNlEdit(
   input: BuildNlRequestInput,
   cancel: NlCancelToken,
-  wait: AgentRequestWait = createAgentRequestWait(),
+  wait: AgentRequestWait = createAgentRequestWait(undefined, Date.now, NL_TIMEOUT_MS),
 ): Promise<NlRequestOutcome> {
   try {
     return await sendNlRequest(input, cancel, wait);
@@ -175,7 +174,7 @@ async function waitForNlResponse(
     }
 
     // 파일을 바로 GET하지 않고 **목록으로 있는지 먼저 본다.** 응답이 아직 없을 때
-    // GET은 404이고, 초당 한 번씩 3분이면 개발자 도구 콘솔이 404로 가득 찬다 —
+    // GET은 404이고, 초당 한 번씩 30분이면 개발자 도구 콘솔이 404로 가득 찬다 —
     // 정상 동작(아직 안 왔다)이 오류처럼 보이면 진짜 오류를 그 속에서 못 찾는다.
     // 목록 라우트는 폴더가 비어도 200이라 그 일이 생기지 않는다.
     // 목록이 null이면 작업공간 서버에 닿지 않은 것이다 — "아직 응답 없음"과 구분해 알린다(#284).

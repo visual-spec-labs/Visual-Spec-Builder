@@ -73,6 +73,10 @@ try {
   await page.getByRole("button", {name: "파일", exact: true}).waitFor();
   assert.deepEqual(await state(), original);
   await waitStatus(page, "파일 미저장 · 브라우저 초안 보관됨");
+  // Resume intentionally restores the editor. Return Home before testing
+  // browser Back/Forward so the draft list is the expected destination.
+  await page.getByRole("button", { name: "홈으로" }).click();
+  await drafts.getByRole("button", { name: "이어서 열기" }).waitFor();
   console.log("PASS empty workspace Home/Resume/reload", original.key, createHash("sha256").update(JSON.stringify(original.spec)).digest("hex"));
 
   // A real opener copies sessionStorage; the new tab must use an independent UUID.
@@ -228,6 +232,10 @@ try {
   const afterTransfer = await state(loser);
   assert.equal(afterTransfer.key, race.key);
   await loser.reload();
+  await loser.getByRole("button", {name: "파일", exact: true}).waitFor();
+  assert.deepEqual(await state(loser), afterTransfer);
+  // Reload restores the active editor; navigate Home before checking the draft list.
+  await loser.getByRole("button", {name: "홈으로"}).click();
   await loser.getByRole("region", {name: "보관한 초안"}).waitFor();
   assert.deepEqual(await state(loser), afterTransfer);
   assert.deepEqual(agentRequests, []);
@@ -245,10 +253,14 @@ try {
   await tabA.getByRole("button", {name: "파일", exact: true}).waitFor();
   await edit("Return ownership fixture", tabA);
   const returningDraft = await state(tabA);
+  const row = target => target.getByRole("listitem").filter({hasText: returningDraft.key.split(":").pop()});
+  // Returning through browser history should land on Home, where the draft
+  // ownership controls are rendered, rather than restore the editor.
+  await tabA.getByRole("button", {name: "홈으로"}).click();
+  await row(tabA).getByRole("button", {name: "이어서 열기"}).waitFor();
   await tabA.goto("about:blank");
   const tabB = await returning.newPage();
   await tabB.goto(url);
-  const row = target => target.getByRole("listitem").filter({hasText: returningDraft.key.split(":").pop()});
   await row(tabB).getByRole("button", {name: "이어서 열기"}).click();
   const tabBPrompt = tabB.getByRole("alertdialog").getByRole("button", {name: "초안 보관 후 이동", exact: true});
   await tabBPrompt.click();

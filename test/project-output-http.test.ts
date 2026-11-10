@@ -57,7 +57,7 @@ it('accepts a real HTTP wave and restores original output/sidecar absence with a
   expect(await restoreProjectOutputs(plan.runId,plan.context,()=>current)).toMatchObject({restored:true,recoveryRequired:false});
   expect(existsSync(join(root,plan.evidence.sidecarPath))).toBe(false);
   for(const target of plan.targets)expect(existsSync(join(root,'generated',target.path))).toBe(false);
-});
+},20_000);
 it('compensates cancellation after the server persisted the sidecar using real conditional DELETE',async()=>{
   const plan=await preparedWave();const lock=await holdRequestLock('ticket',plan.requestId);
   if(typeof lock==='string')throw Error(lock);

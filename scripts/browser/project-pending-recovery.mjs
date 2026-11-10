@@ -13,7 +13,12 @@ try {
   project.name='RecoveryProject';await writeFile(join(workspace,'specs/recovery.json'),JSON.stringify(project));
   runner=await startBrowserWorkspace(workspace);const context=await runner.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();page.setDefaultTimeout(15000);
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
-  const open=async()=>{await page.getByRole('button').filter({hasText:/RecoveryProject.*페이지/s}).click();await page.getByRole('button',{name:'파일',exact:true}).waitFor();};
+  const open=async()=>{
+    const fileMenu=page.getByRole('button',{name:'파일',exact:true});
+    if(!(await fileMenu.isVisible().catch(()=>false)))
+      await page.getByRole('button').filter({hasText:/RecoveryProject.*페이지/s}).click();
+    await fileMenu.waitFor();
+  };
   const tickets=async()=>page.evaluate(async()=>{window.tickets=(await import('/src/features/editor/store/ticketStore.ts')).useTicketStore;(await import('/src/features/editor/ui/openTicketPanel.ts')).openTicketPanel();});
   await page.goto(runner.url);await open();
   await page.getByRole('button',{name:'파일',exact:true}).click();await page.getByRole('menuitem',{name:'저장',exact:true}).click();

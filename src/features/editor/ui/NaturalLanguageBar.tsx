@@ -11,6 +11,7 @@ import {
 } from "@/features/editor/nl/nlMessage";
 import {
   createNlRequestId,
+  NL_TIMEOUT_MS,
   requestNlEdit,
   type NlCancelToken,
 } from "@/features/editor/nl/nlAgentClient";
@@ -156,7 +157,7 @@ export function NaturalLanguageBar() {
   }, [selectedId, pageId]);
 
   // 언마운트되면 돌고 있던 폴링 루프를 끊는다. 안 끊으면 사라진 컴포넌트가
-  // 3분 동안 1초마다 GET을 보낸다.
+  // 최대 30분 동안 1초마다 GET을 보낸다.
   useEffect(() => {
     return () => {
       if (cancelRef.current !== null) cancelRef.current.cancelled = true;
@@ -182,7 +183,7 @@ export function NaturalLanguageBar() {
     // 다음 요청의 표시를 덮지 않게 한다.
     const wait = createAgentRequestWait((progress) => {
       if (waitRef.current === wait) setWaitProgress(progress);
-    });
+    }, Date.now, NL_TIMEOUT_MS);
     waitRef.current = wait;
     setWaitProgress({ phase: "saving", deadline: null });
     setFeedback({ kind: "pending" });

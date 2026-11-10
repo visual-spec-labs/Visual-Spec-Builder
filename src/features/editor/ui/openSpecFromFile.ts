@@ -4,6 +4,7 @@ import { useDocumentStore } from "@/features/editor/store/documentStore";
 import { useEditorStore } from "@/features/editor/store/editorStore";
 import { parseSpecJson } from "@/features/editor/store/loadSpec";
 import { promptPick } from "@/features/editor/store/promptDialogStore";
+import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
 import {
   listWorkspaceFiles,
   readWorkspaceSpecSnapshot,
@@ -51,7 +52,10 @@ async function loadSpecText(text: string, fileName: string, diskRevision: string
  * Save가 쓸 수 있는 자리는 `.visual-spec/specs/` 하나다. 이름이라도 이어가는 편이
  * `spec.name`으로 되돌아가 엉뚱한 파일을 만드는 것보다 낫다.
  */
-export function openSpecFromFileDialog(transition = beginDocumentTransition()): void {
+export function openSpecFromFileDialog(
+  transition = beginDocumentTransition(),
+  onFileSelected?: () => void,
+): void {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "application/json";
@@ -59,6 +63,7 @@ export function openSpecFromFileDialog(transition = beginDocumentTransition()): 
   input.onchange = () => {
     const file = input.files?.[0];
     if (!file || !transition.current()) return;
+    onFileSelected?.();
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -75,11 +80,10 @@ export function openSpecFromFileDialog(transition = beginDocumentTransition()): 
  * `.visual-spec/specs/`에 있는 스펙 중 하나를 골라 연다(이슈 #133).
  *
  * 02-mvp-scope.md가 정의한 "Open = 작업공간 specs에서 고르기"가 이 경로다. 작업공간이
- * 없거나(개발 서버 미들웨어 없음) 폴더가 비어 있으면 예전의 파일 다이얼로그로 되돌아간다.
+ * 없거나(개발 서버 미들웨어 없음) 폴더가 비어 있으면 파일 다이얼로그를 바로 연다.
  *
  * 고르는 UI는 `promptPick` 모달이다(#288 — 전엔 `window.prompt` 한 칸에 번호 매긴
- * 목록을 통째로 보여주고 번호나 이름을 다시 타이핑해야 했다). 목록 항목을 그대로
- * 클릭하므로 잘못 타이핑해 "목록에 없음"으로 끝나는 경로 자체가 없어진다.
+ * 목록 항목을 클릭하거나 로컬 파일 찾아보기를 선택할 수 있다.
  */
 export async function openSpec(): Promise<void> {
   const transition = beginDocumentTransition();
@@ -99,6 +103,12 @@ export async function openSpec(): Promise<void> {
     title: "스펙 열기",
     message: ".visual-spec/specs/ 에서 열 스펙을 선택하세요.",
     items: names,
+    browseLabel: "파일 찾아보기…",
+    // Keep the file input click synchronous with the user gesture. If the
+    // native picker is cancelled, the workspace list remains open.
+    onBrowse: () => openSpecFromFileDialog(transition, () => {
+      usePromptDialogStore.getState().resolve(null);
+    }),
   });
   if (chosen === null || !transition.current()) return;
 
