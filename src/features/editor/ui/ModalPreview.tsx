@@ -1,3 +1,4 @@
+import { controlStateProps } from "./controlStateProps";
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { Action, NodeId, ProjectSpec, ScreenSpec } from "@/features/editor/schema";
 import { resolveResponsiveScreen } from "@/features/editor/responsive/resolveResponsive";
@@ -20,8 +21,8 @@ function PreviewNode({ project, width, screen, id, direction, action, rootStyle 
   const props = { "data-preview-node": id };
   if (node.type === "text") return <div {...props} style={textStyle(node, direction)}>{node.content}</div>;
   if (node.type === "image") return <div {...props} role="img" aria-label={node.name} style={imageStyle(node, direction)} />;
-  if (node.type === "input") return <input {...props} aria-label={node.name} placeholder={node.placeholder} style={inputStyle(node, direction)} />;
-  if (node.type === "button") return <button {...props} type="button" style={buttonStyle(node, direction)} onClick={() => action(node.action)}>{node.content}</button>;
+  if (node.type === "input") return <input {...controlStateProps(node.states)} {...props} aria-label={node.name} placeholder={node.placeholder} style={inputStyle(node, direction)} />;
+  if (node.type === "button") return <button {...controlStateProps(node.states)} {...props} type="button" style={buttonStyle(node, direction)} onClick={() => action(node.action)}>{node.content}</button>;
   if (node.type === "instance") return <WidgetInstance project={project} instance={node} width={width} direction={direction} onAction={action} />;
   return <div {...props} style={{ ...frameStyle(node, direction), ...rootStyle }}>
     {node.children.map(child => <PreviewNode key={child.node} project={project} width={width} screen={screen} id={child.node} direction={node.layout.direction} action={action} />)}

@@ -1,3 +1,4 @@
+import { controlStateProps } from "./controlStateProps";
 import type { Action, InstanceNode, NodeId, ProjectSpec, ScreenSpec } from "@/features/editor/schema";
 import type { MouseEventHandler, ReactNode, Ref } from "react";
 import { resolveResponsiveScreen } from "@/features/editor/responsive/resolveResponsive";
@@ -30,11 +31,11 @@ function WidgetNode({ project, screen, id, direction, width, ancestry, nodePath 
   if (node.type === "text") return <div style={textStyle(node, direction)}>{node.content}</div>;
   if (node.type === "image") return <div role="img" aria-label={node.name} style={imageStyle(node, direction)} />;
   if (node.type === "input") return onAction
-    ? <input aria-label={node.name} placeholder={node.placeholder} style={inputStyle(node, direction)} />
-    : <div style={inputStyle(node, direction)}>{node.placeholder}</div>;
+    ? <input {...controlStateProps(node.states)} aria-label={node.name} placeholder={node.placeholder} style={inputStyle(node, direction)} />
+    : <div {...controlStateProps(node.states)} style={inputStyle(node, direction)}>{node.placeholder}</div>;
   if (node.type === "button") return onAction
-    ? <button type="button" style={buttonStyle(node, direction)} onClick={() => onAction(node.action)}>{node.content}</button>
-    : <div style={buttonStyle(node, direction)}>{node.content}</div>;
+    ? <button {...controlStateProps(node.states)} type="button" style={buttonStyle(node, direction)} onClick={() => onAction(node.action)}>{node.content}</button>
+    : <div {...controlStateProps(node.states)} style={buttonStyle(node, direction)}>{node.content}</div>;
   const nextPath = new Set(nodePath).add(id);
   return <div style={frameStyle(node, direction)}>{node.children.map(child =>
     <WidgetNode key={child.node} project={project} screen={screen} id={child.node} direction={node.layout.direction} width={width} ancestry={ancestry} nodePath={nextPath} onAction={onAction} />
