@@ -2,19 +2,59 @@
   "name": "visual-spec",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Visual Spec Schema v0.1 — JSON Schema 정본과 TypeScript 타입, 검증기",
   "license": "MIT",
-  "main": "src/index.ts",
+  "bin": {
+    "visual-spec": "./bin/visual-spec.mjs"
+  },
+  "files": [
+    "bin",
+    "docs/05-schema.md",
+    "docs/08-natural-language.md",
+    "docs/09-command-schema-freeze.md",
+    "docs/11-ticket-schema-freeze.md",
+    "docs/16-responsive-codegen-qa.md",
+    "examples",
+    "public",
+    "skills",
+    "src",
+    "index.html",
+    "vite.config.ts"
+  ],
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "generate:types": "node scripts/generate-types.mjs",
-    "typecheck": "tsc --noEmit",
+    "generate:contract": "node scripts/build-contract.mjs",
+    "typecheck": "tsc -b",
+    "lint": "eslint .",
     "test": "vitest run"
   },
   "dependencies": {
-    "ajv": "^8.17.1"
+    "@babel/parser": "7.28.5",
+    "@tailwindcss/vite": "4.3.3",
+    "@vitejs/plugin-react": "^6.0.5",
+    "ajv": "^8.17.1",
+    "lucide-react": "^1.31.0",
+    "postcss-value-parser": "4.2.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwindcss": "4.3.3",
+    "vite": "^8.2.1",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@typescript-eslint/parser": "^8.67.0",
+    "eslint": "^10.8.1",
     "json-schema-to-typescript": "^15.0.4",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"

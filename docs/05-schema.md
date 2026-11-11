@@ -1,0 +1,222 @@
+# 05. Visual Spec Schema — v0.4 (화면 문서 / 프로젝트 문서)
+
+> 출처: ClickUp 팀 문서 `json 초안`
+> 정본은 [`src/features/editor/schema/visual-spec.schema.json`](../src/features/editor/schema/visual-spec.schema.json)이다.
+> 타입과 검증기는 개별 파일이 아니라 디렉터리 index [`src/features/editor/schema/`](../src/features/editor/schema/)를 거쳐 가져온다.
+> 예시는 [`examples/`](../examples/)에 있다.
+> 변경 규칙과 공개 표면의 전문은 [`06-schema-freeze.md`](06-schema-freeze.md)에 있다.
+
+## 목적
+
+GUI에서 사용자가 생성하거나 수정한 화면 데이터를
+JSON 형식으로 저장하기 위한 최소 스키마를 정의한다.
+
+이번 버전은 스키마의 완성본이 아니라
+Canvas Renderer, Layer Tree, Inspector가 공통으로 사용할
+첫 번째 MVP 계약이다.
+
+## 버전 상태 — 두 최상위 타입이 같은 0.4를 쓴다
+
+정본 스키마 파일 하나에 최상위 타입이 둘 들어 있다. 한쪽이 다른 쪽을 대체한 것이 아니다.
+
+| | `VisualSpec` | `ProjectSpec` |
+|---|---|---|
+| 뜻 | 파일 1개 = 화면 1개 | 파일 1개 = 페이지 여러 개 |
+| `version` | `"0.4"` | `"0.4"` |
+| 가르는 키 | `screen` | `pages` |
+| 정본에서의 위치 | **스키마 루트** | `$defs.ProjectSpec` |
+
+**버전 문자열은 IR 세대를 뜻한다.** 0.3에서 배경이 채우기 겹 배열로 바뀌었고, 0.4에서 공유 위젯 `InstanceNode`, 프로젝트 색·글자 스타일 연결과 button/input 상태 스타일이 추가됐다. 화면 문서와 프로젝트 문서는 키(`screen` / `pages`)로 가른다. 0.1~0.3 파일은 열 때 순서대로 마이그레이션한 뒤 검증한다. 저장은 항상 0.4다 — 자세한 것은 [06의 v0.4 절](06-schema-freeze.md#v04--프로젝트-스타일과-컨트롤-상태-스타일-2026-10-16-290)을 참조한다.
+
+`ProjectSpec`이 루트가 아니라 `$defs` 항목인 이유는 06의 v0.2 절 참고.
+
+**런타임은 프로젝트 문서를 쓴다.** `editorStore`가 들고 있는 상태는 `ProjectSpec`이고,
+화면 문서를 열면 `migrateV01`이 페이지 1개짜리 `ProjectSpec`으로 넓힌다(이름은 v0.1 시절
+그대로다). 반대 방향에서 스타일 연결이 없는 화면은 `toVisualSpec`을 쓴다. 스타일 연결이 있으면
+`toStandaloneVisualSpec(project, pageId)`로 프로젝트를 검증한 뒤 복사본의 연결만 제거한다.
+이 변환이 다른 화면 관계나 위젯 참조를 모두 독립 화면 코드로 평탄화한다는 뜻은 아니다.
+아래 "MVP 지원 범위"는 두 갈래 모두를 합친 정본 `$defs` 기준으로 적는다.
+
+## MVP 지원 범위
+
+- Screen (`ScreenSpec` — `name` / `size` / `root` / `nodes`)
+  - **`size`는 문서 크기가 아니라 화면(창) 크기다.** 정본 스키마의 설명도 "Screen 크기"라고 적고 있다.
+    `width`는 문서 폭 그대로지만, **`height`는 첫 화면 높이이자 최소 높이**다 — 내용이 그보다 길면
+    문서가 세로로 자라고 캔버스는 스크롤된다(2026-09-11·이슈 #86).
+    **root 노드의 `box`는 여기에 영향을 주지 않는다.** 페이지 크기를 정하는 것은 `size` 하나이고,
+    캔버스는 root 의 `box` 를 보지 않는다(근거는 [`06-schema-freeze.md`](06-schema-freeze.md)의
+    `fill` 절). 그래서 root 를 Fixed 나 Hug 로 바꿔도 페이지 네모가 작아지거나 뚫리지 않는다.
+    1440×900은 1440px 폭의 문서를 900px 창에서 본다는 뜻이지, 900px에서 잘린다는 뜻이 아니다.
+    스키마는 바뀌지 않았다 — 캔버스가 `height`를 문서 높이로 잠가 두던 것을 이 문구에 맞춘 것이다.
+- FrameNode
+- TextNode
+- ImageNode (`src` + `fit`: `cover` | `contain` | `fill`)
+  - `src`는 비어 있지 않은 문자열이다. assets 기준 상대 경로, `assetId`, 기존 문서와 폴백의 base64 data URI를 허용한다.
+    JSON Schema는 문자열 형태만 검사한다. Import가 쓰는 경로와 폴백은
+    [06-schema-freeze.md](06-schema-freeze.md)의 assets 절을 따른다.
+- ButtonNode (`content` — 표시용 라벨, `action` — 선택. 아래 "화면 종류·연결 선택 필드" 절)
+- InputNode (`placeholder` — 표시용 텍스트)
+- 부모-자식 참조
+- Layout (`direction`: `row` | `column` | `grid`; `columns`는 선택 정수이며 1 이상, 생략 시 grid는 1열)
+- Box (`width` / `height` — 0 이상 숫자(px) | `"auto"` | `"fill"`)
+- Background — 채우기 겹 배열(`Fill[]`, 0.3부터). 배열 앞이 위 겹이고, 생략과 `[]`는 둘 다 배경 없음
+  - 겹 종류는 `solid`(`color`)와 `linear`(`angle` — CSS `linear-gradient` 각도, `[0, 360)` / `stops` — `{ color, at }` 2개 이상, `at`은 0..1 오름차순)
+  - #235 이미지 겹은 `image`(`src`, `fit`: cover/contain/fill)다. 중앙 정렬·반복 없음
+  - 단색은 `[{ "type": "solid", "color": "#FFFFFF" }]` 한 겹이다. 0.2까지의 `{ "color": … }`는 무효다
+  - 겹마다 불투명도는 없다 — 색의 알파(`#RRGGBBAA`)로 쓴다
+  - 캔버스와 홈 미리보기는 `linear`·`image` 겹과 여러 겹을 그리고, 패널은 겹 목록(추가·삭제·위/아래 이동·종류 전환, solid 색, linear 각도·stop, image 파일·src·fit)을 편집한다(설계는 [13](13-background-fill-design.md))
+- Border (`width` / `color` / `radius` / `align`)
+  - `radius`는 숫자 하나 또는 모서리별 객체(`topLeft` `topRight` `bottomRight` `bottomLeft`)
+  - `align`은 `inside` | `center` | `outside`, 생략 시 `inside`
+- Typography
+- `ProjectSpec.styles` 색·글자 스타일 카탈로그와 노드 `styleRefs` 연결. 노드 리터럴은 값 사본으로 유지하고, 프로젝트 검증에서 참조/값 정합성을 확인한다.
+- Button/Input의 `states`: hover·pressed·focus별 선택 배경색·글자색·테두리색. 상태 배경은 단색 한 겹이다.
+- 효과
+  - Shadow — `frame`만
+  - Opacity — `frame` · `text` · `image`, 생략 시 `1`
+  - Blur — `frame` · `text` · `image`, 생략 시 `0` (레이어 블러)
+- 멀티 페이지 (`ProjectSpec` / `PageId` — `pages` 맵 + `pageOrder` 배열, 페이지마다 선택 `kind`)
+- InstanceNode (`type: "instance"`): 같은 프로젝트 widget 참조, box 및 직접 Text/Button 내용·글자색 재정의.
+
+## MVP 제외 범위
+
+- ComponentSpec
+- 일반 TokenSet / spacing 토큰 (이름 있는 색·글자 스타일은 v0.4에서 지원)
+- props
+- bindings
+- events
+- variants
+- 다른 노드의 states, disabled 등 추가 상태
+- slots
+- 임의 JavaScript 이벤트 핸들러·앱 데이터·인증·백엔드
+
+반응형 GUI·Tailwind/CSS 매핑·React 코드 생성은 **이 JSON 스키마가 직접 실행하는 기능은
+아니지만 제품에는 구현된 별도 계층**이다. 이를 제품의 MVP 제외 범위로 읽지 않는다.
+[반응형 계약](12-responsive-ir-design.md)과 [사용 가이드](14-getting-started.md)를 따른다.
+
+`button`과 `input`의 일반 앱 이벤트·폼 상태는 제외다. `content` / `placeholder`는
+표시용 텍스트이며 `onClick` / `value` / `onChange`는 정의하지 않는다.
+지원하는 `ButtonNode.action`은 화면 이동·모달 열기/닫기 하나만 적는 선택 필드다.
+일반 이벤트 핸들러나 `events`를 들인 것이 아니다(아래 절).
+
+## 확정 규칙
+
+### 노드 ID
+
+- `nodes` 객체의 key를 노드 ID로 사용한다.
+- 노드 내부에 `id`를 중복 저장하지 않는다.
+- `root`는 `nodes`에 존재하는 key를 참조한다.
+- `children[].node`는 `nodes`에 존재하는 key를 참조한다.
+- 노드 ID는 한 Screen 안에서 고유하다.
+
+### Children
+
+```ts
+interface ChildReference {
+  node: string;
+}
+```
+
+### 페이지 ID
+
+- `pages` 객체의 key를 페이지 ID로 사용한다.
+- 페이지 내부에 ID를 중복 저장하지 않는다. 노드 ID와 같은 관용구다.
+- `pageOrder`는 `pages`의 key와 정확히 일치해야 한다.
+  JSON Schema로는 표현할 수 없어 `validateProjectSpec`이 `page-order-mismatch`로 따로 잡는다.
+
+
+## 반응형 선택 필드 (#222 PR 제안)
+
+현재 상태: 아래 제안은 #245로 병합됐다.
+
+`ScreenSpec.responsive`에 페이지별 `breakpoints`(ID → `{minWidthPx}`)와
+`overrides`(breakpoint ID → node ID → 표현 속성의 부분값)를 둔다. 생략하면 기존 단일
+레이아웃이다. 각 객체의 필수 기반값은 `nodes`에 있고, 폭 오름차순으로 객체를 병합하며
+배열은 통째로 바꾼다. 문서 버전 0.3 유지의 호환성 제안과 타입별 제약은
+[동결 계약의 확장 절](06-schema-freeze.md#반응형-선택-확장--222-pr-제안)을 참조한다.
+GUI(#247)와 반응형 코드 생성 지침(#248·#252)도 후속 PR로 병합됐다.
+
+
+### #235 이미지 배경 지원 (스키마 PR #254 선행)
+
+frame/button/input의 background 배열에 image 겹을 지원한다: `{ type: "image", src, fit }`.
+fit은 cover/contain/fill, 중앙 정렬, 반복 없음이다. ImageNode의 경로 해석과 파일 Import를
+재사용한다. 파일명에는 UUID를 붙여 병렬 가져오기가 기존 assets를 덮지 않게 한다.
+GUI는 파일 가져오기·경로·fit 및 기존 겹 추가/삭제/정렬·Undo를 제공한다. 사진 위 linear는
+배열 앞에 linear, 뒤에 image로 표현한다. JSON Export는 배열을 보존하고 코드 Export는
+생성 코드의 quoted URL assets 참조를 검증·포함한다. 상세 매핑은 배포 원본
+`skills/visual-spec-to-react/SKILL.md`의 이미지 배경 절을 따른다.
+
+현재 상태: 스키마 #254·기능 #257과 반응형 codegen 리뷰 수정 #252가 모두 병합됐다. 같은 스킬
+문서의 이미지 배경·반응형 매핑은 통합 검사에서 함께 확인했다([07](07-implementation-status.md)).
+fixture/브라우저 검증은 실제 AI 성공 검증이 아니다.
+
+
+## 화면 종류·연결 선택 필드 (#265 S1-1 PR 제안)
+
+현재 `kind`·`action`의 저장·프로젝트 참조 검증·GUI/Command 편집과 프로젝트 생성·Export가
+구현돼 있다. 최초 S1-1은 0.3의 선택 확장이었고 현재 문서 버전은 0.4다. 설계 결정은
+[24](24-screen-relations-design.md), 현재 생성 경로는 [프로젝트 GUI 계약](PROJECT_GENERATION_GUI.md)을 따른다.
+절 제목의 “S1-1 PR 제안”은 최초 계약과 기존 링크를 식별하기 위해 남긴다.
+
+| 필드 | 위치 | 값 | 생략하면 |
+|---|---|---|---|
+| `kind` | `ScreenSpec` | `"page"` \| `"modal"` \| `"widget"` | `page` |
+| `action` | `ButtonNode`만 | 아래 세 갈래 중 하나 | 동작 없음 |
+
+```jsonc
+// action 세 갈래 — 버튼 하나에 이 중 하나만 둔다
+{ "type": "navigate", "target": "dashboard" }
+{ "type": "openModal", "target": "resetPassword" }
+{ "type": "close" }
+```
+
+- `target`은 같은 프로젝트 `pages`의 key(PageId 형식)다. 페이지 이름으로 참조하지 않는다.
+- `navigate`는 page로 이동, `openModal`은 modal 열기, `close`는 열린 모달 닫기다. close는 target이 없다.
+- action은 통째로 하나다. 추가 필드·`null`·배열은 무효이고 반응형 override로 바꿀 수 없다.
+- **스키마는 모양만 본다.** 참조는 S1-2 프로젝트 검증(`validateProjectSpec`)이 아래 코드로 잡는다.
+  화면 문서(`VisualSpec`)는 다른 페이지를 모르므로 이 검사를 하지 않는다.
+
+| IssueCode | 조건 | 경로 |
+|---|---|---|
+| `action-target-missing` | navigate·openModal의 target이 `pages`에 없다 | `/pages/<id>/nodes/<id>/action/target` |
+| `action-target-kind` | openModal의 target이 `kind: "modal"`이 아니다 | 같음 |
+| `navigate-to-non-page` | navigate의 target이 page가 아니다(kind 생략은 page) | 같음 |
+| `action-source-invalid` | page(kind 생략 포함) 화면의 버튼에 close가 있다. modal·widget의 close는 허용 | `/pages/<id>/nodes/<id>/action` |
+| `first-page-kind` | `pageOrder[0]`의 화면이 page가 아니다. `pageOrder[0]`이 `pages`에 없으면 `page-order-mismatch`만 낸다 | `/pageOrder/0` |
+
+- 자기 자신을 가리키는 navigate(page)·openModal(modal), modal에서 다른 modal을 여는 교체는 유효하다.
+- GUI와 Command 편집을 지원한다. action 설정은 `updateNode`의 전체 객체 교체,
+  제거는 `removeNodeAction`을 쓴다. `action.type`·`action.target` 부분 쓰기는 허용하지 않는다.
+
+호환성·임시 가드·검증 경계의 전문은
+[동결 계약의 확장 절](06-schema-freeze.md#화면-종류연결-선택-확장--265-s1-1-pr-제안)을 참조한다.
+
+
+**단계별 이력:** S1-1에서 저장 형태, S1-2에서 참조 검증, S1-4에서 페이지 삭제 시 유입
+action 정리와 전체 후보 검증을 추가했다. 과거 무효 자동 저장본의 보존과 엄격한 Save/Open
+경계는 [06의 S1-2 절](06-schema-freeze.md#화면-관계-참조-무결성--265-s1-2)에 남긴다.
+
+**현재 생성 경계:** 관계 없는 활성 화면은 v3, 관계가 있는 프로젝트는 v4/v5 생성·수락·Export를
+사용한다. [S1-1 임시 차단](06-schema-freeze.md#s1-1-생성export-임시-차단)은 당시 기록이다.
+기존 단일 화면 v3 API는 여전히 화면 관계를 거부하며, GUI의 프로젝트 경로와 혼동하지 않는다.
+
+
+### 위젯의 기본 배치 크기 (#474)
+
+`ScreenSpec.defaultInstanceBox`는 선택적인 `Box`다. 위젯 추출 시 원본 프레임의
+폭/높이(Fill=`fill`, Hug=`auto`, 고정 숫자)를 저장한다.
+위젯 배치 메뉴와 추출 후 다른 페이지 배치는 이 값을 복사한다. `size`는 위젯
+편집용 캔버스 크기이며 배치 크기와 독립적이다. 이미 배치한 인스턴스는 바꾸지 않는다.
+이 필드가 없는 기존/직접 만든 위젯은 종전처럼 `size`의 고정 크기로 배치한다.
+추출 전에 있던 호스트의 반응형 box/visible override는 원래 인스턴스에만 남는다.
+
+### 공유 위젯 문서의 검증 경계
+
+`instance`는 호스트 트리의 leaf이며 `ref`는 같은 프로젝트의 `kind: "widget"` PageId다.
+직접 원본 Text/Button의 `content`·`color` 재정의만 허용하고, 호스트 반응형 재정의는
+instance의 `box`·`visible`만 바꾼다. root는 계속 frame이며 widget 참조의 직접·간접 순환은
+거부한다. 자세한 구조·오류 코드는 [S2 위젯 계약](S2_WIDGET_CONTRACT.md)을 따른다.
+
+`migrateToV04`는 0.1~0.3 문서에 0.4 전용 instance가 이미 있으면 버전을 올려 유효하게
+만들지 않는다. Open 자체가 원본 파일을 덮어쓰는 것은 아니며 저장 전에 검증을 거친다.

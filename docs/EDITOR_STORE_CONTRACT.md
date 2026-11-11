@@ -1,0 +1,447 @@
+# 에디터 상태 공유 계약 (Store Contract)
+
+> 2026-11-05: 기본 store/history 계약에 프로젝트 관계·위젯·스타일의 원자 편집이 추가됐다. 상세 정본은 `store/editorStore.ts`와 관련 store 모듈, [09](09-command-schema-freeze.md)·[S2](S2_WIDGET_CONTRACT.md)이다. 날짜·기준 커밋이 붙은 API/패널 집계는 당시 스냅샷이다.
+
+캔버스 · 레이어 트리 · 세부설정 패널이 **하나의 Zustand 스토어**를 공유해 서로 연결되는 방식을 정의한다.
+세 파트를 각자 다른 사람이 만들더라도 이 계약만 지키면 자동으로 맞물린다.
+
+> 한 줄 요약: **스토어 하나만 같이 쓰면 끝.** 트리·캔버스는 `select(id)`만 부르고, 패널은 `setNodeField`로 값만 바꾼다.
+
+---
+
+## 1. 진실 원천은 스토어 하나
+
+파일: `src/features/editor/store/editorStore.ts`
+
+세 파트 모두 이 스토어 **하나만** 구독한다. 각자 별도의 상태(로컬 useState 등)로 선택/스펙을 관리하지 않는다.
+
+```ts
+import { useEditorStore } from "@/features/editor/store/editorStore";
+```
+
+---
+
+## 2. 스토어가 제공하는 것 — 공유 계약
+
+**파일 1개 = 프로젝트 1개**다. 프로젝트는 페이지 여러 장을 담고, 캔버스에는 그중 한 장만 뜬다. 그 한 장을 가리키는 것이 `activePageId`다.
+
+| 이름 | 타입 | 뭐냐 | 누가 쓰나 |
+|---|---|---|---|
+| `spec` | `ProjectSpec` | 편집 중인 **프로젝트 전체** | 셋 다 **읽음** |
+| `activePageId` | `PageId` | 지금 캔버스에 떠 있는 페이지 | 셋 다 **읽음** |
+| `selectedId` | `NodeId \| null` | 선택된 노드 id (활성 페이지 안) | 셋 다 **읽음** (하이라이트) |
+| `focusRootId` | `NodeId \| null` | 더블클릭으로 "들어간" 프레임 — 선택 문맥(#151). null이면 root 기준 | **캔버스**가 읽음(클릭 해석 기준점) |
+| `history` | `HistoryState<EditorSnapshot>` | 프로젝트 하나의 실행 취소 스택(#40, 단위는 #131에서 프로젝트로 올렸다) | 보통 안 읽는다 — `undo`/`redo`가 대신 씀. 트리 footer만 버튼 비활성화 판정에 읽는다 |
+| `documentId` | `number` | 지금 문서의 식별자(#271). `loadSpec`마다 1씩 늘고 편집·Undo/Redo·페이지 전환에서는 그대로다 | **구현 티켓**이 읽음(만들 때의 문서와 같은지 판정). New는 같은 `blankSpec` 화면 객체를 다시 쓰므로 페이지 참조만으로는 문서 전환을 못 가른다 |
+| `select` | `(id: NodeId \| null) => void` | 노드 선택 / 해제. `null`이면 `focusRootId`도 함께 비운다(#151) | **트리 · 캔버스**가 호출 |
+| `enterFocus` | `(id: NodeId \| null) => void` | 더블클릭으로 `focusRootId`를 바꾼다(#151). `null`이면 root 문맥으로 복귀 | **캔버스**가 호출(더블클릭 진입/이탈) |
+| `selectPage` | `(id: PageId) => void` | 캔버스에 띄울 페이지 전환 | **트리**가 호출 |
+| `setNodeField` | `(id: NodeId, path: string, value: unknown, continueEdit?: boolean) => void` | 노드 값 하나 변경 | **패널 · 캔버스(드래그)**가 호출 |
+| `setNodeFields` | `(patches: readonly NodeFieldPatch[], continueEdit?: boolean) => void` | 여러 노드 필드를 **한 번의 렌더·Undo 단계**로 변경(#149) | 정렬·배분·크기 맞추기·다중 선택 기능이 호출 |
+| `applyProjectEdit` | `(candidate: ProjectSpec, continueEdit?: boolean) => ProjectEditResult` | 전체 프로젝트 후보를 검증하고 통과할 때 한 번에 커밋. 거부 시 `spec`·`history`를 보존 | 여러 페이지를 함께 바꾸는 공용 스타일 등의 편집 |
+| `setPageField` | `(pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => void` | 페이지 이름 · 크기(해상도) 변경 | **패널**이 호출 |
+| `addPage` | `() => void` | 빈 페이지를 끝에 추가하고 이동 | **트리**가 호출 |
+| `removePage` | `(id: PageId) => void` | 페이지 삭제(#131부터 되돌릴 수 있다) | **트리**가 호출 |
+| `loadSpec` | `(spec: VisualSpec \| ProjectSpec) => void` | 스펙 전체 교체 + 선택 해제 + history 초기화 + `documentId` 증가(New/Open) | **MenuBar**가 호출 |
+| `replaceSpecFromOutside` | `(spec: ProjectSpec) => void` | 같은 문서의 내용을 밖에서 바뀐 것으로 교체. `documentId`·history 유지, 한 단계로 쌓아 Undo로 이전 내용 복귀(#279) | **디스크 변경 감지**가 호출 |
+| `insertNode` | `(parentId: NodeId, id: NodeId, node: Node) => void` | 새 노드를 parentId(frame) 자식 끝에 추가하고 선택(Import·Insert) | **MenuBar**가 호출 |
+| `removeNode` | `(id: NodeId) => void` | 노드 삭제. 프레임이면 자손까지 연쇄 삭제, root는 지우지 않음 | **트리**가 호출 |
+| `moveNode` | `(id: NodeId, newParentId: NodeId, index: number) => void` | 노드를 newParentId의 children 중 index 위치로 옮김. root 이동 불가, 순환 방지 | **트리·캔버스**가 호출(드래그, #187) |
+| `undo` | `() => void` | 프로젝트의 마지막 편집을 한 단계 되돌림(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Z, #118) |
+| `redo` | `() => void` | 되돌린 편집을 한 단계 다시 실행(#40, #131) | **트리**가 호출(footer 버튼 · Cmd/Ctrl+Shift+Z · Ctrl+Y, #118) |
+| `applyGuardedTransaction` | `(pageId: PageId, commands: readonly Command[]) => TransactionGateResult` | 출처를 신뢰할 수 없는 Command 배열을 G2(dry-run)·G3(결과 검증) 관문에 통과시킨 뒤 **전부-또는-전무**로 커밋(#154) | 자연어 편집 등 **LLM이 만든 Command** 경로 전용 — GUI는 안 쓴다 |
+
+### `applyProjectEdit` — 프로젝트 전체 후보의 원자 커밋 (#290 2-0)
+
+여러 페이지나 여러 노드에 걸친 GUI 편집은 현재 `ProjectSpec`에서 불변 후보를 만든 뒤
+`applyProjectEdit(candidate)`로 제출한다. 스토어는 `validateProjectSpec`으로 프로젝트 전체를 검사하고,
+성공한 후보만 한 번의 상태 갱신과 Undo 단계로 반영한다. 실패하면 오류 이슈를 돌려주고 현재 `spec`·`history`는
+그대로 둔다. 활성 페이지가 후보에서 삭제된 경우에는 후보의 첫 페이지로 이동하고 선택을 정리한다.
+
+`continueEdit`은 기존 입력 편집과 같은 타이핑 burst를 한 단계로 병합할 때만 넘긴다. Command를 이미 쓰는
+단일 페이지 GUI 편집은 `appliedTransaction`을, 자연어 입력은 `applyGuardedTransaction`을 사용하며 두 경로도
+같은 프로젝트 후보 검증·history 커밋 준비기를 공유한다. 페이지 추가·삭제와 외부 문서 갱신도 그 준비기를 써서
+전체 프로젝트 검증과 snapshot 생성을 일관되게 처리한다. `loadSpec`·Undo/Redo·파일 rename·projectId 설정은
+편집 커밋이 아니라 문서 수명주기 동작이다.
+
+### setNodeField·setNodeFields·setPageField·removeNode·moveNode·insertNode는 Command Engine을 거친다 (#40, #101, #110, #131, #149)
+
+기존 단일 편집 함수의 **시그니처는 그대로다** — 호출부(패널의 `useNodeField.ts`·`PageProperties.tsx`, 트리의 "표시" 토글·삭제 버튼·드래그)는 바뀌지 않는다. 내부에서는 `command/applyCommand.ts`의 `updateNode`·`updateScreen`·`deleteNode`·`moveNode`·`createNode` Command를 만들어 적용한다. `setNodeFields`는 여러 `updateNode` Command를 `applyTransaction`으로 먼저 한 페이지 사본에 적용한 뒤, 최종 결과만 Zustand `set` 한 번과 history 한 단계로 커밋한다. 따라서 중간 노드만 바뀐 화면은 구독자에게 보이지 않는다.
+
+`setNodeFields`의 patch는 입력 순서대로 적용한다. 없는 노드나 허용되지 않은 경로처럼 `applyCommand`가 no-op으로 판정한 patch는 건너뛰고 나머지는 적용하며, 전부 no-op이거나 배열이 비었으면 spec 참조와 history를 그대로 둔다. no-op patch 하나가 batch 전체를 취소하지는 않는다. 다만 만들어진 페이지와 프로젝트 후보를 검증했을 때 스키마·참조 오류가 남으면 후보 전체를 버리고 spec·history를 보존한다. `continueEdit`은 `setNodeField`와 같은 계약이라, 다중 선택 입력을 연속 타이핑할 때 두 번째 batch부터 직전 단계에 병합할 수 있다.
+
+이 배치 계약에는 `insertNode`·`removeNode`·`moveNode`를 넣지 않았다. 이 액션들은 `selectedId`를 새 노드로 옮기거나 삭제된 선택을 해제하는 규칙까지 동반해 단순 필드 patch와 결과 계약이 다르다. 여러 구조 변경을 한 동작으로 묶을 실제 기능이 생기면 선택 상태까지 포함한 별도 API로 정한다.
+
+부수 효과로 성공한 변경마다 `history`에도 쌓인다 — `removeNode`·`moveNode`·`insertNode`도 undo 대상이다. **`addPage`·`removePage`는 Command Engine을 안 거치지만 `history`에는 쌓인다**(#131) — `applyCommand`는 화면 한 장(`ScreenSpec`)만 다루고 "페이지가 여러 장"이라는 개념을 아예 모르므로, `pages`·`pageOrder`를 바꾸는 이 둘은 Command로 표현되지 않는다(페이지 단위 Command는 필요해지면 별도 이슈로 다룬다). 스토어가 직접 스냅숏을 만들어 얹는다.
+
+이제 `spec`을 바꾸는 모든 액션이 `history`에 쌓이므로 **"이 액션 뒤에 바로 `undo`를 부르면 그 앞의 편집까지 함께 되돌아간다"는 #40의 한계는 없어졌다.** 그걸 방어하던 `editorStore.ts`의 `reconciledHistory`(push·점프 직전에 `present`를 실제 현재 상태로 맞춰주던 함수)도 함께 지웠다 — `present`가 낡을 수 있는 경로 자체가 없어졌다. 대신 `selectPage`는 새 단계를 쌓지 않으면서 `present`의 `activePageId`만 갈아 끼운다(페이지 전환은 편집이 아니지만, 안 맞춰두면 다음 편집이 past에 밀어 넣는 스냅숏이 "전에 보던 페이지"를 가리킨다). `removePage`가 지운 페이지의 `history` 항목을 지우던 처리(#40 리뷰, GAMMJ, PR #102)도 사라졌다 — 스택이 페이지 id로 묶여 있지 않으니 `generateNodeId`의 id 재사용으로 남의 undo 스택을 물려받는 누수가 구조적으로 불가능하다.
+
+### applyGuardedTransaction은 setNodeFields와 달리 전부-또는-전무다 (#154)
+
+`setNodeFields`(#149)는 **신뢰할 수 있는 GUI 경로 전용**이다. 패널이 경로·값 모양을 소스에서 이미 고정해 두므로, no-op patch가 섞여도 나머지만 적용하고 조용히 넘어가는 것이 지금까지 문제가 되지 않았다.
+
+`applyGuardedTransaction(pageId, commands)`(`command/transactionGate.ts`)은 **출처를 신뢰할 수 없는 Command 배열**(자연어 편집 등 LLM이 만든 배열, `docs/08-natural-language.md` §4.2)을 위한 별도 경로다. G1(Command 배열의 형태 검사)은 #153의 `validateTransaction`이 이미 맡으므로, 여기 들어오는 배열은 그 검사를 통과했다고 가정한다. 이 액션은 두 관문을 순서대로 통과시킨다.
+
+- **G2(dry-run)** — `dryRunTransaction`이 Command를 하나씩 사본에 접으며 no-op을 전부 기록한다. 스토어를 건드리지 않는 순수 계산이라, no-op이 하나라도 있으면 `spec`을 아예 갈아 끼우지 않는다.
+- **G3(결과 검증)** — G2를 통과한 최종 화면을 끼운 프로젝트 전체를 `validateProjectSpec`으로 검사한다. 한 Command 안의 경로 방어(#146)로는 못 잡는, 여러 Command에 걸친 조합 위반을 여기서 잡는다.
+
+두 관문을 모두 통과해야만 `spec`을 갈아 끼우고 `history`에 한 단계를 쌓는다 — **`setNodeFields`처럼 일부만 반영된 채로 넘어가는 경우가 없다.** dry-run이 순수 함수라 이 판정 자체가 스토어를 안 건드리므로 전부-또는-전무가 별도 트랜잭션 장치 없이 공짜로 성립한다.
+
+다른 편집 액션과 달리 **반환값이 있다** — `{ ok: true, screen }` 아니면 `{ ok: false, failure }`이고, `failure.kind`가 `"noOp"`(G2에서 걸린 Command들과 이유)인지 `"invalid"`(G3의 `ValidationIssue[]`)인지를 구분해 돌려준다. 호출부(`docs/08-natural-language.md` §6의 미래 자연어 입력 UI)가 이 실패 이유를 그대로 사용자에게 보여줘야 하기 때문이다. GUI 경로(패널·트리·캔버스)는 이 액션을 쓰지 않는다.
+
+### Undo/Redo는 프로젝트 하나의 스택이다 (#131)
+
+`history`의 한 단계는 `EditorSnapshot`(`{ spec, activePageId }` — `editorStore.ts`가 export한다)이다. **`undo`는 프로젝트 전체에서 마지막 편집 하나를 되돌린다.** 페이지별 독립 스택이었던 #40~#128 시절과 달라진 점이다 — 페이지 A를 고친 뒤 페이지 B에서 `undo`를 누르면 이제 A의 편집이 되돌아간다.
+
+왜 올렸나 — `removePage`를 되돌릴 수 있게 하려면 다른 길이 없었다. 페이지별 스택으로는 되돌릴 내용(지워지는 페이지의 스택)이 지우는 것과 함께 사라지고, 애초에 `pages`·`pageOrder`는 `ScreenSpec` 하나에 담기지 않는다. 페이지 조작만 담는 스택을 따로 두는 안도 있었지만, 스택이 둘이면 "페이지 추가 → 노드 편집 → `undo` 두 번"의 순서를 어느 한쪽만 보고 정할 수 없다(둘 사이의 시간 순서를 또 따로 기억해야 한다). 스택 하나면 그 문제가 생기지 않는다. 자세한 근거는 `editorStore.ts`의 `EditorSnapshot` 주석에 있다.
+
+**스냅숏이 `activePageId`를 함께 들고 있어서, 되돌린 편집이 다른 페이지에 있었으면 캔버스도 그 페이지로 옮겨 간다** — 안 그러면 방금 되돌린 변화가 화면 밖에서 조용히 일어난다. `addPage`를 되돌리는 경우엔 필수다(보고 있던 그 페이지가 사라지므로, 함께 되돌리지 않으면 `activePageId`가 없는 페이지를 가리킨다).
+
+스냅숏은 `spec`을 통째로 들지만 안 건드린 페이지는 참조를 그대로 공유한다(`withPage`) — 한 단계가 실제로 더 쓰는 메모리는 얕은 객체 두 개다.
+
+스냅숏을 만드는 자리는 `editorStore.ts`의 `makeSnapshot(spec, activePageId)` 하나다(#131 리뷰, wook3964, PR #142) — `applied`·`addPage`·`removePage` 셋이 각자 `{ spec, activePageId }`를 조립하고 있으면 `EditorSnapshot`에 필드가 늘 때 세 곳을 손으로 맞춰야 하고, 하나를 놓쳐도 타입이 안 잡아준다. 그 위의 `applied(state, pageId, command, continueEdit?)` 헬퍼가 **"Command 적용 → 결과가 원본과 같은 참조면 `null`(빈 단계를 안 쌓는다) → 스냅숏 한 단계"** 순서를 모아 두고, `setNodeField`·`setPageField`·`insertNode`·`removeNode`·`moveNode`가 전부 이걸 쓴다. `addPage`·`removePage`만 Command로 표현되지 않아 이 헬퍼를 안 거치고 직접 `makeSnapshot`을 쌓는다.
+
+`loadSpec`(New/Open)은 `history`를 새로 시작한다(`initHistory`) — 이어 쓰면 `undo` 한 번이 방금 연 파일이 아니라 전에 열려 있던 파일의 옛 상태로 튀어버린다. New/Open 자신은 되돌릴 대상이 아니다.
+
+**스냅숏은 호출 한 번 단위로 쌓이지만, `continueEdit: true`로 부른 호출은 병합된다(#121).** `ui/properties/fields/useDraftInput.ts`(패널 소유)는 파싱 가능하고 값이 바뀌는 키 입력마다 즉시 커밋한다 — 예를 들어 간격 칸에 "16"을 타이핑하면 `setNodeField("cardA", "layout.gap", 1)` → `setNodeField("cardA", "layout.gap", 16, true)`가 연달아 불린다. 두 번째 호출처럼 `continueEdit`이 `true`면 `pushHistory` 대신 `replacePresent`(`command/history.ts`)로 present만 갈아 끼운다 — history에 새 단계를 안 쌓고 직전 체크포인트에 이번 값을 덮어쓴다. **기본값은 `false`다** — 이 매개변수를 넘기지 않는 호출부(레이어 트리 표시 토글)는 호출마다 새 단계를 쌓고, 의도된 동작이다. 캔버스 리사이즈 핸들 드래그도 원래 여기 속해 mousemove마다 단계가 쌓였지만, #207부터 `ui/resizeGesture.ts`의 판단기가 `continueEdit`을 넘겨 끌기 한 번이 한 단계다 — 값이 실제로 바뀐 첫 커밋만 새 단계를 만들고 나머지는 `true`로 병합하며, 직전 값과 같은 커밋은 아예 보내지 않는다(값이 그대로인 커밋을 첫 커밋으로 세면 빈 단계가 생기거나 뒤따르는 `true`가 엉뚱한 단계를 덮어쓴다 — 아래 입력칸의 "값이 그대로면 커밋하지 않는" 가드(#132·#209)와 같은 생각이다). 캔버스 노드 끌기(#187, `ui/useNodeDrag.ts`)는 놓을 때 `moveNode`를 한 번만 불러 처음부터 한 단계라 병합이 필요 없다.
+
+**"같은 편집을 잇는 중인지"는 스토어가 추측하지 않는다.** 노드 id·경로가 같다고 병합하면, 레이어 트리의 "표시" 토글처럼 같은 경로를 반복 호출해도 매번 별개 편집이어야 하는 호출부까지 잘못 합쳐진다. 그래서 병합 여부는 **그걸 실제로 아는 호출부만** 판단한다 — 입력칸이 "지금 이 커밋이 방금 그 타이핑 burst의 다음 글자인지"를 로컬 ref로 추적해뒀다가 `continueEdit`으로 넘긴다. 추적기 자체는 `ui/properties/fields/editBurst.ts`(#132)에 있다 — React를 모르는 순수 구현 `createEditBurst()`와 그걸 컴포넌트 수명 동안 붙들어 두는 훅 `useEditBurst()` 둘로 되어 있고, `useDraftInput`과 `TextField`가 같은 것을 쓴다. 입력칸이 포커스를 잃으면(`handleBlur`/`onBlur` → `burst.end()`) burst가 끝나서 다음 편집(같은 칸이라도)은 `continueEdit: false`로 새 단계를 만든다. `NumberField`/`SizeField`/`ColorField`/`TextField`의 `onChange` prop이 이 두 번째 인자를 받아 그대로 전달해야 병합이 동작한다 — 무시하고 `(value) => ...`처럼 한 인자만 받아도 값 반영 자체는 되지만 그 필드는 키 입력마다 undo 단계가 쌓이는 예전 동작으로 돌아간다.
+
+**`TextField`(노드 이름 · 텍스트 content 등)도 이제 합쳐진다(#132).** 다만 숫자·색상 칸과 달리 `useDraftInput`은 안 쓰고 burst 추적만 쓴다 — 문자열은 파싱할 것이 없어 parse/normalize가 항등이라 draft가 할 일이 없고, draft를 두면 입력칸이 스토어 값이 아니라 로컬 상태로 그려진다. 한글은 IME 조합(`ㄱ`→`가`→`각`) 중에도 매 단계가 `onChange`로 올라오므로 그 사이에 값의 출처를 바꾸면 조합 중인 글자와 커서가 흔들릴 여지가 생긴다(조합 중 올라오는 단계들도 같은 burst라 한 단계로 합쳐진다). `onChange`는 `(value: string, continueEdit?: boolean) => void`로 넓어졌고 `onBlur`가 burst를 끊는다. **값이 그대로면 아예 커밋하지 않는 가드도 들어갔다**(`fields/TextField.tsx:40`) — 글자를 선택해 같은 글자로 덮어쓸 때 실제로 이 입력이 올라온다. 실제로 손댄 호출부는 `PageProperties.tsx:71`의 페이지 이름 칸 하나뿐이었다 — `ContentSection.tsx`의 텍스트 content · `placeholder` · 이미지 `src`는 `useNodeField`의 세터를 그대로 넘기고 있어서 `continueEdit`이 이미 끝까지 이어지고 있었다.
+
+**`useDraftInput` 계열(숫자·색상·크기 칸)도 값이 그대로인 입력은 커밋하지 않는다(#209).** `TextField`의 가드(#132)를 이쪽에도 넣었다 — `useDraftInput`이 `isUnchanged(parsed)` 옵션을 받아, true면 커밋도 `burst.next()`도 부르지 않는다(draft는 사용자가 친 그대로 둔다). 판단은 React를 모르는 `ui/properties/fields/unchangedCommit.ts`에 있어 `test/unchanged-commit.test.ts`가 그대로 검사한다. 고치기 전에는 파싱만 성공하면 값이 지금과 같아도 커밋했는데, **스토어는 같은 값 쓰기를 no-op으로 보지 않는다** — `setByPath`가 늘 새 객체를 만들어 `applied`의 같은-참조 검사를 통과하므로 새 단계가 쌓인다. 그래서 간격을 16으로 바꾼 직후 그 칸 맨 앞에 `0`을 넣고(`"016"` → 16, 값은 그대로) 포커스를 빼면 화면이 그대로인 빈 undo 단계가 하나 생겼다(Ctrl+Z 한 번이 아무것도 안 바꾼다). 이 절이 전에 적어 둔 "뒤따르는 입력이 `continueEdit: true`로 올라가 직전 *남의* 체크포인트를 덮어쓴다"는 그 커밋이 스토어에서 no-op일 때의 이야기다 — 실제로는 burst의 첫 커밋이 빈 단계를 먼저 쌓고 뒤따르는 입력은 그 빈 단계를 덮어써서, 남의 단계는 사라지지 않았다(#209에서 스토어 회귀 테스트로 확인). 가드는 두 경우를 다 막는다.
+
+**비교 대상은 칸에 보이는 값이 아니라 저장된 값이다(#209).** 각 칸은 커밋이 실제로 보낼 값을 만들어 저장된 값과 `Object.is`로 견준다 — `NumberField`는 숫자를, `SizeField`는 칸에 보이는 `shown`(Hug/Fill이면 실측 px)이 아니라 `Size` 유니온 값을, `ColorField`는 hex·불투명도를 `composeColor`로 조립한 문자열을. "스토어에 보내면 스펙이 바뀌는가"를 그대로 묻는 것이라 어긋나는 경우는 전부 커밋하는 쪽으로 떨어진다. Hug/Fill 칸에 보이던 실측 px를 그대로 치면 Fixed로 바뀌는 실제 변경이라 커밋되고, 저장값이 대문자일 때 hex를 소문자로 치면 조립 결과가 같아 커밋되지 않는다. 반대로 소문자로 저장된 색(`#ff0000`, 파일에서 온 값)을 다시 치거나, 반올림 때문에 같은 %라도 알파가 달라지는 경우(`#FF000081`은 51%로 보이지만 51%를 조립하면 `#FF000082`)는 스펙 문자열이 바뀌므로 커밋된다. 지금 값을 `parse(toDraft(value))`로 왕복시켜 파싱 결과끼리 견주는 방법도 검토했지만, 바로 이 세 경우에서 칸에 보이는 값과 저장된 값이 어긋나 Hug/Fill → Fixed 전환을 막거나 빈 단계를 남겼다.
+
+### Undo/Redo UI (#118)
+
+`ui/LayerTree.tsx` footer에 Undo/Redo 버튼이 있다(비활성화는 `command/history.ts`의 `canUndo`/`canRedo`에 `history`를 그대로 넘겨 판단한다 — 스택이 하나뿐이라(#131) 페이지를 바꿔도 판정이 그대로다. 아직 아무것도 안 고쳤으면 `past`/`future`가 비어서 둘 다 꺼진다). 같은 파일이 `document`에 `keydown` 리스너를 걸어 Cmd/Ctrl+Z(되돌리기)·Cmd/Ctrl+Shift+Z·Ctrl+Y(다시 실행, Windows 관례라 `metaKey`는 안 본다)도 받는다. `event.target`이 input·textarea·`contenteditable`이면 아무 것도 안 한다 — 안 그러면 텍스트 칸에서 브라우저 기본 되돌리기(방금 타이핑한 글자)를 가로채 버린다.
+
+### 노드를 다루는 함수는 활성 페이지를 알아서 찾는다
+
+`select`와 `setNodeField`, `insertNode`는 **시그니처가 예전 그대로다.** 노드 편집은 언제나 활성 페이지 안에서 일어나므로 스토어가 내부적으로 `spec.pages[activePageId]`를 본다. 호출하는 쪽은 페이지를 신경 쓰지 않아도 된다.
+
+```ts
+// 페이지가 생겨도 이 호출들은 하나도 안 바뀐다
+select("cardA");
+setNodeField("cardA", "layout.gap", 16);
+```
+
+노드를 **읽을** 때만 경로가 한 단계 깊어진다.
+
+```ts
+const node = useEditorStore((s) => s.spec.pages[s.activePageId].nodes[id]);
+```
+
+### 페이지를 바꾸면 선택이 풀린다
+
+`selectPage`는 `activePageId`를 바꾸면서 `selectedId`를 `null`로 되돌린다. 페이지마다 `root`, `cardA` 같은 id가 겹치므로, 그대로 두면 엉뚱한 노드가 선택된 것처럼 보인다. `loadSpec`이 선택을 초기화하는 것과 같은 이유다.
+
+없는 페이지 id를 넘기면 아무 일도 일어나지 않는다.
+
+### 마지막 페이지는 지울 수 없다
+
+`removePage`는 페이지가 한 장뿐이면 무시한다. `pages`가 비면 캔버스가 그릴 것이 없어지고 스키마의 `minProperties: 1`도 깨진다.
+
+활성 페이지를 지우면 **같은 자리에 올라온 이웃**으로 옮겨 간다. 마지막 장을 지웠으면 그 앞 페이지로 간다.
+
+**실수로 지웠으면 `undo`로 되돌린다**(#131) — 지운 페이지와 그 노드 전부가 돌아오고 지우기 전에 보던 페이지로 옮겨 간다. #131 전에는 이 조작만 되돌릴 방법이 없어서 그대로 데이터 유실이었다.
+
+### loadSpec은 v0.1도 받는다
+
+`loadSpec`은 `VisualSpec`(v0.1 화면 파일)과 `ProjectSpec`(v0.2 프로젝트 파일)을 모두 받는다. v0.1이 들어오면 `migrateV01`로 페이지 1장짜리 프로젝트로 넓힌다. **그래서 예전에 저장한 파일도 그대로 열리고, MenuBar는 어느 버전인지 몰라도 된다.**
+
+`insertNode`는 `parentId`가 없거나 frame이 아니면(그리고 `id`가 이미 있으면 — #131부터
+`createNode` Command가 함께 판정한다) 아무 것도 하지 않는다 — 호출자가
+`resolveImportParent`(`store/resolveImportParent.ts`, 순수 함수)로 유효한 frame id를
+먼저 골라서 넘겨야 한다. 새 노드 id는 `store/nodeId.ts`의 `generateNodeId`로 만든다.
+Import(이미지) · 도구 모음 · 트리의 프레임 추가가 모두 이 함수를 쓰므로 셋 다
+`undo` 한 번으로 되돌아간다(#131).
+
+### removeNode는 root를 지우지 않고, 지운 노드가 자손이면 연쇄 삭제한다
+
+`removeNode`는 `command/applyCommand.ts`의 `deleteNode` Command로 적용된다. 페이지 `root`를 넘기면 무시한다 — `removePage`가 마지막 페이지를 막는 것과 같은 이유로, root가 없으면 스키마가 깨진다. 지우려는 노드가 프레임이면 그 자손까지 전부 지운다(고아 노드를 남기지 않기 위해서). 지운 노드나 그 자손이 `selectedId`였으면 선택을 해제한다 — 없는 노드를 계속 선택 상태로 두면 패널이 그 노드를 못 찾는다. `setNodeField`와 같은 이유로 `history`에도 쌓이므로 `undo`로 되돌릴 수 있다.
+
+### moveNode는 root를 옮기지 않고, 자기 자손 밑으로는 못 옮긴다
+
+`moveNode`는 `command/applyCommand.ts`의 `moveNode` Command로 적용된다. 페이지 `root`를 넘기면 무시한다 — 옮길 수 없는 노드라 옮기면 트리 구조 자체가 깨진다. `newParentId`가 옮기려는 노드 자신이거나 그 자손이면 무시한다(순환 방지 — `applyMoveNode`가 `collectSubtreeIds`로 판정한다). `index`는 `newParentId`의 children 길이로 clamp되므로 범위를 벗어나도 안전하다. `setNodeField`와 같은 이유로 `history`에도 쌓이므로 `undo`로 되돌릴 수 있다.
+
+`setNodeField`의 `path`는 노드 내부 경로를 점(`.`)으로 표기한다.
+
+```ts
+setNodeField("cardA", "box.width", 320);
+setNodeField("cardA", "layout.gap", 16);
+setNodeField("cardA", "background", [{ type: "solid", color: "#FFFFFF" }]);
+setNodeField("headerTitle", "typography.fontSize", 24);
+```
+
+- `background`는 0.3부터 채우기 겹 **배열**이라(#127) 배열을 통째로 쓴다. `background.color`·`background.0.color`처럼 배열 안으로 들어가는 경로는 `command/editablePath.ts`가 거부해 아무 일도 일어나지 않는다. 패널은 `ui/properties/backgroundPatch.ts`가 완전한 배열을 만들어 넘긴다.
+
+- 스토어는 이 경로로 **불변 업데이트**를 수행한다(원본을 직접 바꾸지 않음).
+- 값이 바뀌면 그 노드를 읽는 모든 파트가 자동으로 다시 그려진다. → "피그마처럼 즉시 반영".
+
+---
+
+## 3. 누가 무엇을 하나
+
+| | **레이어 트리** | **캔버스** | **세부설정 패널** |
+|---|---|---|---|
+| **담당** | 팀원 | 팀원 | 나 |
+| **읽기** | `spec`, `activePageId`, `selectedId` | `spec`, `activePageId`, `selectedId` | `spec`, `activePageId`, `selectedId` |
+| **호출** | 노드 클릭 → `select(id)`<br>**페이지 폴더 클릭 → `selectPage(id)`**<br>페이지 추가/삭제 → `addPage` / `removePage`<br>노드 삭제 → `removeNode(id)`<br>드래그로 순서 변경 → `moveNode(id, newParentId, index)`<br>되돌리기/다시 실행 → `undo` / `redo` | 노드 클릭 → `select(id)`<br>드래그/리사이즈 → `setNodeField` | 값 편집 → `setNodeField`<br>페이지 이름·해상도 → `setPageField` |
+| **역할** | 루트에 페이지 폴더, 그 아래 계층 트리 + 선택 표시 | **활성 페이지** 렌더 + 선택 표시 | 선택 노드 · 활성 페이지 속성 편집 |
+
+**연결은 이게 전부다.** 트리/캔버스가 `select(id)`만 불러주면 패널이 그 노드에 맞게 알아서 바뀌고,
+패널이 `setNodeField`로 값을 바꾸면 캔버스가 알아서 다시 그린다.
+
+---
+
+## 4. 스키마 타입은 정해진 경로에서만 import
+
+[06-schema-freeze.md §정본과 공개 표면](06-schema-freeze.md#정본과-공개-표면) 규칙 그대로. 셋 다 여기서만 가져온다.
+
+```ts
+import type {
+  ProjectSpec,
+  VisualSpec,
+  ScreenSpec,
+  PageId,
+  Node,
+  FrameNode,
+  TextNode,
+  ImageNode,
+  NodeId,
+} from "@/features/editor/schema";
+```
+
+---
+
+## 5. 지금 편집 가능한 필드 (스키마 0.3 범위)
+
+세부설정 패널은 정본(현재 0.4)에 실제로 존재하는 필드만 다룬다. 아래는 develop `3d57903` 기준
+`ui/PropertiesPanel.tsx`와 `ui/properties/` 섹션 컴포넌트를 읽어 적었다. 어떤 타입에 어떤 섹션이
+뜨는지는 `ui/properties/nodeSections.ts`의 표 하나가 정한다(#92) — 표를 고치면 이 절도 같이 고친다.
+
+> **정정 이력 (2026-10-05)**
+> 이 절은 "스키마 v0.1 범위"로 Frame·Text만 적고 Image는 "편집 필드 없음", 그림자는 "아직 없음"이었다.
+> 이후 #83(button·input), #88·#78(불투명도·블러·그림자·`border.align`), #89(모서리별 radius), #127(채우기 겹),
+> #235(이미지 배경, #254·#257), #223(반응형 GUI, #247)이 병합돼 현재 상태로 다시 썼다.
+
+**공통 — 패널 머리 (`PropertiesPanel.tsx`의 `NodeHeader`)**
+
+| 필드 | 경로 | 비고 |
+|---|---|---|
+| 노드 이름 | `name` | 반응형 breakpoint 편집 중에는 비활성(기반값 전용) |
+| 표시 여부 | `visible` | |
+
+**섹션 배치 (`nodeSections.ts`)**
+
+| 노드 타입 | 섹션(화면 순서) |
+|---|---|
+| frame | Layout · Size · Background · Border · Effects(그림자 포함) |
+| text | Content · Size · Font · Color · Effects |
+| image | Content · Size · Effects |
+| button | Interaction · Content · Size · Font · Color · Background · Border |
+| input | Content · Size · Font · Color · Background · Border |
+
+**섹션별 필드**
+
+| 섹션 | 필드 | 경로 | 쓰는 타입 |
+|---|---|---|---|
+| Content | 텍스트(여러 줄) | `content` | text |
+| Interaction | 없음 / 페이지 이동 / 모달 열기 / 닫기와 종류별 대상 | `action` 전체 교체 / `removeNodeAction` | button — 반응형 모드에서는 기본 편집 안내만 표시 |
+| Content | 라벨(한 줄) | `content` | button |
+| Content | 안내 문구 | `placeholder` | input |
+| Content | 경로 / 채우기 방식(채우기·맞추기·늘이기) | `src`, `fit` | image — Import로 들어온 data URI는 요약만 보이고 "지우기"로 비운 뒤 경로를 넣는다(`ContentSection.tsx`) |
+| Layout | 방향(세로·가로·그리드) / 간격 / 열 개수(그리드만) / 패딩 4방향 / 주축 정렬(그리드 제외) / 교차축 정렬 | `layout.direction`, `layout.gap`, `layout.columns`, `layout.padding.*`, `layout.mainAxis`, `layout.crossAxis` | frame |
+| Layout | 자식 크기 균등(버튼, #150) | 자식 전부의 주축 `box.width`/`box.height` → `"fill"`, 부모 `layout.crossAxis` → `"stretch"`를 `setNodeFields`로 한 번에 | frame — 그리드·Hug 부모·자식 2개 미만·breakpoint 편집 중에는 비활성 |
+| Size | 너비 / 높이 (Fixed px · Hug `"auto"` · Fill `"fill"`) | `box.width`, `box.height` | 전부 |
+| Font | 종류 / 크기 / 굵기 / 행간 / 자간 / 정렬(left·center·right) | `typography.fontFamily`, `typography.fontSize`, `typography.fontWeight`, `typography.lineHeight`, `typography.letterSpacing`, `typography.textAlign` | text · button · input |
+| Color | 글자색 | `color` | text · button · input |
+| Background | 채우기 겹 목록 — 추가·삭제·위/아래 이동·종류(단색 solid / 선형 linear / 이미지 image) 전환. solid 색, linear 각도·stop(색·위치 %·추가·삭제, 2개 이상), image 파일 가져오기·경로·채우기 방식 | `background` — 배열 통째(`ui/properties/backgroundPatch.ts`가 완전한 `Fill[]`을 만든다) | frame · button · input |
+| Border | 두께 / 모서리 반경(전체 또는 좌상·우상·우하·좌하 개별) / 테두리색 / 정렬(안쪽·가운데·바깥) | `border` — 객체 통째(`borderPatch`·`radiusPatch`), 아무것도 그리지 않으면 필드를 지운다 | frame · button · input |
+| Effects | 불투명도(%) / 블러(px) | `opacity`, `blur` — 항등값(1·0)이면 필드를 지운다 | frame · text · image |
+| Effects | 그림자 켜기 + X / Y / 번짐 / 확장 / 그림자색 | `shadow` — 객체 통째(`shadowPatch`) | frame만(`hasShadow`) |
+
+image 노드에는 Background·Border·Font가 없고, button·input에는 Effects가 없다 — 정본에 해당 필드가
+없어서다(`nodeSections.ts` 주석). image의 `box.width/height`는 Import 시점의 원본 픽셀 크기로 채워진다
+(`ui/importImageFromFile.ts`).
+
+**페이지 (`ui/properties/PageProperties.tsx`)** — 아무것도 고르지 않았거나 root를 골랐을 때, 기본값 편집 중에만 뜬다.
+
+| 필드 | 경로 |
+|---|---|
+| 페이지 이름 | `name` (`setPageField`) |
+| 해상도 프리셋 / 너비 / 높이 | `size.width`, `size.height` (`setPageField`) |
+
+root는 그 아래에 일반 frame 섹션으로 함께 편집된다.
+
+**반응형 편집 (#223, #247 — `responsive/ResponsivePanel.tsx`)**
+
+패널 맨 위 "반응형" 영역에서 편집 기준(기본값 또는 breakpoint)·미리보기 폭을 고르고 breakpoint를
+추가·폭 변경·삭제한다. breakpoint를 고르면 위 섹션들의 같은 칸이 `useNodeField` → `editResponsiveNode`를
+거쳐 그 breakpoint의 override(`responsive.overrides.<bp>.<nodeId>`)를 쓴다. 이때 노드 이름·Content
+텍스트·페이지 속성·그림자·자식 크기 균등은 숨기거나 비활성하고, image는 `fit`만 남긴다. override 경로별
+"상속"(해제)·"현재 표현값 고정"·"이 노드 override 삭제"도 이 영역에 있다. 저장은 `setResponsive`(위 "반응형
+GUI" 절)로 한다.
+
+**그룹화 (#225, #250)** 는 패널이 아니라 캔버스 컨텍스트 메뉴와 단축키에서 한다(아래 "단일 노드 Group /
+Ungroup" 절, `ui/nodeContextMenuEntries.ts`). 패널에 그룹 전용 필드는 없다 — 만들어진 wrapper는 일반 frame이다.
+
+> **X / Y / Rotation은 아직 없음.** 스키마 0.4도 Auto Layout 전용이라 절대좌표·회전 필드가 없다.
+> 필요해지면 [06의 변경 규칙](06-schema-freeze.md#변경-규칙)으로 확장한다. 패널은 그때 표(`nodeSections.ts`)와
+> 섹션 한 줄만 추가하면 되도록 설계돼 있다.
+
+---
+
+## 6. 지킬 규칙 (팀 공통)
+
+1. **`spec`을 직접 수정하지 않는다.** 반드시 `setNodeField` / `setPageField`(또는 `select` / `selectPage`)를 통해서만 변경한다.
+2. 스토어 외의 곳에서 선택 상태/스펙을 따로 두지 않는다.
+3. 스키마 확장(rotation, shadow, 절대좌표 등)은 **별도 PR + 팀 합의**로만 한다([06-schema-freeze.md §변경 규칙](06-schema-freeze.md#변경-규칙)).
+   - `visual-spec.schema.json` 수정 → `pnpm generate:types` → 예제·테스트 갱신 → typecheck·test 통과.
+4. 파일 소유: **패널 내부는 내가, 트리·캔버스는 팀원이** 담당한다. 서로의 파일은 건드리지 않는다.
+
+---
+
+## 7. 통합 전에 각자 독립 개발하는 법
+
+- 스토어는 `examples/dashboard-cards.json`을 초기값으로 시드해 둔다.
+  → 트리·캔버스·패널이 아직 없어도 각자 실제 데이터로 개발/테스트 가능.
+- 트리/캔버스가 준비되면 같은 스토어에 `select`만 연결하면 즉시 맞물린다.
+
+## 반응형 GUI (#223 PR 제안)
+
+현재 상태: 아래 스토어 계약과 GUI는 #247로 병합됐다.
+
+`setResponsive(pageId, value, continueEdit?) => string | null`을 추가한다. 값은 완전한
+`Responsive` 블록이며 검증 실패 시 이유를 반환하고 문서·history를 보존한다. 성공 시
+기존 `updateScreen("responsive")` 경로로 한 번 적용하며 `null`을 반환한다. 동일값은
+history를 쌓지 않는다. 기존 `setNodeField`는 계속 기반값을 편집한다. 반응형 패널만
+선택 폭의 희소 override를 계산해 `setResponsive`를 호출한다.
+
+반응형 문서의 기반값 변경도 최종 화면을 검증한다. `deleteNode`는 override 참조를 함께
+정리하고 `duplicateNode`는 새 ID의 override를 함께 생성한다. 두 동작의 Undo는 모두
+프로젝트 스냅숏 한 단계다. `pasteNode`는 기존 클립보드 계약대로 기반 노드만 옮긴다.
+미리보기 폭은 `responsiveViewStore`의 페이지별 UI 값이며 문서나 history에 들어가지 않는다.
+
+### 단일 노드 Group / Ungroup (#225)
+
+`groupNode(id)`와 `ungroupNode(id)`는 캔버스 컨텍스트 메뉴와 Ctrl/Cmd+G·Shift+G가 호출한다.
+`command/groupCommands.ts`가 기존 createNode/moveNode/deleteNode 명령 배열을 만들고,
+스토어는 `appliedTransaction` 한 번으로 적용해 각각 Undo 한 단계만 쌓는다. root·없는 노드,
+frame이 아닌 Ungroup 요청은 선택·스펙·history를 바꾸지 않는다.
+
+Group은 같은 형제 위치의 새 frame에 선택 노드를 옮기고 새 frame을 선택한다. 선택 문맥은
+root로 돌아간다. Ungroup은 자식을 원래 순서대로 frame의 형제 위치에 꺼낸 뒤 빈 frame을
+지우고 첫 자식(없으면 부모)을 선택한다. 지워진 frame이 focusRootId면 문맥도 해제한다.
+기존 노드의 필드는 바꾸지 않으며 새 wrapper 기본값과 시각적 한계는 [단축키 문서](10-shortcuts.md#단일-노드-그룹)에 있다.
+
+### 홈 프로젝트 이름 변경 (#227)
+
+`renameProject(name)`은 홈의 파일 이름 변경이 성공했을 때만 호출하는 메타데이터 동기화다.
+프로젝트 이름과 실제 `specs/<이름>.json`을 함께 변경한다. 파일 이동은 Command가 아니며
+Undo 대상이 아니다. 메모리의 미저장 편집·선택과 편집 Undo/Redo는 보존하고, 모든 history
+snapshot의 프로젝트 이름도 함께 갱신해 Undo가 이전 파일 이름의 표시명으로 돌아가지 않게 한다.
+활성 문서의 `documentStore.fileName`은 성공 후 새 이름으로 변경된다.
+
+## #265 S1-3 관계 명령
+
+`removeNodeAction(id)`는 선택 button의 action을 제거하고 Undo 한 단계를 만든다. 없는 action은
+no-op이다. setNodeField의 action은 전체 교체만 허용한다. 관계 명령이 든 GUI 배치는 no-op도
+전체 실패이며 모든 GUI 명령 후보는 프로젝트 전체 검증 뒤 커밋한다. 오류는 기존 편집 오류
+표시 경로로 보고하고 spec/선택/history를 유지한다. NL G2/G3는 기존 검증을 유지한다.
+
+### Rejected edits and typing history (#265)
+
+`continueEdit` is a request to reuse a successfully committed transaction checkpoint.
+A rejected/no-op transaction invalidates that eligibility without mutating the document or history.
+The next valid edit starts a new checkpoint, even when a controlled input has already
+advanced its local burst. This preserves Undo on a fresh document and after unrelated edits.
+
+## #265 S1-4 프로젝트 참조와 삭제 확인
+
+`removePage(id, expected?)`는 최소 실제 page를 보존하고 유입 action 정리·첫 page 최소 재배치를
+검증한 후보와 함께 한 snapshot으로 커밋한다. UI는 `confirmPageRemoval`로 영향 목록을 확인한다.
+expected의 spec/documentId는 확인한 snapshot이다. 확인 대기 중 spec 또는 문서가 한 번이라도
+바뀌면 토큰이 영구 무효화된다(Undo도 재활성화하지 않음). 거부는 현재 작업을 보존한다.
+
+`pasteNode`의 관계 보유 subtree에는 `source: {projectId?, documentId}`가 필요하다. 양쪽
+projectId가 있으면 동일해야 하고 구 문서만 documentId fallback을 쓴다. 다른/불명 출처는 거부하며
+같은 프로젝트의 대상/문맥 오류도 전체 후보 검증에서 거부한다. clipboard 원문을 정리하지 않는다.
+
+addPage와 replaceSpecFromOutside도 후보 전체 검증 후 변경한다. loadSpec은 Open에서 검증된 문서나
+자동 저장의 명시적 과거 관계 오류 복구본을 받는 기존 입구다. 복구 예외를 loadSpec의 조용한 폐기로
+바꾸지 않는다. 과거 오류는 검증 안내/미검증 사본으로 보존하며 저장 성공으로 표시하지 않는다.
+
+## #265 S1-5 화면 종류 UI
+
+PageProperties의 종류 선택은 setPageField(activePageId, "kind", value)를 한 번 호출한다.
+거부 이유는 필드 아래에 표시하고 스펙/순서/history를 보존한다. LayerTree는 pageOrder를 그대로
+유지하며 생략된 kind도 page 배지로 표시한다. 홈 카드의 homeCoverPage는 과거 복구본에서도
+modal/widget을 표지로 쓰지 않으며 일반 page가 없으면 미리보기 없음으로 표시한다.
+종류 선택은 modal 크기·배경막·위젯 instance 렌더 계약을 추가하지 않는다.
+
+종류 변경 오류는 pageId뿐 아니라 거부 당시 spec 참조와 documentId에 묶는다. 다른 편집 성공이나
+같은 PageId의 Open/New/reload 뒤에는 지난 문서의 오류를 새 문서의 진단으로 표시하지 않는다.
+### 이미지 비우기와 전체 후보 검증 (#265 S1-3 수정)
+
+ImageNode.src는 비지 않은 문자열이다. ContentSection의 지우기와 빈 경로 입력은
+실제 투명 1×1 SVG data URI(EMPTY_IMAGE_SRC)로 src를 한 번 교체한다. 스키마 예외나
+무효한 중간값을 저장하지 않으며 노드/크기/fit과 원본 asset 파일은 유지한다. 패널은 이
+정확한 URI를 빈 경로 입력으로 표시한다. Undo 한 번으로 이전 src 바이트를 복원한다.
+저장/다시 열기/일반 이미지 소비자는 추가 프로토콜 없이 유효한 투명 이미지를 읽는다.
+
+## #265 S1-6 Interaction 편집
+
+대상 기반 동작의 종류 선택은 패널 draft만 바꾸며 첫 대상을 자동 선택하지 않는다. 사용자가 대상을
+선택할 때 전체 action을 한 번 교체한다. 대상 선택 전까지 기존 저장값을 유지한다고 표시한다.
+스펙/페이지/노드가 바뀌면 pending 선택은 재사용하지 않는다. 없음은 전용 제거 명령, 닫기는 target 없는
+전체 객체 교체다. page에는 새 close 선택을 제공하지 않는다. 반응형 편집 중에는 쓰기 컨트롤을
+제공하지 않는다(action은 override 대상이 아님). 후보 프로젝트 검증은 기존 store가 맡는다.
+과거 복구본의 누락/잘못된 대상과 close source 경고는 기존 관계 validator의 진단을 표시한다.
+
+### 거부된 페이지·반응형 편집의 호출 결과 (#265)
+
+`setPageField`는 검증된 변경을 커밋했을 때만 `true`를 반환하고 거부·no-op이면 `false`다.
+해상도 프리셋 호출자는 이 결과가 참일 때만 content 크기와 Fit을 갱신한다.
+`setResponsive`는 페이지 사전 검사뿐 아니라 최종 프로젝트 검사 실패도 오류 문자열로 반환한다.
+호출자는 실패 시 미리보기 폭·입력 폼을 성공 상태로 바꾸거나 오류를 지우지 않는다.
+관계 오류가 남은 복구 문서도 전체 candidate 검증을 통과해야 편집을 커밋한다.
+
+성능 측정은 `VSB_MEASURE_PROJECT_VALIDATION=1 node scripts/browser/rejected-project-edits.mjs`로
+선택 실행한다(공용 browser harness 환경 필요). 유효한 201노드 화면을 1/10/50장 구성하고
+10회 warm-up 뒤 30회의 동기 store 편집을 측정한다. 구독자 비용을 포함하며 paint·실제 drag
+프레임 시간은 포함하지 않는다. 수치는 환경 의존이며 CI 통과 임계값으로 쓰지 않는다.
+측정 결과만으로 전체 candidate 검증을 페이지 한 장 검사로 약화하지 않는다.
+
+### GUI 후보 검증 캐시 (#265 / PR387 성능 후속)
+
+GUI `appliedTransaction`은 프로젝트 전체의 유효성을 계속 요구한다. 변경하지 않은 화면의
+스키마·그래프·gradient·responsive 결과만 store-local WeakMap으로 재사용한다. 화면 객체 신원과
+분리된 내용 snapshot과 속성 순서까지 모두 같아야 hit이며, 제자리 mutation도 내용이 바뀌면 다시 검사한다. 내용 비교는 JSON 문자열을 쓰지 않는다. undefined/비유한 수/숨김 속성이 직렬화에서 서로
+같아지는 문제를 피하며, 접근자와 clone에 보존되지 않는 prototype은 cache hit 대상이 아니다.
+프로젝트 봉투 검증은 정본 ProjectSpec에서 화면 부분만 분리하여 매번 실행한다. pageOrder와
+모든 화면의 action 관계는 항상 새 프로젝트에서 검사한다. 대상 kind 변경/삭제, 무효 복구 문서의
+무관한 편집도 계속 거부한다. 화면 스키마 오류는 기존 전체 validator로 돌아가 동일 오류를 반환한다.
+반환 오류 객체를 바꿔도 캐시는 오염되지 않는다.
+
+외부 Open/Save, NL transactionGate 및 기존 `validateProjectSpec` 경로는 그대로다. 캐시는
+WeakMap이라 폐기한 문서/Undo snapshot을 강하게 보존하지 않으며, 참조만 같다고 통과시키지 않는다.
+전체 validator와의 결과 동등성은 fixture 전체, 복구/Undo, schema 오류, action 대상·kind 변경,
+제자리 mutation과 비JSON 값 회귀로 검사한다. 이것은 검증 비용을 줄이는 변경이며 드래그 프레임
+예산 달성이나 모든 구독자/렌더링 비용 제거를 뜻하지 않는다.
+
+2026-10-16 Node24.19.0/Chromium151에서 같은 browser 안에서 full/cache 호출 순서를 번갈아
+측정했다(10 warm-up, 30 samples, 변경 화면 201노드, 별도 검증 비교; paint 제외).
+
+| 총 노드 | full p50/p95 ms | cache p50/p95 ms | GUI store p50/p95 ms |
+|---|---|---|---|
+| 201 | 0.8 / 2.2 | 1.2 / 3.1 | 2.4 / 12.4 |
+| 2010 | 7.1 / 11.0 | 4.1 / 12.6 | 28.1 / 49.8 |
+| 10050 | 35.7 / 71.4 | 18.9 / 35.9 | 76.3 / 153.1 |
+
+작은 프로젝트에서는 snapshot 비용으로 느려질 수 있다. 큰 프로젝트의 검증 비용 감소는
+관찰했지만 전체 GUI 비용/실제 drag 프레임 목표를 해결했다는 뜻은 아니다. 별도 실행 간 p95는
+크게 흔들렸으므로 이 값을 성능 보장이나 CI 시간 단언으로 사용하지 않는다. 재현은
+`VSB_MEASURE_PROJECT_VALIDATION=1`의 `scripts/browser/rejected-project-edits.mjs`이다.

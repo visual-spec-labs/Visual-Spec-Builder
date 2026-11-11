@@ -1,0 +1,40 @@
+import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useExportStore } from "@/features/editor/store/exportStore";
+import { useTicketStore } from "@/features/editor/store/ticketStore";
+import { useViewStore } from "@/features/editor/store/viewStore";
+import { togglePropsPanel } from "@/features/editor/ui/panelToggle";
+import { hasUnsupportedScreenRelations } from '@/features/editor/ticket/screenRelationsGuard';
+
+export function compileCurrentTicketPlan():void {
+  const {spec,activePageId}=useEditorStore.getState();
+  if(Object.values(spec.pages).some(hasUnsupportedScreenRelations))useTicketStore.getState().compileProject(spec);
+  else useTicketStore.getState().compile(activePageId,spec.pages[activePageId]);
+}
+
+/**
+ * 구현 티켓 패널을 연다. 실행 중이면 기존 계획·대기를 유지하고, 아니면 현재 페이지로 컴파일한다. `MenuBar`("구현
+ * 티켓")와 `ExportPanel`(생성된 코드가 없을 때의 다음 행동) 둘이 쓴다(#283) —
+ * `openExportPanel.ts`와 같은 이유로 한 곳에 모아 둔다.
+ *
+ * **Export가 열려 있으면 같이 닫는다(#283 리뷰 대응).** `EditorLayout.tsx`는
+ * 둘 다 열렸으면 Export를 우선 렌더링한다 — `ticketStore.isOpen`만 켜면 화면은
+ * 그대로 Export인 채 뒤에서 티켓 계획만 다시 생성돼, 클릭해도 아무 일도 안
+ * 일어난 것처럼 보인다. 반대 방향(Export를 열 때 티켓 패널은 안 닫는 것)은
+ * `openExportPanel.ts`에 그대로 둔다 — Export가 우선순위를 가지므로 그쪽은
+ * 이 문제가 없고, 닫았을 때 티켓 패널로 돌아가는 것도 `EditorLayout.tsx`가
+ * 의도한 동작이다.
+ */
+export function openTicketPanel(): void {
+  const view = useViewStore.getState();
+  if (!view.showPanels) view.togglePanels();
+  // 전체 토글만 켜고 개별 접힘(#287)을 안 풀면, 패널이 32px 레일로 접힌 채
+  // 티켓 목록이 그 좁은 칸에 그대로 렌더된다(자체 code-review 대응).
+  // togglePropsCollapsed가 아니라 togglePropsPanel을 쓴다 — 펼치는 방향이면
+  // 저장된 폭을 Canvas 최소 폭 기준으로 보정한다(#287 리뷰 4차 대응).
+  if (view.propsCollapsed) togglePropsPanel();
+  if (useExportStore.getState().isOpen) useExportStore.getState().close();
+  // Closing/reopening is navigation, not a request to cancel the active wave.
+  // Preserve generation, wait and overwrite review so the runner keeps ownership.
+  if (useTicketStore.getState().running) useTicketStore.setState({ isOpen: true });
+  else compileCurrentTicketPlan();
+}

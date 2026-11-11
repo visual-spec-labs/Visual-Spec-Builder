@@ -1,0 +1,141 @@
+import { useEffect, useRef, useState } from "react";
+import { describeImageSrc, EMPTY_IMAGE_SRC, imageSrcFromInput } from "./imageSrc";
+import type { NodeType } from "./nodeSections";
+import { PropertySection } from "./PropertySection";
+import { useNodeField } from "./useNodeField";
+import { Field, FieldLabel, SegmentedControl, TextField } from "./fields";
+import { importImageFromFile } from "../importImageFromFile";
+
+type ImageFit = "cover" | "contain" | "fill";
+
+export const FIT_OPTIONS = [
+  { value: "cover", content: "채우기", title: "채우기 (cover) — 비율 유지, 넘치면 잘린다" },
+  { value: "contain", content: "맞추기", title: "맞추기 (contain) — 비율 유지, 남으면 빈다" },
+  { value: "fill", content: "늘이기", title: "늘이기 (fill) — 비율을 무시하고 상자를 채운다" },
+] as const;
+
+/**
+ * text · button의 라벨. 여러 줄이 필요한 건 text뿐이다.
+ *
+ * 세터를 그대로 넘긴다 — useNodeField의 세터가 `(값, continueEdit)`을 받으므로
+ * TextField가 넘기는 continueEdit(#132)이 setNodeField까지 그대로 간다. 여기를
+ * `(value) => setContent(value)`로 감싸면 그 인자가 조용히 떨어져 나가고 한
+ * 글자마다 undo 단계가 쌓이는 예전 동작으로 돌아간다. 아래 두 필드도 같다.
+ */
+function TextContentField({ multiline }: { multiline: boolean }) {
+  const [content, setContent] = useNodeField<string>("content");
+
+  return (
+    <TextField label="텍스트" value={content} onChange={setContent} multiline={multiline} />
+  );
+}
+
+/** input이 보여줄 안내 문구. 실제 입력값(value)은 v0.1 스키마에 없다. */
+function PlaceholderField() {
+  const [placeholder, setPlaceholder] = useNodeField<string>("placeholder");
+
+  return (
+    <TextField
+      label="안내 문구 (placeholder)"
+      value={placeholder}
+      onChange={setPlaceholder}
+    />
+  );
+}
+
+/** image의 원본과 채우기 방식. */
+function ImageFields() {
+  const [src, setSrc] = useNodeField<string>("src");
+  const [fit, setFit] = useNodeField<ImageFit>("fit");
+
+  const display = describeImageSrc(src);
+  const pathValue = display.kind === "path" ? display.value : undefined;
+  const [pathDraft, setPathDraft] = useState(pathValue ?? "");
+  const pathDraftRef = useRef(pathDraft);
+
+  // Applying each typed prefix to the spec makes the canvas request that image URL immediately.
+  // Keep the path in this field until blur, then update the canvas once with the final value.
+  useEffect(() => {
+    if (pathValue === undefined) return;
+    pathDraftRef.current = pathValue;
+    setPathDraft(pathValue);
+  }, [pathValue]);
+
+  function commitPath() {
+    if (pathValue !== undefined && pathDraftRef.current !== pathValue) {
+      setSrc(imageSrcFromInput(pathDraftRef.current));
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={importImageFromFile}
+        className="rounded-control border border-line px-2 py-1.5 text-sm text-content hover:bg-surface-inset focus-visible:outline-2 focus-visible:outline-content"
+      >
+        이미지 바꾸기
+      </button>
+      {display.kind === "path" ? (
+        <TextField
+          label="경로 (src)"
+          value={pathDraft}
+          onChange={(value) => { pathDraftRef.current = value; setPathDraft(value); }}
+          onBlur={commitPath}
+          placeholder="assets/hero.png"
+        />
+      ) : (
+        // Import로 들어온 이미지는 파일 전체가 base64 data URI로 담겨 있다.
+        // 입력칸에 그대로 띄우면 수백 KB짜리 한 줄이 되어 칸이 먹통이 되고,
+        // 손으로 고칠 수 있는 값도 아니라 요약만 보여준다.
+        <Field label="경로 (src)">
+          <div className="flex items-center gap-2">
+            <p className="min-w-0 flex-1 truncate rounded-control border border-line bg-surface-inset px-2 py-1.5 text-sm text-content-muted">
+              {display.label}
+            </p>
+            {/*
+              지우기가 없으면 빠져나올 길이 없다 — 잘못 가져온 이미지를 경로로
+              돌려놓을 수도, 비울 수도 없어 노드를 지웠다 다시 만드는 수밖에 없고
+              그동안 수백 KB가 Export마다 따라다닌다.
+            */}
+            <button
+              type="button"
+              onClick={() => setSrc(EMPTY_IMAGE_SRC)}
+              className="shrink-0 rounded-control focus-visible:outline-2 focus-visible:outline-content border border-line px-2 py-1.5 text-sm text-content-muted hover:text-content"
+            >
+              지우기
+            </button>
+          </div>
+          <FieldLabel>
+            가져온 이미지는 스펙 안에 직접 담겨 있다. 지우면 경로를 직접 넣을 수 있다.
+          </FieldLabel>
+        </Field>
+      )}
+      {(!src || src === EMPTY_IMAGE_SRC) && <p className="text-xs text-content-muted">이미지가 비어 있습니다. 경로를 입력하거나 이미지 바꾸기를 선택하세요.</p>}
+      <SegmentedControl
+        label="채우기 방식 (fit)"
+        value={fit}
+        options={FIT_OPTIONS}
+        onChange={setFit}
+      />
+    </>
+  );
+}
+
+/**
+ * "이 노드가 무엇을 담고 있는가" — 타입마다 필드가 다른 유일한 섹션이다.
+ *
+ * text·button은 `content`, input은 `placeholder`, image는 `src`·`fit`이다.
+ * 경로가 서로 달라 한 컨트롤로 못 묶지만, "무엇을 담았나"라는 자리는 같으므로
+ * 섹션 하나로 두고 안에서 갈랐다. frame은 자식이 곧 내용이라 이 섹션이 없다.
+ */
+export function ContentSection({ type }: { type: NodeType }) {
+  return (
+    <PropertySection title="내용 (Content)">
+      {type === "text" && <TextContentField multiline />}
+      {type === "button" && <TextContentField multiline={false} />}
+      {type === "input" && <PlaceholderField />}
+      {type === "image" && <ImageFields />}
+    </PropertySection>
+  );
+}

@@ -1,0 +1,362 @@
+import { discoverPendingProjectRun } from './projectTicketRunner';
+import { useEffect, useState } from "react";
+
+import { useDocumentStore } from "@/features/editor/store/documentStore";
+import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useTicketStore } from "@/features/editor/store/ticketStore";
+import { TICKET_REQUEST_PATH, TICKET_RESPONSE_PATH } from "@/features/editor/ticket/ticketProtocol";
+import { isAllDone, isReady, readyTickets } from "@/features/editor/ticket/ticketStatus";
+import type { TicketStatus } from "@/features/editor/ticket/types";
+import { buildTicketAgentInstruction } from "@/features/editor/ui/agentHandoff";
+import { projectTicketProtocol } from "@/features/editor/ticket/projectTicketProtocol";
+import { AgentWaitStatus } from "@/features/editor/ui/AgentWaitStatus";
+import { HandoffDetails } from "@/features/editor/ui/HandoffDetails";
+import { HandoffStageIndicator } from "@/features/editor/ui/HandoffStageIndicator";
+import { openExportPanel } from "@/features/editor/ui/openExportPanel";
+import { OverwriteReviewPanel } from "@/features/editor/ui/OverwriteReviewPanel";
+import {
+  answerOverwriteReview,
+  cancelTicketRun,
+  extendTicketWait,
+  runAllTickets,
+  restoreLastRun,
+  runOneTicket,
+  PROJECT_CHANGED_AFTER_COMMIT_MESSAGE,
+  PROJECT_CHANGED_PLAN_MESSAGE,
+  PROJECT_CHANGED_TICKET_MESSAGE,
+  STALE_TICKET_MESSAGE,
+  ticketPlanStaleness,
+} from "@/features/editor/ui/ticketRunner";
+import { getWorkspaceRoot, isWorkspaceAvailable } from "@/features/editor/ui/workspaceClient";
+import { compileCurrentTicketPlan } from './openTicketPanel';
+
+const STATUS_LABEL: Record<TicketStatus, string> = {
+  pending: "대기",
+  "in-progress": "진행 중",
+  done: "완료",
+  failed: "실패",
+};
+
+/**
+ * 현재 화면을 compileTickets로 나눈 구현 계획.
+ *
+ * #156의 A안(계획·상태 표시만)에 #184가 실행 왕복을 더했다 — 작업공간이 있으면
+ * "에이전트에 전달"/항목별 "전달" 버튼이 `.visual-spec/runtime/`에 요청을 쓰고,
+ * 에이전트 응답이 오면 `ui/ticketRunner.ts`의 `runAllTickets`/`runOneTicket`이
+ * 상태를 사람 손 없이 바꾼다. 드롭다운은 그대로 남겨 둔다 — 에이전트가 없거나
+ * 결과를 사람이 직접 고쳐야 할 때의 수동 대안이다.
+ *
+ * **작업공간이 없으면(정적 빌드) 조용히 A안으로 되돌아간다** — 전달 버튼을 아예
+ * 숨기고 기존 드롭다운·안내문만 보여준다(`workspaceAvailable` 참고).
+ *
+ * **버튼 이름은 "실행"이 아니라 "전달"이다(#283).** GUI는 에이전트를 실행하지
+ * 않는다(#219) — 요청 파일을 쓰고 사람이 직접 켜 둔 에이전트가 그 파일을 읽을
+ * 때까지 기다릴 뿐이다. "실행"은 GUI가 뭔가를 대신 돌리는 것처럼 읽혀서 바꿨다.
+ *
+ * 패널은 Properties와 같은 우측 영역을 사용해 기존 Canvas/Toolbar 배치를 바꾸지 않는다.
+ */
+export function TicketPanel() {
+  const project = useEditorStore(state=>state.spec);
+  const projectPlan = useTicketStore(state=>state.projectPlan);
+  const sourceProject = useTicketStore(state=>state.sourceProject);
+  const lastProjectRun = useTicketStore(state=>state.lastProjectRun);
+  const pageId = useEditorStore((state) => state.activePageId);
+  const page = useEditorStore((state) => state.spec.pages[state.activePageId]);
+  const tickets = useTicketStore((state) => state.tickets);
+  const sourcePageId = useTicketStore((state) => state.sourcePageId);
+  const sourcePage = useTicketStore((state) => state.sourcePage);
+  const documentId = useEditorStore((state) => state.documentId);
+  const sourceDocumentId = useTicketStore((state) => state.sourceDocumentId);
+  const projectIdentity = useDocumentStore((state) => state.projectIdentity);
+  const sourceProjectIdentity = useTicketStore((state) => state.sourceProjectIdentity);
+  const running = useTicketStore((state) => state.running);
+  const runError = useTicketStore((state) => state.runError);
+  const runErrorRetryable = useTicketStore((state) => state.runErrorRetryable);
+  const wait = useTicketStore((state) => state.wait);
+  const acceptanceWarning = useTicketStore((state) => state.acceptanceWarning);
+  const overwriteReview = useTicketStore((state) => state.overwriteReview);
+  const lastRun = useTicketStore((state) => state.lastRun);
+  const restoreMessage = useTicketStore((state) => state.restoreMessage);
+  const markStatus = useTicketStore((state) => state.markStatus);
+  const close = useTicketStore((state) => state.close);
+
+  // `null` = 아직 확인 전. 개발 서버 미들웨어가 없는 정적 빌드에서는 `false`로
+  // 떨어지고, 그때는 전달 컨트롤을 렌더링하지 않는다("조용히 A안으로 되돌아간다").
+  const [workspaceAvailable, setWorkspaceAvailable] = useState<boolean | null>(null);
+  // 지시 복사 버튼 옆 "자세히"에 보여줄 절대 경로. 없어도(예: 구버전 서버) 기능은
+  // 그대로 동작한다 — 표시만 빠진다.
+  const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void isWorkspaceAvailable().then(async (available) => {
+      if (cancelled) return;
+      setWorkspaceAvailable(available);
+      if (!available) return;
+      const root = await getWorkspaceRoot();
+      if (!cancelled) setWorkspaceRoot(root);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ticketRunner.isTicketPlanStale과 같은 판정이다 — 여기서는 렌더가 따라오도록 구독값으로 계산한다.
+  const staleness = projectPlan ? (sourceDocumentId!==documentId||sourceProject!==project ? 'screen'
+    : sourceProjectIdentity!==projectIdentity ? 'project' : null) : ticketPlanStaleness(
+    { sourcePageId, sourcePage, sourceDocumentId, sourceProjectIdentity },
+    { activePageId: pageId, page, documentId, projectIdentity },
+  );
+  const isStale = staleness !== null;
+  const canExecute = workspaceAvailable === true && !isStale;
+  const readyWave = readyTickets(tickets);
+  const waveSize = tickets.filter((ticket) => ticket.status === "in-progress").length;
+
+  return (
+    <aside className="flex flex-col overflow-hidden border-l border-line bg-surface [grid-area:props]">
+      <header className="flex items-center gap-2 border-b border-line px-3 py-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xs font-semibold tracking-wide text-content-muted uppercase">
+            구현 티켓
+          </h2>
+          <p className="truncate text-xs text-content-muted">{projectPlan ? `${project.name} · 프로젝트 전체` : page.name}</p>
+        </div>
+        {workspaceAvailable === true && (
+          <button
+            type="button"
+            onClick={() => (running ? cancelTicketRun() : void runAllTickets())}
+            disabled={!running && (readyWave.length === 0 || isStale)}
+            className="rounded-control border border-line px-2 py-1 text-xs text-content hover:bg-hover disabled:opacity-50"
+          >
+            {running ? "중지" : "에이전트에 전달"}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            // 진행 중이던 웨이브를 먼저 멈춘다 — 그러지 않아도 sourcePage 참조가
+            // 바뀌어 응답이 무시되긴 하지만(ticketRunner.ts), 곧바로 멈추는 편이 낫다.
+            cancelTicketRun();
+            compileCurrentTicketPlan();
+          }}
+          className="rounded-control border border-line px-2 py-1 text-xs text-content hover:bg-hover"
+        >
+          다시 생성
+        </button>
+        <button
+          type="button"
+          onClick={close}
+          aria-label="구현 티켓 닫기"
+          className="rounded-control px-2 py-1 text-content-muted hover:bg-hover hover:text-content"
+        >
+          ×
+        </button>
+      </header>
+
+      {/* 이 요청의 임시 출력이 보이면 그때부터 "코드 생성" 단계다 — GUI가 가진 유일한 근거라
+          그 전에는 단정하지 않는다(#284, docs/20 "코드 생성"). */}
+      <HandoffStageIndicator current={running && (wait?.stagedFiles ?? 0) > 0 ? "generate" : "handoff"} />
+
+      {isStale && (
+        <p className="border-b border-line bg-surface-raised px-3 py-2 text-xs text-content-muted">
+          {staleness === "project" ? PROJECT_CHANGED_PLAN_MESSAGE : STALE_TICKET_MESSAGE}
+          {/* 프로젝트가 바뀐 순간 진행 중이던 요청이 어떻게 끝났는지도 함께 보인다(다른 오류는 낡은 계획과 무관하다). */}
+          {staleness === "project" &&
+            (runError === PROJECT_CHANGED_TICKET_MESSAGE || runError === PROJECT_CHANGED_AFTER_COMMIT_MESSAGE) && (
+            <span className="mt-1 block">{runError}</span>
+          )}
+        </p>
+      )}
+
+      <div className="flex-1 overflow-auto p-3">
+        {projectPlan && projectPlan.excludedPages.length > 0 && <p className="mb-2 text-xs text-content-muted">참조되지 않은 위젯 {projectPlan.excludedPages.length}개는 이번 생성에서 제외됩니다. 문서에는 보존됩니다.</p>}
+        {tickets.length === 0 ? (
+          <p className="text-sm text-content-muted">
+            생성할 구현 티켓이 없습니다. 캔버스에 화면을 구성한 뒤 다시 생성하세요.
+          </p>
+        ) : (
+          <ol className="flex flex-col gap-2">
+            {tickets.map((ticket) => {
+              const ready = isReady(tickets, ticket);
+              return (
+                <li key={ticket.id} className="rounded-panel border border-line bg-surface-raised p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-content-strong">
+                        {ticket.componentName}
+                        {projectPlan && 'sourcePageId' in ticket && <span className="block text-xs font-normal text-content-muted">{String(ticket.sourcePageId)}</span>}
+                      </p>
+                      <p className="text-xs text-content-muted">
+                        {ticket.kind === "page" ? "Page" : "Component"} · 인스턴스{" "}
+                        {ticket.instances.length}개
+                      </p>
+                    </div>
+                    {ticket.status === "pending" &&
+                      (ready && canExecute ? (
+                        <button
+                          type="button"
+                          onClick={() => void runOneTicket(ticket.id)}
+                          disabled={running}
+                          className="shrink-0 rounded-control border border-line px-1.5 py-0.5 text-xs text-content hover:bg-hover disabled:opacity-50"
+                        >
+                          전달
+                        </button>
+                      ) : (
+                        <span className="shrink-0 rounded-control bg-surface px-1.5 py-0.5 text-xs text-content-muted">
+                          {ready ? "전달 가능" : "의존 대기"}
+                        </span>
+                      ))}
+                    {ticket.status === "in-progress" && (
+                      <span className="shrink-0 rounded-control bg-surface px-1.5 py-0.5 text-xs text-content-muted">
+                        전달됨…
+                      </span>
+                    )}
+                  </div>
+
+                  {ticket.dependsOn.length > 0 && (
+                    <p className="mt-2 text-xs text-content-muted">
+                      선행: {ticket.dependsOn.join(", ")}
+                    </p>
+                  )}
+
+                  {ticket.status === "failed" && ticket.error !== undefined && (
+                    <p className="mt-2 text-xs text-error">{ticket.error}</p>
+                  )}
+
+                  <label className="mt-2 flex items-center gap-2 text-xs text-content-muted">
+                    상태
+                    <select
+                      disabled={!!projectPlan && running}
+                      value={ticket.status}
+                      onChange={(event) =>
+                        markStatus(ticket.id, event.target.value as TicketStatus)
+                      }
+                      className="min-w-0 flex-1 rounded-control border border-line bg-surface px-2 py-1 text-content"
+                    >
+                      {Object.entries(STATUS_LABEL).map(([status, label]) => (
+                        <option key={status} value={status} disabled={!!projectPlan && (status==='done'||status==='in-progress')}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+
+      {acceptanceWarning !== null && !isStale && (
+        <p role="alert" className="border-t border-line px-3 py-2 text-xs text-error">
+          {acceptanceWarning}
+        </p>
+      )}
+
+      {/* 마지막 적용 되돌리기(#282). 적용이 쓴 바이트가 그대로인 파일만 백업으로 돌려놓는다 —
+          그 뒤 다시 고친 파일은 더 새로운 수정이라 건드리지 않는다. */}
+      {projectPlan && !running && <div className="border-t border-line px-3 py-2 text-xs text-content-muted">
+        <button type="button" disabled={isStale} onClick={()=>void discoverPendingProjectRun()} className="underline hover:text-content disabled:opacity-50">미완료 적용 확인</button>
+      </div>}
+      {projectPlan && lastProjectRun && !running && <div className="border-t border-line px-3 py-2 text-xs text-content-muted">
+        <button type="button" onClick={()=>void restoreLastRun()} className="underline hover:text-content">마지막 프로젝트 적용 되돌리기</button>
+      </div>}
+      {(!projectPlan && lastRun !== null && !running) || restoreMessage !== null ? (
+        <div className="flex flex-col gap-1 border-t border-line px-3 py-2 text-xs text-content-muted">
+          {!projectPlan && lastRun !== null && !running && (
+            <span>
+              마지막 적용이 파일 {lastRun.paths.length}개를 바꿨습니다(백업: <code>{lastRun.backupRoot}/</code>).{" "}
+              <button type="button" onClick={() => void restoreLastRun()} className="underline hover:text-content">
+                마지막 적용 되돌리기
+              </button>
+            </span>
+          )}
+          {restoreMessage !== null && <span role="alert">{restoreMessage}</span>}
+        </div>
+      ) : null}
+
+      {/* 쓰기 전 확인(#282)은 조작 영역이라 알림 영역(role=status) 밖에 둔다. */}
+      {overwriteReview !== null && (
+        <div className="border-t border-line px-3 py-2">
+          <OverwriteReviewPanel key={overwriteReview.requestId} review={overwriteReview} onAnswer={answerOverwriteReview} />
+        </div>
+      )}
+
+      <div role="status" aria-live="polite" className="border-t border-line px-3 py-2 text-xs">
+        {overwriteReview !== null ? (
+          <span className="text-content-muted">
+            응답을 받았습니다. 위에서 기존 파일을 보존할지 덮어쓸지 고르면 적용합니다.
+          </span>
+        ) : workspaceAvailable !== true ? (
+          <span className="text-content-muted">
+            A안: 계획과 상태만 표시합니다. 실제 코드는 외부 에이전트가 생성합니다.
+          </span>
+        ) : runError !== null && !isStale ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-error">{runError}</span>
+            {/* timeout일 때만 보여준다(#283 리뷰 대응) — timeout이면 GUI 폴링은
+                이미 끝나고 요청 잠금도 풀려서, 지금 지시를 복사해 에이전트에 줘도
+                GUI가 응답을 받을 리스너가 없다. unavailable·busy처럼 애초에 요청이
+                안 쓰였거나 다른 탭이 잠금을 쥔 경우는 이 안내가 실제 원인과 안
+                맞아 보여주지 않는다(`ticketRunner.ts`의 `runErrorRetryable` 참고).
+                위쪽 "에이전트에 전달"을 다시 눌러야 readyWave가 되돌아간 티켓을
+                다시 포함한 새 요청이 생기고, 그다음 지시 복사(= `running` 분기의
+                복사 버튼)가 뜻이 있다. */}
+            {runErrorRetryable && (
+              <span className="text-content-muted">
+                다시 전달하려면 위쪽 "에이전트에 전달"을 다시 눌러 새 요청을 만든
+                뒤 그 지시를 에이전트에 전달하세요. 새 요청은 새 ID로 나가며, 이전
+                요청이 늦게 쓴 응답·파일은 반영하지 않습니다.
+              </span>
+            )}
+            {/* timeout 메시지는 원시 경로를 더 이상 담지 않는다(#283, ticketAgentClient.ts) —
+                실패 상태에서도 "자세히"로 같은 정보를 볼 수 있어야 한다. */}
+            <HandoffDetails
+              requestPath={TICKET_REQUEST_PATH}
+              responsePath={TICKET_RESPONSE_PATH}
+              workspaceRoot={workspaceRoot}
+            />
+          </div>
+        ) : running ? (
+          <AgentWaitStatus
+            progress={wait}
+            instruction={buildTicketAgentInstruction(projectPlan ? projectTicketProtocol(projectPlan) : 3)}
+            requestPath={TICKET_REQUEST_PATH}
+            responsePath={TICKET_RESPONSE_PATH}
+            workspaceRoot={workspaceRoot}
+            expectedOutputs={waveSize}
+            onExtend={extendTicketWait}
+          />
+        ) : tickets.length === 0 ? null : isAllDone(tickets) && !isStale ? (
+          <span className="text-content-muted">
+            모든 티켓이 완료됐습니다. 다음:{" "}
+            <button type="button" onClick={openExportPanel} className="underline hover:text-content">
+              코드 내보내기에서 결과 확인
+            </button>
+          </span>
+        ) : canExecute && readyWave.length > 0 ? (
+          // 지시 복사 버튼을 여기 두지 않는다(#283 리뷰 대응) — 이 지시문은
+          // "현재 ticket-request.json을 처리해 줘"라고 말하는데, 이 분기는 그
+          // 파일을 아직 쓰기 전(또는 이전 웨이브 분이 잠금 해제로 이미 지워진
+          // 뒤)이다. 지금 복사해 에이전트에 먼저 붙여 넣으면 에이전트가 없는
+          // 파일을 찾는다. "에이전트에 전달"을 눌러야(= 파일을 쓴 뒤) `running`
+          // 분기의 복사 버튼이 뜻이 있다.
+          <span className="text-content-muted">
+            웨이브 {readyWave.length}개 티켓이 전달 준비됐습니다.
+            {workspaceRoot !== null && <> 작업공간: <code>{workspaceRoot}</code>.</>}
+          </span>
+        ) : !isStale ? (
+          // 원인을 하나로 단정하지 않는다(#283 리뷰 대응) — readyWave가 비는 건
+          // 의존 중인 선행 티켓이 남아서일 수도, 의존이 없는 티켓이 실패해서일
+          // 수도 있다(실패는 "대기"가 아니라서 readyTickets에서 바로 빠진다).
+          // "의존 때문"이라고 단정하면 실패를 고치러 온 사용자에게 틀린 원인을
+          // 가리킨다.
+          <span className="text-content-muted">
+            지금 전달할 수 있는 티켓이 없습니다. 의존 중인 선행 티켓이 남아 있거나
+            실패한 티켓이 있는지 확인하세요.
+          </span>
+        ) : null}
+      </div>
+    </aside>
+  );
+}

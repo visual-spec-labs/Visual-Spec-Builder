@@ -1,0 +1,6225 @@
+{
+  "method": "실제 GUI 아트보드 DOM 대 지정한 생성 결과(C:/temp/vsb-292-real/export/landing/untitled), 스펙 C:/temp/vsb-292-real/ws/.visual-spec/specs/real-flow.json",
+  "environment": {
+    "platform": "win32",
+    "node": "v24.12.0",
+    "chromium": "151.0.7922.34",
+    "devicePixelRatio": 1,
+    "editorWindow": {
+      "width": 1920,
+      "height": 1080
+    },
+    "fontCss": [
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css"
+    ],
+    "fontCssSha256": "a9d3417e168d008424337e8ee2df7b54ff082a57ed61e28421db681437cd67a2",
+    "fontFilesFetched": 30,
+    "fontRequestsServed": 199,
+    "fontFailures": []
+  },
+  "summary": {
+    "pass": 8,
+    "expected-fail": 0,
+    "fail": 0,
+    "unexpected-pass": 0,
+    "invalid": 0
+  },
+  "results": [
+    {
+      "case": "Landing",
+      "page": "page-1",
+      "viewport": {
+        "width": 360,
+        "height": 900
+      },
+      "verdict": "pass",
+      "measurements": {
+        "gui": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 360,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/loaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 360,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 360,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 108,
+              "width": 312,
+              "height": 104,
+              "lines": 2
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 360,
+              "height": 434
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 312,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 270,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 270,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 24,
+              "y": 488,
+              "width": 312,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 45,
+              "y": 509,
+              "width": 270,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 45,
+              "y": 543,
+              "width": 270,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 24,
+              "y": 624,
+              "width": 312,
+              "height": 98
+            },
+            "featureTitle3": {
+              "x": 45,
+              "y": 645,
+              "width": 270,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 45,
+              "y": 679,
+              "width": 270,
+              "height": 22,
+              "lines": 1
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 360,
+            "height": 900,
+            "scrollHeight": 900
+          },
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        },
+        "generated": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 360,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 360,
+              "height": 900
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 360,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 360,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 108,
+              "width": 312,
+              "height": 104,
+              "lines": 2
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 360,
+              "height": 434
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 312,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 270,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 270,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 24,
+              "y": 488,
+              "width": 312,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 45,
+              "y": 509,
+              "width": 270,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 45,
+              "y": 543,
+              "width": 270,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 24,
+              "y": 624,
+              "width": 312,
+              "height": 98
+            },
+            "featureTitle3": {
+              "x": 45,
+              "y": 645,
+              "width": 270,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 45,
+              "y": 679,
+              "width": 270,
+              "height": 22,
+              "lines": 1
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 360,
+            "height": 900,
+            "scrollHeight": 900,
+            "documentScrollHeight": 900
+          },
+          "documentScrollHeight": 900,
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        }
+      },
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 360,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 360,
+          "height": 900
+        }
+      },
+      "shell": {
+        "gui": {
+          "width": 360,
+          "height": 900,
+          "scrollHeight": 900
+        },
+        "generated": {
+          "width": 360,
+          "height": 900,
+          "scrollHeight": 900,
+          "documentScrollHeight": 900
+        }
+      },
+      "documentScrollHeight": 900,
+      "nodesCompared": 13,
+      "zoomCheck": {
+        "canvasZoomPercent": 75,
+        "maxDelta": 0
+      },
+      "maxDelta": 0,
+      "lines": {
+        "heroTitle": [
+          2,
+          2
+        ],
+        "featureTitle1": [
+          1,
+          1
+        ],
+        "featureDesc1": [
+          2,
+          2
+        ],
+        "featureTitle2": [
+          1,
+          1
+        ],
+        "featureDesc2": [
+          2,
+          2
+        ],
+        "featureTitle3": [
+          1,
+          1
+        ],
+        "featureDesc3": [
+          1,
+          1
+        ]
+      },
+      "placeholders": {
+        "gui": {},
+        "generated": {}
+      },
+      "images": {
+        "gui": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        },
+        "generated": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        }
+      },
+      "renderedFonts": {
+        "gui": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "generated": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "unavailable": []
+      },
+      "hiddenNodeIds": {
+        "gui": [],
+        "generated": []
+      },
+      "rows": [
+        {
+          "id": "featureCard1",
+          "gui": {
+            "x": 24,
+            "y": 352,
+            "width": 312,
+            "height": 120
+          },
+          "generated": {
+            "x": 24,
+            "y": 352,
+            "width": 312,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard2",
+          "gui": {
+            "x": 24,
+            "y": 488,
+            "width": 312,
+            "height": 120
+          },
+          "generated": {
+            "x": 24,
+            "y": 488,
+            "width": 312,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard3",
+          "gui": {
+            "x": 24,
+            "y": 624,
+            "width": 312,
+            "height": 98
+          },
+          "generated": {
+            "x": 24,
+            "y": 624,
+            "width": 312,
+            "height": 98
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc1",
+          "gui": {
+            "x": 45,
+            "y": 407,
+            "width": 270,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 45,
+            "y": 407,
+            "width": 270,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc2",
+          "gui": {
+            "x": 45,
+            "y": 543,
+            "width": 270,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 45,
+            "y": 543,
+            "width": 270,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc3",
+          "gui": {
+            "x": 45,
+            "y": 679,
+            "width": 270,
+            "height": 22,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 679,
+            "width": 270,
+            "height": 22,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle1",
+          "gui": {
+            "x": 45,
+            "y": 373,
+            "width": 270,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 373,
+            "width": 270,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle2",
+          "gui": {
+            "x": 45,
+            "y": 509,
+            "width": 270,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 509,
+            "width": 270,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle3",
+          "gui": {
+            "x": 45,
+            "y": 645,
+            "width": 270,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 645,
+            "width": 270,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "features",
+          "gui": {
+            "x": 0,
+            "y": 320,
+            "width": 360,
+            "height": 434
+          },
+          "generated": {
+            "x": 0,
+            "y": 320,
+            "width": 360,
+            "height": 434
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "hero",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 360,
+            "height": 320
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 360,
+            "height": 320
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "heroTitle",
+          "gui": {
+            "x": 24,
+            "y": 108,
+            "width": 312,
+            "height": 104,
+            "lines": 2
+          },
+          "generated": {
+            "x": 24,
+            "y": 108,
+            "width": 312,
+            "height": 104,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "root",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 360,
+            "height": 900
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 360,
+            "height": 900
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "loadErrors": [],
+      "errors": []
+    },
+    {
+      "case": "Landing",
+      "page": "page-1",
+      "viewport": {
+        "width": 767,
+        "height": 900
+      },
+      "verdict": "pass",
+      "measurements": {
+        "gui": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 767,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/loaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 767,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 767,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 134,
+              "width": 719,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 767,
+              "height": 390
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 719,
+              "height": 98
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 677,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 677,
+              "height": 22,
+              "lines": 1
+            },
+            "featureCard2": {
+              "x": 24,
+              "y": 466,
+              "width": 719,
+              "height": 98
+            },
+            "featureTitle2": {
+              "x": 45,
+              "y": 487,
+              "width": 677,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 45,
+              "y": 521,
+              "width": 677,
+              "height": 22,
+              "lines": 1
+            },
+            "featureCard3": {
+              "x": 24,
+              "y": 580,
+              "width": 719,
+              "height": 98
+            },
+            "featureTitle3": {
+              "x": 45,
+              "y": 601,
+              "width": 677,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 45,
+              "y": 635,
+              "width": 677,
+              "height": 22,
+              "lines": 1
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 767,
+            "height": 900,
+            "scrollHeight": 900
+          },
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        },
+        "generated": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 767,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 767,
+              "height": 900
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 767,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 767,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 134,
+              "width": 719,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 767,
+              "height": 390
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 719,
+              "height": 98
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 677,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 677,
+              "height": 22,
+              "lines": 1
+            },
+            "featureCard2": {
+              "x": 24,
+              "y": 466,
+              "width": 719,
+              "height": 98
+            },
+            "featureTitle2": {
+              "x": 45,
+              "y": 487,
+              "width": 677,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 45,
+              "y": 521,
+              "width": 677,
+              "height": 22,
+              "lines": 1
+            },
+            "featureCard3": {
+              "x": 24,
+              "y": 580,
+              "width": 719,
+              "height": 98
+            },
+            "featureTitle3": {
+              "x": 45,
+              "y": 601,
+              "width": 677,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 45,
+              "y": 635,
+              "width": 677,
+              "height": 22,
+              "lines": 1
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 767,
+            "height": 900,
+            "scrollHeight": 900,
+            "documentScrollHeight": 900
+          },
+          "documentScrollHeight": 900,
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        }
+      },
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 767,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 767,
+          "height": 900
+        }
+      },
+      "shell": {
+        "gui": {
+          "width": 767,
+          "height": 900,
+          "scrollHeight": 900
+        },
+        "generated": {
+          "width": 767,
+          "height": 900,
+          "scrollHeight": 900,
+          "documentScrollHeight": 900
+        }
+      },
+      "documentScrollHeight": 900,
+      "nodesCompared": 13,
+      "maxDelta": 0,
+      "lines": {
+        "heroTitle": [
+          1,
+          1
+        ],
+        "featureTitle1": [
+          1,
+          1
+        ],
+        "featureDesc1": [
+          1,
+          1
+        ],
+        "featureTitle2": [
+          1,
+          1
+        ],
+        "featureDesc2": [
+          1,
+          1
+        ],
+        "featureTitle3": [
+          1,
+          1
+        ],
+        "featureDesc3": [
+          1,
+          1
+        ]
+      },
+      "placeholders": {
+        "gui": {},
+        "generated": {}
+      },
+      "images": {
+        "gui": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        },
+        "generated": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        }
+      },
+      "renderedFonts": {
+        "gui": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "generated": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "unavailable": []
+      },
+      "hiddenNodeIds": {
+        "gui": [],
+        "generated": []
+      },
+      "rows": [
+        {
+          "id": "featureCard1",
+          "gui": {
+            "x": 24,
+            "y": 352,
+            "width": 719,
+            "height": 98
+          },
+          "generated": {
+            "x": 24,
+            "y": 352,
+            "width": 719,
+            "height": 98
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard2",
+          "gui": {
+            "x": 24,
+            "y": 466,
+            "width": 719,
+            "height": 98
+          },
+          "generated": {
+            "x": 24,
+            "y": 466,
+            "width": 719,
+            "height": 98
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard3",
+          "gui": {
+            "x": 24,
+            "y": 580,
+            "width": 719,
+            "height": 98
+          },
+          "generated": {
+            "x": 24,
+            "y": 580,
+            "width": 719,
+            "height": 98
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc1",
+          "gui": {
+            "x": 45,
+            "y": 407,
+            "width": 677,
+            "height": 22,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 407,
+            "width": 677,
+            "height": 22,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc2",
+          "gui": {
+            "x": 45,
+            "y": 521,
+            "width": 677,
+            "height": 22,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 521,
+            "width": 677,
+            "height": 22,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc3",
+          "gui": {
+            "x": 45,
+            "y": 635,
+            "width": 677,
+            "height": 22,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 635,
+            "width": 677,
+            "height": 22,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle1",
+          "gui": {
+            "x": 45,
+            "y": 373,
+            "width": 677,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 373,
+            "width": 677,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle2",
+          "gui": {
+            "x": 45,
+            "y": 487,
+            "width": 677,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 487,
+            "width": 677,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle3",
+          "gui": {
+            "x": 45,
+            "y": 601,
+            "width": 677,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 601,
+            "width": 677,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "features",
+          "gui": {
+            "x": 0,
+            "y": 320,
+            "width": 767,
+            "height": 390
+          },
+          "generated": {
+            "x": 0,
+            "y": 320,
+            "width": 767,
+            "height": 390
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "hero",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 767,
+            "height": 320
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 767,
+            "height": 320
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "heroTitle",
+          "gui": {
+            "x": 24,
+            "y": 134,
+            "width": 719,
+            "height": 52,
+            "lines": 1
+          },
+          "generated": {
+            "x": 24,
+            "y": 134,
+            "width": 719,
+            "height": 52,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "root",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 767,
+            "height": 900
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 767,
+            "height": 900
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "loadErrors": [],
+      "errors": []
+    },
+    {
+      "case": "Landing",
+      "page": "page-1",
+      "viewport": {
+        "width": 768,
+        "height": 900
+      },
+      "verdict": "pass",
+      "measurements": {
+        "gui": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 768,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/loaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 134,
+              "width": 720,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 768,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 229.328125,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 187.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 187.328125,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 269.328125,
+              "y": 352,
+              "width": 229.34375,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 290.328125,
+              "y": 373,
+              "width": 187.34375,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 290.328125,
+              "y": 407,
+              "width": 187.34375,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 514.671875,
+              "y": 352,
+              "width": 229.328125,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 535.671875,
+              "y": 373,
+              "width": 187.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 535.671875,
+              "y": 407,
+              "width": 187.328125,
+              "height": 44,
+              "lines": 2
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 768,
+            "height": 900,
+            "scrollHeight": 900
+          },
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        },
+        "generated": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 768,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 768,
+              "height": 900
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 134,
+              "width": 720,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 768,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 229.328125,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 187.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 187.328125,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 269.328125,
+              "y": 352,
+              "width": 229.34375,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 290.328125,
+              "y": 373,
+              "width": 187.34375,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 290.328125,
+              "y": 407,
+              "width": 187.34375,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 514.671875,
+              "y": 352,
+              "width": 229.328125,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 535.671875,
+              "y": 373,
+              "width": 187.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 535.671875,
+              "y": 407,
+              "width": 187.328125,
+              "height": 44,
+              "lines": 2
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 768,
+            "height": 900,
+            "scrollHeight": 900,
+            "documentScrollHeight": 900
+          },
+          "documentScrollHeight": 900,
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        }
+      },
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 900
+        }
+      },
+      "shell": {
+        "gui": {
+          "width": 768,
+          "height": 900,
+          "scrollHeight": 900
+        },
+        "generated": {
+          "width": 768,
+          "height": 900,
+          "scrollHeight": 900,
+          "documentScrollHeight": 900
+        }
+      },
+      "documentScrollHeight": 900,
+      "nodesCompared": 13,
+      "maxDelta": 0,
+      "lines": {
+        "heroTitle": [
+          1,
+          1
+        ],
+        "featureTitle1": [
+          1,
+          1
+        ],
+        "featureDesc1": [
+          2,
+          2
+        ],
+        "featureTitle2": [
+          1,
+          1
+        ],
+        "featureDesc2": [
+          2,
+          2
+        ],
+        "featureTitle3": [
+          1,
+          1
+        ],
+        "featureDesc3": [
+          2,
+          2
+        ]
+      },
+      "placeholders": {
+        "gui": {},
+        "generated": {}
+      },
+      "images": {
+        "gui": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        },
+        "generated": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        }
+      },
+      "renderedFonts": {
+        "gui": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "generated": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "unavailable": []
+      },
+      "hiddenNodeIds": {
+        "gui": [],
+        "generated": []
+      },
+      "rows": [
+        {
+          "id": "featureCard1",
+          "gui": {
+            "x": 24,
+            "y": 352,
+            "width": 229.328125,
+            "height": 120
+          },
+          "generated": {
+            "x": 24,
+            "y": 352,
+            "width": 229.328125,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard2",
+          "gui": {
+            "x": 269.328125,
+            "y": 352,
+            "width": 229.34375,
+            "height": 120
+          },
+          "generated": {
+            "x": 269.328125,
+            "y": 352,
+            "width": 229.34375,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard3",
+          "gui": {
+            "x": 514.671875,
+            "y": 352,
+            "width": 229.328125,
+            "height": 120
+          },
+          "generated": {
+            "x": 514.671875,
+            "y": 352,
+            "width": 229.328125,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc1",
+          "gui": {
+            "x": 45,
+            "y": 407,
+            "width": 187.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 45,
+            "y": 407,
+            "width": 187.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc2",
+          "gui": {
+            "x": 290.328125,
+            "y": 407,
+            "width": 187.34375,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 290.328125,
+            "y": 407,
+            "width": 187.34375,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc3",
+          "gui": {
+            "x": 535.671875,
+            "y": 407,
+            "width": 187.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 535.671875,
+            "y": 407,
+            "width": 187.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle1",
+          "gui": {
+            "x": 45,
+            "y": 373,
+            "width": 187.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 373,
+            "width": 187.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle2",
+          "gui": {
+            "x": 290.328125,
+            "y": 373,
+            "width": 187.34375,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 290.328125,
+            "y": 373,
+            "width": 187.34375,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle3",
+          "gui": {
+            "x": 535.671875,
+            "y": 373,
+            "width": 187.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 535.671875,
+            "y": 373,
+            "width": 187.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "features",
+          "gui": {
+            "x": 0,
+            "y": 320,
+            "width": 768,
+            "height": 184
+          },
+          "generated": {
+            "x": 0,
+            "y": 320,
+            "width": 768,
+            "height": 184
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "hero",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 768,
+            "height": 320
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 768,
+            "height": 320
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "heroTitle",
+          "gui": {
+            "x": 24,
+            "y": 134,
+            "width": 720,
+            "height": 52,
+            "lines": 1
+          },
+          "generated": {
+            "x": 24,
+            "y": 134,
+            "width": 720,
+            "height": 52,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "root",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 768,
+            "height": 900
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 768,
+            "height": 900
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "loadErrors": [],
+      "errors": []
+    },
+    {
+      "case": "Landing",
+      "page": "page-1",
+      "viewport": {
+        "width": 769,
+        "height": 900
+      },
+      "verdict": "pass",
+      "measurements": {
+        "gui": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 769,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/loaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 769,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 769,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 134,
+              "width": 721,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 769,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 229.65625,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 187.65625,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 187.65625,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 269.65625,
+              "y": 352,
+              "width": 229.671875,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 290.65625,
+              "y": 373,
+              "width": 187.671875,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 290.65625,
+              "y": 407,
+              "width": 187.671875,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 515.328125,
+              "y": 352,
+              "width": 229.671875,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 536.328125,
+              "y": 373,
+              "width": 187.671875,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 536.328125,
+              "y": 407,
+              "width": 187.671875,
+              "height": 44,
+              "lines": 2
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 769,
+            "height": 900,
+            "scrollHeight": 900
+          },
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        },
+        "generated": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 769,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 769,
+              "height": 900
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 769,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 769,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 134,
+              "width": 721,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 769,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 229.65625,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 187.65625,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 187.65625,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 269.65625,
+              "y": 352,
+              "width": 229.671875,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 290.65625,
+              "y": 373,
+              "width": 187.671875,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 290.65625,
+              "y": 407,
+              "width": 187.671875,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 515.328125,
+              "y": 352,
+              "width": 229.671875,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 536.328125,
+              "y": 373,
+              "width": 187.671875,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 536.328125,
+              "y": 407,
+              "width": 187.671875,
+              "height": 44,
+              "lines": 2
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 769,
+            "height": 900,
+            "scrollHeight": 900,
+            "documentScrollHeight": 900
+          },
+          "documentScrollHeight": 900,
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        }
+      },
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 769,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 769,
+          "height": 900
+        }
+      },
+      "shell": {
+        "gui": {
+          "width": 769,
+          "height": 900,
+          "scrollHeight": 900
+        },
+        "generated": {
+          "width": 769,
+          "height": 900,
+          "scrollHeight": 900,
+          "documentScrollHeight": 900
+        }
+      },
+      "documentScrollHeight": 900,
+      "nodesCompared": 13,
+      "maxDelta": 0,
+      "lines": {
+        "heroTitle": [
+          1,
+          1
+        ],
+        "featureTitle1": [
+          1,
+          1
+        ],
+        "featureDesc1": [
+          2,
+          2
+        ],
+        "featureTitle2": [
+          1,
+          1
+        ],
+        "featureDesc2": [
+          2,
+          2
+        ],
+        "featureTitle3": [
+          1,
+          1
+        ],
+        "featureDesc3": [
+          2,
+          2
+        ]
+      },
+      "placeholders": {
+        "gui": {},
+        "generated": {}
+      },
+      "images": {
+        "gui": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        },
+        "generated": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        }
+      },
+      "renderedFonts": {
+        "gui": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "generated": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "unavailable": []
+      },
+      "hiddenNodeIds": {
+        "gui": [],
+        "generated": []
+      },
+      "rows": [
+        {
+          "id": "featureCard1",
+          "gui": {
+            "x": 24,
+            "y": 352,
+            "width": 229.65625,
+            "height": 120
+          },
+          "generated": {
+            "x": 24,
+            "y": 352,
+            "width": 229.65625,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard2",
+          "gui": {
+            "x": 269.65625,
+            "y": 352,
+            "width": 229.671875,
+            "height": 120
+          },
+          "generated": {
+            "x": 269.65625,
+            "y": 352,
+            "width": 229.671875,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard3",
+          "gui": {
+            "x": 515.328125,
+            "y": 352,
+            "width": 229.671875,
+            "height": 120
+          },
+          "generated": {
+            "x": 515.328125,
+            "y": 352,
+            "width": 229.671875,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc1",
+          "gui": {
+            "x": 45,
+            "y": 407,
+            "width": 187.65625,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 45,
+            "y": 407,
+            "width": 187.65625,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc2",
+          "gui": {
+            "x": 290.65625,
+            "y": 407,
+            "width": 187.671875,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 290.65625,
+            "y": 407,
+            "width": 187.671875,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc3",
+          "gui": {
+            "x": 536.328125,
+            "y": 407,
+            "width": 187.671875,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 536.328125,
+            "y": 407,
+            "width": 187.671875,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle1",
+          "gui": {
+            "x": 45,
+            "y": 373,
+            "width": 187.65625,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 373,
+            "width": 187.65625,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle2",
+          "gui": {
+            "x": 290.65625,
+            "y": 373,
+            "width": 187.671875,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 290.65625,
+            "y": 373,
+            "width": 187.671875,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle3",
+          "gui": {
+            "x": 536.328125,
+            "y": 373,
+            "width": 187.671875,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 536.328125,
+            "y": 373,
+            "width": 187.671875,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "features",
+          "gui": {
+            "x": 0,
+            "y": 320,
+            "width": 769,
+            "height": 184
+          },
+          "generated": {
+            "x": 0,
+            "y": 320,
+            "width": 769,
+            "height": 184
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "hero",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 769,
+            "height": 320
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 769,
+            "height": 320
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "heroTitle",
+          "gui": {
+            "x": 24,
+            "y": 134,
+            "width": 721,
+            "height": 52,
+            "lines": 1
+          },
+          "generated": {
+            "x": 24,
+            "y": 134,
+            "width": 721,
+            "height": 52,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "root",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 769,
+            "height": 900
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 769,
+            "height": 900
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "loadErrors": [],
+      "errors": []
+    },
+    {
+      "case": "Landing",
+      "page": "page-1",
+      "viewport": {
+        "width": 1023,
+        "height": 900
+      },
+      "verdict": "pass",
+      "measurements": {
+        "gui": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 1023,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/loaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 1023,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 1023,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 134,
+              "width": 975,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 1023,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 314.328125,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 272.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 272.328125,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 354.328125,
+              "y": 352,
+              "width": 314.34375,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 375.328125,
+              "y": 373,
+              "width": 272.34375,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 375.328125,
+              "y": 407,
+              "width": 272.34375,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 684.671875,
+              "y": 352,
+              "width": 314.328125,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 705.671875,
+              "y": 373,
+              "width": 272.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 705.671875,
+              "y": 407,
+              "width": 272.328125,
+              "height": 22,
+              "lines": 1
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 1023,
+            "height": 900,
+            "scrollHeight": 900
+          },
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        },
+        "generated": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 1023,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1023,
+              "height": 900
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 1023,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 1023,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 24,
+              "y": 134,
+              "width": 975,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 1023,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 24,
+              "y": 352,
+              "width": 314.328125,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 45,
+              "y": 373,
+              "width": 272.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 45,
+              "y": 407,
+              "width": 272.328125,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 354.328125,
+              "y": 352,
+              "width": 314.34375,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 375.328125,
+              "y": 373,
+              "width": 272.34375,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 375.328125,
+              "y": 407,
+              "width": 272.34375,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 684.671875,
+              "y": 352,
+              "width": 314.328125,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 705.671875,
+              "y": 373,
+              "width": 272.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 705.671875,
+              "y": 407,
+              "width": 272.328125,
+              "height": 22,
+              "lines": 1
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 1023,
+            "height": 900,
+            "scrollHeight": 900,
+            "documentScrollHeight": 900
+          },
+          "documentScrollHeight": 900,
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        }
+      },
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1023,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1023,
+          "height": 900
+        }
+      },
+      "shell": {
+        "gui": {
+          "width": 1023,
+          "height": 900,
+          "scrollHeight": 900
+        },
+        "generated": {
+          "width": 1023,
+          "height": 900,
+          "scrollHeight": 900,
+          "documentScrollHeight": 900
+        }
+      },
+      "documentScrollHeight": 900,
+      "nodesCompared": 13,
+      "maxDelta": 0,
+      "lines": {
+        "heroTitle": [
+          1,
+          1
+        ],
+        "featureTitle1": [
+          1,
+          1
+        ],
+        "featureDesc1": [
+          2,
+          2
+        ],
+        "featureTitle2": [
+          1,
+          1
+        ],
+        "featureDesc2": [
+          2,
+          2
+        ],
+        "featureTitle3": [
+          1,
+          1
+        ],
+        "featureDesc3": [
+          1,
+          1
+        ]
+      },
+      "placeholders": {
+        "gui": {},
+        "generated": {}
+      },
+      "images": {
+        "gui": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        },
+        "generated": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        }
+      },
+      "renderedFonts": {
+        "gui": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "generated": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "unavailable": []
+      },
+      "hiddenNodeIds": {
+        "gui": [],
+        "generated": []
+      },
+      "rows": [
+        {
+          "id": "featureCard1",
+          "gui": {
+            "x": 24,
+            "y": 352,
+            "width": 314.328125,
+            "height": 120
+          },
+          "generated": {
+            "x": 24,
+            "y": 352,
+            "width": 314.328125,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard2",
+          "gui": {
+            "x": 354.328125,
+            "y": 352,
+            "width": 314.34375,
+            "height": 120
+          },
+          "generated": {
+            "x": 354.328125,
+            "y": 352,
+            "width": 314.34375,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard3",
+          "gui": {
+            "x": 684.671875,
+            "y": 352,
+            "width": 314.328125,
+            "height": 120
+          },
+          "generated": {
+            "x": 684.671875,
+            "y": 352,
+            "width": 314.328125,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc1",
+          "gui": {
+            "x": 45,
+            "y": 407,
+            "width": 272.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 45,
+            "y": 407,
+            "width": 272.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc2",
+          "gui": {
+            "x": 375.328125,
+            "y": 407,
+            "width": 272.34375,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 375.328125,
+            "y": 407,
+            "width": 272.34375,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc3",
+          "gui": {
+            "x": 705.671875,
+            "y": 407,
+            "width": 272.328125,
+            "height": 22,
+            "lines": 1
+          },
+          "generated": {
+            "x": 705.671875,
+            "y": 407,
+            "width": 272.328125,
+            "height": 22,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle1",
+          "gui": {
+            "x": 45,
+            "y": 373,
+            "width": 272.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 45,
+            "y": 373,
+            "width": 272.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle2",
+          "gui": {
+            "x": 375.328125,
+            "y": 373,
+            "width": 272.34375,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 375.328125,
+            "y": 373,
+            "width": 272.34375,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle3",
+          "gui": {
+            "x": 705.671875,
+            "y": 373,
+            "width": 272.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 705.671875,
+            "y": 373,
+            "width": 272.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "features",
+          "gui": {
+            "x": 0,
+            "y": 320,
+            "width": 1023,
+            "height": 184
+          },
+          "generated": {
+            "x": 0,
+            "y": 320,
+            "width": 1023,
+            "height": 184
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "hero",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 1023,
+            "height": 320
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 1023,
+            "height": 320
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "heroTitle",
+          "gui": {
+            "x": 24,
+            "y": 134,
+            "width": 975,
+            "height": 52,
+            "lines": 1
+          },
+          "generated": {
+            "x": 24,
+            "y": 134,
+            "width": 975,
+            "height": 52,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "root",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 1023,
+            "height": 900
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 1023,
+            "height": 900
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "loadErrors": [],
+      "errors": []
+    },
+    {
+      "case": "Landing",
+      "page": "page-1",
+      "viewport": {
+        "width": 1024,
+        "height": 900
+      },
+      "verdict": "pass",
+      "measurements": {
+        "gui": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 1024,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/loaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 1024,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 1024,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 64,
+              "y": 134,
+              "width": 896,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 1024,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 64,
+              "y": 352,
+              "width": 288,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 85,
+              "y": 373,
+              "width": 246,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 85,
+              "y": 407,
+              "width": 246,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 368,
+              "y": 352,
+              "width": 288,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 389,
+              "y": 373,
+              "width": 246,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 389,
+              "y": 407,
+              "width": 246,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 672,
+              "y": 352,
+              "width": 288,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 693,
+              "y": 373,
+              "width": 246,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 693,
+              "y": 407,
+              "width": 246,
+              "height": 44,
+              "lines": 2
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 1024,
+            "height": 900,
+            "scrollHeight": 900
+          },
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        },
+        "generated": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 1024,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1024,
+              "height": 900
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 1024,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 1024,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 64,
+              "y": 134,
+              "width": 896,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 1024,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 64,
+              "y": 352,
+              "width": 288,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 85,
+              "y": 373,
+              "width": 246,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 85,
+              "y": 407,
+              "width": 246,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 368,
+              "y": 352,
+              "width": 288,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 389,
+              "y": 373,
+              "width": 246,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 389,
+              "y": 407,
+              "width": 246,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 672,
+              "y": 352,
+              "width": 288,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 693,
+              "y": 373,
+              "width": 246,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 693,
+              "y": 407,
+              "width": 246,
+              "height": 44,
+              "lines": 2
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 1024,
+            "height": 900,
+            "scrollHeight": 900,
+            "documentScrollHeight": 900
+          },
+          "documentScrollHeight": 900,
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        }
+      },
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 900
+        }
+      },
+      "shell": {
+        "gui": {
+          "width": 1024,
+          "height": 900,
+          "scrollHeight": 900
+        },
+        "generated": {
+          "width": 1024,
+          "height": 900,
+          "scrollHeight": 900,
+          "documentScrollHeight": 900
+        }
+      },
+      "documentScrollHeight": 900,
+      "nodesCompared": 13,
+      "maxDelta": 0,
+      "lines": {
+        "heroTitle": [
+          1,
+          1
+        ],
+        "featureTitle1": [
+          1,
+          1
+        ],
+        "featureDesc1": [
+          2,
+          2
+        ],
+        "featureTitle2": [
+          1,
+          1
+        ],
+        "featureDesc2": [
+          2,
+          2
+        ],
+        "featureTitle3": [
+          1,
+          1
+        ],
+        "featureDesc3": [
+          2,
+          2
+        ]
+      },
+      "placeholders": {
+        "gui": {},
+        "generated": {}
+      },
+      "images": {
+        "gui": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        },
+        "generated": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        }
+      },
+      "renderedFonts": {
+        "gui": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "generated": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "unavailable": []
+      },
+      "hiddenNodeIds": {
+        "gui": [],
+        "generated": []
+      },
+      "rows": [
+        {
+          "id": "featureCard1",
+          "gui": {
+            "x": 64,
+            "y": 352,
+            "width": 288,
+            "height": 120
+          },
+          "generated": {
+            "x": 64,
+            "y": 352,
+            "width": 288,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard2",
+          "gui": {
+            "x": 368,
+            "y": 352,
+            "width": 288,
+            "height": 120
+          },
+          "generated": {
+            "x": 368,
+            "y": 352,
+            "width": 288,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard3",
+          "gui": {
+            "x": 672,
+            "y": 352,
+            "width": 288,
+            "height": 120
+          },
+          "generated": {
+            "x": 672,
+            "y": 352,
+            "width": 288,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc1",
+          "gui": {
+            "x": 85,
+            "y": 407,
+            "width": 246,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 85,
+            "y": 407,
+            "width": 246,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc2",
+          "gui": {
+            "x": 389,
+            "y": 407,
+            "width": 246,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 389,
+            "y": 407,
+            "width": 246,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc3",
+          "gui": {
+            "x": 693,
+            "y": 407,
+            "width": 246,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 693,
+            "y": 407,
+            "width": 246,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle1",
+          "gui": {
+            "x": 85,
+            "y": 373,
+            "width": 246,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 85,
+            "y": 373,
+            "width": 246,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle2",
+          "gui": {
+            "x": 389,
+            "y": 373,
+            "width": 246,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 389,
+            "y": 373,
+            "width": 246,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle3",
+          "gui": {
+            "x": 693,
+            "y": 373,
+            "width": 246,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 693,
+            "y": 373,
+            "width": 246,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "features",
+          "gui": {
+            "x": 0,
+            "y": 320,
+            "width": 1024,
+            "height": 184
+          },
+          "generated": {
+            "x": 0,
+            "y": 320,
+            "width": 1024,
+            "height": 184
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "hero",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 1024,
+            "height": 320
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 1024,
+            "height": 320
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "heroTitle",
+          "gui": {
+            "x": 64,
+            "y": 134,
+            "width": 896,
+            "height": 52,
+            "lines": 1
+          },
+          "generated": {
+            "x": 64,
+            "y": 134,
+            "width": 896,
+            "height": 52,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "root",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 1024,
+            "height": 900
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 1024,
+            "height": 900
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "loadErrors": [],
+      "errors": []
+    },
+    {
+      "case": "Landing",
+      "page": "page-1",
+      "viewport": {
+        "width": 1025,
+        "height": 900
+      },
+      "verdict": "pass",
+      "measurements": {
+        "gui": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 1025,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/loaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 1025,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 1025,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 64,
+              "y": 134,
+              "width": 897,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 1025,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 64,
+              "y": 352,
+              "width": 288.328125,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 85,
+              "y": 373,
+              "width": 246.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 85,
+              "y": 407,
+              "width": 246.328125,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 368.328125,
+              "y": 352,
+              "width": 288.34375,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 389.328125,
+              "y": 373,
+              "width": 246.34375,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 389.328125,
+              "y": 407,
+              "width": 246.34375,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 672.671875,
+              "y": 352,
+              "width": 288.328125,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 693.671875,
+              "y": 373,
+              "width": 246.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 693.671875,
+              "y": 407,
+              "width": 246.328125,
+              "height": 44,
+              "lines": 2
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 1025,
+            "height": 900,
+            "scrollHeight": 900
+          },
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        },
+        "generated": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 1025,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1025,
+              "height": 900
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 1025,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 1025,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 64,
+              "y": 134,
+              "width": 897,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 1025,
+              "height": 184
+            },
+            "featureCard1": {
+              "x": 64,
+              "y": 352,
+              "width": 288.328125,
+              "height": 120
+            },
+            "featureTitle1": {
+              "x": 85,
+              "y": 373,
+              "width": 246.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 85,
+              "y": 407,
+              "width": 246.328125,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard2": {
+              "x": 368.328125,
+              "y": 352,
+              "width": 288.34375,
+              "height": 120
+            },
+            "featureTitle2": {
+              "x": 389.328125,
+              "y": 373,
+              "width": 246.34375,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 389.328125,
+              "y": 407,
+              "width": 246.34375,
+              "height": 44,
+              "lines": 2
+            },
+            "featureCard3": {
+              "x": 672.671875,
+              "y": 352,
+              "width": 288.328125,
+              "height": 120
+            },
+            "featureTitle3": {
+              "x": 693.671875,
+              "y": 373,
+              "width": 246.328125,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 693.671875,
+              "y": 407,
+              "width": 246.328125,
+              "height": 44,
+              "lines": 2
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 1025,
+            "height": 900,
+            "scrollHeight": 900,
+            "documentScrollHeight": 900
+          },
+          "documentScrollHeight": 900,
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        }
+      },
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1025,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1025,
+          "height": 900
+        }
+      },
+      "shell": {
+        "gui": {
+          "width": 1025,
+          "height": 900,
+          "scrollHeight": 900
+        },
+        "generated": {
+          "width": 1025,
+          "height": 900,
+          "scrollHeight": 900,
+          "documentScrollHeight": 900
+        }
+      },
+      "documentScrollHeight": 900,
+      "nodesCompared": 13,
+      "maxDelta": 0,
+      "lines": {
+        "heroTitle": [
+          1,
+          1
+        ],
+        "featureTitle1": [
+          1,
+          1
+        ],
+        "featureDesc1": [
+          2,
+          2
+        ],
+        "featureTitle2": [
+          1,
+          1
+        ],
+        "featureDesc2": [
+          2,
+          2
+        ],
+        "featureTitle3": [
+          1,
+          1
+        ],
+        "featureDesc3": [
+          2,
+          2
+        ]
+      },
+      "placeholders": {
+        "gui": {},
+        "generated": {}
+      },
+      "images": {
+        "gui": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        },
+        "generated": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        }
+      },
+      "renderedFonts": {
+        "gui": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "generated": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "unavailable": []
+      },
+      "hiddenNodeIds": {
+        "gui": [],
+        "generated": []
+      },
+      "rows": [
+        {
+          "id": "featureCard1",
+          "gui": {
+            "x": 64,
+            "y": 352,
+            "width": 288.328125,
+            "height": 120
+          },
+          "generated": {
+            "x": 64,
+            "y": 352,
+            "width": 288.328125,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard2",
+          "gui": {
+            "x": 368.328125,
+            "y": 352,
+            "width": 288.34375,
+            "height": 120
+          },
+          "generated": {
+            "x": 368.328125,
+            "y": 352,
+            "width": 288.34375,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard3",
+          "gui": {
+            "x": 672.671875,
+            "y": 352,
+            "width": 288.328125,
+            "height": 120
+          },
+          "generated": {
+            "x": 672.671875,
+            "y": 352,
+            "width": 288.328125,
+            "height": 120
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc1",
+          "gui": {
+            "x": 85,
+            "y": 407,
+            "width": 246.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 85,
+            "y": 407,
+            "width": 246.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc2",
+          "gui": {
+            "x": 389.328125,
+            "y": 407,
+            "width": 246.34375,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 389.328125,
+            "y": 407,
+            "width": 246.34375,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc3",
+          "gui": {
+            "x": 693.671875,
+            "y": 407,
+            "width": 246.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "generated": {
+            "x": 693.671875,
+            "y": 407,
+            "width": 246.328125,
+            "height": 44,
+            "lines": 2
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle1",
+          "gui": {
+            "x": 85,
+            "y": 373,
+            "width": 246.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 85,
+            "y": 373,
+            "width": 246.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle2",
+          "gui": {
+            "x": 389.328125,
+            "y": 373,
+            "width": 246.34375,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 389.328125,
+            "y": 373,
+            "width": 246.34375,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle3",
+          "gui": {
+            "x": 693.671875,
+            "y": 373,
+            "width": 246.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 693.671875,
+            "y": 373,
+            "width": 246.328125,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "features",
+          "gui": {
+            "x": 0,
+            "y": 320,
+            "width": 1025,
+            "height": 184
+          },
+          "generated": {
+            "x": 0,
+            "y": 320,
+            "width": 1025,
+            "height": 184
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "hero",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 1025,
+            "height": 320
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 1025,
+            "height": 320
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "heroTitle",
+          "gui": {
+            "x": 64,
+            "y": 134,
+            "width": 897,
+            "height": 52,
+            "lines": 1
+          },
+          "generated": {
+            "x": 64,
+            "y": 134,
+            "width": 897,
+            "height": 52,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "root",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 1025,
+            "height": 900
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 1025,
+            "height": 900
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "loadErrors": [],
+      "errors": []
+    },
+    {
+      "case": "Landing",
+      "page": "page-1",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "verdict": "pass",
+      "measurements": {
+        "gui": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/loaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1920,
+              "height": 1080
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 64,
+              "y": 134,
+              "width": 1312,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 1440,
+              "height": 162
+            },
+            "featureCard1": {
+              "x": 64,
+              "y": 352,
+              "width": 426.65625,
+              "height": 98
+            },
+            "featureTitle1": {
+              "x": 85,
+              "y": 373,
+              "width": 384.65625,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 85,
+              "y": 407,
+              "width": 384.65625,
+              "height": 22,
+              "lines": 1
+            },
+            "featureCard2": {
+              "x": 506.65625,
+              "y": 352,
+              "width": 426.671875,
+              "height": 98
+            },
+            "featureTitle2": {
+              "x": 527.65625,
+              "y": 373,
+              "width": 384.671875,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 527.65625,
+              "y": 407,
+              "width": 384.671875,
+              "height": 22,
+              "lines": 1
+            },
+            "featureCard3": {
+              "x": 949.328125,
+              "y": 352,
+              "width": 426.671875,
+              "height": 98
+            },
+            "featureTitle3": {
+              "x": 970.328125,
+              "y": 373,
+              "width": 384.671875,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 970.328125,
+              "y": 407,
+              "width": 384.671875,
+              "height": 22,
+              "lines": 1
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 1440,
+            "height": 900,
+            "scrollHeight": 900
+          },
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        },
+        "generated": {
+          "rootId": "root",
+          "expectedFontIds": [
+            "featureDesc1",
+            "featureDesc2",
+            "featureDesc3",
+            "featureTitle1",
+            "featureTitle2",
+            "featureTitle3",
+            "heroTitle"
+          ],
+          "fontLoadErrors": [],
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "devicePixelRatio": 1,
+            "visualViewportScale": 1,
+            "canvasZoomPercent": 100,
+            "fontStatus": "loaded",
+            "fontFaces": [
+              "Pretendard/normal/100/unloaded",
+              "Pretendard/normal/200/unloaded",
+              "Pretendard/normal/300/unloaded",
+              "Pretendard/normal/400/loaded",
+              "Pretendard/normal/400/unloaded",
+              "Pretendard/normal/500/unloaded",
+              "Pretendard/normal/600/loaded",
+              "Pretendard/normal/600/unloaded",
+              "Pretendard/normal/700/loaded",
+              "Pretendard/normal/700/unloaded",
+              "Pretendard/normal/800/unloaded",
+              "Pretendard/normal/900/unloaded"
+            ],
+            "window": {
+              "width": 1440,
+              "height": 900
+            }
+          },
+          "nodes": {
+            "root": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900
+            },
+            "hero": {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 320
+            },
+            "heroTitle": {
+              "x": 64,
+              "y": 134,
+              "width": 1312,
+              "height": 52,
+              "lines": 1
+            },
+            "features": {
+              "x": 0,
+              "y": 320,
+              "width": 1440,
+              "height": 162
+            },
+            "featureCard1": {
+              "x": 64,
+              "y": 352,
+              "width": 426.65625,
+              "height": 98
+            },
+            "featureTitle1": {
+              "x": 85,
+              "y": 373,
+              "width": 384.65625,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc1": {
+              "x": 85,
+              "y": 407,
+              "width": 384.65625,
+              "height": 22,
+              "lines": 1
+            },
+            "featureCard2": {
+              "x": 506.65625,
+              "y": 352,
+              "width": 426.671875,
+              "height": 98
+            },
+            "featureTitle2": {
+              "x": 527.65625,
+              "y": 373,
+              "width": 384.671875,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc2": {
+              "x": 527.65625,
+              "y": 407,
+              "width": 384.671875,
+              "height": 22,
+              "lines": 1
+            },
+            "featureCard3": {
+              "x": 949.328125,
+              "y": 352,
+              "width": 426.671875,
+              "height": 98
+            },
+            "featureTitle3": {
+              "x": 970.328125,
+              "y": 373,
+              "width": 384.671875,
+              "height": 26,
+              "lines": 1
+            },
+            "featureDesc3": {
+              "x": 970.328125,
+              "y": 407,
+              "width": 384.671875,
+              "height": 22,
+              "lines": 1
+            }
+          },
+          "placeholders": {},
+          "images": {
+            "hero": {
+              "loaded": true,
+              "naturalWidth": 1200,
+              "naturalHeight": 600
+            }
+          },
+          "shell": {
+            "width": 1440,
+            "height": 900,
+            "scrollHeight": 900,
+            "documentScrollHeight": 900
+          },
+          "documentScrollHeight": 900,
+          "duplicateIds": [],
+          "emptyIds": 0,
+          "hiddenNodeIds": [],
+          "renderedFonts": {
+            "heroTitle": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle1": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc1": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle2": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc2": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ],
+            "featureTitle3": [
+              {
+                "familyName": "Pretendard SemiBold",
+                "isCustomFont": true
+              }
+            ],
+            "featureDesc3": [
+              {
+                "familyName": "Pretendard",
+                "isCustomFont": true
+              }
+            ]
+          },
+          "renderedFontsUnavailable": []
+        }
+      },
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 900
+        }
+      },
+      "shell": {
+        "gui": {
+          "width": 1440,
+          "height": 900,
+          "scrollHeight": 900
+        },
+        "generated": {
+          "width": 1440,
+          "height": 900,
+          "scrollHeight": 900,
+          "documentScrollHeight": 900
+        }
+      },
+      "documentScrollHeight": 900,
+      "nodesCompared": 13,
+      "maxDelta": 0,
+      "lines": {
+        "heroTitle": [
+          1,
+          1
+        ],
+        "featureTitle1": [
+          1,
+          1
+        ],
+        "featureDesc1": [
+          1,
+          1
+        ],
+        "featureTitle2": [
+          1,
+          1
+        ],
+        "featureDesc2": [
+          1,
+          1
+        ],
+        "featureTitle3": [
+          1,
+          1
+        ],
+        "featureDesc3": [
+          1,
+          1
+        ]
+      },
+      "placeholders": {
+        "gui": {},
+        "generated": {}
+      },
+      "images": {
+        "gui": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        },
+        "generated": {
+          "hero": {
+            "loaded": true,
+            "naturalWidth": 1200,
+            "naturalHeight": 600
+          }
+        }
+      },
+      "renderedFonts": {
+        "gui": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "generated": [
+          "Pretendard (web)",
+          "Pretendard SemiBold (web)"
+        ],
+        "unavailable": []
+      },
+      "hiddenNodeIds": {
+        "gui": [],
+        "generated": []
+      },
+      "rows": [
+        {
+          "id": "featureCard1",
+          "gui": {
+            "x": 64,
+            "y": 352,
+            "width": 426.65625,
+            "height": 98
+          },
+          "generated": {
+            "x": 64,
+            "y": 352,
+            "width": 426.65625,
+            "height": 98
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard2",
+          "gui": {
+            "x": 506.65625,
+            "y": 352,
+            "width": 426.671875,
+            "height": 98
+          },
+          "generated": {
+            "x": 506.65625,
+            "y": 352,
+            "width": 426.671875,
+            "height": 98
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureCard3",
+          "gui": {
+            "x": 949.328125,
+            "y": 352,
+            "width": 426.671875,
+            "height": 98
+          },
+          "generated": {
+            "x": 949.328125,
+            "y": 352,
+            "width": 426.671875,
+            "height": 98
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc1",
+          "gui": {
+            "x": 85,
+            "y": 407,
+            "width": 384.65625,
+            "height": 22,
+            "lines": 1
+          },
+          "generated": {
+            "x": 85,
+            "y": 407,
+            "width": 384.65625,
+            "height": 22,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc2",
+          "gui": {
+            "x": 527.65625,
+            "y": 407,
+            "width": 384.671875,
+            "height": 22,
+            "lines": 1
+          },
+          "generated": {
+            "x": 527.65625,
+            "y": 407,
+            "width": 384.671875,
+            "height": 22,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureDesc3",
+          "gui": {
+            "x": 970.328125,
+            "y": 407,
+            "width": 384.671875,
+            "height": 22,
+            "lines": 1
+          },
+          "generated": {
+            "x": 970.328125,
+            "y": 407,
+            "width": 384.671875,
+            "height": 22,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle1",
+          "gui": {
+            "x": 85,
+            "y": 373,
+            "width": 384.65625,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 85,
+            "y": 373,
+            "width": 384.65625,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle2",
+          "gui": {
+            "x": 527.65625,
+            "y": 373,
+            "width": 384.671875,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 527.65625,
+            "y": 373,
+            "width": 384.671875,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "featureTitle3",
+          "gui": {
+            "x": 970.328125,
+            "y": 373,
+            "width": 384.671875,
+            "height": 26,
+            "lines": 1
+          },
+          "generated": {
+            "x": 970.328125,
+            "y": 373,
+            "width": 384.671875,
+            "height": 26,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "features",
+          "gui": {
+            "x": 0,
+            "y": 320,
+            "width": 1440,
+            "height": 162
+          },
+          "generated": {
+            "x": 0,
+            "y": 320,
+            "width": 1440,
+            "height": 162
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "hero",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 320
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 320
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "heroTitle",
+          "gui": {
+            "x": 64,
+            "y": 134,
+            "width": 1312,
+            "height": 52,
+            "lines": 1
+          },
+          "generated": {
+            "x": 64,
+            "y": 134,
+            "width": 1312,
+            "height": 52,
+            "lines": 1
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "id": "root",
+          "gui": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 900
+          },
+          "generated": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 900
+          },
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "loadErrors": [],
+      "errors": []
+    }
+  ]
+}

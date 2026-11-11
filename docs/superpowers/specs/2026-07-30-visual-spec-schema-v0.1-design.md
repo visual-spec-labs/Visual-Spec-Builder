@@ -1,7 +1,7 @@
 # Visual Spec Schema v0.1 — 구현 설계
 
 작성일: 2026-07-30
-대상: `docs/VISUAL_SPEC_SCHEMA_V0.1.md`의 MVP 계약을 실제 JSON Schema와 TypeScript 타입으로 구현한다.
+대상: `docs/05-schema.md`의 MVP 계약을 실제 JSON Schema와 TypeScript 타입으로 구현한다.
 
 이 문서는 4개 에이전트가 병렬로 구현하기 위한 **단일 계약서**다.
 필드 하나라도 이 문서와 다르게 구현하면 통합이 깨진다.
@@ -10,14 +10,19 @@
 
 ## 1. 범위
 
+> **구현 후 변경 사항.** 팀 피드백에 따라 스키마 모듈을 `src/features/editor/schema/`로 옮기고
+> `Screen` 타입을 `ScreenSpec`으로 바꿨다. JSON 문서 구조는 그대로다.
+> 아래 본문의 `schema/`, `src/types.ts` 같은 경로는 설계 당시 기준이며,
+> 현재 위치와 확정된 계약은 `docs/06-schema-freeze.md`를 본다.
+
 구현한다.
 
-- `schema/visual-spec.schema.json` (JSON Schema draft 2020-12) — **정본**
-- `src/types.ts` — 위 스키마에서 생성한 TypeScript 타입
-- `src/validate.ts` — 구조 검증 + JSON Schema로 표현 불가능한 참조 무결성 검증
+- `visual-spec.schema.json` (JSON Schema draft 2020-12) — **정본**
+- `types.ts` — 위 스키마에서 생성한 TypeScript 타입
+- `validate.ts` — 구조 검증 + JSON Schema로 표현 불가능한 참조 무결성 검증
 - 테스트와 예제 JSON
 
-구현하지 않는다. (`docs/VISUAL_SPEC_SCHEMA_V0.1.md`의 MVP 제외 범위)
+구현하지 않는다. (`docs/05-schema.md`의 MVP 제외 범위)
 
 ImageNode, InstanceNode, ComponentSpec, TokenSet, props, bindings, events,
 variants, states, slots, 반응형, Tailwind 클래스 변환, React 코드 생성, GUI 자체.
@@ -45,10 +50,10 @@ variants, states, slots, 반응형, Tailwind 클래스 변환, React 코드 생�
 ```ts
 interface VisualSpec {
   version: "0.1";
-  screen: Screen;
+  screen: ScreenSpec;
 }
 
-interface Screen {
+interface ScreenSpec {
   name: string;                              // minLength 1
   size: { width: number; height: number };   // 둘 다 exclusiveMinimum 0
   root: NodeId;                              // nodes에 존재하는 key
@@ -240,14 +245,16 @@ export { default as visualSpecJsonSchema } from "../schema/visual-spec.schema.js
 
 ```
 package.json
-tsconfig.json
-vitest.config.ts
-schema/visual-spec.schema.json
+tsconfig.json          ← "@/*" → "src/*" 경로 별칭
+vitest.config.ts       ← 같은 별칭을 resolve.alias 로 재선언
 scripts/generate-types.mjs
-src/types.ts          ← 생성물이지만 커밋한다
-src/validate.ts
-src/index.ts
+src/features/editor/schema/
+  visual-spec.schema.json   ← 정본
+  types.ts                  ← 생성물이지만 커밋한다
+  validate.ts
+  index.ts                  ← 팀이 import 하는 유일한 진입점
 examples/*.json
+examples/invalid/*.json
 test/*.test.ts
 ```
 
@@ -377,7 +384,7 @@ test/*.test.ts
 
 ## 9. 남은 판단
 
-- **멀티 스크린.** `docs/VISUAL_SPEC_SCHEMA_V0.1.md`의 "노드 ID는 한 Screen 안에서 고유하다"는
+- **멀티 스크린.** `docs/05-schema.md`의 "노드 ID는 한 Screen 안에서 고유하다"는
   Screen이 여럿임을 전제하는 표현이다. v0.1은 파일 1개 = Screen 1개로 간다.
   필요해지면 최상위를 `screens: Record<ScreenId, Screen>`로 바꾼다. 노드 ID 규칙은 그대로 성립한다.
 - **Size의 `"fill"`.** 부모가 `direction: "row"`일 때 자식의 `width: "fill"`은 주축을 채운다는 뜻이다.

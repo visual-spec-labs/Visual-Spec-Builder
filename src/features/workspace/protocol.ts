@@ -1,0 +1,218 @@
+/**
+ * GUI(브라우저)와 Vite 개발 서버 미들웨어가 **같이** 쓰는 상수 모음 (이슈 #133).
+ *
+ * 이 파일만 `node:*`를 하나도 import하지 않는다 — 브라우저 번들에 들어가기 때문이다.
+ * 실제 경로 해석·검증은 `workspacePath.ts`(node), 파일 입출력은 `workspaceServer.ts`(node).
+ * `ui/theme-storage.ts`가 localStorage 키를 한 곳에 두고 vite.config.ts와 앱이 함께
+ * 쓰는 것과 같은 패턴이다 — 양쪽이 다른 문자열을 쓰기 시작하면 조용히 깨진다.
+ */
+
+/** `npx visual-spec init`이 만드는 작업공간 폴더 이름. bin/visual-spec.mjs와 같은 값이어야 한다. */
+export const WORKSPACE_DIR_NAME = ".visual-spec";
+
+/** 작업공간 API의 공통 접두사. `__`로 시작해 사용자 라우트와 겹치지 않게 했다. */
+export const WORKSPACE_API_PREFIX = "/__vs";
+
+/** 파일 하나를 읽고(GET) 쓰는(PUT) 라우트. 뒤에 `<폴더>/<경로>`가 붙는다. */
+export const WORKSPACE_FILE_ROUTE = `${WORKSPACE_API_PREFIX}/file/`;
+
+/** 폴더 안 파일 목록(GET). 뒤에 `<폴더>`가 붙는다. */
+export const WORKSPACE_LIST_ROUTE = `${WORKSPACE_API_PREFIX}/list/`;
+
+/**
+ * 목록을 하위 폴더까지 훑게 하는 질의 문자열 이름 — `?recursive=1` (이슈 #157).
+ *
+ * **기본값은 지금까지와 같은 한 단계 목록이다.** `specs/`·`assets/`는 평평해서
+ * 재귀할 것이 없고, Open 목록이 갑자기 `a/b.json` 같은 값을 받기 시작하면 그걸
+ * 파일명으로 쓰는 쪽(`documentStore.fileName`)이 조용히 어긋난다.
+ *
+ * 붙여야 하는 쪽은 `generated/` 하나다 — 코드 생성 스킬이
+ * `generated/pages/<PageName>.tsx`·`generated/components/<ComponentName>.tsx`에 쓰므로
+ * (`skills/visual-spec-to-react/SKILL.md`) 한 단계 목록으로는 **항상 빈 배열**이
+ * 돌아온다. 하위 폴더를 못 보면 Export가 내보낼 것을 찾지 못한다.
+ */
+export const WORKSPACE_LIST_RECURSIVE_PARAM = "recursive";
+
+/** opt-in 목록 메타데이터. 기존 files 문자열 배열은 그대로 유지한다. */
+export const WORKSPACE_LIST_METADATA_PARAM = "metadata";
+export interface WorkspaceFileEntry {
+  name: string;
+  /** 파일 시스템 수정 시각(ms since epoch). 0도 유효하다. */
+  mtimeMs: number;
+}
+
+/**
+ * 작업공간 루트 기준 상대 경로(`specs/home.json`)를 파일 라우트 URL로 바꾼다.
+ *
+ * **세그먼트마다 인코딩한다.** 파일 이름에는 URL에서 뜻을 갖는 글자가 얼마든지
+ * 들어온다 — `hero#1.png`를 그대로 붙이면 `#`부터가 조각(fragment)이라 서버에는
+ * `hero`까지만 도착하고, `100%.png`는 `%.p`가 깨진 퍼센트 인코딩이라 디코딩 단계에서
+ * 거부된다(`workspacePath.ts`의 `decodeSegment`). 공백·`?`·`+`도 같은 부류다.
+ * 세그먼트를 나눠 인코딩하므로 경로 구분자 `/`는 살아남는다.
+ *
+ * **여기 있는 이유** (PR #145 리뷰, wook3964): 저장 요청(`ui/workspaceClient.ts`)과
+ * 화면에 그릴 때(`ui/properties/imageSrc.ts`)가 **같은 규칙**으로 URL을 만들어야 한다.
+ * 한쪽만 인코딩하면 저장은 되는데 그 이미지가 화면에서 깨진다 — 실제로 그랬다.
+ * 양쪽이 함께 쓰는 값은 이 파일에 둔다는 것이 이 모듈의 원칙이다.
+ */
+export function workspaceFileUrl(relativePath: string): string {
+  const encoded = relativePath
+    .split("/")
+    .filter((segment) => segment !== "")
+    .map(encodeURIComponent)
+    .join("/");
+  return `${WORKSPACE_FILE_ROUTE}${encoded}`;
+}
+
+/** 작업공간이 연결돼 있는지 묻는 탐침(GET). 아래 "왜 탐침이 필요한가" 참고. */
+export const WORKSPACE_STATUS_ROUTE = `${WORKSPACE_API_PREFIX}/status`;
+
+/**
+ * 응답이 **정말로 이 미들웨어가 준 것**임을 표시하는 헤더.
+ *
+ * `vite build` 결과물(개발 서버 없음)이나 정적 호스팅에서는 모르는 경로에 SPA 폴백이
+ * 걸려 `index.html`이 200으로 돌아올 수 있다. 상태 코드만 보면 "작업공간이 있다"고
+ * 오판하게 되므로, 클라이언트는 이 헤더까지 확인한다.
+ */
+export const WORKSPACE_MARKER_HEADER = "x-visual-spec-workspace";
+
+/**
+ * 읽기·쓰기가 허용되는 작업공간 하위 폴더와, 폴더별 허용 확장자.
+ *
+ * 화이트리스트다 — 여기 없는 폴더(`preview`)와 확장자는 전부 거부한다.
+ * `.visual-spec/` 전체를 열지 않는 이유: 이 미들웨어는 브라우저에서 오는 요청을
+ * 그대로 파일 입출력으로 바꾸므로, 열어둔 만큼이 그대로 공격면이다.
+ *
+ * - `specs`     — 화면 JSON 스펙. GUI의 Open/Save가 쓴다
+ * - `assets`    — Import한 이미지. 이미지 확장자만 받는다
+ * - `generated` — 생성된 React 코드. **이 작업은 쓸 수 있는 "경로를 여는 것"까지다**
+ *                 (실제 코드 생성은 별도 작업). 하위 폴더(`pages/`, `components/`)를
+ *                 쓰므로 중첩 경로를 허용한다
+ * - `runtime`   — GUI ↔ 외부 에이전트 요청/응답 교환소(이슈 #155). `.json`만 받는다.
+ *                 **왜 `specs`를 같이 쓰지 않았나**: `specs`는 Open 목록이 읽는
+ *                 폴더라, 거기에 요청/응답 파일을 두면 사용자가 열 수 있는 화면
+ *                 목록에 편집 요청 찌꺼기가 섞여 나온다. 폴더를 나누면 목록 라우트가
+ *                 폴더별로 갈라져 있어 그 일이 생기지 않는다
+ *                 (`workspaceServer.handleList`).
+ * - `staging`   — 티켓 요청별 임시 출력(이슈 #284). 에이전트가 `staging/<requestId>/pages/…`에
+ *                 쓰고, GUI가 현재 요청의 출력만 읽어 `generated/`로 확정한다. 취소·만료된
+ *                 요청이 늦게 쓴 파일은 여기 남아 `generated/`에 닿지 않는다
+ *                 (docs/26 "왜 staging인가"). 확장자 규칙은 `generated`와 같다 — 같은 파일이
+ *                 확정 전에 머무는 자리라서다. GUI는 여기를 읽기만 한다
+ * - `backups`   — 재생성 직전 백업(이슈 #282). GUI가 `generated/`의 기존 파일을 바꾸기 전에
+ *                 `backups/<runId>/files/<경로>`에 원본 바이트를, `backups/<runId>/run.json`에
+ *                 되돌리기 기록을 **새 파일로만** 쓴다(기대 버전 `missing` 필수). 백업이 덮이면
+ *                 백업이 아니기 때문이다. 확장자 규칙은 `generated`와 같다(docs/26 "#282")
+ *
+ * **넓힌 범위**(#155): `runtime`은 `.json` 하나뿐이라 이미 열려 있는 `generated`
+ * (`.ts`·`.tsx`·`.js`…)보다 좁다. 경로 검증(`workspacePath.resolveWorkspaceFile`)·
+ * 심볼릭 링크 검사(`workspaceServer.realPathStaysInside`)·요청 출처 검사
+ * (`requestOrigin.checkRequestOrigin`)는 폴더를 가리지 않고 모든 요청에 그대로
+ * 걸리므로, 이 한 줄이 그 방어들을 비켜가지 않는다.
+ * `test/workspace-path.test.ts`·`test/workspace-middleware.test.ts`가 `runtime`에
+ * 대해서도 같은 방어가 서는지 따로 고정한다.
+ */
+export const WORKSPACE_DIR_RULES = {
+  specs: [".json"],
+  assets: [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".bmp", ".ico"],
+  generated: [".tsx", ".ts", ".jsx", ".js", ".css", ".json", ".md"],
+  runtime: [".json"],
+  staging: [".tsx", ".ts", ".jsx", ".js", ".css", ".json", ".md"],
+  backups: [".tsx", ".ts", ".jsx", ".js", ".css", ".json", ".md"],
+} as const;
+
+export type WorkspaceDir = keyof typeof WORKSPACE_DIR_RULES;
+
+/** 화면 JSON 스펙이 있는 폴더 — GUI의 Open/Save가 쓴다. */
+export const SPEC_DIR: WorkspaceDir = "specs";
+
+/** Import한 이미지가 들어가는 폴더. `ImageNode.src`의 `assets/...`가 이걸 가리킨다. */
+export const ASSET_DIR: WorkspaceDir = "assets";
+
+/** 자연어 요청/응답 파일이 오가는 폴더(#155). `editor/nl/nlProtocol.ts`가 경로를 만든다. */
+export const RUNTIME_DIR: WorkspaceDir = "runtime";
+
+/** 외부 에이전트가 생성한 React 코드가 놓이는 폴더. Export가 여기를 읽는다(이슈 #157). */
+export const GENERATED_DIR: WorkspaceDir = "generated";
+
+/** 티켓 요청별 임시 출력 폴더(#284). `ticket/ticketProtocol.ts`가 요청마다 하위 경로를 정한다. */
+export const STAGING_DIR: WorkspaceDir = "staging";
+
+/** 재생성 직전 백업과 되돌리기 기록 폴더(#282). `ui/ticketOutputAcceptance.ts`가 실행마다 하위 경로를 정한다. */
+export const BACKUP_DIR: WorkspaceDir = "backups";
+
+/**
+ * 읽을 때 내용 버전(`WORKSPACE_REVISION_HEADER`)을 함께 주고, 쓸 때 기대 버전을 비교할 수 있는
+ * 폴더(#282). `specs`는 기대 버전이 **필수**이고(#227), `generated`는 보내면 비교하고(opt-in —
+ * 외부 에이전트·구버전 클라이언트는 HTTP를 거치지 않거나 보내지 않는다), `backups`는 필수다.
+ * 버전은 디스크 바이트의 SHA-256(16진수 64자)이다.
+ */
+export const WORKSPACE_REVISION_DIRS: readonly WorkspaceDir[] = ["specs", "generated", "backups"];
+/** Reserved v4 runtime records; this does not extend the workspace allow-list. */
+export function projectRuntimeRecordKind(path: string): "snapshot" | "provenance" | null {
+  const lower = path.toLowerCase();
+  if (lower.startsWith("runtime/project-input-")) return "snapshot";
+  if (lower.startsWith("runtime/project-generation-")) return "provenance";
+  return null;
+}
+export function isCanonicalProjectRuntimePath(path: string): boolean {
+  return /^runtime\/project-input-[A-Za-z0-9_-]{1,128}\.json$/.test(path)
+    || /^runtime\/project-generation-[a-f0-9]{64}\.json$/.test(path);
+}
+export function tracksRevision(relativePath: string): boolean {
+  return WORKSPACE_REVISION_DIRS.some((dir) => relativePath.startsWith(`${dir}/`)) || projectRuntimeRecordKind(relativePath) !== null;
+}
+
+/** 화이트리스트에 있는 폴더 이름들. 미들웨어가 서버 시작 때 만들어 둔다. */
+export const WORKSPACE_ACCESSIBLE_DIRS = Object.keys(WORKSPACE_DIR_RULES) as WorkspaceDir[];
+
+export function isWorkspaceDir(value: string): value is WorkspaceDir {
+  return Object.prototype.hasOwnProperty.call(WORKSPACE_DIR_RULES, value);
+}
+
+/** Rename one project and its filename together; destination must not exist. */
+export const WORKSPACE_RENAME_ROUTE = `${WORKSPACE_API_PREFIX}/rename`;
+/** Disk compare-and-write tokens; missing is create-only, never overwrite. */
+export const WORKSPACE_REVISION_HEADER = "x-visual-spec-revision";
+/** Existing HTTP PUT cap; snapshot producers budget encoded UTF-8 bytes against this same limit. */
+export const WORKSPACE_MAX_BODY_BYTES = 32 * 1024 * 1024;
+export const WORKSPACE_EXPECTED_REVISION_HEADER = "x-visual-spec-expected-revision";
+export const WORKSPACE_MISSING_REVISION = "missing";
+
+/**
+ * 에이전트 요청 파일 잠금(이슈 #273). `POST`로 잡거나 연장하고 `DELETE`로 푼다.
+ * 경로 끝이 종류다: `/__vs/request-lock/nl`, `/__vs/request-lock/ticket`.
+ * 잠금 주인(요청 id)은 헤더로 보내고, 요청 파일 PUT에도 같은 헤더가 있어야 한다.
+ */
+export const WORKSPACE_REQUEST_LOCK_ROUTE = `${WORKSPACE_API_PREFIX}/request-lock/`;
+export const WORKSPACE_REQUEST_OWNER_HEADER = "x-visual-spec-request-owner";
+/** `POST ...?renew=1`은 새로 잡지 않고, 주인이 여전히 나인 잠금만 연장한다(PR #296 리뷰). */
+export const WORKSPACE_REQUEST_LOCK_RENEW_PARAM = "renew";
+/** 연장 없이 잠금이 유지되는 시간. 탭이 사라져도 이 시간 뒤엔 다른 탭이 요청할 수 있다. */
+export const REQUEST_LOCK_TTL_MS = 30_000;
+/** 잠금으로 보호하는 요청 파일. 같은 종류의 요청은 작업공간에서 한 번에 하나만 기다린다. */
+export const REQUEST_LOCK_FILES = {
+  nl: "runtime/nl-request.json",
+  ticket: "runtime/ticket-request.json",
+  // 외부 에이전트와 연결된 GUI 탭(#279). 한 번에 한 탭만 상태를 공개하고 편집 요청을 받는다 —
+  // 탭이 여럿이면 같은 편집이 두 번 적용된다. 탭을 닫으면 풀리며 gui-state.json도 정리된다.
+  gui: "runtime/gui-state.json",
+} as const;
+export type RequestLockKind = keyof typeof REQUEST_LOCK_FILES;
+export function isRequestLockKind(value: string): value is RequestLockKind {
+  return Object.prototype.hasOwnProperty.call(REQUEST_LOCK_FILES, value);
+}
+/**
+ * 잠금 주인만 쓰지만 잠금을 풀 때 **지우지 않는** 파일. 에이전트 편집 결과(#279)는 연결된 탭만
+ * 써야 한다 — 연결을 잃은 줄 모르는 탭이 옛 요청의 결과로 새 주인의 결과를 덮으면 에이전트가
+ * 자기 결과를 잃는다(PR #303 리뷰). 연결이 끝나도 에이전트가 마지막 결과를 읽어야 하므로 남긴다.
+ */
+export const REQUEST_LOCK_GUARDED_FILES: Readonly<Record<string, RequestLockKind>> = {
+  "runtime/agent-edit-result.json": "gui",
+};
+/** 이 경로를 쓰려면 쥐어야 하는 잠금. 보호되지 않는 경로면 undefined. */
+export function requestLockKindForPath(relativePath: string): RequestLockKind | undefined {
+  const path = relativePath.toLowerCase();
+  const kind = (Object.keys(REQUEST_LOCK_FILES) as RequestLockKind[]).find((key) => REQUEST_LOCK_FILES[key] === path);
+  return kind ?? (Object.prototype.hasOwnProperty.call(REQUEST_LOCK_GUARDED_FILES, path) ? REQUEST_LOCK_GUARDED_FILES[path] : undefined);
+}

@@ -1,0 +1,10 @@
+/**
+ * semantic/radius.css — Semantic 라디우스 토큰
+ * 규칙: docs/DESIGN-TOKEN-RULES.md — Semantic = UI 역할, Primitive를 var()로 참조.
+ */
+
+@theme inline {
+  --radius-control: var(--radius-md);
+  --radius-panel: var(--radius-lg);
+  --radius-chip: var(--radius-pill);
+}

@@ -1,0 +1,6 @@
+{
+  "protocol": 2,
+  "commandVersion": "0.3",
+  "requestId": "6d9e3985-3bf1-43d4-b191-9d4f00cf2a46",
+  "error": "요청이 넓어 무엇을 바꿀지 정할 수 없습니다. 무엇을 바꿀지 정해 주세요. 예: 'LoginButton 모서리를 12로 둥글게', 'Card에 흰 배경과 옅은 테두리로 바꿔줘', 'Title 글자 크기를 28로' 중 원하는 것을 보내 주세요."
+}

@@ -1,0 +1,303 @@
+import { DocumentSaveStatus } from "./DocumentSaveStatus";
+import { useEffect, useRef, useState } from "react";
+import { Pencil } from "lucide-react";
+
+import { documentDownloadName, useDocumentStore } from "@/features/editor/store/documentStore";
+import { useEditorStore } from "@/features/editor/store/editorStore";
+import { useExportStore } from "@/features/editor/store/exportStore";
+import { useNavigationStore } from "@/features/editor/store/navigationStore";
+import { useTicketStore } from "@/features/editor/store/ticketStore";
+import { useViewStore } from "@/features/editor/store/viewStore";
+import { ThemeToggle } from "@/features/editor/ui/ThemeToggle";
+import { requestProjectRename, renameProject as renameSavedProject } from "@/features/editor/ui/renameProject";
+import { exportSpecAsJson, saveSpec, saveSpecAs } from "@/features/editor/ui/exportSpecAsJson";
+import { importImageFromFile } from "@/features/editor/ui/importImageFromFile";
+import { insertControl, widgetInsertEntries } from "@/features/editor/ui/insertControl";
+import { MenuList, type MenuEntry } from "@/features/editor/ui/menu";
+import { newSpec } from "@/features/editor/ui/newSpec";
+import { openExportPanel } from "@/features/editor/ui/openExportPanel";
+import { openSpec } from "@/features/editor/ui/openSpecFromFile";
+import { openTicketPanel } from "@/features/editor/ui/openTicketPanel";
+import { togglePropsPanel, toggleTreePanel } from "@/features/editor/ui/panelToggle";
+import { projectFileName } from "@/features/workspace/projectName";
+
+type MenuKey = "file" | "insert" | "view";
+
+/**
+ * spec을 렌더 시점 구독값이 아니라 클릭 시점에 getState()로 읽는다.
+ * MenuBar가 s.spec을 구독하면 속성 패널에서 필드를 편집할 때마다
+ * (가장 빈번한 리렌더) 매번 새 클로저가 생기고 재구독까지 하게 된다.
+ * Export/Save/Save as는 클릭 때만 최신 spec이 필요하므로 반응형 구독이
+ * 필요 없다.
+ */
+export function handleExport() {
+  const document = useDocumentStore.getState();
+  exportSpecAsJson(useEditorStore.getState().spec, documentDownloadName(document));
+}
+// 작업공간 쓰기는 비동기다(개발 서버 미들웨어로 PUT, 이슈 #133). 메뉴 항목은
+// 반환값을 쓰지 않으므로 void로 떼어 버린다 — 결과 안내는 각 함수가 alert로 한다.
+function handleSave() {
+  void saveSpec(useEditorStore.getState().spec);
+}
+function handleSaveAs() {
+  void saveSpecAs(useEditorStore.getState().spec);
+}
+function handleOpen() {
+  void openSpec();
+}
+
+export async function handleRenameProject(projectName: string, fileName: string | null) {
+  const name = await requestProjectRename(projectName, fileName);
+  if (name === null) return;
+  if (fileName === null) {
+    useEditorStore.getState().renameProject(name);
+    const filename = projectFileName(name);
+    if (filename !== null) useDocumentStore.getState().setDownloadFileName(filename);
+    return;
+  }
+  const result = await renameSavedProject(fileName, name);
+  if (!result.ok) window.alert(result.error);
+  else if ("warning" in result) window.alert(result.warning);
+}
+
+/**
+ * 상단 메뉴바 — Figma 디자인 기준 레이아웃(로고·브랜드·중앙 프로젝트명·테마 토글) +
+ * File/Insert/View 드롭다운.
+ * New는 newSpec(빈 스펙 + 현재 문서 이름 비우기), Open은 openSpec(.visual-spec/specs/
+ * 목록에서 고르기 → 검증 → loadSpec)로 연결돼 있다. Save/Save as는 작업공간
+ * `.visual-spec/specs/`에 쓰고(이슈 #133), Save as만 파일명을 먼저 묻는다.
+ * **Save의 대상은 지금 열려 있는 파일이다** — Open/Save as가 적어 둔
+ * `documentStore.fileName`을 쓴다(PR #145 리뷰). Export는 그대로 브라우저
+ * 다운로드다 — 스펙을 저장소 밖으로 꺼내는 경로는 남겨 둔다.
+ * **Export와 Export Code는 다른 기능이다** — Export는 스펙 JSON, Export Code는
+ * `.visual-spec/generated/`의 React 코드를 검증해 결과 폴더 ZIP으로 내보낸다(#157).
+ * Import는 이미지 노드가 선택됐으면 그림을 교체하고, 아니면 선택된 프레임/root에
+ * 새 이미지 노드를 넣는다. 코드·디자인 파일 가져오기는 이번 범위 밖(별도 이슈).
+ * 검증 실패 시 Export는 다운로드하지 않고 처음 3개 원인과 위치를 alert로
+ * 알린다(#230). Open/Save/Save as도 실패를 alert로 알려 조용히 끝나지 않는다.
+ * View 항목은 viewStore(줌·그리드·패널 표시)에 연결돼 있다.
+ * Help은 gui-spec.md 기준 MVP 제외.
+ * 로고·브랜드명 클릭은 navigationStore.openHome()으로 홈 화면으로 돌아간다(#72) —
+ * 홈 → 에디터는 카드 클릭/새 화면으로 들어오므로, 나가는 길도 있어야 한다.
+ */
+export function MenuBar() {
+  const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  // Undo/Redo can add or remove widget pages while Insert stays open. Subscribe
+  // only during that menu; the common closed state does not rerender on edits.
+  const insertSpec = useEditorStore((s) => openMenu === "insert" ? s.spec : null);
+
+  // 제목에 필요한 작은 조각만 구독한다. spec 전체를 구독하면 속성 하나를 고칠
+  // 때마다 메뉴바까지 다시 렌더되는 기존 주석의 문제가 되살아난다.
+  const projectName = useEditorStore((s) => s.spec.name);
+  const activePageId = useEditorStore((s) => s.activePageId);
+  const pageName = useEditorStore(
+    (s) => s.spec.pages[s.activePageId]?.name ?? "페이지 없음",
+  );
+  const fileName = useDocumentStore((s) => s.fileName);
+  const downloadFileName = useDocumentStore((s) => s.downloadFileName);
+  const openHome = useNavigationStore((s) => s.openHome);
+  const zoomIn = useViewStore((s) => s.zoomIn);
+  const zoomOut = useViewStore((s) => s.zoomOut);
+  const fitToScreen = useViewStore((s) => s.fitToScreen);
+  const showGrid = useViewStore((s) => s.showGrid);
+  const toggleGrid = useViewStore((s) => s.toggleGrid);
+  const showPanels = useViewStore((s) => s.showPanels);
+  const togglePanels = useViewStore((s) => s.togglePanels);
+  const treeCollapsed = useViewStore((s) => s.treeCollapsed);
+  const propsCollapsed = useViewStore((s) => s.propsCollapsed);
+  // Export/구현 티켓이 속성 패널 자리를 쓰는 동안은 그 자리를 접을 수 없게
+  // 한다(#287 리뷰 대응) — 접으면 32px 레일에 Export/티켓 내용이 그대로
+  // 눌려 렌더된다. openExportPanel.ts/openTicketPanel.ts가 열 때 이미 펼쳐
+  // 두므로, 여기서는 "열려 있는 동안 다시 접지 못하게"만 막으면 된다.
+  //
+  // 두 훅을 **각자 먼저 호출**한 뒤에 ||로 합친다(#287 리뷰 2차 대응 —
+  // 실제 P1 회귀였다). `exportOpen || useTicketStore(...)`처럼 한 식에
+  // 바로 쓰면 exportOpen이 true일 때 단축 평가로 useTicketStore 호출 자체가
+  // 생략돼, 그 뒤로 Export가 열려 있는 동안 이 컴포넌트의 훅 호출 순서가
+  // 렌더마다 달라진다 — React가 "Rendered more hooks than during the
+  // previous render"급 오류를 내며 화면이 통째로 빈다.
+  const exportOpen = useExportStore((s) => s.isOpen);
+  const ticketOpen = useTicketStore((s) => s.isOpen);
+  const propsSlotBusy = exportOpen || ticketOpen;
+
+  const FILE_MENU: MenuEntry[] = [
+    { kind: "action", label: "새로 만들기", onSelect: () => void newSpec() },
+    { kind: "action", label: "열기", onSelect: handleOpen },
+    { kind: "action", label: "저장", onSelect: handleSave },
+    { kind: "action", label: "다른 이름으로 저장", onSelect: handleSaveAs },
+    { kind: "separator" },
+    { kind: "action", label: "이미지 가져오기", onSelect: importImageFromFile },
+    { kind: "action", label: "JSON 내보내기", onSelect: handleExport },
+    { kind: "action", label: "코드 내보내기", onSelect: openExportPanel },
+  ];
+
+  const INSERT_MENU: MenuEntry[] = [
+    { kind: "action", label: "버튼", onSelect: () => insertControl("button") },
+    { kind: "action", label: "입력 필드", onSelect: () => insertControl("input") },
+    ...widgetInsertEntries(insertSpec ?? undefined, activePageId),
+  ];
+
+  const VIEW_MENU: MenuEntry[] = [
+    { kind: "action", label: "확대", onSelect: zoomIn },
+    { kind: "action", label: "축소", onSelect: zoomOut },
+    { kind: "action", label: "화면에 맞추기", onSelect: fitToScreen },
+    { kind: "separator" },
+    { kind: "toggle", label: "격자 표시", checked: showGrid, onToggle: toggleGrid },
+    { kind: "toggle", label: "패널 표시", checked: showPanels, onToggle: togglePanels },
+    // 개별 패널 접기(#287) — "패널 표시"(Panels/Sidebars)는 둘 다 숨기고, 이 둘은 한쪽만
+    // 좁은 레일로 접는다. 체크 표시는 "지금 실제로 보이는가"다 —
+    // !collapsed만 보면 안 된다(자체 code-review 대응). showPanels가
+    // 꺼져 있으면 treeCollapsed/propsCollapsed가 뭐든 두 패널 다 안 보이는데
+    // (`EditorLayout.tsx`), showPanels를 안 보면 접힘 상태만으로 "펼쳐짐 ✓"
+    // 표시가 떠 — 실제로는 전체 토글에 가려 안 보이는데 체크가 돼 있는
+    // 모순이 생긴다.
+    // toggleTreePanel/togglePropsPanel을 쓴다(원본 액션을 직접 안 쓴다) —
+    // 펼치는 방향이면 저장된 폭을 Canvas 최소 폭 기준으로 보정한다(#287
+    // 리뷰 4차 대응, panelToggle.ts 참고).
+    {
+      kind: "toggle",
+      label: "레이어 패널",
+      checked: showPanels && !treeCollapsed,
+      onToggle: toggleTreePanel,
+    },
+    {
+      kind: "toggle",
+      label: "속성 패널",
+      checked: showPanels && !propsCollapsed,
+      onToggle: togglePropsPanel,
+      disabled: propsSlotBusy,
+    },
+  ];
+
+  useEffect(() => {
+    if (!openMenu) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      // **여기서 삼킨다.** 캔버스도 window에서 Escape를 듣고 선택을 해제하는데
+      // (canvasInput.viewCommandForKey), 막지 않으면 메뉴만 닫으려고 누른 Escape가
+      // 선택과 속성 패널까지 함께 지운다.
+      //
+      // 이 리스너는 위의 `if (!openMenu) return`으로 **메뉴가 열려 있을 때만**
+      // 붙으므로 조건을 더 볼 필요가 없다. document 리스너가 window 리스너보다
+      // 먼저 도니까(이벤트가 target에서 window로 오르는 길에 document를 지난다)
+      // 여기서 멈추면 캔버스에는 닿지 않는다.
+      event.stopPropagation();
+      setOpenMenu(null);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openMenu]);
+
+  return (
+    <header
+      ref={rootRef}
+      className="relative z-20 flex items-center gap-4 border-b border-line bg-surface px-4 text-sm [grid-area:menu]"
+    >
+      <div className="flex shrink-0 items-center gap-4">
+        <button
+          type="button"
+          onClick={openHome}
+          className="flex items-center gap-2 rounded-control hover:bg-hover"
+          aria-label="홈으로"
+        >
+          <span aria-hidden="true" className="size-4 rounded-sm bg-primary" />
+          <span className="font-semibold text-content-strong">Visual Spec Builder</span>
+        </button>
+        <MenuButton
+          label="파일"
+          isOpen={openMenu === "file"}
+          onToggle={() => setOpenMenu((prev) => (prev === "file" ? null : "file"))}
+          onCloseMenu={() => setOpenMenu(null)}
+          entries={FILE_MENU}
+        />
+        <MenuButton
+          label="삽입"
+          isOpen={openMenu === "insert"}
+          onToggle={() => setOpenMenu((prev) => (prev === "insert" ? null : "insert"))}
+          onCloseMenu={() => setOpenMenu(null)}
+          entries={INSERT_MENU}
+        />
+        <MenuButton
+          label="보기"
+          isOpen={openMenu === "view"}
+          onToggle={() => setOpenMenu((prev) => (prev === "view" ? null : "view"))}
+          onCloseMenu={() => setOpenMenu(null)}
+          entries={VIEW_MENU}
+        />
+        <button
+          type="button"
+          onClick={openTicketPanel}
+          className="rounded-control px-2 py-1 text-content-muted hover:bg-hover hover:text-content"
+        >
+          구현 티켓
+        </button>
+      </div>
+
+      <div className="min-w-0 flex-1 text-center">
+      <div className="flex min-w-0 items-center justify-center gap-2 text-xs text-content-muted">
+        <button
+          type="button"
+          className="inline-flex max-w-[50%] items-center gap-1 truncate font-medium text-content-strong hover:underline"
+          title="프로젝트 이름 변경"
+          aria-label={`프로젝트 이름 변경: ${projectName}`}
+          onClick={() => void handleRenameProject(projectName, fileName)}
+        >
+          <span className="truncate">{projectName}</span>
+          <Pencil aria-hidden="true" size={12} className="shrink-0" />
+        </button>
+        <span className="truncate">— {pageName} · {fileName ?? downloadFileName ?? "저장되지 않음"}</span>
+      </div>
+      <DocumentSaveStatus />
+      </div>
+
+      <ThemeToggle />
+    </header>
+  );
+}
+
+function MenuButton({
+  label,
+  isOpen,
+  onToggle,
+  onCloseMenu,
+  entries,
+}: {
+  label: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  onCloseMenu: () => void;
+  entries: MenuEntry[];
+}) {
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        className={`rounded-control px-2 py-1 text-content-muted hover:bg-hover hover:text-content ${
+          isOpen ? "bg-hover text-content-strong" : ""
+        }`}
+      >
+        {label}
+      </button>
+      {isOpen && (
+        <div className="absolute top-full left-0 z-10 mt-1">
+          <MenuList entries={entries} onCloseMenu={onCloseMenu} />
+        </div>
+      )}
+    </div>
+  );
+}

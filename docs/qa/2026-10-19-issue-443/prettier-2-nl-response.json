@@ -1,0 +1,22 @@
+{
+  "protocol": 2,
+  "commandVersion": "0.3",
+  "requestId": "18b7f189-01a3-45f3-bacb-2138c065c9ee",
+  "commands": [
+    { "type": "updateNode", "id": "card", "path": "background",
+      "value": [{ "type": "solid", "color": "#FFFFFF" }] },
+    { "type": "updateNode", "id": "card", "path": "border",
+      "value": { "width": 1, "color": "#E5E7EB", "radius": 12 } },
+    { "type": "updateNode", "id": "card", "path": "shadow",
+      "value": { "x": 0, "y": 4, "blur": 16, "spread": 0, "color": "#0F172A14" } },
+    { "type": "updateNode", "id": "loginButton", "path": "background",
+      "value": [
+        { "type": "linear", "angle": 135, "stops": [
+          { "color": "#4F46E5", "at": 0 },
+          { "color": "#7C3AED", "at": 1 }
+        ] }
+      ] },
+    { "type": "updateNode", "id": "loginButton", "path": "border",
+      "value": { "width": 0, "color": "#4F46E5", "radius": 10 } }
+  ]
+}

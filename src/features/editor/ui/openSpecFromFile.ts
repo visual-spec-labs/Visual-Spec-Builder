@@ -1,0 +1,122 @@
+import { validationFailureMessage } from "@/features/editor/store/validationGuidance";
+import { beginDocumentTransition } from "./documentTransition";
+import { useDocumentStore } from "@/features/editor/store/documentStore";
+import { useEditorStore } from "@/features/editor/store/editorStore";
+import { parseSpecJson } from "@/features/editor/store/loadSpec";
+import { promptPick } from "@/features/editor/store/promptDialogStore";
+import { usePromptDialogStore } from "@/features/editor/store/promptDialogStore";
+import {
+  listWorkspaceFiles,
+  readWorkspaceSpecSnapshot,
+} from "@/features/editor/ui/workspaceClient";
+import { SPEC_DIR } from "@/features/workspace/protocol";
+
+/**
+ * 검증한 JSON 텍스트를 스토어에 앉힌다. 작업공간 경로와 파일 다이얼로그 경로가 공유한다.
+ *
+ * **연 파일의 이름을 함께 기억한다**(PR #145 리뷰, wook3964) — 그래야 뒤이은 Save가
+ * `spec.name`에서 이름을 다시 만들지 않고 방금 연 그 파일에 쓴다. 검증에 실패하면
+ * 스펙도 이름도 바꾸지 않는다: 열리지 않은 파일이 Save 대상이 되면 다음 Save가
+ * **화면에 떠 있지도 않은 문서의 파일을 덮어쓴다.**
+ */
+async function loadSpecText(text: string, fileName: string, diskRevision: string | null, transition: ReturnType<typeof beginDocumentTransition>): Promise<void> {
+  if (!transition.current()) return;
+  const result = parseSpecJson(text);
+  if (!result.ok) {
+    window.alert(
+      validationFailureMessage(`${fileName}을(를) 열 수 없습니다`, result.issues, "open"),
+    );
+    return;
+  }
+  // 검증 실패는 문서 전환/초안 정리에 들어가지 않는다. 유효한 파일만 이동을 확정한다.
+  if (!await transition.settle(fileName) || !transition.current()) return;
+  useEditorStore.getState().loadSpec(result.spec);
+  if (diskRevision === null) {
+    // A browser FileReader cannot write back to the selected local file. Keep its
+    // name only as the next download name, never as a workspace path.
+    useDocumentStore.getState().clearFileName();
+    useDocumentStore.getState().setDownloadFileName(fileName);
+  } else {
+    useDocumentStore.getState().setFileName(fileName, diskRevision);
+  }
+}
+
+/**
+ * 파일 선택 다이얼로그를 열어 JSON 스펙을 읽고 스토어에 로드한다(DOM 부수효과).
+ *
+ * 이슈 #133 이후로는 **작업공간이 없을 때의 폴백**이다 — `vite build` 결과물처럼
+ * 개발 서버 미들웨어가 없는 자리에서도 스펙을 열 수 있어야 한다.
+ *
+ * 이 경로로 연 파일도 이름을 기억한다. 고른 파일이 작업공간 **밖**에 있을 수 있지만,
+ * 브라우저는 그 파일의 실제 경로를 알려주지 않고 거기에 되쓸 수단도 없다 — 어차피
+ * Save가 쓸 수 있는 자리는 `.visual-spec/specs/` 하나다. 이름이라도 이어가는 편이
+ * `spec.name`으로 되돌아가 엉뚱한 파일을 만드는 것보다 낫다.
+ */
+export function openSpecFromFileDialog(
+  transition = beginDocumentTransition(),
+  onFileSelected?: () => void,
+): void {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json";
+
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (!file || !transition.current()) return;
+    onFileSelected?.();
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      if (transition.current()) void loadSpecText(text, file.name, null, transition);
+    };
+    reader.readAsText(file);
+  };
+
+  input.click();
+}
+
+/**
+ * `.visual-spec/specs/`에 있는 스펙 중 하나를 골라 연다(이슈 #133).
+ *
+ * 02-mvp-scope.md가 정의한 "Open = 작업공간 specs에서 고르기"가 이 경로다. 작업공간이
+ * 없거나(개발 서버 미들웨어 없음) 폴더가 비어 있으면 파일 다이얼로그를 바로 연다.
+ *
+ * 고르는 UI는 `promptPick` 모달이다(#288 — 전엔 `window.prompt` 한 칸에 번호 매긴
+ * 목록 항목을 클릭하거나 로컬 파일 찾아보기를 선택할 수 있다.
+ */
+export async function openSpec(): Promise<void> {
+  const transition = beginDocumentTransition();
+  const names = await listWorkspaceFiles(SPEC_DIR);
+  if (!transition.current()) return;
+  if (names === null) {
+    openSpecFromFileDialog(transition);
+    return;
+  }
+  if (names.length === 0) {
+    window.alert(".visual-spec/specs/ 에 스펙이 없습니다 — 파일에서 엽니다.");
+    openSpecFromFileDialog(transition);
+    return;
+  }
+
+  const chosen = await promptPick({
+    title: "스펙 열기",
+    message: ".visual-spec/specs/ 에서 열 스펙을 선택하세요.",
+    items: names,
+    browseLabel: "파일 찾아보기…",
+    // Keep the file input click synchronous with the user gesture. If the
+    // native picker is cancelled, the workspace list remains open.
+    onBrowse: () => openSpecFromFileDialog(transition, () => {
+      usePromptDialogStore.getState().resolve(null);
+    }),
+  });
+  if (chosen === null || !transition.current()) return;
+
+  const snapshot = await readWorkspaceSpecSnapshot(`${SPEC_DIR}/${chosen}`);
+  if (!transition.current()) return;
+  if (snapshot === null) {
+    window.alert(`${chosen}을(를) 읽지 못했습니다.`);
+    return;
+  }
+  await loadSpecText(snapshot.text, chosen, snapshot.revision, transition);
+}

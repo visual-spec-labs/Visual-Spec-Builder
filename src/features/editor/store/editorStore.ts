@@ -1,0 +1,975 @@
+import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveViewStore";
+import { create } from "zustand";
+import { buildGroupCommands, buildUngroupCommands } from "@/features/editor/command/groupCommands";
+import { applyWidgetProjectCommand, type WidgetProjectCommand, type WidgetProjectResult } from "@/features/editor/command/widgetProjectCommand";
+
+import {
+  applyTransaction,
+  buildDuplicateCommands,
+  findParentId,
+  type NodeSubtree,
+} from "@/features/editor/command/applyCommand";
+import {
+  canRedo as historyCanRedo,
+  canUndo as historyCanUndo,
+  initHistory,
+  pushHistory,
+  redo as historyRedo,
+  replacePresent,
+  undo as historyUndo,
+  type HistoryState,
+} from "@/features/editor/command/history";
+import {
+  runTransactionGates,
+  dryRunTransaction,
+  type TransactionGateResult,
+} from "@/features/editor/command/transactionGate";
+import type { Command, ScreenCommand } from "@/features/editor/command/types";
+import { migrateV01, validateVisualSpec, validateProjectSpec, createCachedProjectValidator, withoutStyleRefs } from "@/features/editor/schema";
+import type {
+  Node,
+  Responsive,
+  NodeId,
+  PageId,
+  ProjectSpec,
+  Color,
+  StyleId,
+  ScreenSpec,
+  Typography,
+  VisualSpec,
+  ValidationIssue,
+} from "@/features/editor/schema";
+
+import { preparePageRemoval } from "./pageRemoval";
+import { linkColorStyle, linkTypographyStyle, unlinkStyle, updateColorStyle as updateColorStyleValues, updateTypographyStyle as updateTypographyStyleValues } from "../schema/styleEdits";
+
+import { blankSpec } from "./blankSpec";
+import { generateNodeId } from "./nodeId";
+import { seedSpec } from "./seedSpec";
+import { loadStoredSpec } from "./specStorage";
+import { createProjectIdentity, ensureProjectIdentity } from "./projectIdentity";
+
+/**
+ * 이슈 #128 — localStorage에 자동저장된 프로젝트가 있으면 그걸로 시작하고,
+ * 없거나 깨졌으면(검증 실패) 시드로 시작한다. 시드는 화면 문서라 페이지
+ * 1개짜리 프로젝트로 넓힌다. 실제 저장은 App.tsx가 spec 변경을 구독해서 한다
+ * (이 파일에 넣지 않은 이유는 그러면 이 스토어를 import하는 모든 테스트가
+ * 매번 디바운스 타이머를 만들게 되기 때문이다).
+ */
+const initialSpec = ensureProjectIdentity(loadStoredSpec() ?? migrateV01(seedSpec));
+
+/**
+ * Undo/Redo 한 단계의 단위 — 프로젝트 전체와 그때 보고 있던 페이지를 함께 담는다.
+ *
+ * #40에서는 `Record<PageId, HistoryState<ScreenSpec>>`(페이지별 독립 스택)이었다.
+ * #131에서 단위를 프로젝트로 올렸다. 이유는 두 가지다.
+ *
+ * 1. `removePage`는 페이지별 스택으로는 되돌릴 수가 없다 — 되돌릴 내용(지워지는
+ *    페이지의 스택)이 지우는 것과 함께 사라지고, 애초에 `pages`·`pageOrder`는
+ *    ScreenSpec 하나에 담기지 않는다. 지금 데이터 유실이 나는 곳이 여기였다.
+ * 2. 그래서 페이지 조작만 담는 스택을 따로 두는 안(이슈 #131의 후보 (a))도
+ *    있었지만, 스택이 둘이면 "페이지 추가 → 노드 편집 → undo 두 번"의 순서를
+ *    어느 한쪽만 보고 정할 수 없다 — 둘 사이의 시간 순서를 또 따로 기억해야
+ *    한다. 스택 하나면 그 문제가 생기지 않는다.
+ *
+ * 대가는 **undo가 프로젝트 전체에서 마지막 편집 하나를 되돌린다**는 것이다 —
+ * 페이지별 독립이 없어진다. 대신 되돌린 편집이 있던 페이지로 함께 옮겨 가므로
+ * (스냅숏이 `activePageId`를 들고 있는 이유다) 보고 있지 않은 페이지가 조용히
+ * 바뀌는 일은 없다. `addPage`를 되돌리는 경우에는 필수다 — 지금 보고 있는 그
+ * 페이지가 사라지므로 `activePageId`를 같이 되돌리지 않으면 없는 페이지를
+ * 가리킨다.
+ *
+ * 스냅숏은 `spec`을 통째로 들지만 안 건드린 페이지는 참조를 그대로 공유한다
+ * (`withPage`) — 한 단계가 실제로 더 쓰는 메모리는 얕은 객체 두 개다.
+ */
+export interface EditorSnapshot {
+  spec: ProjectSpec;
+  activePageId: PageId;
+}
+
+export type ProjectEditResult =
+  | { ok: true }
+  | { ok: false; issues: ValidationIssue[] };
+
+/** `setNodeFields`가 한 번에 적용할 노드 필드 변경 하나. */
+export interface NodeFieldPatch {
+  id: NodeId;
+  path: string;
+  value: unknown;
+}
+
+/**
+ * 캔버스 · 레이어 트리 · 세부설정 패널이 공유하는 단일 스토어.
+ * 계약 상세: docs/EDITOR_STORE_CONTRACT.md
+ */
+export interface EditorState {
+  /** 편집 중인 프로젝트 전체. 직접 수정하지 말고 아래 함수로만 바꾼다. */
+  spec: ProjectSpec;
+  /** 지금 캔버스에 떠 있는 페이지 id. 항상 spec.pages 안에 있다. */
+  activePageId: PageId;
+  /** 현재 선택된 노드 id. 없으면 null. 활성 페이지 안의 id다. */
+  selectedId: NodeId | null;
+  /**
+   * 더블클릭으로 "들어간" 프레임 — 선택 문맥(#151). null이면 문맥이 root다.
+   *
+   * 클릭이 "root 바로 아래 최상위 조상을 고른다"는 규칙(selection.ts의
+   * `resolveClickTarget`)의 그 "최상위"를 어디부터 셀지 정한다. 평소엔 root부터
+   * 세지만, 프레임에 진입해 있으면 그 프레임의 자식이 최상위가 된다 — 카드
+   * 안의 글자를 한 번 더 클릭하면 카드가 아니라 글자가 잡힌다.
+   *
+   * `selectedId`와 생명주기가 같아 옆에 둔다(viewStore가 아니다) — 선택
+   * 해제(`select(null)`)·페이지 전환(`selectPage`)·문맥의 노드가 지워지는
+   * 경우(`removeNode`)에 함께 초기화된다. Esc·바깥 클릭은 둘 다 내부적으로
+   * `select(null)`을 부르므로 따로 처리할 곳이 없다.
+   */
+  focusRootId: NodeId | null;
+  /**
+   * 프로젝트 하나의 실행 취소 스택(#40, 단위는 #131에서 프로젝트로 올렸다 —
+   * EditorSnapshot 주석 참고). spec을 바꾸는 모든 액션이 성공할 때마다 여기에
+   * 쌓이므로 `present`는 항상 지금 상태와 같다. 그래서 되돌릴 것이 있는지는
+   * `command/history.ts`의 `canUndo`/`canRedo`에 그대로 물으면 된다.
+   */
+  history: HistoryState<EditorSnapshot>;
+  /**
+   * 지금 편집 중인 문서의 식별자(#271). `loadSpec`(New·Open·홈 카드·다른 탭 최신본 불러오기)
+   * 마다 1씩 늘고, 편집·Undo/Redo·페이지 전환에서는 그대로다.
+   *
+   * 페이지 객체 참조만으로는 "다른 문서"를 가를 수 없다 — New는 매번 같은 `blankSpec`을
+   * 불러오고 `migrateV01`이 그 화면 객체를 그대로 쓰므로, 두 번째 New의 페이지가 첫 번째와
+   * 같은 참조다. 파생 계획(구현 티켓)이 자기가 만들어진 문서를 기억할 때 쓴다.
+   */
+  documentId: number;
+  /**
+   * 노드 선택/해제. 트리·캔버스가 호출한다.
+   * 해제(id === null)는 선택 문맥(focusRootId)도 함께 벗어난다 — Esc·바깥
+   * 클릭이 전부 이 호출을 거치므로, 여기 하나로 그 둘을 함께 처리한다(#151).
+   */
+  select: (id: NodeId | null) => void;
+  /**
+   * 선택 문맥을 바꾼다(#151, 더블클릭으로 안쪽 진입). null이면 root 문맥으로
+   * 돌아간다. `selectedId`와는 별개로 바뀐다 — 더블클릭 핸들러가 이걸 먼저
+   * 부르고 이어서 `select`로 그 안의 대상을 고른다.
+   */
+  enterFocus: (id: NodeId | null) => void;
+  /**
+   * 캔버스에 띄울 페이지를 바꾸고 선택을 해제한다.
+   * selectedId를 비우는 이유는 loadSpec과 같다 — 페이지마다 root, cardA 같은
+   * id가 겹치므로 그대로 두면 엉뚱한 노드가 선택된 것처럼 보인다.
+   * 레이어 트리가 호출한다.
+   */
+  selectPage: (id: PageId) => void;
+  /**
+   * 활성 페이지에 있는 노드의 값 하나를 점 표기 경로로 변경한다(불변 업데이트).
+   * 예: setNodeField("cardA", "layout.gap", 16)
+   * 패널(편집)과 캔버스(드래그)가 호출한다.
+   *
+   * #40: 내부적으로 command/applyCommand.ts의 updateNode Command를 만들어
+   * 적용한다 — "GUI는 IR을 직접 수정하지 않고 Command Engine을 호출한다"는
+   * 02-mvp-scope.md 제약을 이 함수 안에서 충족한다. 시그니처는 그대로라
+   * 대부분의 호출부는 이 변화를 모른다. 성공한 변경마다 history에도 쌓인다.
+   *
+   * `continueEdit`(#121, 기본 false)이 true면 새 단계를 쌓지 않고 present만
+   * 갈아 끼운다 — 직전 호출이 만든 undo 체크포인트에 이번 값을 겹쳐 쓴다.
+   * **호출하는 쪽이 "이건 같은 편집의 다음 글자다"를 알 때만 true를 넘긴다**
+   * (`ui/properties/fields/useDraftInput.ts`가 타이핑 burst를 추적해서 넘긴다).
+   * 기본값 false라 캔버스 드래그·레이어 트리 표시 토글처럼 이 매개변수를
+   * 모르는 기존 호출부는 전과 똑같이 호출마다 새 단계를 쌓는다.
+   */
+  setNodeField: (id: NodeId, path: string, value: unknown, continueEdit?: boolean) => void;
+  /**
+   * 활성 페이지의 여러 노드 필드를 한 동작으로 바꾼다(#149).
+   * 모든 patch를 순서대로 적용한 최종 결과만 한 번 set하고 history에도 한 단계만
+   * 쌓는다. 크기 맞추기·정렬·다중 선택처럼 사용자 동작 하나가 여러 노드에 걸칠 때
+   * 쓴다. 빈 배열이나 전부 no-op인 배열은 아무 단계도 만들지 않는다.
+   *
+   * `continueEdit`은 setNodeField와 같은 뜻이다. 다중 선택된 노드의 값을 입력칸
+   * 하나로 연속 편집할 때, 두 번째 batch부터 true를 넘기면 첫 batch가 만든 undo
+   * 단계에 이어 붙는다.
+   *
+   * 생성·삭제·이동은 포함하지 않는다. 그 액션들은 selectedId 변경/해제 규칙까지
+   * 동반하므로 필드 patch와 같은 배치 계약으로 묶지 않고 필요할 때 별도로 정한다.
+   */
+  setNodeFields: (patches: readonly NodeFieldPatch[], continueEdit?: boolean) => void;
+  /**
+   * 페이지 자체의 값을 바꾼다. 이름과 크기(해상도)가 대상이다.
+   * 예: setPageField("home", "size.width", 1920)
+   * 패널이 호출한다.
+   *
+   * #40 리뷰(GAMMJ, PR #102): setNodeField와 같은 이유로 이것도 Command
+   * Engine(updateScreen)을 거치고 history에 쌓인다.
+   * 안 그러면 "노드 편집 → 해상도 변경 → undo"가 둘 다 되돌리는 놀람이 있었다.
+   * `continueEdit`도 setNodeField와 같다(#121) — 기본 false.
+   * 검증된 변경을 커밋하면 true, 거부·no-op이면 false를 반환한다.
+   */
+  setPageField: (pageId: PageId, path: string, value: unknown, continueEdit?: boolean) => boolean;
+  /** 반응형 블록은 전체 검증 후 기존 updateScreen 한 번으로 적용한다. */
+  setResponsive: (pageId: PageId, value: Responsive, continueEdit?: boolean) => string | null;
+  /**
+   * 빈 페이지를 끝에 추가하고 그 페이지로 이동한다. 트리가 호출한다.
+   * #131: history에 쌓인다 — undo하면 추가된 페이지가 사라지고 직전에 보던
+   * 페이지로 돌아간다.
+   */
+  addPage: () => void;
+  /** pageOrder에서 페이지 위치를 바꾼다. 프로젝트 스냅숏에 기록되어 되돌릴 수 있다. */
+  reorderPage: (id: PageId, toIndex: number) => void;
+  /**
+   * 페이지를 지운다. 마지막 한 장은 지우지 않는다 — pages가 비면 캔버스가
+   * 그릴 것이 없어지고 스키마의 minProperties도 깨진다.
+   * 활성 페이지를 지우면 같은 자리의 이웃으로 옮겨 간다.
+   *
+   * #131: history에 쌓인다 — undo하면 지운 페이지와 그 노드 전부가 돌아온다.
+   * 그 전까지는 이 조작만 되돌릴 방법이 없어서 그대로 데이터 유실이었다.
+   */
+  removePage: (id: PageId, expected?: { spec: ProjectSpec; documentId: number }) => void;
+  removeNodeAction: (id: NodeId) => void;
+  /** Extract a selected frame as a shared widget in one project snapshot. */
+  extractWidget: (id: NodeId) => void;
+  /** Replace an instance with local copies of its source tree in one snapshot. */
+  detachInstance: (id: NodeId) => void;
+  /** Apply an external cross-page widget request only after full project validation. */
+  applyNlWidgetProjectCommand: (command: Extract<WidgetProjectCommand, { type: "extractAndPlaceWidget" }>) => WidgetProjectResult;
+  /**
+   * 스펙 전체를 교체하고 선택을 해제한다(New/Open).
+   * 화면 문서를 받으면 페이지 1개짜리 프로젝트로 넓힌다. 그래서 화면 문서 파일도
+   * 그대로 열리고, 호출자(MenuBar)는 어느 종류인지 신경 쓰지 않아도 된다.
+   * 0.1·0.2 → 0.3 변환은 여기 오기 전에 입구(store/loadSpec.ts)가 끝낸다(#127).
+   */
+  loadSpec: (spec: VisualSpec | ProjectSpec) => void;
+  /**
+   * 같은 문서의 내용을 밖에서 바뀐 것으로 갈아 끼운다(#279 — 열린 파일이 디스크에서 바뀜).
+   * `loadSpec`과 달리 **같은 문서**다: `documentId`와 history를 유지하고 한 단계로 쌓아,
+   * Undo 한 번이 불러오기 전 내용으로 돌아간다. 활성 페이지·선택은 남아 있으면 유지한다.
+   */
+  replaceSpecFromOutside: (spec: ProjectSpec) => void;
+  /** Filesystem rename metadata; preserve edits, selection and undo history. */
+  renameProject: (name: string) => void;
+  /** Save As establishes a distinct project identity without adding an undo step. */
+  setProjectId: (projectId: string) => void;
+  /**
+   * Atomically apply a prepared whole-project edit. This is the shared commit path
+   * for changes that can touch multiple pages (for example, shared style updates):
+   * validate the complete candidate, then publish it with exactly one Undo step.
+   * A rejected candidate leaves spec and history untouched.
+   */
+  applyProjectEdit: (candidate: ProjectSpec, continueEdit?: boolean) => ProjectEditResult;
+  createColorStyle: (name: string, value: Color, pageId: PageId, nodeId: NodeId, target: string) => StyleId | null;
+  applyColorStyle: (id: StyleId, pageId: PageId, nodeId: NodeId, target: string) => ProjectEditResult;
+  updateColorStyle: (id: StyleId, name: string, value: Color) => ProjectEditResult;
+  deleteColorStyle: (id: StyleId) => ProjectEditResult;
+  createTypographyStyle: (name: string, value: Typography, pageId: PageId, nodeId: NodeId) => StyleId | null;
+  applyTypographyStyle: (id: StyleId, pageId: PageId, nodeId: NodeId) => ProjectEditResult;
+  updateTypographyStyle: (id: StyleId, name: string, value: Typography) => ProjectEditResult;
+  deleteTypographyStyle: (id: StyleId) => ProjectEditResult;
+  /**
+   * 새 노드를 활성 페이지의 parentId(frame) 자식 목록 끝에 추가하고 선택한다(Import).
+   * parentId가 없거나 frame이 아니면 아무 것도 하지 않는다 — 호출자가
+   * resolveImportParent 등으로 유효한 frame id를 먼저 골라서 넘겨야 한다.
+   *
+   * #131: setNodeField와 같은 이유로 command/applyCommand.ts의 createNode
+   * Command를 거치고 history에도 쌓인다 — 삽입 직후 undo 한 번이 그 노드만
+   * 지운다. Import(이미지)·도구 모음·트리의 프레임 추가가 모두 이 함수를 쓰므로
+   * 셋 다 되돌릴 수 있다. 이미 있는 id는 덮어쓰지 않는다(applyCreateNode).
+   */
+  insertNode: (parentId: NodeId, id: NodeId, node: Node) => void;
+  /**
+   * 활성 페이지에서 노드 하나를 지운다. command/applyCommand.ts의 deleteNode
+   * Command를 통해 적용된다 — 그 노드가 프레임이면 자손까지 연쇄 삭제하고,
+   * 페이지 root는 지우지 않는다(스키마가 root를 필수로 요구하므로 —
+   * removePage가 마지막 페이지를 막는 것과 같은 이유). setNodeField와 같은
+   * 이유로 history에도 쌓인다. 지운 노드나 그 자손이 선택 중이었으면
+   * selectedId를 비운다. 레이어 트리가 호출한다.
+   */
+  removeNode: (id: NodeId) => void;
+  /**
+   * 활성 페이지에서 노드를 newParentId(frame)의 children 중 index 위치로
+   * 옮긴다. command/applyCommand.ts의 moveNode Command를 통해 적용된다 —
+   * root는 옮기지 않고, 자기 자신이나 자기 자손 밑으로는 못 옮긴다(순환
+   * 방지, applyMoveNode가 이미 한다). setNodeField와 같은 이유로 history에도
+   * 쌓인다. 레이어 트리가 드래그로 순서를 바꿀 때 호출한다.
+   */
+  moveNode: (id: NodeId, newParentId: NodeId, index: number) => void;
+  /**
+   * 활성 페이지에서 노드(와 그 자손 전체)를 복제해 원본 바로 뒤 형제로 끼워
+   * 넣고 그 복제본을 선택한다(#151, `Ctrl+D`). root는 대상이 아니다.
+   *
+   * 서브트리 크기만큼 createNode Command가 나오지만 `setNodeFields`(#149)와
+   * 같은 이유로 `appliedTransaction`을 한 번만 호출해 history도 한 단계다 —
+   * 자식이 여러 개인 프레임을 복제했다고 Undo를 여러 번 누르게 하지 않는다.
+   */
+  duplicateNode: (id: NodeId) => void;
+  /** 단일 노드 감싸기/프레임 해제. root 제외, 각 호출은 Undo 한 단계다(#225). */
+  groupNode: (id: NodeId) => void;
+  ungroupNode: (id: NodeId) => void;
+  /**
+   * 클립보드에서 온 서브트리를 parentId(frame) 자식 목록 끝에 붙여넣고 그
+   * 루트를 선택한다(#151, `Ctrl+V`). `insertNode`처럼 어디에 넣을지는 호출자가
+   * 정해서 넘긴다 — `ui/clipboard.ts`가 지금 선택 기준으로 `resolveInsertParent`
+   * (F/T 도구가 새 노드를 놓을 때 쓰는 것과 같은 규칙)를 골라 넘겨준다.
+   */
+  pasteNode: (entry: NodeSubtree, parentId: NodeId) => void;
+  /**
+   * 프로젝트의 마지막 편집을 한 단계 되돌린다. 되돌릴 것이 없으면 아무 일도
+   * 안 한다. 되돌린 편집이 다른 페이지에 있었으면 그 페이지로 옮겨 간다(#131).
+   */
+  undo: () => void;
+  /** 되돌린 편집을 한 단계 다시 실행한다. 다시 실행할 것이 없으면 아무 일도 안 한다. */
+  redo: () => void;
+  /**
+   * 출처를 신뢰할 수 없는 Command 배열(자연어 등)을 관문 G2·G3
+   * (docs/08-natural-language.md 4.2, `command/transactionGate.ts`)에 통과시킨
+   * 뒤 한 단계로 커밋한다. `setNodeFields`(#149)와 달리 **전부-또는-전무**다 —
+   * no-op이 하나라도 있거나(G2) 결과가 무효면(G3) `spec`을 전혀 바꾸지 않는다.
+   *
+   * 다른 편집 액션과 달리 **반환값이 있다** — 실패 이유(어느 Command가
+   * no-op인지, 또는 어떤 스키마 위반인지)를 호출부가 UI에 보여줘야 하기
+   * 때문이다(4.2 G2 "3번째 명령이 아무 일도 하지 않았습니다").
+   *
+   * GUI 경로는 이 액션을 쓰지 않는다 — 패널이 경로·값 모양을 소스에 고정해
+   * 둬서 관문이 필요 없다(4.1). 자연어처럼 Command를 LLM이 만드는 경로 전용이다.
+   */
+  applyGuardedTransaction: (
+    pageId: PageId,
+    commands: readonly Command[],
+  ) => TransactionGateResult;
+}
+
+function hasKey(target: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(target, key);
+}
+
+/** 페이지 하나만 갈아 끼운 새 spec. 나머지 페이지는 참조가 그대로 유지된다. */
+function withPage(
+  spec: ProjectSpec,
+  pageId: PageId,
+  page: ScreenSpec,
+): ProjectSpec {
+  return { ...spec, pages: { ...spec.pages, [pageId]: page } };
+}
+
+/**
+ * Undo 스냅숏 하나를 만든다. `applied`·`addPage`·`removePage`가 전부 이걸 쓴다.
+ *
+ * #131 리뷰(wook3964, PR #142): 세 곳이 각자 `{ spec, activePageId }`를 직접
+ * 조립하고 있었다. EditorSnapshot에 필드가 늘면(예: selectedId) 세 곳을 손으로
+ * 맞춰야 하고, 하나를 놓쳐도 타입이 잡아주지 않은 채 조용히 낡은 스냅숏이
+ * 쌓인다. 생성자를 하나로 두면 추가할 곳도 한 곳이다.
+ */
+function makeSnapshot(spec: ProjectSpec, activePageId: PageId): EditorSnapshot {
+  return { spec, activePageId };
+}
+
+/**
+ * pageOrder는 최소 1개를 보장하는 튜플이라 배열 연산 결과를 그대로 넣을 수 없다.
+ * 비지 않음은 호출부가 지킨다(addPage는 더하기만 하고, removePage는 마지막 한 장을 막는다).
+ */
+function asPageOrder(ids: PageId[]): ProjectSpec["pageOrder"] {
+  return ids as ProjectSpec["pageOrder"];
+}
+
+type ProjectCommit = Pick<EditorState, "spec" | "history">;
+type PreparedProjectCommit =
+  | { ok: true; commit: ProjectCommit | null }
+  | { ok: false; issues: ValidationIssue[] };
+
+// Only a committed transaction can be continued. Rejected attempts invalidate
+// eligibility without changing the document/history or emitting a store update.
+// Weak keys also isolate documents, Undo/Redo and externally replaced histories.
+const continuableHistories = new WeakSet<EditorState["history"]>();
+
+function prepareProjectCommit(
+  state: EditorState,
+  candidate: ProjectSpec,
+  historyPageId: PageId,
+  continueEdit = false,
+  trackContinuation = true,
+): PreparedProjectCommit {
+  const canContinue = continueEdit && continuableHistories.has(state.history);
+  continuableHistories.delete(state.history);
+  if (candidate === state.spec) return { ok: true, commit: null };
+
+  const validation = validateGuiCandidate(candidate);
+  if (!validation.valid) return { ok: false, issues: validation.issues };
+
+  const snapshotPageId = candidate.pages[historyPageId] ? historyPageId : candidate.pageOrder[0];
+
+  const history = canContinue
+    ? replacePresent(state.history, makeSnapshot(candidate, snapshotPageId))
+    : pushHistory(state.history, makeSnapshot(candidate, snapshotPageId));
+  if (trackContinuation) continuableHistories.add(history);
+  return { ok: true, commit: { spec: candidate, history } };
+}
+
+/**
+ * Command 하나를 pageId 페이지에 적용하고 그 결과를 history에 한 단계로 얹는다.
+ * setNodeField·setPageField·insertNode·removeNode·moveNode가 전부 이 순서를
+ * 따르므로(적용 → 아무것도 안 바뀌면 그대로 → 스냅숏 한 단계) 여기 모았다.
+ * 페이지 목록까지 바꾸는 addPage·removePage는 Command로 표현되지 않아
+ * (applyCommand는 페이지가 여러 장이라는 걸 아예 모른다) 이걸 안 쓴다.
+ *
+ * 없는 페이지거나 적용 결과가 원본과 같은 참조면(applyCommand가 규칙 위반으로
+ * no-op일 때) null을 준다 — 호출부가 state를 그대로 반환해서 history에도 빈
+ * 단계가 안 쌓이게 한다.
+ *
+ * `continueEdit`(#121, 기본 false)이 true면 새 단계를 쌓지 않고 present만
+ * 갈아 끼운다 — 직전 호출이 만든 undo 체크포인트에 이번 값을 겹쳐 쓴다.
+ * **호출하는 쪽이 "이건 같은 편집의 다음 글자다"를 알 때만 true가 들어온다**
+ * (`ui/properties/fields/useDraftInput.ts`가 타이핑 burst를 추적해서 넘긴다).
+ * 스토어가 "직전 호출과 같은 키인지" 스스로 추측하는 방식(예: 노드 id·경로가
+ * 같으면 병합)은 일부러 안 썼다 — 레이어 트리의 표시 토글처럼 같은 경로를 여러
+ * 번 눌러도 매번 별개의 편집인 호출부까지 잘못 병합해버리기 때문이다.
+ */
+function applied(
+  state: EditorState,
+  pageId: PageId,
+  command: ScreenCommand,
+  continueEdit = false,
+): Pick<EditorState, "spec" | "history"> | null {
+  return appliedTransaction(state, pageId, [command], continueEdit);
+}
+
+/**
+ * Command 여러 개를 한 페이지 사본에 먼저 적용하고 최종 결과만 history에 얹는다.
+ * Zustand의 set 콜백 한 번 안에서 호출되므로 중간 화면은 구독자에게 보이지 않는다.
+ */
+const validateGuiCandidate = createCachedProjectValidator();
+function appliedTransaction(
+  state: EditorState,
+  pageId: PageId,
+  commands: ScreenCommand[],
+  continueEdit = false,
+): Pick<EditorState, "spec" | "history"> | null {
+  const reject = (): null => {
+    continuableHistories.delete(state.history);
+    return null;
+  };
+  const page = state.spec.pages[pageId];
+  if (page === undefined) return reject();
+
+  const relationEdit = commands.some((c) => c.type === "removeNodeAction"
+    || (c.type === "updateNode" && (c.path === "action" || c.path.startsWith("action.")))
+    || (c.type === "updateScreen" && c.path === "kind")
+    || (c.type === "createNode" && c.node.type === "button" && c.node.action !== undefined));
+  const trial = relationEdit ? dryRunTransaction(page, commands) : null;
+  if (trial && trial.noOps.length > 0) {
+    useResponsiveViewStore.getState().reportError(trial.noOps.map((op) => op.reason).join("\n"));
+    return reject();
+  }
+  const nextPage = trial?.screen ?? applyTransaction(page, commands);
+  if (nextPage === page) return reject();
+  if (page.responsive || nextPage.responsive) {
+    const validation = validateVisualSpec({ version: "0.4", screen: withoutStyleRefs(nextPage) });
+    if (!validation.valid) {
+      useResponsiveViewStore.getState().reportError(validation.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+      return reject();
+    }
+    useResponsiveViewStore.getState().reportError(null);
+  }
+
+  const spec = withPage(state.spec, pageId, nextPage);
+  const prepared = prepareProjectCommit(state, spec, pageId, continueEdit);
+  if (!prepared.ok) {
+    useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+    return reject();
+  }
+  if (prepared.commit === null) return reject();
+  useResponsiveViewStore.getState().reportError(null);
+  // #131 리뷰(wook3964, PR #142): 지금 호출부는 전부 활성 페이지를 넘겨서 둘이
+  // 같지만, 타입도 런타임도 그걸 강제하지 않는다. 비활성 페이지 편집이 생겨도
+  // state.activePageId로 바꾸면 스냅숏이 편집된 페이지가 아니라 보고 있던 페이지를
+  // 기록한다. history가 실제 변경을 보여 주도록 편집 대상 pageId를 유지한다.
+  // 스냅숏의 activePageId는 `state.activePageId`가 아니라 편집이 일어난 `pageId`다.
+  // 이 단계로 undo/redo하면 바뀐 내용이 눈앞에 있어야 한다(#131, PR #142).
+  return prepared.commit;
+}
+
+export const useEditorStore = create<EditorState>((set, get) => ({
+  spec: initialSpec,
+  documentId: 0,
+  activePageId: initialSpec.pageOrder[0],
+  selectedId: null,
+  focusRootId: null,
+  history: initHistory(makeSnapshot(initialSpec, initialSpec.pageOrder[0])),
+  select: (id) =>
+    set(id === null ? { selectedId: null, focusRootId: null } : { selectedId: id }),
+  enterFocus: (id) => set({ focusRootId: id }),
+  selectPage: (id) =>
+    set((state) => {
+      if (id === state.activePageId || !hasKey(state.spec.pages, id)) {
+        return state;
+      }
+
+      // 페이지 전환은 편집이 아니라 새 단계를 쌓지 않는다. 다만 present는 지금
+      // 상태를 그대로 비추고 있어야 한다 — 안 맞춰두면 다음 편집이 past에 밀어
+      // 넣는 스냅숏이 "전에 보던 페이지"를 가리켜서, 그 편집을 되돌릴 때 엉뚱한
+      // 페이지로 튄다(#131).
+      return {
+        activePageId: id,
+        selectedId: null,
+        focusRootId: null, // 페이지마다 id가 겹칠 수 있어 선택 문맥도 비운다(#151)
+        history: replacePresent(state.history, makeSnapshot(state.spec, id)),
+      };
+    }),
+  removeNodeAction: (id) => set((state) => applied(state, state.activePageId, { type: "removeNodeAction", id }) ?? state),
+  extractWidget: (id) => set((state) => {
+    const node = state.spec.pages[state.activePageId]?.nodes[id];
+    const result = applyWidgetProjectCommand(state.spec, { version: "0.1", type: "extractWidget", pageId: state.activePageId, nodeId: id,
+      widgetId: generateNodeId("widget", state.spec.pages), name: node?.name || "Widget" });
+    if (!result.ok) { useResponsiveViewStore.getState().reportError(result.message); return state; }
+    useResponsiveViewStore.getState().reportError(null);
+    return { spec: result.spec, selectedId: result.selectedId, focusRootId: null,
+      history: pushHistory(state.history, makeSnapshot(result.spec, state.activePageId)) };
+  }),
+  detachInstance: (id) => set((state) => {
+    const result = applyWidgetProjectCommand(state.spec, { version: "0.1", type: "detachInstance", pageId: state.activePageId, nodeId: id });
+    if (!result.ok) { useResponsiveViewStore.getState().reportError(result.message); return state; }
+    useResponsiveViewStore.getState().reportError(null);
+    return { spec: result.spec, selectedId: result.selectedId, focusRootId: null,
+      history: pushHistory(state.history, makeSnapshot(result.spec, state.activePageId)) };
+  }),
+  applyNlWidgetProjectCommand: (command) => {
+    let result: WidgetProjectResult = { ok: false, message: "활성 화면이 요청과 다릅니다." };
+    set((state) => {
+      if (state.activePageId !== command.pageId) return state;
+      result = applyWidgetProjectCommand(state.spec, command);
+      if (!result.ok) return state;
+      return { spec: result.spec, selectedId: result.selectedId, focusRootId: null,
+        history: pushHistory(state.history, makeSnapshot(result.spec, state.activePageId)) };
+    });
+    return result;
+  },
+  setNodeField: (id, path, value, continueEdit = false) =>
+    set((state) => {
+      // #40: setByPath를 직접 부르는 대신 updateNode Command를 만들어
+      // applyCommand로 적용한다 — 결과는 이전과 동일하지만(둘 다 setByPath를
+      // 쓴다) 이제 Command Engine을 거친다. 없는 노드 id면 applyUpdateNode가
+      // 원본을 그대로 돌려주므로 applied가 null을 준다.
+      const next = applied(
+        state,
+        state.activePageId,
+        { type: "updateNode", id, path, value },
+        continueEdit,
+      );
+      return next ?? state;
+    }),
+  setNodeFields: (patches, continueEdit = false) =>
+    set((state) => {
+      const commands: ScreenCommand[] = patches.map(({ id, path, value }) => ({
+        type: "updateNode",
+        id,
+        path,
+        value,
+      }));
+      const next = appliedTransaction(
+        state,
+        state.activePageId,
+        commands,
+        continueEdit,
+      );
+      return next ?? state;
+    }),
+  setPageField: (pageId, path, value, continueEdit = false) => {
+    const next = applied(get(), pageId, { type: "updateScreen", path, value }, continueEdit);
+    if (!next) return false;
+    set(next);
+    return true;
+  },
+  setResponsive: (pageId, value, continueEdit = false) => {
+    const state = get();
+    const page = state.spec.pages[pageId];
+    if (!page) return "페이지가 없습니다.";
+    if (JSON.stringify(page.responsive) === JSON.stringify(value)) return null;
+    const result = validateVisualSpec({ version: "0.4", screen: { ...page, responsive: value } });
+    if (!result.valid) return result.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n");
+    const next = applied(state, pageId, { type: "updateScreen", path: "responsive", value }, continueEdit);
+    if (!next) return useResponsiveViewStore.getState().error ?? "반응형 변경을 적용하지 못했습니다.";
+    set(next);
+    return null;
+  },
+  addPage: () =>
+    set((state) => {
+      const id = generateNodeId("page", state.spec.pages);
+      // blankSpec의 nodes를 그대로 물리면 페이지끼리 같은 객체를 공유한다.
+      // 지금은 어디서도 변형하지 않지만, 얕게 복사해 그 전제를 없앤다.
+      const page: ScreenSpec = {
+        ...blankSpec.screen,
+        name: `Page ${state.spec.pageOrder.length + 1}`,
+        nodes: { ...blankSpec.screen.nodes },
+      };
+
+      const spec: ProjectSpec = {
+        ...state.spec,
+        pages: { ...state.spec.pages, [id]: page },
+        pageOrder: asPageOrder([...state.spec.pageOrder, id]),
+      };
+
+      const prepared = prepareProjectCommit(state, spec, id, false, false);
+      if (!prepared.ok) { useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n")); return state; }
+      if (prepared.commit === null) return state;
+      useResponsiveViewStore.getState().reportError(null);
+      return {
+        ...prepared.commit,
+        // #131: 페이지까지 옮기는 액션이라 스냅숏을 직접 만든다 — undo하면
+        // 이 페이지가 사라지므로 activePageId도 함께 되돌아가야 한다.
+        activePageId: id,
+        selectedId: null,
+        focusRootId: null,
+      };
+    }),
+  reorderPage: (id, toIndex) =>
+    set((state) => {
+      const fromIndex = state.spec.pageOrder.indexOf(id);
+      if (fromIndex < 0 || !Number.isInteger(toIndex)
+        || toIndex < 0 || toIndex >= state.spec.pageOrder.length
+        || fromIndex === toIndex) return state;
+
+      const pageOrder = [...state.spec.pageOrder];
+      pageOrder.splice(fromIndex, 1);
+      pageOrder.splice(toIndex, 0, id);
+      const spec = { ...state.spec, pageOrder: asPageOrder(pageOrder) };
+      const prepared = prepareProjectCommit(state, spec, state.activePageId, false, false);
+      if (!prepared.ok) {
+        useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+        return state;
+      }
+      if (prepared.commit === null) return state;
+      useResponsiveViewStore.getState().reportError(null);
+      return prepared.commit;
+    }),
+  removePage: (id, expected) =>
+    set((state) => {
+      if (expected && (state.spec !== expected.spec || state.documentId !== expected.documentId)) return state;
+      const prepared = preparePageRemoval(state.spec, id);
+      if (!prepared.ok) {
+        useResponsiveViewStore.getState().reportError(prepared.message);
+        return state;
+      }
+      const spec = prepared.spec;
+      const isActive = state.activePageId === id;
+      const removedAt = state.spec.pageOrder.indexOf(id);
+      const activePageId = isActive
+        ? spec.pageOrder[Math.min(removedAt, spec.pageOrder.length - 1)] : state.activePageId;
+      const committed = prepareProjectCommit(state, spec, activePageId, false, false);
+      if (!committed.ok) {
+        useResponsiveViewStore.getState().reportError(committed.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+        return state;
+      }
+      if (committed.commit === null) return state;
+      useResponsiveViewStore.getState().reportError(null);
+      return {
+        ...committed.commit, activePageId,
+        selectedId: isActive ? null : state.selectedId,
+        focusRootId: isActive ? null : state.focusRootId,
+      };
+    }),
+  renameProject: (name) => set((state) => {
+    const rename = (snapshot: EditorSnapshot): EditorSnapshot => ({
+      ...snapshot, spec: { ...snapshot.spec, name },
+    });
+    return {
+      spec: { ...state.spec, name },
+      history: {
+        past: state.history.past.map(rename),
+        present: rename(state.history.present),
+        future: state.history.future.map(rename),
+      },
+    };
+  }),
+  setProjectId: (projectId) => set((state) => {
+    if (state.spec.projectId === projectId) return state;
+    const reidentify = (snapshot: EditorSnapshot): EditorSnapshot => ({
+      ...snapshot,
+      spec: { ...snapshot.spec, projectId },
+    });
+    return {
+      spec: { ...state.spec, projectId },
+      history: {
+        past: state.history.past.map(reidentify),
+        present: reidentify(state.history.present),
+        future: state.history.future.map(reidentify),
+      },
+    };
+  }),
+  applyProjectEdit: (candidate, continueEdit = false) => {
+    const state = get();
+    const prepared = prepareProjectCommit(state, candidate, state.activePageId, continueEdit);
+    if (!prepared.ok) {
+      useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+      return { ok: false, issues: prepared.issues };
+    }
+    if (prepared.commit !== null) {
+      const activePageId = prepared.commit.history.present.activePageId;
+      const page = candidate.pages[activePageId];
+      set({
+        ...prepared.commit,
+        activePageId,
+        selectedId: activePageId === state.activePageId && state.selectedId !== null && page.nodes[state.selectedId]
+          ? state.selectedId : null,
+        focusRootId: activePageId === state.activePageId && state.focusRootId !== null && page.nodes[state.focusRootId]
+          ? state.focusRootId : null,
+      });
+      useResponsiveViewStore.getState().reportError(null);
+    }
+    return { ok: true };
+  },
+  createColorStyle: (name, value, pageId, nodeId, target) => {
+    const state = get();
+    const id = `color-${createProjectIdentity()}` as StyleId;
+    const candidate: ProjectSpec = {
+      ...state.spec,
+      styles: { ...state.spec.styles, colors: { ...state.spec.styles?.colors, [id]: { name, value } } },
+    };
+    const result = get().applyProjectEdit(linkColorStyle(candidate, pageId, nodeId, target, id));
+    return result.ok ? id : null;
+  },
+  applyColorStyle: (id, pageId, nodeId, target) => {
+    const state = get();
+    return get().applyProjectEdit(linkColorStyle(state.spec, pageId, nodeId, target, id));
+  },
+  updateColorStyle: (id, name, value) => {
+    const state = get();
+    return get().applyProjectEdit(updateColorStyleValues(state.spec, id, name, value));
+  },
+  deleteColorStyle: (id) => {
+    const state = get();
+    const candidate = unlinkStyle(state.spec, "colors", id);
+    const colors = { ...candidate.styles?.colors };
+    delete colors[id];
+    const { colors: _colors, ...styles } = candidate.styles ?? {};
+    return get().applyProjectEdit({ ...candidate, styles: { ...styles, ...(Object.keys(colors).length ? { colors } : {}) } });
+  },
+  createTypographyStyle: (name, value, pageId, nodeId) => {
+    const state = get();
+    const id = `text-${createProjectIdentity()}` as StyleId;
+    const candidate: ProjectSpec = {
+      ...state.spec,
+      styles: { ...state.spec.styles, typography: { ...state.spec.styles?.typography, [id]: { name, value } } },
+    };
+    const result = get().applyProjectEdit(linkTypographyStyle(candidate, pageId, nodeId, id));
+    return result.ok ? id : null;
+  },
+  applyTypographyStyle: (id, pageId, nodeId) => {
+    const state = get();
+    return get().applyProjectEdit(linkTypographyStyle(state.spec, pageId, nodeId, id));
+  },
+  updateTypographyStyle: (id, name, value) => {
+    const state = get();
+    return get().applyProjectEdit(updateTypographyStyleValues(state.spec, id, name, value));
+  },
+  deleteTypographyStyle: (id) => {
+    const state = get();
+    const candidate = unlinkStyle(state.spec, "typography", id);
+    const typography = { ...candidate.styles?.typography };
+    delete typography[id];
+    const { typography: _typography, ...styles } = candidate.styles ?? {};
+    return get().applyProjectEdit({ ...candidate, styles: { ...styles, ...(Object.keys(typography).length ? { typography } : {}) } });
+  },
+  loadSpec: (spec) => {
+    useResponsiveViewStore.getState().reset();
+    const project = ensureProjectIdentity("screen" in spec ? migrateV01(spec) : spec);
+    set((state) => ({
+      spec: project,
+      documentId: state.documentId + 1,
+      activePageId: project.pageOrder[0],
+      selectedId: null,
+      focusRootId: null,
+      // #40: 완전히 다른 프로젝트로 갈아 끼우는 시점이라 history도 새로 시작
+      // 한다. 이어 쓰면 undo 한 번이 방금 연 파일이 아니라 전에 열려 있던
+      // 파일의 옛 상태로 튀어버린다 — New/Open은 되돌릴 대상이 아니다.
+      history: initHistory(makeSnapshot(project, project.pageOrder[0])),
+    }));
+  },
+  replaceSpecFromOutside: (spec) =>
+    set((state) => {
+      // Disk-watch/agent refreshes update the currently open project. Older on-disk specs may not
+      // have the new persisted ID yet; keep the in-memory identity stable across those refreshes.
+      const project = typeof spec.projectId === "string" && spec.projectId.length > 0
+        ? spec
+        : { ...spec, projectId: state.spec.projectId ?? createProjectIdentity() };
+      const activePageId = project.pages[state.activePageId] ? state.activePageId : project.pageOrder[0];
+      const page = project.pages[activePageId];
+      const prepared = prepareProjectCommit(state, project, activePageId, false, false);
+      if (!prepared.ok) { useResponsiveViewStore.getState().reportError(prepared.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n")); return state; }
+      if (prepared.commit === null) return state;
+      useResponsiveViewStore.getState().reportError(null);
+      return {
+        ...prepared.commit,
+        documentId: project.projectId !== state.spec.projectId ? state.documentId + 1 : state.documentId,
+        activePageId,
+        selectedId: activePageId === state.activePageId && state.selectedId !== null && page.nodes[state.selectedId] ? state.selectedId : null,
+        focusRootId: activePageId === state.activePageId && state.focusRootId !== null && page.nodes[state.focusRootId] ? state.focusRootId : null,
+      };
+    }),
+  insertNode: (parentId, id, node) =>
+    set((state) => {
+      // #131: 직접 노드를 만들지 않고 createNode Command를 거친다 — parent가
+      // frame인지, id가 이미 있는지는 applyCreateNode가 판정한다.
+      const next = applied(state, state.activePageId, {
+        type: "createNode",
+        parentId,
+        id,
+        node,
+      });
+      if (next === null) return state;
+
+      return { ...next, selectedId: id };
+    }),
+  removeNode: (id) =>
+    set((state) => {
+      // #40과 같은 이유로 deleteNode Command를 통해 적용한다 — root 보호와
+      // 연쇄 삭제는 applyDeleteNode(command/applyCommand.ts)가 이미 한다.
+      const next = applied(state, state.activePageId, { type: "deleteNode", id });
+      if (next === null) return state;
+
+      const nodes = next.spec.pages[state.activePageId].nodes;
+      return {
+        ...next,
+        // 지운 노드나 그 자손이 선택 중이었으면 지운 뒤의 nodes에 더 이상 없다.
+        selectedId:
+          state.selectedId !== null && nodes[state.selectedId] === undefined
+            ? null
+            : state.selectedId,
+        // 진입해 있던 프레임이 지워졌으면 문맥도 함께 비운다 — 같은 이유다(#151).
+        focusRootId:
+          state.focusRootId !== null && nodes[state.focusRootId] === undefined
+            ? null
+            : state.focusRootId,
+      };
+    }),
+  moveNode: (id, newParentId, index) =>
+    set((state) => {
+      // root 보호와 순환 방지는 applyMoveNode(command/applyCommand.ts)가 이미 한다.
+      const next = applied(state, state.activePageId, {
+        type: "moveNode",
+        id,
+        newParentId,
+        index,
+      });
+      return next ?? state;
+    }),
+  duplicateNode: (id) =>
+    set((state) => {
+      const { nodes, root } = state.spec.pages[state.activePageId];
+      if (id === root) return state; // root는 복제하지 않는다 — moveNode·deleteNode와 같은 보호
+
+      const parentId = findParentId(nodes, id);
+      const parent = parentId !== undefined ? nodes[parentId] : undefined;
+      if (parentId === undefined || parent === undefined || parent.type !== "frame") {
+        return state;
+      }
+
+      const index = parent.children.findIndex((child) => child.node === id);
+      if (index === -1) return state;
+
+      // 원본 바로 뒤(index + 1)에 끼워 넣는다 — createNode는 항상 끝에 붙으므로
+      // buildDuplicateCommands가 그 자리로 옮기는 moveNode를 마지막에 덧붙인다.
+      const built = buildDuplicateCommands(nodes, id, nodes, parentId, index + 1);
+      if (built === null) return state;
+
+      const responsive = state.spec.pages[state.activePageId].responsive;
+      if (responsive) {
+        const overrides = Object.fromEntries(Object.entries(responsive.overrides).map(([key, patches]) => [key, {
+          ...patches, ...Object.fromEntries(Object.entries(patches).filter(([oldId]) => built.idMap.has(oldId)).map(([oldId, patch]) => [built.idMap.get(oldId)!, structuredClone(patch)])),
+        }]));
+        built.commands.push({ type: "updateScreen", path: "responsive", value: { ...responsive, overrides } });
+      }
+      const next = appliedTransaction(state, state.activePageId, built.commands);
+      if (next === null) return state;
+
+      return { ...next, selectedId: built.newRootId };
+    }),
+  groupNode: (id) =>
+    set((state) => {
+      const built = buildGroupCommands(state.spec.pages[state.activePageId], id);
+      if (built === null) return state;
+      const next = appliedTransaction(state, state.activePageId, built.commands);
+      return next === null ? state : { ...next, selectedId: built.selectedId, focusRootId: null };
+    }),
+  ungroupNode: (id) =>
+    set((state) => {
+      const built = buildUngroupCommands(state.spec.pages[state.activePageId], id);
+      if (built === null) return state;
+      const next = appliedTransaction(state, state.activePageId, built.commands);
+      return next === null ? state : {
+        ...next, selectedId: built.selectedId,
+        focusRootId: state.focusRootId === id ? null : state.focusRootId,
+      };
+    }),
+  pasteNode: (entry, parentId) =>
+    set((state) => {
+      useResponsiveViewStore.getState().reportError(null);
+      const hasAction = Object.values(entry.nodes).some((node) => node.type === "button" && node.action !== undefined);
+      const sameProject = entry.source !== undefined && (
+        entry.source.projectId && state.spec.projectId
+          ? entry.source.projectId === state.spec.projectId
+          : entry.source.documentId === state.documentId
+      );
+      if (hasAction && !sameProject) {
+        useResponsiveViewStore.getState().reportError("다른 프로젝트 또는 출처를 확인할 수 없는 연결은 붙여넣을 수 없습니다. 원본에서 연결을 명시적으로 제거한 뒤 다시 복사하세요.");
+        return state;
+      }
+      const { nodes } = state.spec.pages[state.activePageId];
+      const parent = nodes[parentId];
+      if (parent === undefined || parent.type !== "frame") return state;
+
+      const sourceNodes = sameProject ? entry.nodes : Object.fromEntries(Object.entries(entry.nodes).map(([id, node]) => {
+        if (!("styleRefs" in node)) return [id, node];
+        const { styleRefs: _styleRefs, ...literalNode } = node;
+        return [id, literalNode];
+      }));
+
+      const built = buildDuplicateCommands(
+        sourceNodes,
+        entry.rootId,
+        nodes,
+        parentId,
+        parent.children.length,
+      );
+      if (built === null) return state;
+
+      const next = appliedTransaction(state, state.activePageId, built.commands);
+      if (next === null) return state;
+
+      return { ...next, selectedId: built.newRootId };
+    }),
+  undo: () =>
+    set((state) => {
+      if (!historyCanUndo(state.history)) return state;
+
+      const nextHistory = historyUndo(state.history);
+      return {
+        spec: nextHistory.present.spec,
+        // 되돌린 편집이 다른 페이지에 있었으면 그 페이지로 옮겨 간다. 스냅숏이
+        // 늘 짝이 맞는 (spec, activePageId)라 여기서 존재 확인이 필요 없다.
+        activePageId: nextHistory.present.activePageId,
+        history: nextHistory,
+        // 되돌린 뒤의 트리에는 지금 선택된 id가 없을 수 있다(예: undo가 방금
+        // 만든 노드를 지운 상태로 되돌림) — select 로직을 새로 만드는 대신
+        // loadSpec/selectPage와 같은 원칙(불확실하면 선택을 비운다)을 따른다.
+        selectedId: null,
+        focusRootId: null, // 같은 이유로 선택 문맥도 비운다(#151)
+      };
+    }),
+  redo: () =>
+    set((state) => {
+      if (!historyCanRedo(state.history)) return state;
+
+      const nextHistory = historyRedo(state.history);
+      return {
+        spec: nextHistory.present.spec,
+        activePageId: nextHistory.present.activePageId,
+        history: nextHistory,
+        selectedId: null,
+        focusRootId: null,
+      };
+    }),
+  applyGuardedTransaction: (pageId, commands) => {
+    const state = get();
+    const result = runTransactionGates(state.spec, pageId, commands);
+    if (!result.ok) { continuableHistories.delete(state.history); return result; }
+    const spec = result.spec;
+    const prepared = prepareProjectCommit(state, spec, pageId, false, false);
+    if (!prepared.ok) return { ok: false, failure: { kind: "invalid", issues: prepared.issues } };
+    if (prepared.commit !== null) set(prepared.commit);
+    return result;
+  },
+}));

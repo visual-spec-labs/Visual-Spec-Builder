@@ -1,0 +1,235 @@
+import { isScreenRelationIssue, migrateToV03, migrateToV04, validateProjectSpec } from "@/features/editor/schema";
+import type { ProjectSpec } from "@/features/editor/schema";
+import type { PauseReason } from "./saveConflictStore";
+
+/**
+ * 작업 중인 프로젝트 전체를 저장하는 localStorage 키(이슈 #128).
+ * ThemeProvider·theme-storage.ts와 같은 패턴 — 키 상수를 별도 파일에 두고
+ * localStorage 접근은 항상 try/catch로 감싼다(프라이빗 모드·용량 초과 등으로
+ * 언제든 실패할 수 있다).
+ */
+export const SPEC_STORAGE_KEY = "visual-spec:project";
+
+/**
+ * localStorage에 실제로 저장되는 값의 모양(이슈 #185).
+ *
+ * 처음(#128)엔 `ProjectSpec`을 그대로 저장했다. 그런데 "지금 이게 어느 파일인가"
+ * (`documentStore.fileName`)는 spec 안에 없는 값이라 같이 안 묶으면 새로고침 뒤
+ * 유실된다 — `spec.name`으로 되돌아가 PR #145가 고친 "고친 내용이 다른 파일로
+ * 들어간다" 버그가 새로고침이라는 경로로 재발했다(#185). 그래서 파일명과 내용을
+ * **하나의 값**으로 묶는다 — 따로 저장하면 한쪽만 쓰기에 성공하거나 서로 다른
+ * 시점의 값이 섞여("이름은 A인데 내용은 B였을 때 것") 더 헷갈리는 불일치가 생긴다.
+ */
+export interface StoredDocument {
+  /** `documentStore.fileName`과 같은 뜻 — null이면 그 세션엔 어느 파일도 아니었다. */
+  fileName: string | null;
+  /** Browser download name for documents that have no workspace file. Absent in older caches. */
+  downloadFileName?: string;
+  spec: ProjectSpec;
+  diskRevision?: string | null;
+}
+
+/**
+ * localStorage에서 저장된 문서(파일명+spec)를 읽고 검증한다. 두 로더가 공유한다.
+ *
+ * 다음 중 하나라도 해당하면 undefined다 — 저장된 값이 없다, JSON으로 파싱이 안
+ * 된다, 봉투 모양이 아니다, `fileName`이 문자열도 null도 아니다, `spec`이
+ * (`migrateToV04`로 0.4로 바꾼 뒤에도) `validateProjectSpec`을 통과하지 못한다.
+ * 단 화면 관계 오류(`isScreenRelationIssue`)만 남은 spec은 복원한다(#265 S1-2 — 아래 parseStoredDocument).
+ * **#128 시절 저장된 옛 형태**(봉투 없이 `ProjectSpec`이 최상위)도 여기
+ * 걸린다 — `spec` 필드가 없어 검증에 실패하고 조용히 폐기된다. 로컬 캐시일 뿐이라 한 번 seedSpec/`null`로 되돌아가는 것을
+ * 감수한다 — `loadStoredSpec`이 이전부터 "스키마가 다른 값"을 같은 방식으로
+ * 다뤄 온 것과 같은 취급이다.
+ */
+function readStoredDocument(): StoredDocument | undefined {
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(SPEC_STORAGE_KEY);
+  } catch {
+    return undefined;
+  }
+  if (raw === null) return undefined;
+
+  try {
+    const key = JSON.parse(raw).draftKey;
+    if (typeof key === "string" && localStorage.getItem(`${key}:deleted`)) return undefined;
+  } catch { return undefined; }
+  return parseStoredDocument(raw);
+}
+
+export function parseStoredDocument(raw: string | null): StoredDocument | undefined {
+  if (raw === null) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+
+  if (typeof parsed !== "object" || parsed === null ||
+    ("renamePending" in parsed && parsed.renamePending === true)) return undefined;
+  const fileName = (parsed as Record<string, unknown>).fileName;
+  if (fileName !== null && typeof fileName !== "string") return undefined;
+  const downloadFileName = (parsed as Record<string, unknown>).downloadFileName;
+  if (downloadFileName !== undefined && downloadFileName !== null && typeof downloadFileName !== "string") return undefined;
+
+  // 검증 전에 0.3으로 바꾼다(#127). 빠뜨리면 0.2 시절 자동 저장본이 아래 검증에서
+  // 조용히 버려져, 갱신 직후 첫 실행에서 작업이 사라진다.
+  const spec = migrateToV04(migrateToV03((parsed as Record<string, unknown>).spec));
+  const result = validateProjectSpec(spec);
+  // 화면 관계 오류만 남은 문서는 복원한다(#265 S1-2). 대상 페이지를 지운 뒤의 자동 저장본이
+  // 여기서 버려지면 새로고침 한 번에 작업이 seedSpec으로 바뀐다 — S1-4 이후에도 이전 버전이 남긴
+  // 무효 자동 저장본을 보존하는 복구 예외다. 새 편집은 엄격한 프로젝트 후보 검증을 거친다. 구조 오류가 하나라도 섞이면 전처럼 버리고, Save는 여전히 막는다.
+  if (!result.valid && !result.issues.every(isScreenRelationIssue)) return undefined;
+
+  const diskRevision = (parsed as Record<string, unknown>).diskRevision;
+  return { fileName, spec: spec as ProjectSpec,
+    ...(typeof downloadFileName === "string" ? { downloadFileName } : {}),
+    ...(typeof diskRevision === "string" ? { diskRevision } : {}) };
+}
+
+/**
+ * localStorage에서 저장된 프로젝트 내용만 읽는다. 반환 계약은 #128 때 그대로다
+ * (`ProjectSpec | undefined`) — `editorStore.ts`의
+ * `loadStoredSpec() ?? migrateV01(seedSpec)` 줄을 이 변경 때문에 고칠 필요가 없다.
+ */
+export function loadStoredSpec(): ProjectSpec | undefined {
+  return readRecovery()?.document.spec ?? readStoredDocument()?.spec;
+}
+
+/**
+ * localStorage에 저장된 파일명을 읽는다(이슈 #185).
+ *
+ * `undefined`는 "저장된 게 아예 없거나 깨졌다"는 뜻이고(호출자가 `null`로
+ * 대체한다), `null`은 "그 세션은 정상적으로 저장됐는데 그때 어느 파일도 아니었다"
+ * 는 유효한 값이다 — `documentStore.fileName`의 `null`과 같은 뜻이다.
+ */
+export function loadStoredDiskRevision(): string | null {
+  return (readRecovery()?.document ?? readStoredDocument())?.diskRevision ?? null;
+}
+
+export function loadStoredFileName(): string | null | undefined {
+  const recovery = readRecovery();
+  return recovery ? recovery.document.fileName : readStoredDocument()?.fileName;
+}
+
+/** Read the separate browser download name, including per-tab reload recovery. */
+export function loadStoredDownloadFileName(): string | null | undefined {
+  const recovery = readRecovery();
+  return recovery ? recovery.document.downloadFileName ?? null : readStoredDocument()?.downloadFileName;
+}
+
+/**
+ * 현재 프로젝트와 파일명을 함께 localStorage에 저장한다(이슈 #128 → #185에서
+ * `fileName` 추가).
+ *
+ * 접근 실패(프라이빗 모드, 저장 공간 초과, 브라우저 설정으로 차단된 경우 등)는
+ * 조용히 무시한다 — 자동저장이 실패했다고 편집 자체를 막을 이유는 없다. 대신
+ * File > Save(작업공간 쓰기 또는 다운로드)가 여전히 남아있다.
+ *
+ * 디스크를 열 때 받은 리비전과 작업공간 파일이 없는 문서의 다운로드 파일명도
+ * 함께 보존한다. 이 함수 자체는 디스크를 읽지 않으며, 명시적 Save가 서버 CAS로
+ * 오래된 리비전의 덮어쓰기를 차단한다.
+ */
+export function saveSpecToStorage(spec: ProjectSpec, fileName: string | null, diskRevision?: string | null, draftKey?: string,
+  downloadFileName?: string | null): void {
+  try {
+    localStorage.setItem(SPEC_STORAGE_KEY, JSON.stringify({ ...JSON.parse(serializeStoredDocument({ fileName, spec, diskRevision, downloadFileName: downloadFileName ?? undefined })),
+      ...(fileName === null && draftKey ? { draftKey } : {}) }));
+  } catch {
+    /* 위 설명대로 조용히 무시한다. */
+  }
+}
+
+/** Per-tab recovery survives reload without replacing another tab's autosave. */
+export const RECOVERY_KEY = "visual-spec:tab-recovery";
+export const RECOVERY_ARCHIVE_KEY = "visual-spec:tab-recovery-archive";
+export interface Recovery {
+  document: StoredDocument;
+  key: string;
+  baseline: string | null;
+  conflicted: boolean;
+  diskConflict?: boolean;
+  renameBaseline?: string | null;
+  reason?: PauseReason;
+}
+export function readRecovery(): Recovery | undefined {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(RECOVERY_KEY) ?? "null");
+    if (!value || typeof value.key !== "string" ||
+      (value.baseline !== null && typeof value.baseline !== "string") ||
+      typeof value.conflicted !== "boolean") return undefined;
+    try { if (localStorage.getItem(`${value.key}:deleted`)) return undefined; } catch { /* Session recovery remains available. */ }
+    const document = parseStoredDocument(JSON.stringify(value.document));
+    return document ? { ...value, document } : undefined;
+  } catch { return undefined; }
+}
+export function writeRecovery(recovery: Recovery): boolean {
+  try {
+    sessionStorage.setItem(RECOVERY_KEY, JSON.stringify(recovery));
+    return true;
+  } catch { return false; }
+}
+/** Keep conflicted project drafts recoverable when this tab switches documents. */
+export function archiveRecovery(): boolean {
+  const recovery = readRecovery();
+  if (!recovery?.conflicted || recovery.document.fileName === null) return true;
+  try {
+    const archived = JSON.parse(sessionStorage.getItem(RECOVERY_ARCHIVE_KEY) ?? "[]") as Recovery[];
+    const next = archived.filter(item => item.key !== recovery.key);
+    next.push(recovery);
+    sessionStorage.setItem(RECOVERY_ARCHIVE_KEY, JSON.stringify(next));
+    return true;
+  } catch { return false; }
+}
+export function readArchivedRecovery(fileName: string): Recovery | undefined {
+  try {
+    const archived = JSON.parse(sessionStorage.getItem(RECOVERY_ARCHIVE_KEY) ?? "[]") as Recovery[];
+    const value = archived.find(item => item.document?.fileName === fileName);
+    if (!value || typeof value.key !== "string" || typeof value.conflicted !== "boolean") return undefined;
+    const document = parseStoredDocument(JSON.stringify(value.document));
+    return document ? { ...value, document } : undefined;
+  } catch { return undefined; }
+}
+export function removeArchivedRecovery(fileName: string): void {
+  try {
+    const archived = JSON.parse(sessionStorage.getItem(RECOVERY_ARCHIVE_KEY) ?? "[]") as Recovery[];
+    sessionStorage.setItem(RECOVERY_ARCHIVE_KEY, JSON.stringify(archived.filter(item => item.document?.fileName !== fileName)));
+  } catch { /* Keep recovery data if session storage cannot be updated. */ }
+}
+export function projectStorageKey(fileName: string | null, untitledId: string): string {
+  return `visual-spec:autosave:${fileName === null ? `draft:${untitledId}` : `file:${fileName.toLowerCase()}`}`;
+}
+
+/** Reserve durable barriers before changing disk. A pending notice cannot be loaded as a document. */
+export function prepareProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string): () => void {
+  const keys = [...new Set([oldFileName, newFileName].map((file) => `${projectStorageKey(file, "")}:rename`))];
+  const previous = keys.map((key) => localStorage.getItem(key));
+  const pending = JSON.stringify({ fileName: newFileName, spec, renamePending: true, diskRevision: "0".repeat(64),
+    cachedRevision: localStorage.getItem(projectStorageKey(newFileName, "")), revision: crypto.randomUUID() });
+  const rollback = () => {
+    keys.forEach((key, index) => {
+      if (previous[index] === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, previous[index]);
+    });
+  };
+  try { keys.forEach((key) => localStorage.setItem(key, pending)); }
+  catch (error) { rollback(); throw error; }
+  return rollback;
+}
+
+/** Source notice is mandatory: never hide a failure after the workspace rename. */
+export function publishProjectRename(oldFileName: string, spec: ProjectSpec, newFileName: string, diskRevision?: string): void {
+  const target = projectStorageKey(newFileName, "");
+  const raw = JSON.stringify({ fileName: newFileName, spec, ...(diskRevision ? { diskRevision } : {}),
+    cachedRevision: localStorage.getItem(target), revision: crypto.randomUUID() });
+  localStorage.setItem(`${projectStorageKey(oldFileName, "")}:rename`, raw);
+  if (projectStorageKey(oldFileName, "") !== target) localStorage.setItem(`${target}:rename`, raw);
+}
+
+/** One envelope order for autosave, Save and post-Save-as identity comparisons. */
+export function serializeStoredDocument(document: StoredDocument): string {
+  return JSON.stringify({ fileName: document.fileName, spec: document.spec,
+    ...(document.downloadFileName ? { downloadFileName: document.downloadFileName } : {}),
+    ...(document.diskRevision ? { diskRevision: document.diskRevision } : {}) });
+}

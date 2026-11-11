@@ -1,0 +1,542 @@
+---
+name: visual-spec-nl-response
+description: Visual Spec Builder GUI가 `.visual-spec/runtime/nl-request.json`을 써 뒀을 때 실행한다 — 그 파일이 있다는 것 자체가 트리거다. "GUI에서 보낸 요청 처리해줘", "nl-request 봐줘", "자연어 편집창에 뭐 입력했어" 처럼 GUI의 자연어 입력창(NaturalLanguageBar)이 보낸 요청에 응답해야 할 때, 또는 사용자가 Visual Spec GUI를 띄워 두고 "화면 만들어줘"/"이 버튼 색 바꿔줘" 같은 요청을 GUI 안에서 이미 입력한 상황에서 쓴다. **GUI 밖에서** 스펙 JSON 파일 자체를 쓰거나 고쳐 달라는 요청(`examples/*.json`, `.visual-spec/specs/*.json`을 직접 겨냥)은 [visual-spec-authoring](../visual-spec-authoring/SKILL.md) 대상이지 이 스킬 대상이 아니다 — 산출물이 파일 전체인지 Command 배열인지로 가른다. 또한 GUI가 열려 있을 때(`.visual-spec/runtime/gui-state.json`이 최근에 갱신됨) 사용자가 이 대화에서 바로 "버튼 색 바꿔줘", "제목 크게 해줘"처럼 화면 수정을 요청하면, 스펙 파일을 직접 고치지 말고 이 스킬의 "대화에서 바로 고치기" 절대로 `agent-edit.json`에 Command를 보낸다.
+---
+
+# 자연어 요청에 Command로 응답하기
+
+현재 범위 구분: 화면 로컬 명령과 달리 공용 색·글자 스타일 수정/삭제는 프로젝트 전체의 연결된 노드에 영향을 준다. 일반 Command gate는 선택 노드 scope를 인자로 받지 않으므로 선택 범위 준수는 요청·스킬 계약이며 별도 서버 권한 검증으로 주장하지 않는다. 명시적 위젯 추출·배치는 별도 projectCommand 경로다.
+
+이 스킬이 지금 상황에 맞지 않으면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)를 대신 연다.
+
+## 이 스킬과 `visual-spec-authoring`의 차이
+
+둘 다 "자연어 → Visual Spec"이지만 산출물과 도착지가 다르다.
+
+| | `visual-spec-authoring` | 이 스킬 |
+|---|---|---|
+| 산출물 | 스펙 JSON **문서 전체** | **Command 배열**(부분) |
+| 도착지 | 파일(`examples/*.json`, `.visual-spec/specs/`) | `.visual-spec/runtime/nl-response.json` |
+| 트리거 | 파일을 콕 집어 "이 JSON 고쳐줘"(GUI가 꺼져 있을 때) | GUI가 `nl-request.json`을 써 둔 상태, 또는 GUI가 열려 있는데 대화에서 화면 수정을 요청받음 |
+| Undo | 없음(파일을 덮어씀) | GUI의 Undo 스택에 한 단계로 들어감 |
+
+IR 0.4 노드 6종 제약, `examples/`(사용자 프로젝트에서는 함께 설치된 `../visual-spec/contract/examples/`)가 지키는 관용구, `examples/invalid/`가 보여주는 자주 틀리는
+지점 같은 **Visual Spec 자체의 지식은 여기서 다시 적지 않는다** —
+[visual-spec-authoring](../visual-spec-authoring/SKILL.md)이 이미 갖고 있고, 이 스킬이 만드는
+Command의 `node`/`layout`/`value` 필드도 결국 그 지식을 그대로 따라야 한다. 모르면 그 스킬을
+먼저 읽는다.
+
+## 핸드셰이크
+
+```
+GUI (NaturalLanguageBar)                     너(에이전트)
+ │ PUT .visual-spec/runtime/nl-request.json ──▶ (읽는다)
+ │                                              Command 배열을 만든다
+ │ GET nl-response.json 폴링 ◀────────────────  PUT .visual-spec/runtime/nl-response.json
+ │  (최대 3분, 1초 간격)
+ ▼
+G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) → 스토어 커밋, Undo 한 단계
+```
+
+**너는 G1–G3를 통과시킬 책임이 없다** — GUI가 응답을 받으면 세 관문을 전부 코드로 돌린다.
+잘못된 Command를 보내도 앱이 깨지지 않고, 이유가 붙어 사용자에게 인라인으로 뜨며, 다음
+요청 때 다시 시도할 수 있다. 그래도 관문을 통과하는 Command를 만드는 게 목표다 — 아래
+"자주 틀리는 지점"을 지키면 대개 통과한다.
+
+## 요청 읽기 — `nl-request.json`
+
+정본 타입은 `src/features/editor/nl/nlProtocol.ts`의 `NlRequest`다. 저장소 소스에 접근할
+수 없으면(설치된 스킬만 있는 대상 프로젝트) 아래 표가 그 계약이다.
+
+| 필드 | 뜻 |
+|---|---|
+| `commandVersion` | Command 버전. 정확히 문자열 `"0.3"`이며 성공 응답에 그대로 포함한다 |
+| `protocol` | 형식 버전. 지금은 `2`. 응답에도 **그대로** 돌려줘야 한다 |
+| `id` | 이 요청의 식별자. 응답에는 이 값을 `requestId`라는 **다른 이름**으로 돌려준다(아래 참고) |
+| `instruction` | 사용자가 입력창에 적은 자연어 원문 |
+| `scope` | 적용 대상. `{ kind: "node" \| "screen", nodeId: string \| null, label: string }` — `kind`가 `"node"`면 `nodeId`가 그 노드, `"screen"`이면 `nodeId`는 `null`이고 화면 전체가 대상이다 |
+| `pageId` | 대상 페이지 id (참고용 — Command 자체에는 페이지 개념이 없다) |
+| `page` | 대상 페이지의 **현재 스펙 전체**(`ScreenSpec` — `name`·`size`·`root`·`nodes`). 노드 id와 현재 값은 전부 여기서 읽는다. **추측하지 않는다** |
+| `destinations` | 선택 읽기 전용 목록: `{pageId, name, kind}`. kind는 생략 해석을 끝낸 page/modal/widget. 다른 화면 nodes나 편집 권한이 아니다 |
+| `widgets` | 선택 읽기 전용 목록: 현재 화면의 instance에서 전이적으로 참조하는 `{pageId,screen}` widget 원본. 다른 화면으로 Command 대상을 넓히지 않는다 |
+| `responsePath` | 응답을 써야 할 경로. **`.visual-spec/` 기준 상대 경로다** — 값은 `runtime/nl-response.json`이고 실제 파일은 `.visual-spec/runtime/nl-response.json`이다. 프로젝트 루트 기준으로 해석해 `runtime/`을 새로 만들지 않는다. 다른 값이 오면 쓰지 말고 사용자에게 알린다 |
+
+`scope.kind === "node"`면 요청은 그 노드(와 필요하면 그 자손)만 겨냥한다. `page.nodes`에서
+`scope.nodeId`를 찾아 지금 값을 확인하고 시작한다. `"screen"`이면 화면 전체가 대상이고,
+빈 화면(`page.nodes`에 `root` 하나뿐)이면 "화면을 만들어줘" 같은 생성 요청이다.
+
+## 버전 관문 — 파일 쓰기 전에 확인
+
+이 스킬은 NL 요청 **protocol 2 + commandVersion "0.3"**만 처리한다. 숫자/누락/다른 버전을
+자동 보정하지 않는다. protocol 1 요청에는 `{ "protocol": 1, "requestId": "<요청 id>",
+"error": "GUI와 visual-spec skills를 업데이트하세요. Command 0.3가 필요합니다." }`로만 응답하고
+commands를 만들지 않는다. 그 밖의 버전 불일치는 요청 protocol의 error 응답으로 업데이트를 안내한다.
+
+## 화면 연결 대상 확인 (S1-10)
+
+- `destinations`는 protocol 2의 선택 문맥이다. 없는 구 요청으로 일반적인 현재 화면 편집은 가능하지만,
+  target이 필요한 연결 요청에는 카탈로그가 있는 새 요청/업데이트를 안내하는 error로 답한다.
+- navigate는 kind=page, openModal은 kind=modal 후보만 사용한다. action.target은 목록의 정확한
+  pageId다. 사용자에게 명시된 ID 또는 유일하게 일치하는 이름을 확인하고, 이름이 중복이면 첫 후보를
+  선택하지 말고 후보 PageId를 적어 재지정을 요청하는 error로 답한다. 비슷한 이름으로 추측하지 않는다.
+- 없는 대상/ID를 만들거나, 다른 화면을 변경해 kind를 맞추거나, 다른 화면 nodes를 추론하지 않는다.
+  변경은 요청 pageId의 page.nodes 안에만 적용한다. 카탈로그는 읽기 전용이고 Command에 pageId를 추가하지 않는다.
+- 카탈로그가 낡았을 수 있다. GUI가 현재 프로젝트의 G3로 최종 검사한다. 우회나 직접 파일 수정은 하지 않는다.
+- 예: 목록에 `{pageId:"dashboard",name:"대시보드",kind:"page"}`가 있으면 현재 페이지 button에
+  `{type:"updateNode",id:"loginButton",path:"action",value:{type:"navigate",target:"dashboard"}}`.
+  `{pageId:"resetPassword",name:"비밀번호 찾기",kind:"modal"}`에는 value를
+  `{type:"openModal",target:"resetPassword"}`로 전체 교체한다. 제거는 removeNodeAction이고
+  close는 현재 화면이 modal/widget일 때 target 없는 전체 `{type:"close"}`다.
+
+## 공유 widget 편집 (S2)
+
+- `destinations`의 kind=widget PageId만 새 instance의 `ref`로 사용한다. `createNode`의 `node`는 완전한 `InstanceNode`(`type:"instance"`, `name`, `box`, `ref`, 선택 `visible`/`overrides`)이며 frame 자식으로 만든다. 없는 원본이나 다른 프로젝트 이름을 추측하지 않는다. 현재 화면과 그 `widgets` 목록 밖의 원본 노드 내용은 알 수 없다.
+- 현재 화면의 기존 instance에서 내용/글자색을 재정의하려면 `widgets`에서 ref와 정확히 일치하는 원본을 찾는다. 직접 원본 Text/Button NodeId만 `overrides`의 키로 사용하고, 값은 `content`/`color`만 쓴다. `updateNode`의 `path:"overrides"`에 기존 재정의까지 보존한 **완전한 맵**을 전달한다. 반응형/배치·action·image 변경을 재정의에 넣지 않는다. 원본 정보가 없는 구 요청에는 추측 대신 오류로 답한다.
+- 위젯 원본 자체를 바꾸려면 현재 `pageId`가 그 widget인 요청에서 해당 화면의 로컬 노드 Command로 편집한다. 다른 화면의 instance 요청에서 원본을 직접 수정하지 않는다.
+- **선택한 프레임을 위젯으로 만들고 다른 페이지에도 넣기**는 아래의 단일 `projectCommand`만 쓴다. `scope.kind`는 `node`, `scope.nodeId`는 현재 `page.nodes`의 루트 아닌 frame이어야 한다. `destinations`에서 요청 대상 이름과 유일하게 일치하는 kind=page의 `pageId`를 `targetPageId`로 쓴다. 중복 이름·없는 대상·프레임 선택 없음은 error로 답한다. `widgetId`는 `destinations`의 모든 PageId와 달라야 하며 새 ID를 명시한다. 다른 페이지의 노드 구조는 추측하지 않는다. GUI가 대상 페이지 root 아래에 인스턴스를 배치한다. 이 응답에 `commands`를 섞지 않는다. 분리는 GUI 명시 동작으로 남는다.
+- GUI가 응답 Command를 현재 프로젝트 전체에 다시 적용해 참조·순환·override 무결성을 검증한다. 검증 실패를 우회해 스펙 파일을 직접 변경하지 않는다.
+
+## 모호한 요청 — 고치기 전에 되묻는다 (#443)
+
+요청을 Command로 옮기기 전에 **무엇을 어떤 값으로 바꾸라는지** 정해지는지 본다. 정해지지 않으면
+고치지 않고 되묻는다. 짐작으로 여러 노드를 바꾸면 사용자는 원하지 않은 변경을 하나씩 찾아 되돌려야
+하고, Undo는 요청 전체를 한 번에 되돌리므로 마음에 든 변경만 남길 수도 없다.
+
+**모호한 요청**은 바꿀 대상도, 바꿀 속성이나 값도 말하지 않은 요청이다 — "좀 더 예쁘게",
+"세련되게", "깔끔하게", "보기 좋게 다듬어줘". 특히 `scope.kind === "screen"`이면 화면 전체가 대상이 된다.
+
+- **되묻는다.** `commands` 대신 `error`에 "무엇을 바꿀지 정해 주세요"와 바로 다시 보낼 수 있는 구체적인
+  요청 2–3개를 쓴다. GUI는 이 문장을 입력창 아래에 그대로 보여 준다. 예:
+  ```json
+  { "protocol": 2, "commandVersion": "0.3", "requestId": "<요청의 id 값>", "error": "요청이 넓어 무엇을 바꿀지 정할 수 없습니다. 예: '로그인 버튼 모서리를 12로 둥글게', 'Card에 옅은 그림자 추가', '제목 글자 크기를 28로' 중 원하는 것을 보내 주세요." }
+  ```
+  위 예시의 '로그인 버튼'·'제목'처럼 화면의 말로 쓴 대상은 `page`에 실제로 있는 노드 이름(`name`)으로
+  바꿔 쓴다 — 사용자가 그 문장을 그대로 다시 보내도 대상이 하나로 정해지게.
+- **대상이나 방향이 하나라도 정해져 있으면 고쳐도 된다.** "버튼을 좀 더 눈에 띄게"(대상 = 버튼),
+  "전체 색을 어둡게"(속성 = 색)처럼 범위가 좁혀지면, 그 대상·속성만 작게 바꾼다. 그 밖의 노드와
+  속성은 건드리지 않는다.
+- **대화 경로(`agent-edit.json`)에서는 대화로 묻는다.** 사용자가 이 대화에 직접 요청했으면
+  `agent-edit.json`을 쓰지 말고 대화에서 무엇을 바꿀지 물은 뒤 답을 받아 보낸다.
+
+### 사용자가 정한 값은 유지한다
+
+`page`에 이미 들어 있는 값은 사용자가 정한 값으로 본다. 대표적으로 `layout`의 `gap`·`padding`·
+`direction`·정렬, `box` 크기, 텍스트 `content`가 그렇다. **요청이 직접 말하지 않은 값은 바꾸지 않는다.**
+모양을 다듬는 요청(색·그림자·모서리·글꼴)이 간격이나 크기까지 바꾸면 안 된다. 예를 들어 사용자가
+앞서 "간격을 24로" 해 둔 Card는, 나중에 "버튼을 더 예쁘게"를 받았을 때도 `gap: 24` 그대로다.
+멀티턴 맥락은 없으므로(`page`만 보인다) "직전 요청에서 정한 값"을 따로 알 수는 없다. 그래서
+요청이 말하지 않은 값은 **전부** 유지하는 것으로 지킨다.
+
+## 응답 만들기 — Command 배열
+
+Command 15종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`·`updateScreen`·`removeNodeAction`·`createColorStyle`·`updateColorStyle`·`deleteColorStyle`·`applyColorStyle`·`createTypographyStyle`·`updateTypographyStyle`·`deleteTypographyStyle`·`applyTypographyStyle`)의
+정확한 필드는 Command 계약 문서와 스키마가 정본이다 — 사용자 프로젝트는 함께 설치된
+`../visual-spec/contract/docs/09-command-schema-freeze.md`·`../visual-spec/contract/schema/command.schema.json`,
+저장소 안은 `docs/09-command-schema-freeze.md`·`src/features/editor/command/types.ts`. 요약:
+
+| Command | 필드 | 언제 쓰나 |
+|---|---|---|
+| `removeNodeAction` | `id` | button의 action 속성 제거. action 없는 button/없는 id/비button이면 전체 요청이 거부된다 |
+| `createNode` | `parentId`·`id`·`node`(완전한 Node)·`index?`(선택, 이슈 #193 — 생략하면 끝에 붙음) | 새 노드 추가. **부모가 먼저 만들어져 있어야 한다** — Command 순서가 부모→자식이어야 한다 |
+| `updateNode` | `id`·`path`(점 표기, 예: `"layout.gap"`)·`value` | 기존 노드의 필드 하나를 바꾼다 |
+| `deleteNode` | `id` | 노드(와 자손)를 지운다. `root`는 지울 수 없다 |
+| `moveNode` | `id`·`newParentId`·`index` | 노드를 다른 부모나 다른 위치로 옮긴다 |
+| `setLayout` | `id`·`layout`(완전한 Layout 객체) | frame의 레이아웃을 통째로 갈아 끼운다. frame 아닌 노드에는 no-op |
+| `updateScreen` | `path`·`value` | 페이지 자신의 필드(`name`·`size`)를 바꾼다. 노드를 가리키지 않는다 |
+| `createColorStyle` | `id`·`name`·`value` | 새 색 스타일을 만든다. ID는 안정 ID 규칙을 따르고 이름은 프로젝트 내 고유해야 한다 |
+| `updateColorStyle` | `id`·`name`·`value` | 기존 색 스타일을 갱신한다. 연결된 페이지 전체의 리터럴 사본이 함께 갱신된다 |
+| `deleteColorStyle` | `id` | 카탈로그 항목을 지우고 연결은 해제한다. 노드 색 리터럴은 보존한다 |
+| `createTypographyStyle` | `id`·`name`·`value` | 새 글자 스타일을 만든다. `value`는 Typography 6필드 전체다 |
+| `updateTypographyStyle` | `id`·`name`·`value` | 기존 글자 스타일의 표시 이름과 6개 필드 값을 갱신한다 |
+| `deleteTypographyStyle` | `id` | 카탈로그 항목을 지우고 연결은 해제한다. 노드의 Typography 값은 보존한다 |
+| `applyColorStyle` | `id`·`nodeId`·`target` | 해당 페이지 노드의 지원 색 속성에 색 스타일을 연결한다 |
+| `applyTypographyStyle` | `id`·`nodeId` | 해당 페이지 노드의 6개 Typography 필드에 글자 스타일을 연결한다 |
+
+새 노드마다 고유한 `id`를 만든다(패턴 `^[A-Za-z0-9_-]+$`) — `page.nodes`에 이미 있는 키와
+겹치면 안 된다. `parentId`로 쓸 노드는 **frame이어야 한다**(text·image·button·input은 자식을
+못 받는다).
+
+### 배경은 배열을 통째로 쓴다
+
+`background`(`frame`·`button`·`input`)는 채우기 겹의 **배열**이다(문서 버전 `"0.3"`). 겹은 두
+종류다.
+
+| 겹 | 모양 | 뜻 |
+|---|---|---|
+| solid | `{ "type": "solid", "color": "#RRGGBB(AA)" }` | 단색 |
+| linear | `{ "type": "linear", "angle": 180, "stops": [{ "color": "#…", "at": 0 }, { "color": "#…", "at": 1 }] }` | 선형 그라디언트 |
+
+배경을 바꾸는 Command는 **하나뿐이다** — `updateNode`의 `path`를 **`"background"`** 로 두고
+`value`에 **배열 전체**를 넣는다. 겹 하나만 고치는 경로도, 겹을 붙이는 전용 Command도 없다.
+
+1. **`page.nodes.<id>.background`에서 지금 배열을 읽는다.** 없으면 `[]`로 본다.
+2. 요청대로 바꾼 **배열 전체**를 만든다. 건드리지 않은 겹도 그대로 다시 적는다 — 빠뜨리면
+   지워진다.
+3. `updateNode { "path": "background", "value": <배열 전체> }` 한 개로 쓴다.
+
+규칙:
+
+- **배열 앞이 위 겹이다**(CSS `background-image`와 같다). 겹을 **"위에 얹기"는 배열 맨 앞에
+  넣는 것**이다. 맨 뒤에 넣으면 기존 겹 밑에 깔려, 불투명한 기존 배경에 가려 안 보인다.
+- **각도 `angle`은 CSS `linear-gradient`의 각도 그대로다.** `180` = 위→아래(색이 위에서
+  아래로 진행), `0` = 아래→위, `90` = 왼쪽→오른쪽, `270` = 오른쪽→왼쪽, `135` = 왼쪽 위→오른쪽
+  아래. 범위는 `0` 이상 `360` 미만이다 — `360`은 `0`으로, 음수는 360을 더해 쓴다.
+- **stop의 `at`은 `0`..`1` 비율이다**(퍼센트 아님 — 50%는 `0.5`). stop은 **2개 이상**이고
+  `at` **오름차순**이다. 같은 `at`을 두 번 쓰면 딱 끊기는 경계가 된다.
+- 투명도는 색의 알파(`#RRGGBBAA`)로 쓴다. 겹 단위 불투명도·표시 여부 칸은 없다.
+- **배경을 없애려면 `value: []`** 를 쓴다(`updateNode`는 필드를 지울 수 없다).
+- `createNode`의 `node`에도 같은 배열 모양으로 쓴다.
+- `radial`·이미지 채우기는 없다. "원형 그라디언트", "사진을 배경으로" 같은 요청은 `error`로
+  답한다(아래 "표현할 수 없는 것").
+
+**예 — "그라디언트로 바꿔줘"** (`scope.nodeId: "hero"`, 지금 배경 `[{ "type": "solid",
+"color": "#6366F1" }]`). 방향을 말하지 않았으면 위→아래(`180`)로, 지금 색에서 시작한다.
+
+```json
+{ "type": "updateNode", "id": "hero", "path": "background",
+  "value": [
+    { "type": "linear", "angle": 180, "stops": [
+        { "color": "#6366F1", "at": 0 },
+        { "color": "#8B5CF6", "at": 1 }
+    ] }
+  ] }
+```
+
+**예 — "반투명한 검정 오버레이를 얹어줘"** (같은 `hero`, 지금 배경 `[{ "type": "solid",
+"color": "#6366F1" }]`). 기존 겹을 그대로 두고 **맨 앞**에 새 겹을 넣는다.
+
+```json
+{ "type": "updateNode", "id": "hero", "path": "background",
+  "value": [
+    { "type": "linear", "angle": 180, "stops": [
+        { "color": "#0F172A00", "at": 0 },
+        { "color": "#0F172ACC", "at": 1 }
+    ] },
+    { "type": "solid", "color": "#6366F1" }
+  ] }
+```
+
+**예 — "버튼 그라디언트를 왼쪽에서 오른쪽으로"** (`scope.nodeId: "cta"`, 지금 배경이 `angle:
+180` linear 한 겹). 각도만 바꿔도 배열 전체를 다시 쓴다.
+
+```json
+{ "type": "updateNode", "id": "cta", "path": "background",
+  "value": [
+    { "type": "linear", "angle": 90, "stops": [
+        { "color": "#4F46E5", "at": 0 },
+        { "color": "#7C3AED", "at": 1 }
+    ] }
+  ] }
+```
+
+**예 — "배경 없애줘"**
+
+```json
+{ "type": "updateNode", "id": "hero", "path": "background", "value": [] }
+```
+
+### `createNode`는 자식 배열을 스스로 채우지 않는다
+
+`createNode`를 적용하면 GUI가 **부모의 `children` 끝에 `{ "node": 새id }`를 자동으로 덧붙인다.**
+`node.children`에 미리 자식 참조를 적어 넣으면 안 된다 — 그 시점에 자식이 아직
+`nodes`에 없어 검증에서 `child-missing`으로 잡힌다. `frame`을 만들 땐 항상
+`"children": []`로 시작하고, 자식은 그 뒤에 오는 `createNode` Command가 채운다(부모 →
+자식 순서).
+
+## 새 노드의 기본값 — 복사해서 쓰는 표
+
+이 표는 앱 내부의 `store/createNode.ts`가 도구 모음·기본값 채우기 계층에 쓰는 값과
+같다(이슈 #182). **다만 응답 JSON 자체는 이 함수를 거치지 않는다** — 네가 쓰는
+`nl-response.json`의 `node`는 스키마가 요구하는 **완전한 Node**여야 하고, 앱이 나중에
+필드를 채워 주지 않는다. 이 표는 "무엇을 생략해도 되는가"가 아니라 **"매번 새로 디자인하지
+않도록 그대로 복사해 쓸 기본값"**이다. 요청이 구체적인 스타일을 말하면(색·크기 등) 그 값으로
+바꾼다.
+
+**frame**
+```json
+{ "type": "frame", "name": "Frame",
+  "box": { "width": 200, "height": 120 },
+  "layout": { "direction": "column", "gap": 8,
+              "padding": { "top": 16, "right": 16, "bottom": 16, "left": 16 },
+              "mainAxis": "start", "crossAxis": "start" },
+  "background": [{ "type": "solid", "color": "#FFFFFF" }],
+  "border": { "width": 1, "color": "#E5E7EB", "radius": 8 },
+  "children": [] }
+```
+
+**text**
+```json
+{ "type": "text", "name": "Text",
+  "box": { "width": "auto", "height": "auto" },
+  "content": "텍스트", "color": "#111111",
+  "typography": { "fontFamily": "Pretendard", "fontSize": 16, "fontWeight": 400,
+                   "lineHeight": 24, "letterSpacing": 0, "textAlign": "left" } }
+```
+
+**button**
+```json
+{ "type": "button", "name": "Button",
+  "box": { "width": 120, "height": 40 },
+  "content": "버튼", "color": "#FFFFFF",
+  "typography": { "fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 600,
+                   "lineHeight": 20, "letterSpacing": 0, "textAlign": "center" },
+  "background": [{ "type": "solid", "color": "#4F46E5" }],
+  "border": { "width": 0, "color": "#4F46E5", "radius": 8 } }
+```
+
+**input**
+```json
+{ "type": "input", "name": "Input",
+  "box": { "width": 200, "height": 44 },
+  "placeholder": "입력하세요", "color": "#111827",
+  "typography": { "fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 400,
+                   "lineHeight": 20, "letterSpacing": 0, "textAlign": "left" },
+  "background": [{ "type": "solid", "color": "#F9FAFB" }],
+  "border": { "width": 1, "color": "#D1D5DB", "radius": 8 } }
+```
+
+**image** — `src`는 실제 워크스페이스 asset이 있을 때만 그 상대 경로를 쓴다. 없으면
+1×1 투명 PNG data URI로 자리만 잡는다(사용자가 나중에 이미지 속성의 경로(src)를 바꾼다. 파일 → 이미지 가져오기는 새 이미지 노드를 추가한다).
+```json
+{ "type": "image", "name": "Image",
+  "box": { "width": 200, "height": 150 },
+  "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "fit": "cover" }
+```
+
+## 응답 쓰기
+
+`.visual-spec/runtime/nl-response.json`(요청의 `responsePath` 값 `runtime/nl-response.json`을 `.visual-spec/`
+기준으로 읽은 경로)에 **덮어쓰기**로 쓴다. 파일
+이름을 요청마다 바꾸지 않는다 — GUI는 `requestId`로 자기 요청의 답인지만 확인한다.
+
+**성공**
+```json
+{ "protocol": 2, "commandVersion": "0.3", "requestId": "<요청의 id 값>", "commands": [ /* Command 배열 */ ] }
+```
+
+**프레임을 위젯으로 추출하고 다른 페이지에도 배치** — 한 프로젝트 명령이며 `commands`는 생략한다.
+```json
+{ "protocol": 2, "commandVersion": "0.2", "requestId": "<요청의 id 값>", "projectCommand": { "version": "0.1", "type": "extractAndPlaceWidget", "pageId": "login", "nodeId": "card", "widgetId": "sharedCard", "name": "Shared card", "targetPageId": "dashboard" } }
+```
+GUI는 응답 대기 중 프로젝트 변경을 거부하고, 원본·대상·새 widget을 한 후보 프로젝트에서 검증한 뒤 한 Undo 단계로 커밋한다. 다른 프로젝트 명령 종류나 임의 필드는 거부한다.
+
+**못 하겠을 때** — 표현할 수 없는 요구(예: `onClick` 동작, `component` 타입, 새 페이지
+생성)이거나 요청이 모호하면(위 "모호한 요청" 절) `commands` 대신 `error`를 쓴다. `commands: []`는 쓰지 않는다 —
+Transaction은 Command가 최소 1개 필요하다(스키마가 거부한다).
+```json
+{ "protocol": 2, "commandVersion": "0.3", "requestId": "<요청의 id 값>", "error": "프로젝트에 없는 관계 대상을 추측할 수 없습니다 — 대상 PageId를 확인해 주세요" }
+```
+
+`requestId`는 **요청의 `id` 필드 값을 그대로** 넣는다(필드 이름이 바뀌는 걸 놓치기 쉽다 —
+요청은 `id`, 응답은 `requestId`). `protocol`이 다르거나 `requestId`가 안 맞으면 GUI가 응답을
+무시하고 계속 기다린다(낡은 응답을 이번 요청의 답으로 오인하지 않기 위해서다) — 답을 냈는데
+GUI가 계속 "기다리는 중"이면 이 둘부터 확인한다.
+
+## 대화에서 바로 고치기 — GUI가 열려 있을 때 (`agent-edit.json`, #279)
+
+사용자가 GUI 입력창이 아니라 **이 대화에서** 화면 수정을 요청했고 GUI가 열려 있으면, 스펙 파일
+(`.visual-spec/specs/*.json`)을 직접 고치지 않는다. 열린 GUI는 파일 변경을 모르고, 미저장 초안과
+Undo가 어긋난다. 대신 같은 Command를 GUI에 보내 GUI가 검증·적용하게 한다.
+
+1. **GUI가 열려 있는지 본다.** `.visual-spec/runtime/gui-state.json`이 있고 `updatedAt`이 1분 안이면
+   열려 있다(열린 GUI는 10초마다 갱신한다). 없거나 오래됐으면 GUI가 꺼진 것이다 — 이때는
+   [visual-spec-authoring](../visual-spec-authoring/SKILL.md)으로 파일을 고친다.
+2. **지금 상태를 읽는다.** `gui-state.json`의 `page`(활성 페이지 전체), `pageId`, `selectedId`
+   ("이 버튼"이 가리키는 노드), `stateRevision`, `fileName`을 읽는다. 노드 id와 현재 값은 `page`에서만
+   가져온다 — 파일을 다시 읽지 않는다(GUI의 미저장 편집이 반영된 쪽이 `page`다).
+3. **버전·지원 명령을 확인하고 Command를 만든다.** gui-state의 protocol이 정확히 2,
+   capabilities.commandVersion이 정확히 "0.3"이고 capabilities.commands 배열에 사용할 명령이
+   모두 있어야 한다. 누락/불일치면 agent-edit.json을 쓰지 않고 GUI와 `visual-spec skills` 갱신을
+   안내한다. GUI 종료로 오인하거나 specs 파일을 직접 수정해 우회하지 않는다.
+    위 "응답 만들기" 절과 같은 Command 15종·규칙을 쓴다. 활성 페이지 한 장만
+   다룬다.
+4. **`.visual-spec/runtime/agent-edit.json`에 쓴다**(임시 파일에 쓰고 rename으로 교체한다).
+   ```json
+   {
+     "protocol": 2, "commandVersion": "0.3",
+     "id": "<새 고유 id — 요청마다 다르게>",
+     "baseStateRevision": "<gui-state.json의 stateRevision 그대로>",
+     "pageId": "<gui-state.json의 pageId 그대로>",
+     "summary": "<사용자에게 보일 한 줄 요약, 예: 제목을 '환영합니다'로 바꿈>",
+     "commands": [ /* Command 배열 */ ]
+   }
+   ```
+5. **결과를 기다린다.** `.visual-spec/runtime/agent-edit-result.json`에서 `requestId`가 내 `id`와 같은
+   결과를 1초 간격으로 최대 30초 확인한다. 같은 requestId라도 protocol이 2가 아니면 성공으로
+   해석하지 않고 업데이트를 안내하며 중단한다. 버전 불일치의 invalid 결과도 자동 재전송하거나
+   downgrade하지 않는다.
+   - `applied` — 적용됐다. GUI에 "외부 에이전트가 편집을 적용했습니다"와 되돌리기가 뜬다. 사용자에게
+     무엇을 바꿨는지와 GUI에서 되돌릴 수 있다는 것을 알린다. 저장은 사용자가 GUI에서 한다.
+   - `pending` — 기존 배경 겹을 지우거나 순서·종류를 바꾸는 편집이라 GUI에서 사용자 확인을 기다린다(단색 한 겹끼리의 교체는 묻지 않고 바로 `applied`다). **최종 결과가 아니다.**
+     사용자에게 GUI에서 확인해 달라고 알리고, 같은 `requestId`의 결과가 `applied`나 `rejected`로
+     바뀔 때까지 결과 파일을 계속 확인한다(사용자가 누르는 데 시간이 걸리므로 30초 제한을 두지 않고,
+     오래 걸리면 사용자에게 다시 묻는다). 확인을 기다리는 동안 **새 편집 요청을 보내지 않는다** —
+     새 요청이 오면 GUI는 기다리던 편집을 적용하지 않은 것으로 끝낸다(`rejected`). 확인 전에 GUI
+     연결이 바뀌어도(새로고침·홈 이동·다른 탭) 확인창이 사라지므로 `rejected`로 끝난다.
+     다만 **GUI 탭을 닫아** 연결된 GUI가 하나도 없으면 결과를 쓸 탭이 없어 `pending`에 머문다.
+     기다리는 동안 `gui-state.json`이 사라졌거나 `updatedAt`이 1분 넘게 갱신되지 않으면 GUI가 닫힌
+     것이다 — 그 편집이 적용됐는지 알 수 없다고 사용자에게 알리고 **자동으로 다시 보내지 않는다**.
+     사용자가 GUI를 다시 열면 `gui-state.json`에서 반영 여부를 확인한 뒤 필요할 때만 새 `id`로 보낸다.
+   - `rejected`이고 `"uncertain": true` — GUI 연결이 새로 맺어져 이 요청이 **이전 연결에서 이미
+     적용됐는지 알 수 없다**. 그대로 다시 보내면 두 번 적용될 수 있다. `gui-state.json`을 다시 읽어
+     원하는 변경이 `page`에 이미 반영됐는지 먼저 확인하고, 반영되지 않았을 때만 새 `id`로 보낸다.
+     반영돼 있으면 적용된 것으로 사용자에게 알린다.
+   - `rejected` — `message`를 읽는다. "GUI 상태가 바뀌었습니다"면 `gui-state.json`을 **다시 읽고**
+     Command를 다시 만들어 새 `id`로 한 번 더 보낸다. 그 밖의 이유는 사용자에게 그대로 전한다.
+   - `invalid` — Command 형태가 틀렸다. `message`대로 고쳐 새 `id`로 보낸다.
+   - 30초 안에 결과가 없으면 GUI가 이 작업공간에 연결돼 있지 않은 것일 수 있다고 알린다(같은
+     작업공간을 연 GUI 탭이 있는지, 여러 탭이면 그중 하나만 연결된다).
+
+결과를 확인하지 않고 "적용했다"고 말하지 않는다.
+
+### 화면 관계 명령
+
+button의 action은 `updateNode(path: "action")`으로 전체 객체를 교체한다. 삭제는
+`removeNodeAction`만 쓰고 null/빈 객체/action.type/action.target 부분 쓰기는 금지한다.
+화면 kind는 `updateScreen(path: "kind")`으로 page/modal/widget를 쓴다. 최소/첫 page 및
+참조 source/target 규칙은 프로젝트 검증에서 확인한다. 요청에는 아직 다른 페이지 카탈로그가
+없으므로 이름으로 PageId를 추측하지 않는다. S1-10의 대상 카탈로그 지원은 별도 작업이다.
+
+## 자주 틀리는 지점
+
+`visual-spec-authoring`의 "자주 틀리는 지점"(child-missing·orphan-node·cycle 등)이 여기도
+그대로 적용된다. 이 경로에서만 추가로 나는 실수:
+
+- **부모보다 먼저 자식을 만든다.** `createNode`는 부모가 `page.nodes`(또는 이 응답의 앞선
+  `createNode`)에 이미 있어야 한다 — 순서가 위→아래(부모→자식)여야 한다
+- **`children`을 미리 채운다.** 위 "`createNode`는 자식 배열을 스스로 채우지 않는다" 참고
+- **`scope.kind === "node"`인데 다른 노드를 고친다.** 사용자가 요소를 선택한 채 요청했다는
+  뜻이다 — `scope.nodeId`가 가리키는 노드(또는 그 안쪽)만 건드린다
+- **"좀 더 예쁘게"에 여러 노드를 한꺼번에 바꾼다.** 대상·속성이 없는 요청은 되묻는다. 요청이
+  말하지 않은 `gap`·`padding`·크기·텍스트는 바꾸지 않는다 — 위 "모호한 요청" 절 참고
+- **`page`를 안 읽고 값을 추측한다.** 지금 `layout.gap`이 얼마인지, 어떤 자식이 있는지는
+  전부 요청에 실려 온 `page`에서 읽는다 — 기억이나 예시로 채우지 않는다
+- **배경을 `background.color`·`background.0.color` 경로나 객체 모양 `{ "color": … }`으로 쓴다.**
+  배열 안으로 들어가는 경로는 G2에서 no-op으로 거부되고, 객체 모양은 G3에서 걸린다. `path:
+  "background"`에 배열 전체를 쓴다 — 위 "배경은 배열을 통째로 쓴다" 참고
+- **겹 순서를 거꾸로 쓴다.** "얹어줘"를 배열 끝에 넣으면 기존 겹 밑에 깔린다. 배열 앞이 위다
+- **배경을 바꾸면서 기존 겹을 빠뜨린다.** `value`가 배열 전체를 갈아 끼우므로 안 적은 겹은
+  지워진다. "오버레이를 얹어줘"면 기존 겹도 다시 적는다
+- **`at`을 퍼센트로 쓴다.** `"at": 50`은 범위(0..1) 밖이라 G3에서 걸린다. `0.5`로 쓴다
+- **stop을 1개만 쓰거나 내림차순으로 쓴다.** stop은 2개 이상, `at` 오름차순이다(내림차순은
+  `gradient-stop-order`). 한 색이면 linear가 아니라 solid 겹이다
+- **각도를 Figma·수학 각도로 쓴다.** `angle`은 CSS 의미다 — `0`이 위쪽(아래→위), 시계 방향,
+  `180`이 위→아래. `360`은 범위 밖이니 `0`으로 쓴다
+- **`updateScreen`으로 노드를 고치려 한다.** `updateScreen`은 페이지 자신의 필드(`name`·
+  `size`)만 바꾼다. 노드는 `updateNode`다
+- **삽입 위치가 필요한데 `index`나 `moveNode`를 안 쓴다.** `createNode`는 `index`를
+  생략하면 끝에 붙는다. "맨 위에 넣어줘"처럼 위치가 중요하면 `createNode`의 `index`를
+  쓰거나, `createNode` 뒤에 `moveNode`를 붙인다
+
+## 다 쓴 뒤
+
+파일에 쓰는 것으로 끝이다 — 검증은 GUI가 G1–G3로 한다. 실패하면 사용자가 다시 요청하거나
+너에게 이유를 들고 돌아온다(입력창 옆 인라인 메시지에 뜬다). 스스로
+`validateVisualSpec`/`validateProjectSpec`을 불러 미리 확인해도 좋지만(특히 노드가 많은 생성
+요청), 필수는 아니다.
+
+## 예제 — 짧은 부분 수정
+
+요청: *"제목을 좀 더 크게 해줘"*, `scope: { kind: "node", nodeId: "title", ... }`,
+`page.nodes.title.typography.fontSize`가 지금 24.
+
+```json
+{ "protocol": 2, "commandVersion": "0.3", "requestId": "req-abc",
+  "commands": [
+    { "type": "updateNode", "id": "title", "path": "typography.fontSize", "value": 32 }
+  ] }
+```
+
+## 예제 — 빈 화면 생성
+
+요청: *"로그인 화면 만들어줘"*, `scope: { kind: "screen", nodeId: null, ... }`,
+`page.nodes`에 `root`(빈 frame) 하나뿐. 현재 `examples/login-screen.json`의 7노드를
+Command 9개, 3종(`updateScreen`·`setLayout`·`createNode`)으로 만든다.
+이메일·비밀번호는 placeholder 표시만 하며 입력 타입·인증 동작을 추가하지 않는다.
+`08-natural-language.md`(로컬 계약 `docs/`) 3.3의 4노드 분석은 확장 전 기록이다.
+
+```json
+{ "protocol": 2, "commandVersion": "0.3", "requestId": "req-xyz",
+  "commands": [
+    { "type": "updateScreen", "path": "name", "value": "Login" },
+    { "type": "updateScreen", "path": "size", "value": { "width": 390, "height": 844 } },
+    { "type": "setLayout", "id": "root",
+      "layout": { "direction": "column", "gap": 16,
+                  "padding": { "top": 24, "right": 20, "bottom": 24, "left": 20 },
+                  "mainAxis": "start", "crossAxis": "stretch" } },
+    { "type": "createNode", "parentId": "root", "id": "title",
+      "node": { "type": "text", "name": "Title",
+                "box": { "width": "fill", "height": "auto" },
+                "content": "로그인", "color": "#111111",
+                "typography": { "fontFamily": "Pretendard", "fontSize": 24, "fontWeight": 700,
+                                "lineHeight": 32, "letterSpacing": -0.5, "textAlign": "left" } } },
+    { "type": "createNode", "parentId": "root", "id": "card",
+      "node": { "type": "frame", "name": "Card", "visible": true,
+                "box": { "width": "fill", "height": "auto" },
+                "layout": { "direction": "column", "gap": 12,
+                            "padding": { "top": 16, "right": 16, "bottom": 16, "left": 16 },
+                            "mainAxis": "center", "crossAxis": "stretch" },
+                "background": [{ "type": "solid", "color": "#F5F5F5FF" }],
+                "border": { "width": 1, "color": "#00000020", "radius": 8 },
+                "children": [] } },
+    { "type": "createNode", "parentId": "card", "id": "hint",
+      "node": { "type": "text", "name": "Hint",
+                "box": { "width": "auto", "height": "auto" },
+                "content": "계정 정보를 입력하세요", "color": "#666666",
+                "typography": { "fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 400,
+                                "lineHeight": 20, "letterSpacing": 0, "textAlign": "center" } } },
+    { "type": "createNode", "parentId": "card", "id": "emailInput",
+      "node": {
+        "type": "input",
+        "name": "EmailInput",
+        "box": {"width": "fill", "height": 44},
+        "placeholder": "이메일을 입력하세요",
+        "color": "#111827",
+        "typography": {"fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 400, "lineHeight": 20, "letterSpacing": 0, "textAlign": "left"},
+        "background": [{"type": "solid", "color": "#F9FAFB"}],
+        "border": {"width": 1, "color": "#D1D5DB", "radius": 8}
+      } },
+    { "type": "createNode", "parentId": "card", "id": "passwordInput",
+      "node": {
+        "type": "input",
+        "name": "PasswordInput",
+        "box": {"width": "fill", "height": 44},
+        "placeholder": "비밀번호를 입력하세요",
+        "color": "#111827",
+        "typography": {"fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 400, "lineHeight": 20, "letterSpacing": 0, "textAlign": "left"},
+        "background": [{"type": "solid", "color": "#F9FAFB"}],
+        "border": {"width": 1, "color": "#D1D5DB", "radius": 8}
+      } },
+    { "type": "createNode", "parentId": "card", "id": "loginButton",
+      "node": {
+        "type": "button",
+        "name": "LoginButton",
+        "box": {"width": "fill", "height": 44},
+        "content": "로그인",
+        "color": "#FFFFFF",
+        "typography": {"fontFamily": "Pretendard", "fontSize": 14, "fontWeight": 600, "lineHeight": 20, "letterSpacing": 0, "textAlign": "center"},
+        "background": [{"type": "solid", "color": "#4F46E5"}],
+        "border": {"width": 0, "color": "#4F46E5", "radius": 8}
+      } }
+  ] }
+```
+
+## 표현할 수 없는 것
+
+[visual-spec-authoring](../visual-spec-authoring/SKILL.md)의 현재 IR 제약(노드 타입 6종,
+`onClick`/`value`/`onChange` 없음)에 더해 이 경로만의 제약이다(`docs/08-natural-language.md`
+7.2):
+
+- 새 **페이지** 생성 — `applyCommand`는 페이지 한 장(`ScreenSpec`) 단위만 안다
+- 비활성 페이지의 임의 노드 편집·"전체 프로젝트" 범위 — 위의 `extractAndPlaceWidget`만
+  선택한 활성 프레임을 원본으로 삼아 다른 페이지 root에 배치할 수 있다
+- 계획 미리보기·승인 — 받은 Command는 바로 적용된다(Undo로 대응)
+- `radial`(원형) 그라디언트·이미지 채우기 배경, 사진 위에 겹쳐 놓는 오버레이 — 채우기 겹은
+  `solid`·`linear` 둘뿐이고 이미지 노드 위에 다른 노드를 겹쳐 놓는 배치도 없다. 이미지 노드가
+  아닌 frame·button·input의 배경에 linear 겹을 얹는 것은 된다
+- 멀티턴 대화 맥락 — 요청마다 `page`가 그 시점의 전체 스펙을 새로 실어 오므로, 이전 요청을
+  "기억"할 필요도 방법도 없다
+
+표현할 수 없는 요구가 오면 `error`로 답하고 왜 안 되는지 짧게 적는다 — 근사해서 조용히
+다른 걸 만들지 않는다.

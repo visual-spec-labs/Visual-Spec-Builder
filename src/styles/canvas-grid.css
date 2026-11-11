@@ -1,0 +1,18 @@
+/**
+ * canvas-grid.css — 캔버스 격자 오버레이.
+ * 클래스 선택자라 component-state.css(토큰 선언 전용)와 분리한다.
+ */
+
+.canvas-grid {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--canvas-grid-line) 0 1px,
+      transparent 1px var(--canvas-grid-size)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--canvas-grid-line) 0 1px,
+      transparent 1px var(--canvas-grid-size)
+    );
+}

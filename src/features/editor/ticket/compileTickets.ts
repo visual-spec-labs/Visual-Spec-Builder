@@ -1,0 +1,249 @@
+import type { ChildReference, Node, NodeId, ScreenSpec } from "@/features/editor/schema";
+
+import type { Ticket } from "./types";
+
+/**
+ * screen.name·node.name을 컴포넌트 이름으로 옮긴다.
+ * (design 문서 `docs/superpowers/specs/2026-08-11-visual-spec-to-react-codegen-design.md`
+ * §6 "컴포넌트 이름 규칙"을 코드로 옮긴 것 — 지금까지는 스킬 지시문에만 있었다.)
+ * 영문자·숫자가 아닌 문자를 단어 경계로 보고 각 단어 첫 글자만 대문자로 올린다.
+ * 숫자로 시작하거나 단어가 하나도 안 남으면 앞에 "Screen"을 붙인다.
+ */
+export function toPascalCase(name: string): string {
+  const pascal = name
+    .split(/[^A-Za-z0-9]+/)
+    .filter((word) => word.length > 0)
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join("");
+
+  if (pascal.length === 0) return "Screen";
+  return /^[0-9]/.test(pascal) ? `Screen${pascal}` : pascal;
+}
+
+/**
+ * 노드의 "모양"만 담은 키 — 형제가 같은 컴포넌트인지 비교할 때 쓴다.
+ * TextNode.content, ImageNode.src처럼 인스턴스마다 달라도 되는 값(장차 props가
+ * 될 값)은 일부러 뺀다. 나머지가 하나라도 다르면 다른 컴포넌트로 본다 —
+ * 색상·타이포그래피 같은 스타일 차이까지 props로 자동 추출하지 않는다(v0.1은
+ * 보수적으로 간다. 잘못 합치는 것보다 안 합치는 게 안전하다).
+ *
+ * id로 받고 내부에서 nodes[id]를 찾는 이유는 순환 방어 때문이다 — `visiting`에
+ * 현재까지 내려온 조상 id를 전부 담아 두고, 같은 id를 다시 만나면(자기 자신이든
+ * 더 위 조상이든) 재귀를 멈춘다. 검증되지 않은 스펙(cycle)이 들어와도 스택
+ * 오버플로 없이 "cycle"이라는 표식만 남긴다 — command/applyCommand.ts의
+ * collectSubtreeIds와 같은 방어다.
+ */
+function structuralKey(
+  id: NodeId,
+  nodes: Record<NodeId, Node>,
+  visiting: ReadonlySet<NodeId> = new Set(),
+  compareActions = false,
+): string {
+  if (visiting.has(id)) {
+    return JSON.stringify({ t: "cycle" });
+  }
+
+  const node = nodes[id];
+  if (node === undefined) {
+    return JSON.stringify({ t: "missing" });
+  }
+
+  if (node.type === "text") {
+    return JSON.stringify({
+      t: "text",
+      visible: node.visible,
+      box: node.box,
+      color: node.color,
+      typography: node.typography,
+      opacity: node.opacity,
+      blur: node.blur,
+    });
+  }
+
+  if (node.type === "image") {
+    return JSON.stringify({
+      t: "image",
+      visible: node.visible,
+      box: node.box,
+      fit: node.fit,
+      opacity: node.opacity,
+      blur: node.blur,
+    });
+  }
+
+  // ButtonNode.content, InputNode.placeholder도 TextNode.content와 같은 이유로 뺀다 —
+  // 인스턴스마다 달라도 되는 값(장차 props가 될 값)이다.
+  if (node.type === "button") {
+    return JSON.stringify({
+      t: "button",
+      ...(compareActions ? { action: node.action && [node.action.type, "target" in node.action ? node.action.target : null] } : {}),
+      visible: node.visible,
+      box: node.box,
+      typography: node.typography,
+      color: node.color,
+      background: node.background,
+      border: node.border,
+      states: node.states,
+    });
+  }
+
+  if (node.type === "input") {
+    return JSON.stringify({
+      t: "input",
+      visible: node.visible,
+      box: node.box,
+      typography: node.typography,
+      color: node.color,
+      background: node.background,
+      border: node.border,
+      states: node.states,
+    });
+  }
+
+  if (node.type === "instance") return JSON.stringify({ t: "instance", ref: node.ref, visible: node.visible, box: node.box, overrides: node.overrides });
+  const nextVisiting = new Set(visiting).add(id);
+  return JSON.stringify({
+    t: "frame",
+    visible: node.visible,
+    box: node.box,
+    layout: node.layout,
+    background: node.background,
+    border: node.border,
+    shadow: node.shadow,
+    opacity: node.opacity,
+    blur: node.blur,
+    children: node.children.map((child) => structuralKey(child.node, nodes, nextVisiting, compareActions)),
+  });
+}
+
+/** 형제 중 구조가 같은(모양이 겹치는) 것끼리 묶는다. 2개 이상 묶인 그룹만 "반복"으로 친다. */
+function groupRepeatedSiblings(
+  children: ChildReference[],
+  nodes: Record<NodeId, Node>,
+  compareActions: boolean,
+): NodeId[][] {
+  const buckets = new Map<string, NodeId[]>();
+
+  for (const child of children) {
+    if (nodes[child.node] === undefined) continue;
+
+    const key = structuralKey(child.node, nodes, new Set(), compareActions);
+    const bucket = buckets.get(key);
+    if (bucket === undefined) {
+      buckets.set(key, [child.node]);
+    } else {
+      bucket.push(child.node);
+    }
+  }
+
+  return [...buckets.values()].filter((group) => group.length >= 2);
+}
+
+/**
+ * IR을 컴포넌트 구현 티켓 목록으로 분해한다(순수 함수).
+ *
+ * 규칙은 `skills/visual-spec-to-react/SKILL.md`의 "컴포넌트 단위로 분리 생성한다"
+ * 절 그대로다 — 여기서 새로 정하지 않는다.
+ *
+ * 1. root의 직계 자식은 각각 하나의 컴포넌트 티켓이 된다(반복 여부와 무관하게).
+ * 2. 그 자식의 하위 자식들 중 구조가 같은 형제가 2개 이상이면, 그 반복 단위를
+ *    별도 컴포넌트 티켓으로 먼저 뽑는다(1번 티켓이 그 티켓에 의존한다).
+ *    더 깊은 단계의 반복은 v0.1에서 다루지 않는다 — 아직 실제로 필요한 예제가
+ *    없다(examples/dashboard-cards.json은 이 깊이까지만 있다).
+ * 3. screen.root 자신은 "page" 티켓이 되어, 1번에서 만든 티켓 전부에 의존한다.
+ *
+ * 반환 배열의 순서 자체가 이미 유효한 실행 순서다(자식이 부모보다 먼저) —
+ * 별도로 위상 정렬할 필요가 없다.
+ */
+export function compileTickets(screen: ScreenSpec): Ticket[] {
+  return compileScreenTickets(screen, false, false);
+}
+
+/** Internal shared planner; project generation also compares complete button actions. */
+export function compileScreenTickets(screen: ScreenSpec, compareActions: boolean, allowInstances = false): Ticket[] {
+  const { root, nodes } = screen;
+  if (!allowInstances && Object.values(nodes).some(node => node.type === "instance")) {
+    throw new Error("Widget instance generation is not supported yet.");
+  }
+  const rootNode = nodes[root];
+  if (rootNode === undefined || rootNode.type !== "frame") return [];
+
+  // 실제로 생성할 티켓 후보만 먼저 정한다. 뒤에 나오는 명시 이름(Section2)을
+  // 앞선 중복 Section의 접미사가 선점하면 그 파일명이 Section22로 밀리기 때문이다.
+  // 반복 그룹의 대표·직계 자식·페이지는 예약하고, 인라인 노드 이름은 예약하지 않는다.
+  const plans = rootNode.children.flatMap((child) => {
+    const node = nodes[child.node];
+    if (node === undefined) return [];
+    const groups = node.type === "frame" ? groupRepeatedSiblings(node.children, nodes, compareActions) : [];
+    return [{
+      nodeId: child.node,
+      baseName: toPascalCase(node.name),
+      groups: groups.map((instances) => ({
+        instances,
+        baseName: toPascalCase(nodes[instances[0]].name),
+      })),
+    }];
+  });
+  const pageBaseName = toPascalCase(screen.name);
+  const explicitNames = new Set([
+    pageBaseName,
+    ...plans.flatMap((plan) => [plan.baseName, ...plan.groups.map((group) => group.baseName)]),
+  ]);
+  const tickets: Ticket[] = [];
+  const usedIds = new Set<string>();
+
+  // id는 componentName과 파일명에도 쓰인다. 하이픈 접미사는 named export를 깨므로
+  // JS 식별자에 안전한 숫자를 붙이고, 원래 이름(Section2 등)과의 충돌도 건너뛴다.
+  function reserveId(base: string): string {
+    let candidate = base;
+    let suffix = 2;
+    while (usedIds.has(candidate) || (candidate !== base && explicitNames.has(candidate))) {
+      candidate = `${base}${suffix}`;
+      suffix += 1;
+    }
+    usedIds.add(candidate);
+    return candidate;
+  }
+
+  const rootChildTicketIds: string[] = [];
+
+  for (const plan of plans) {
+    const nestedTicketIds: string[] = [];
+
+    for (const group of plan.groups) {
+      const id = reserveId(group.baseName);
+      tickets.push({
+        id,
+        componentName: id,
+        kind: "component",
+        instances: group.instances,
+        dependsOn: [],
+        status: "pending",
+      });
+      nestedTicketIds.push(id);
+    }
+
+    const id = reserveId(plan.baseName);
+    tickets.push({
+      id,
+      componentName: id,
+      kind: "component",
+      instances: [plan.nodeId],
+      dependsOn: nestedTicketIds,
+      status: "pending",
+    });
+    rootChildTicketIds.push(id);
+  }
+
+  const pageId = reserveId(pageBaseName);
+  tickets.push({
+    id: pageId,
+    componentName: pageId,
+    kind: "page",
+    instances: [root],
+    dependsOn: rootChildTicketIds,
+    status: "pending",
+  });
+
+  return tickets;
+}
