@@ -476,7 +476,25 @@ function handleRead(res: ServerResponse, absolutePath: string, withRevision: boo
     } catch (error) {
       sendError(res, (error as NodeJS.ErrnoException).code === "ENOENT" ? 404 : 500, "파일을 읽지 못했습니다.");
     }
-  } else createReadStream(absolutePath).pipe(res);
+  } else {
+    const stream = createReadStream(absolutePath);
+    // A workspace file may disappear after stat, or fail partway through a read.
+    // Stream errors are asynchronous and cannot be caught by the stat try/catch.
+    const closeStream = () => stream.destroy();
+    res.once("close", closeStream);
+    stream.once("close", () => res.off("close", closeStream));
+    stream.once("error", (error: NodeJS.ErrnoException) => {
+      stream.unpipe(res);
+      if (res.destroyed) return;
+      if (res.headersSent) {
+        // Never append an error document to a partially sent asset.
+        res.destroy();
+      } else {
+        sendError(res, error.code === "ENOENT" ? 404 : 500, "파일을 읽지 못했습니다.");
+      }
+    });
+    stream.pipe(res);
+  }
 }
 
 function handleWrite(
