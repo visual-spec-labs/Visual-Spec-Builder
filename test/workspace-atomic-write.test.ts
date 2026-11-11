@@ -4,6 +4,8 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { projectFileName } from "@/features/workspace/projectName";
+
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -196,5 +198,39 @@ describe("immutable project snapshot publication", () => {
     if (mode === "race") expect(readFileSync(target, "utf8")).toBe("external winner");
     else expect(existsSync(target)).toBe(false);
     expect(tempLeftovers("runtime")).toEqual([]);
+  });
+});
+
+
+describe("파일명 한계에서도 원자적으로 저장한다 (#500)", () => {
+  it.each([
+    ["한글 248바이트", "가".repeat(81) + ".json"],
+    ["한글 255바이트", "가".repeat(83) + "a.json"],
+    ["ASCII 255바이트", "a".repeat(250) + ".json"],
+  ])("%s: 생성과 덮어쓰기 모두 대상 이름 길이와 무관하다", async (_label, filename) => {
+    if (filename.startsWith("가")) {
+      expect(projectFileName(filename.slice(0, -5))).toBe(filename);
+    }
+    expect(Buffer.byteLength(filename)).toBeLessThanOrEqual(255);
+    const target = join(workspaceRoot, "specs", filename);
+    const url = `${baseUrl}/__vs/file/specs/${encodeURIComponent(filename)}`;
+    const original = '{"name":"처음 저장"}';
+    const updated = '{"name":"변경 저장"}';
+
+    const created = await fetch(url, {
+      method: "PUT", headers: { "x-visual-spec-expected-revision": "missing" }, body: original,
+    });
+    expect(created.status).toBe(200);
+    await created.text();
+    expect(readFileSync(target, "utf8")).toBe(original);
+    expect(tempLeftovers("specs")).toEqual([]);
+
+    const replaced = await fetch(url, {
+      method: "PUT", headers: { "x-visual-spec-expected-revision": workspaceRevision(Buffer.from(original)) }, body: updated,
+    });
+    expect(replaced.status).toBe(200);
+    await replaced.text();
+    expect(readFileSync(target, "utf8")).toBe(updated);
+    expect(tempLeftovers("specs")).toEqual([]);
   });
 });
