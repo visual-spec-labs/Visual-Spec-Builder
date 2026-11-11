@@ -325,6 +325,10 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
     }
     void withWorkspaceMutation([from.absolutePath, to.absolutePath], () => {
       try {
+        // Revalidate both paths after waiting for another server's mutation.
+        if (!filePathHasCanonicalScope(root, from.relativePath) || !filePathHasCanonicalScope(root, to.relativePath)) {
+          sendError(res, 403, "안전하지 않은 저장 경로입니다."); return;
+        }
         if (!lstatSync(from.absolutePath).isFile()) { sendError(res, 400, "일반 파일만 변경할 수 있습니다."); return; }
         const original = readFileSync(from.absolutePath, "utf8");
         if (original !== input.expectedText) { sendError(res, 409, "다른 곳에서 파일이 변경되었습니다. 목록을 새로 불러온 뒤 다시 시도하세요."); return; }
@@ -380,7 +384,7 @@ function handleRename(req: IncomingMessage, res: ServerResponse, root: string): 
         sendError(res, code === "EEXIST" ? 409 : 500,
           code === "EEXIST" ? "같은 이름의 파일이 있습니다." : `이름 변경에 실패했습니다. 원본 파일을 확인하세요: ${error instanceof Error ? error.message : String(error)}`);
       }
-    }).catch(() => sendError(res, 500, "이름 변경 잠금을 확인할 수 없습니다."));
+    }, root).catch((error: unknown) => sendError(res, 500, String(error)));
   });
 }
 
@@ -429,8 +433,8 @@ function handleDelete(req: IncomingMessage, res: ServerResponse, workspaceRoot: 
       if (owner !== undefined) {
         let revisionChanged = false;
         if (typeof owner !== "string" || !writeIfLockHeld(workspaceRoot, "ticket", owner, () => {
-          // Other server processes do not share withWorkspaceMutation's queue.
-          // Compare again inside the disk mutex used by every sidecar PUT.
+          // Request lease operations use their own mutex. Recheck inside it too,
+          // alongside the workspace-wide mutation lock.
           if (currentRevision(absolutePath) !== expected) { revisionChanged = true; return; }
           unlinkSync(absolutePath);
         })) {
@@ -442,7 +446,7 @@ function handleDelete(req: IncomingMessage, res: ServerResponse, workspaceRoot: 
     } catch (error) {
       sendError(res, 500, error instanceof Error ? error.message : String(error));
     }
-  }).catch((error: unknown) => sendError(res, 500, String(error)));
+  }, workspaceRoot).catch((error: unknown) => sendError(res, 500, String(error)));
 }
 
 function handleRead(res: ServerResponse, absolutePath: string, withRevision: boolean, closeBeforeResponse = false): void {
@@ -591,7 +595,7 @@ function handleWrite(
       return;
     }
     sendJson(res, 200, { ok: true, path: relativePath, bytes: body.length });
-    }).catch((error: unknown) => sendError(res, 500, String(error)));
+    }, workspaceRoot).catch((error: unknown) => sendError(res, 500, String(error)));
   });
 }
 
