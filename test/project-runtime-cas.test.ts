@@ -1,5 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { withWorkspaceMutation } from "@/features/workspace/workspaceMutation";
+import { setTimeout as delay } from "node:timers/promises";
 import * as requestLocks from "@/features/workspace/requestLock";
 import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -146,15 +148,17 @@ function remotePut(other:string,revision:string) {
   const script=`const r=await fetch(${JSON.stringify(other+'/__vs/file/runtime/'+sidecar)},{method:'PUT',headers:{origin:${JSON.stringify(other)},${JSON.stringify(expectedHeader)}:${JSON.stringify(revision)}},body:'newer server bytes'});await r.text();process.stdout.write(String(r.status));`;
   return Number(execFileSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8',timeout:10000}));
 }
-it('preserves a real second-server PUT between DELETE revision check and ticket mutex acquisition',async()=>{
+it('blocks a real second-server PUT while DELETE holds the workspace mutex',async()=>{
   const other=await secondServer();let restoreSpy=()=>{};
   try {
     await put(sidecar,'original','missing');const revision=(await get(sidecar)).revision!;
     const lease=await fetch(`${origin}/__vs/request-lock/ticket`,{method:'POST',headers:{origin,[ownerHeader]:'restore'}});expect(lease.status).toBe(200);await lease.text();
     const original=requestLocks.writeIfLockHeld;
-    const spy=vi.spyOn(requestLocks,'writeIfLockHeld').mockImplementationOnce((...args)=>{expect(remotePut(other.origin,revision)).toBe(200);return original(...args);});restoreSpy=()=>spy.mockRestore();
+    const spy=vi.spyOn(requestLocks,'writeIfLockHeld').mockImplementationOnce((...args)=>{expect(remotePut(other.origin,revision)).toBe(500);expect(readFileSync(join(root,'runtime',sidecar),'utf8')).toBe('original');return original(...args);});restoreSpy=()=>spy.mockRestore();
     const removed=await fetch(`${origin}/__vs/file/runtime/${sidecar}`,{method:'DELETE',headers:{origin,[ownerHeader]:'restore',[expectedHeader]:revision}});
-    expect(removed.status).toBe(409);await removed.text();expect((await get(sidecar)).text).toBe('newer server bytes');
+    expect(removed.status).toBe(200);await removed.text();expect((await get(sidecar)).status).toBe(404);
+    expect(remotePut(other.origin,revision)).toBe(409);
+    expect(remotePut(other.origin,'missing')).toBe(200);expect((await get(sidecar)).text).toBe('newer server bytes');
   } finally {restoreSpy();await other.close();}
 },60000);
 it('CAS-only sidecar PUT also shares the disk ticket mutex across server processes',async()=>{
@@ -165,14 +169,84 @@ it('CAS-only sidecar PUT also shares the disk ticket mutex across server process
   } finally {rmSync(mutex,{recursive:true,force:true});await other.close();}
 },60000);
 
-it.each([undefined,'writer'])('rechecks sidecar PUT revision under the shared mutex (owner=%s)',async owner=>{
+it.each([undefined,'writer'])('blocks a second-server PUT while the first PUT holds the workspace mutex (owner=%s)',async owner=>{
   const other=await secondServer();let restoreSpy=()=>{};
   try {
     await put(sidecar,'original','missing');const revision=(await get(sidecar)).revision!;
     if(owner){const lease=await fetch(`${origin}/__vs/request-lock/ticket`,{method:'POST',headers:{origin,[ownerHeader]:owner}});expect(lease.status).toBe(200);await lease.text();}
     const original=requestLocks.writeTicketRecord;
-    const spy=vi.spyOn(requestLocks,'writeTicketRecord').mockImplementationOnce((...args)=>{expect(remotePut(other.origin,revision)).toBe(200);return original(...args);});restoreSpy=()=>spy.mockRestore();
-    const saved=await fetch(`${origin}/__vs/file/runtime/${sidecar}`,{method:'PUT',body:'stale update',headers:{origin,[expectedHeader]:revision,...(owner?{[ownerHeader]:owner}:{})}});
-    expect(saved.status).toBe(409);await saved.text();expect((await get(sidecar)).text).toBe('newer server bytes');
+    const spy=vi.spyOn(requestLocks,'writeTicketRecord').mockImplementationOnce((...args)=>{expect(remotePut(other.origin,revision)).toBe(500);expect(readFileSync(join(root,'runtime',sidecar),'utf8')).toBe('original');return original(...args);});restoreSpy=()=>spy.mockRestore();
+    const saved=await fetch(`${origin}/__vs/file/runtime/${sidecar}`,{method:'PUT',body:'first server update',headers:{origin,[expectedHeader]:revision,...(owner?{[ownerHeader]:owner}:{})}});
+    expect(saved.status).toBe(200);await saved.text();expect((await get(sidecar)).text).toBe('first server update');
+    expect(remotePut(other.origin,revision)).toBe(409);
+    const latest=(await get(sidecar)).revision!;expect(remotePut(other.origin,latest)).toBe(200);
+    expect((await get(sidecar)).text).toBe('newer server bytes');
   } finally {restoreSpy();await other.close();}
 },60000);
+
+it('still rechecks a non-cooperating external edit inside the ticket mutex before DELETE', async () => {
+  await put(sidecar, 'original', 'missing'); const revision = (await get(sidecar)).revision!;
+  const lease = await fetch(`${origin}/__vs/request-lock/ticket`, { method: 'POST', headers: { origin, [ownerHeader]: 'restore' } });
+  expect(lease.status).toBe(200); await lease.text();
+  const original = requestLocks.writeIfLockHeld;
+  const spy = vi.spyOn(requestLocks, 'writeIfLockHeld').mockImplementationOnce((...args) => {
+    writeFileSync(join(root, 'runtime', sidecar), 'external edit'); return original(...args);
+  });
+  try {
+    const removed = await fetch(`${origin}/__vs/file/runtime/${sidecar}`, { method: 'DELETE', headers: { origin, [ownerHeader]: 'restore', [expectedHeader]: revision } });
+    expect(removed.status).toBe(409); await removed.text();
+    expect((await get(sidecar)).text).toBe('external edit');
+  } finally { spy.mockRestore(); }
+});
+
+it.each([undefined, 'writer'])('still rechecks a non-cooperating edit inside the ticket mutex before PUT (owner=%s)', async owner => {
+  await put(sidecar, 'original', 'missing'); const revision = (await get(sidecar)).revision!;
+  if (owner) {
+    const lease = await fetch(`${origin}/__vs/request-lock/ticket`, { method: 'POST', headers: { origin, [ownerHeader]: owner } });
+    expect(lease.status).toBe(200); await lease.text();
+  }
+  const original = requestLocks.writeTicketRecord;
+  const spy = vi.spyOn(requestLocks, 'writeTicketRecord').mockImplementationOnce((...args) => {
+    writeFileSync(join(root, 'runtime', sidecar), 'external edit'); return original(...args);
+  });
+  try {
+    const saved = await fetch(`${origin}/__vs/file/runtime/${sidecar}`, { method: 'PUT', body: 'stale update',
+      headers: { origin, [expectedHeader]: revision, ...(owner ? { [ownerHeader]: owner } : {}) } });
+    expect(saved.status).toBe(409); await saved.text();
+    expect((await get(sidecar)).text).toBe('external edit');
+  } finally { spy.mockRestore(); }
+});
+
+
+it('two real HTTP servers serialize ordinary spec Saves and reject one stale revision', async () => {
+  const other = await secondServer();
+  const path = join(root, 'specs', 'shared.json'); writeFileSync(path, 'original');
+  const loaded = await fetch(`${origin}/__vs/file/specs/shared.json`);
+  const revision = loaded.headers.get(revisionHeader)!; await loaded.text();
+  let release!: () => void, entered!: () => void;
+  const gate = new Promise<void>(done => { release = done; });
+  const acquired = new Promise<void>(done => { entered = done; });
+  const held = withWorkspaceMutation([path], async () => { entered(); await gate; }, root);
+  await acquired;
+  const save = async (base: string, body: string, expected: string) => {
+    const response = await fetch(`${base}/__vs/file/specs/shared.json`, { method: 'PUT', body,
+      headers: { origin: base, [expectedHeader]: expected } });
+    await response.text(); return response.status;
+  };
+  let finished = 0;
+  const writes = Promise.all([save(origin, 'first', revision), save(other.origin, 'second', revision)]
+    .map(pending => pending.then(status => { finished += 1; return status; })));
+  try {
+    await delay(100); expect(finished).toBe(0);
+    release(); await held;
+    const statuses = await writes;
+    expect(statuses.sort()).toEqual([200, 409]);
+    const stored = readFileSync(path, 'utf8'); expect(['first', 'second']).toContain(stored);
+    expect(await save(other.origin, 'stale retry', revision)).toBe(409);
+    expect(readFileSync(path, 'utf8')).toBe(stored);
+    const latest = await fetch(`${origin}/__vs/file/specs/shared.json`);
+    const fresh = latest.headers.get(revisionHeader)!; await latest.text();
+    expect(await save(other.origin, 'explicit reload and save', fresh)).toBe(200);
+    expect(readFileSync(path, 'utf8')).toBe('explicit reload and save');
+  } finally { release(); await held; await writes; await other.close(); }
+}, 60000);
