@@ -852,9 +852,9 @@ describe("project rename (#227)", () => {
   });
   it("rejects symlink source and destination without modifying their targets", async () => {
     symlinkSync(join(workspaceRoot, "specs/old.json"), join(workspaceRoot, "specs/link.json"));
-    expect((await rename("New", "link.json")).status).toBe(400);
+    expect((await rename("New", "link.json")).status).toBe(403);
     symlinkSync(join(workspaceRoot, "specs/old.json"), join(workspaceRoot, "specs/New.json"));
-    expect((await rename()).status).toBe(409);
+    expect((await rename()).status).toBe(403);
     expect(readFileSync(join(workspaceRoot, "specs/old.json"), "utf8")).toBe(oldText);
   });
   it("keeps source and removes partial destination when writing fails", async () => {
@@ -1186,10 +1186,10 @@ describe("#282 canonical policy roots", () => {
     let entered!: () => void;
     const queued = new Promise<void>((done) => { entered = done; });
     const original = mutations.withWorkspaceMutation;
-    const spy = vi.spyOn(mutations, "withWorkspaceMutation").mockImplementationOnce(async (paths, action) => {
+    const spy = vi.spyOn(mutations, "withWorkspaceMutation").mockImplementationOnce(async (paths, action, root) => {
       entered();
       await gate;
-      return original(paths, action);
+      return original(paths, action, root);
     });
     // The initial route check has succeeded before the queue callback is entered.
     const pending = rawRequest(method, "/__vs/file/generated/queued/original.json", method === "PUT" ? "corrupt" : undefined,
@@ -1215,8 +1215,8 @@ it("복구 DELETE는 queue 대기 뒤 바뀐 lease를 검사하고 새 탭의 �
   let entered!: () => void;
   const queued = new Promise<void>((done) => { entered = done; });
   const original = mutations.withWorkspaceMutation;
-  const spy = vi.spyOn(mutations, "withWorkspaceMutation").mockImplementationOnce(async (paths, action) => {
-    entered(); await gate; return original(paths, action);
+  const spy = vi.spyOn(mutations, "withWorkspaceMutation").mockImplementationOnce(async (paths, action, root) => {
+    entered(); await gate; return original(paths, action, root);
   });
   const pending = rawRequest("DELETE", "/__vs/file/generated/lease.tsx", undefined, {
     "x-visual-spec-expected-revision": createHash("sha256").update("same bytes").digest("hex"),
