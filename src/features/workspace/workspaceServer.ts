@@ -237,7 +237,8 @@ function writeFileAtomic(absolutePath: string, body: Buffer, createOnly = false)
   tempFileCounter += 1;
   const tempPath = join(
     dirname(absolutePath),
-    `.${basename(absolutePath)}.${process.pid}-${tempFileCounter}.tmp`,
+    // 대상 이름은 이미 파일명 한계(255바이트)에 닿을 수 있으므로 덧붙이지 않는다.
+    `.vs-${process.pid}-${tempFileCounter}.tmp`,
   );
 
   try {
