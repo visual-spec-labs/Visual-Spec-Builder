@@ -1,3 +1,4 @@
+import { controlStateProps } from "./controlStateProps";
 import { useEffect, useRef, type RefObject } from "react";
 import type { NodeId, ProjectSpec, ScreenSpec } from "@/features/editor/schema";
 import { useEditorStore } from "@/features/editor/store/editorStore";
@@ -108,16 +109,7 @@ export function RenderNode({
         ref={ref}
         role="button"
         tabIndex={0}
-        className="vs-control-node"
-        data-vs-hover-background={node.states?.hover?.background !== undefined || undefined}
-        data-vs-hover-color={node.states?.hover?.color !== undefined || undefined}
-        data-vs-hover-border={node.states?.hover?.borderColor !== undefined || undefined}
-        data-vs-focus-background={node.states?.focus?.background !== undefined || undefined}
-        data-vs-focus-color={node.states?.focus?.color !== undefined || undefined}
-        data-vs-focus-border={node.states?.focus?.borderColor !== undefined || undefined}
-        data-vs-pressed-background={node.states?.pressed?.background !== undefined || undefined}
-        data-vs-pressed-color={node.states?.pressed?.color !== undefined || undefined}
-        data-vs-pressed-border={node.states?.pressed?.borderColor !== undefined || undefined}
+        {...controlStateProps(node.states)}
         data-node-id={id}
         style={{ ...buttonStyle(node, parentDirection), ...(node.action ? { position: "relative" as const } : {}), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
@@ -138,16 +130,7 @@ export function RenderNode({
         role="textbox"
         aria-readonly="true"
         tabIndex={0}
-        className="vs-control-node"
-        data-vs-hover-background={node.states?.hover?.background !== undefined || undefined}
-        data-vs-hover-color={node.states?.hover?.color !== undefined || undefined}
-        data-vs-hover-border={node.states?.hover?.borderColor !== undefined || undefined}
-        data-vs-focus-background={node.states?.focus?.background !== undefined || undefined}
-        data-vs-focus-color={node.states?.focus?.color !== undefined || undefined}
-        data-vs-focus-border={node.states?.focus?.borderColor !== undefined || undefined}
-        data-vs-pressed-background={node.states?.pressed?.background !== undefined || undefined}
-        data-vs-pressed-color={node.states?.pressed?.color !== undefined || undefined}
-        data-vs-pressed-border={node.states?.pressed?.borderColor !== undefined || undefined}
+        {...controlStateProps(node.states)}
         data-node-id={id}
         style={{ ...inputStyle(node, parentDirection), ...resizeAnchor }}
         onClick={(event) => handleNodeClick(id, event)}
