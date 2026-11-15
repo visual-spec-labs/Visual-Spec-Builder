@@ -1,0 +1,138 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+
+import { seedSpec } from "@/features/editor/store/seedSpec";
+import { requestNlEdit } from "@/features/editor/nl/nlAgentClient";
+import {
+  acquireRequestLock,
+  listWorkspaceFiles,
+  releaseRequestLock,
+  writeWorkspaceFile,
+} from "@/features/editor/ui/workspaceClient";
+
+/**
+ * 요청 클라이언트가 공유 요청 파일 잠금을 지키는지(#273). 서버 쪽 규칙은
+ * `request-lock.test.ts`·`workspace-middleware.test.ts`, 실제 두 탭은 브라우저로 확인한다.
+ */
+vi.mock("@/features/editor/ui/workspaceClient", () => ({
+  acquireRequestLock: vi.fn(),
+  releaseRequestLock: vi.fn(),
+  writeWorkspaceFile: vi.fn(async () => ({ ok: true, path: "runtime/nl-request.json" })),
+  listWorkspaceFiles: vi.fn(async () => []),
+  readWorkspaceTextFile: vi.fn(async () => null),
+}));
+
+const input = { id: "req-b", instruction: "간격을 24로", scope: { kind: "screen" as const, nodeId: null, label: "화면 전체" }, pageId: "page1", page: seedSpec.screen };
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+});
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
+
+it("다른 탭이 기다리는 중이면 요청 파일을 쓰지 않고 busy로 안내한다", async () => {
+  vi.mocked(acquireRequestLock).mockResolvedValue("busy");
+  const outcome = requestNlEdit(input, { cancelled: false });
+  await vi.runAllTimersAsync();
+  expect(await outcome).toMatchObject({ kind: "busy" });
+  expect(writeWorkspaceFile).not.toHaveBeenCalled();
+});
+
+it("같은 탭의 이전 요청이 잠깐 뒤 풀리면 다시 시도해 잡는다", async () => {
+  vi.mocked(acquireRequestLock).mockResolvedValueOnce("busy").mockResolvedValue("acquired");
+  const token = { cancelled: false };
+  const outcome = requestNlEdit(input, token);
+  await vi.advanceTimersByTimeAsync(400);
+  expect(writeWorkspaceFile).toHaveBeenCalledWith(
+    "runtime/nl-request.json", expect.any(String), "application/json", undefined, "req-b",
+  );
+  token.cancelled = true;
+  await vi.runAllTimersAsync();
+  expect(await outcome).toEqual({ kind: "cancelled" });
+});
+
+it("응답·취소·timeout 어느 쪽으로 끝나도 잠금을 푼다", async () => {
+  vi.mocked(acquireRequestLock).mockResolvedValue("acquired");
+  const outcome = requestNlEdit(input, { cancelled: false });
+  await vi.runAllTimersAsync();
+  expect(await outcome).toMatchObject({ kind: "timeout" });
+  expect(releaseRequestLock).toHaveBeenCalledWith("nl", "req-b", false);
+  expect(listWorkspaceFiles).toHaveBeenCalled();
+});
+
+it("기다리는 사이 잠금을 잃으면 다른 탭 요청으로 바뀌었다고 알린다", async () => {
+  vi.mocked(acquireRequestLock).mockResolvedValueOnce("acquired").mockResolvedValue("busy");
+  const outcome = requestNlEdit(input, { cancelled: false });
+  await vi.runAllTimersAsync();
+  // 요청 전 잠금 충돌("busy")과 구분한다(#283 리뷰 대응) — 이쪽은 요청 파일을
+  // 이미 쓴 뒤라 재시도 안내가 뜻이 있다(NaturalLanguageBar.tsx의 retryable 참고).
+  expect(await outcome).toMatchObject({ kind: "lockLost", message: expect.stringContaining("만료") });
+  // 연장은 새로 잡기가 아니라 renew로 보낸다(PR #296 리뷰).
+  expect(acquireRequestLock).toHaveBeenLastCalledWith("nl", "req-b", true);
+});
+
+it("뒤로/앞으로 캐시에 들어가는 pagehide는 잠금을 풀지 않고, 실제로 닫을 때만 푼다", async () => {
+  const listeners = new Map<string, (event: { persisted: boolean }) => void>();
+  vi.stubGlobal("window", {
+    addEventListener: (name: string, fn: (event: { persisted: boolean }) => void) => listeners.set(name, fn),
+    removeEventListener: vi.fn(),
+  });
+  vi.mocked(acquireRequestLock).mockResolvedValue("acquired");
+  const token = { cancelled: false };
+  const outcome = requestNlEdit(input, token);
+  await vi.advanceTimersByTimeAsync(10);
+
+  listeners.get("pagehide")?.({ persisted: true });
+  expect(releaseRequestLock).not.toHaveBeenCalled();
+  listeners.get("pagehide")?.({ persisted: false });
+  expect(releaseRequestLock).toHaveBeenCalledWith("nl", "req-b", true);
+
+  token.cancelled = true;
+  await vi.runAllTimersAsync();
+  await outcome;
+});
+
+it("잠금 재시도 중 취소되면 잠금을 얻어도 요청 파일을 쓰지 않고 풀며 취소로 끝난다 (PR #296 리뷰)", async () => {
+  vi.mocked(acquireRequestLock).mockResolvedValueOnce("busy").mockResolvedValue("acquired");
+  const token = { cancelled: false };
+  const outcome = requestNlEdit(input, token);
+  await vi.advanceTimersByTimeAsync(10);
+  token.cancelled = true;
+  await vi.runAllTimersAsync();
+  expect(await outcome).toEqual({ kind: "cancelled" });
+  expect(writeWorkspaceFile).not.toHaveBeenCalled();
+  expect(releaseRequestLock).toHaveBeenCalledWith("nl", "req-b", false);
+});
+
+it("계속 사용 중인 잠금을 기다리다 취소하면 재시도를 멈추고 취소로 끝난다", async () => {
+  vi.mocked(acquireRequestLock).mockResolvedValue("busy");
+  const token = { cancelled: false };
+  const outcome = requestNlEdit(input, token);
+  await vi.advanceTimersByTimeAsync(10);
+  token.cancelled = true;
+  await vi.runAllTimersAsync();
+  expect(await outcome).toEqual({ kind: "cancelled" });
+  expect(vi.mocked(acquireRequestLock).mock.calls.length).toBeLessThanOrEqual(2);
+  expect(writeWorkspaceFile).not.toHaveBeenCalled();
+});
+
+
+it("응답 없는 작업공간 HTTP도 기본 10초 신호로 끝난다", async () => {
+  const client = await vi.importActual<typeof import("@/features/editor/ui/workspaceClient")>("@/features/editor/ui/workspaceClient");
+  const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms);
+    return controller.signal;
+  });
+  vi.stubGlobal("fetch", vi.fn((_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+    options.signal!.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+  })));
+  try {
+    const lock = client.acquireRequestLock("ticket", "hanging");
+    const read = client.readWorkspaceTextFile("runtime/ticket-response.json");
+    const write = client.writeWorkspaceFile("runtime/ticket-request.json", "{}", "application/json");
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await lock).toBe("unavailable");
+    expect(await read).toBeNull();
+    expect(await write).toMatchObject({ ok: false });
+  } finally { timeout.mockRestore(); }
+});

@@ -1,0 +1,966 @@
+{
+  "date": "2026-10-10",
+  "codeBase": "develop 42e622a + 비교 도구(폰트 CSS 교체 전)",
+  "realModelCall": false,
+  "method": "실제 GUI 아트보드 DOM 대 수동 매핑 fixture(test/fixtures/layout-parity, Vite + Tailwind v4). 실제 AI 출력 아님. 폰트 import가 variable 배포 CSS였던 상태의 대조 측정",
+  "environment": {
+    "platform": "win32",
+    "node": "v24.12.0",
+    "chromium": "151.0.7922.34",
+    "devicePixelRatio": 1,
+    "editorWindow": {
+      "width": 1920,
+      "height": 1080
+    },
+    "fontCss": [
+      "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css"
+    ],
+    "fontCssSha256": "7802465df48a4fe19d6f959d8150da79543d2721b29fb41bd34f9636e33ea38b",
+    "fontFilesFetched": 0,
+    "fontRequestsServed": 21,
+    "fontFailures": []
+  },
+  "summary": {
+    "pass": 0,
+    "expected-fail": 0,
+    "fail": 0,
+    "unexpected-pass": 0,
+    "invalid": 16
+  },
+  "results": [
+    {
+      "case": "login-screen",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "title": [
+          1,
+          1
+        ],
+        "hint": [
+          1,
+          1
+        ],
+        "loginButton": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "login-screen",
+      "viewport": {
+        "width": 390,
+        "height": 1000
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "title": [
+          1,
+          1
+        ],
+        "hint": [
+          1,
+          1
+        ],
+        "loginButton": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "login-screen",
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "title": [
+          1,
+          1
+        ],
+        "hint": [
+          1,
+          1
+        ],
+        "loginButton": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "login-legacy",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 318
+        }
+      },
+      "maxDelta": 526,
+      "lines": {
+        "title": [
+          1,
+          1
+        ],
+        "hint": [
+          1,
+          1
+        ],
+        "loginButton": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": [
+        "root: bounds delta exceeds 1 CSS px ({\"x\":0,\"y\":0,\"width\":0,\"height\":526})"
+      ]
+    },
+    {
+      "case": "long-login",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 958
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 958
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "title": [
+          1,
+          1
+        ],
+        "hint": [
+          1,
+          1
+        ],
+        "loginButton": [
+          1,
+          1
+        ],
+        "terms": [
+          4,
+          4
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI terms is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated loginButton is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated terms is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated emailInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated passwordInput::placeholder is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "image-hero",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "caption": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI caption is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated caption is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "responsive-cards",
+      "viewport": {
+        "width": 767,
+        "height": 1000
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 767,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 767,
+          "height": 900
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "elevatedTitle": [
+          1,
+          1
+        ],
+        "outlinedTitle": [
+          2,
+          2
+        ],
+        "fadedTitle": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "responsive-cards",
+      "viewport": {
+        "width": 768,
+        "height": 1000
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 900
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "elevatedTitle": [
+          1,
+          1
+        ],
+        "outlinedTitle": [
+          2,
+          2
+        ],
+        "fadedTitle": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "responsive-cards",
+      "viewport": {
+        "width": 769,
+        "height": 1000
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 769,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 769,
+          "height": 900
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "elevatedTitle": [
+          1,
+          1
+        ],
+        "outlinedTitle": [
+          2,
+          2
+        ],
+        "fadedTitle": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "responsive-cards",
+      "viewport": {
+        "width": 1023,
+        "height": 1000
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1023,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1023,
+          "height": 900
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "elevatedTitle": [
+          1,
+          1
+        ],
+        "outlinedTitle": [
+          1,
+          1
+        ],
+        "fadedTitle": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "responsive-cards",
+      "viewport": {
+        "width": 1024,
+        "height": 1000
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1024,
+          "height": 900
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "elevatedTitle": [
+          1,
+          1
+        ],
+        "outlinedTitle": [
+          1,
+          1
+        ],
+        "fadedTitle": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "responsive-cards",
+      "viewport": {
+        "width": 1025,
+        "height": 1000
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1025,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1025,
+          "height": 900
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "elevatedTitle": [
+          1,
+          1
+        ],
+        "outlinedTitle": [
+          1,
+          1
+        ],
+        "fadedTitle": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "responsive-cards",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 900
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "elevatedTitle": [
+          1,
+          1
+        ],
+        "outlinedTitle": [
+          1,
+          1
+        ],
+        "fadedTitle": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "responsive-cards",
+      "viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 900
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "elevatedTitle": [
+          1,
+          1
+        ],
+        "outlinedTitle": [
+          1,
+          1
+        ],
+        "fadedTitle": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated elevatedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated outlinedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated fadedTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "two-page-login",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "title": [
+          1,
+          1
+        ],
+        "hint": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated title is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated hint is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    },
+    {
+      "case": "two-page-dashboard",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "verdict": "invalid",
+      "root": {
+        "gui": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 900
+        },
+        "generated": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 900
+        }
+      },
+      "maxDelta": 0,
+      "lines": {
+        "headerTitle": [
+          1,
+          1
+        ],
+        "cardALabel": [
+          1,
+          1
+        ],
+        "cardAValue": [
+          1,
+          1
+        ],
+        "cardBLabel": [
+          1,
+          1
+        ],
+        "cardBValue": [
+          1,
+          1
+        ]
+      },
+      "renderedFonts": {
+        "gui": [
+          "Malgun Gothic (local)"
+        ],
+        "generated": [
+          "Malgun Gothic (local)"
+        ],
+        "unavailable": []
+      },
+      "loadErrors": [
+        "GUI Pretendard is not confirmed loaded",
+        "GUI headerTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI cardALabel is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI cardAValue is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI cardBLabel is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "GUI cardBValue is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated Pretendard is not confirmed loaded",
+        "generated headerTitle is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated cardALabel is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated cardAValue is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated cardBLabel is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])",
+        "generated cardBValue is not rendered with Pretendard web font ([{\"familyName\":\"Malgun Gothic\",\"isCustomFont\":false}])"
+      ],
+      "errors": []
+    }
+  ]
+}

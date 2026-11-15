@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CommandTransaction",
+  "description": "Visual Spec Command Schema v0.3 — 신뢰할 수 없는 입력이 Command Engine에 닿기 전의 형태 계약.",
+  "$ref": "#/$defs/Transaction",
+  "$defs": {
+    "Command": {
+      "oneOf": [
+        { "$ref": "#/$defs/CreateNodeCommand" },
+        { "$ref": "#/$defs/UpdateNodeCommand" },
+        { "$ref": "#/$defs/DeleteNodeCommand" },
+        { "$ref": "#/$defs/MoveNodeCommand" },
+        { "$ref": "#/$defs/SetLayoutCommand" },
+        { "$ref": "#/$defs/UpdateScreenCommand" },
+        { "$ref": "#/$defs/RemoveNodeActionCommand" },
+        { "$ref": "#/$defs/CreateColorStyleCommand" },
+        { "$ref": "#/$defs/UpdateColorStyleCommand" },
+        { "$ref": "#/$defs/DeleteColorStyleCommand" },
+        { "$ref": "#/$defs/UpdateTypographyStyleCommand" },
+        { "$ref": "#/$defs/ApplyColorStyleCommand" },
+        { "$ref": "#/$defs/ApplyTypographyStyleCommand" },
+        { "$ref": "#/$defs/CreateTypographyStyleCommand" },
+        { "$ref": "#/$defs/DeleteTypographyStyleCommand" }
+      ]
+    },
+    "CreateNodeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "parentId", "id", "node"],
+      "properties": {
+        "type": { "const": "createNode" },
+        "parentId": { "$ref": "visual-spec#/$defs/NodeId" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" },
+        "node": { "oneOf": [
+          { "$ref": "visual-spec#/$defs/FrameNode" },
+          { "$ref": "visual-spec#/$defs/TextNode" },
+          { "$ref": "visual-spec#/$defs/ImageNode" },
+          { "$ref": "visual-spec#/$defs/ButtonNode" },
+          { "$ref": "visual-spec#/$defs/InputNode" },
+          { "$ref": "visual-spec#/$defs/InstanceNode" }
+        ] },
+        "index": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "UpdateNodeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "path", "value"],
+      "properties": {
+        "type": { "const": "updateNode" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" },
+        "path": { "type": "string", "minLength": 1 },
+        "value": true
+      }
+    },
+    "DeleteNodeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "const": "deleteNode" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" }
+      }
+    },
+    "MoveNodeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "newParentId", "index"],
+      "properties": {
+        "type": { "const": "moveNode" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" },
+        "newParentId": { "$ref": "visual-spec#/$defs/NodeId" },
+        "index": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "SetLayoutCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "layout"],
+      "properties": {
+        "type": { "const": "setLayout" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" },
+        "layout": { "$ref": "visual-spec#/$defs/Layout" }
+      }
+    },
+    "UpdateScreenCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path", "value"],
+      "properties": {
+        "type": { "const": "updateScreen" },
+        "path": { "type": "string", "minLength": 1 },
+        "value": true
+      }
+    },
+    "RemoveNodeActionCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "const": "removeNodeAction" },
+        "id": { "$ref": "visual-spec#/$defs/NodeId" }
+      }
+    },
+    "UpdateColorStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "name", "value"],
+      "properties": {
+        "type": { "const": "updateColorStyle" },
+        "id": { "$ref": "visual-spec#/$defs/StyleId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "value": { "$ref": "visual-spec#/$defs/Color" }
+      }
+    },
+    "CreateColorStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "name", "value"],
+      "properties": { "type": { "const": "createColorStyle" }, "id": { "$ref": "visual-spec#/$defs/StyleId" }, "name": { "type": "string", "minLength": 1, "maxLength": 128 }, "value": { "$ref": "visual-spec#/$defs/Color" } }
+    },
+    "DeleteColorStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": { "type": { "const": "deleteColorStyle" }, "id": { "$ref": "visual-spec#/$defs/StyleId" } }
+    },
+    "UpdateTypographyStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "name", "value"],
+      "properties": {
+        "type": { "const": "updateTypographyStyle" },
+        "id": { "$ref": "visual-spec#/$defs/StyleId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "value": { "$ref": "visual-spec#/$defs/Typography" }
+      }
+    },
+    "CreateTypographyStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "name", "value"],
+      "properties": { "type": { "const": "createTypographyStyle" }, "id": { "$ref": "visual-spec#/$defs/StyleId" }, "name": { "type": "string", "minLength": 1, "maxLength": 128 }, "value": { "$ref": "visual-spec#/$defs/Typography" } }
+    },
+    "DeleteTypographyStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": { "type": { "const": "deleteTypographyStyle" }, "id": { "$ref": "visual-spec#/$defs/StyleId" } }
+    },
+    "ApplyColorStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "nodeId", "target"],
+      "properties": {
+        "type": { "const": "applyColorStyle" },
+        "id": { "$ref": "visual-spec#/$defs/StyleId" },
+        "nodeId": { "$ref": "visual-spec#/$defs/NodeId" },
+        "target": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ApplyTypographyStyleCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "id", "nodeId"],
+      "properties": {
+        "type": { "const": "applyTypographyStyle" },
+        "id": { "$ref": "visual-spec#/$defs/StyleId" },
+        "nodeId": { "$ref": "visual-spec#/$defs/NodeId" }
+      }
+    },
+    "Transaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "commands"],
+      "properties": {
+        "version": { "const": "0.3" },
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/Command" }
+        }
+      }
+    }
+  }
+}

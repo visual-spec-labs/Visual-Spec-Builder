@@ -1,0 +1,43 @@
+name: Refactor
+description: 코드 개선 및 리팩토링을 제안합니다.
+title: "refactor: "
+labels: ["refactor"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        리팩토링 제안 감사합니다. 아래 항목을 작성해주세요.
+        제목은 `<접두어>: <무엇이 문제인지 또는 무엇이 없는지 한 문장> — <보충 맥락>` 형식으로 씁니다 (예: `refactor: Canvas.tsx가 1023줄이다 — '임시 스탠드인'을 정식으로 둘지 교체할지 정해야 한다`). 자세한 규칙은 [CONTRIBUTING.md](https://github.com/visual-spec-labs/Visual-Spec-Builder/blob/develop/CONTRIBUTING.md#이슈)에 있습니다.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 리팩토링 설명
+      description: 어떤 부분을 개선하려고 하나요?
+      placeholder: 리팩토링 대상과 이유를 입력하세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: 필요한 이유
+      description: 왜 이 리팩토링이 필요한지 설명해주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 변경 범위
+      description: 어떤 파일/컴포넌트가 영향을 받나요?
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 추가 정보
+      description: 참고할 자료가 있다면 첨부해주세요.
+    validations:
+      required: false

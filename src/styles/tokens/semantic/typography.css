@@ -1,0 +1,15 @@
+/**
+ * semantic/typography.css — Semantic 타이포그래피 토큰
+ * 규칙: docs/DESIGN-TOKEN-RULES.md — Semantic = UI 역할, Primitive를 var()로 참조.
+ * 본문(sans)은 Pretendard, 코드(mono)는 시스템 monospace 스택.
+ *
+ * 참고: 폰트 크기·굵기·자간은 Tailwind 스케일 유틸(text-sm, font-medium,
+ *   tracking-wide …)이 Primitive(--text-*, --font-weight-*, --tracking-*)를
+ *   직접 소비합니다. 이는 프레임워크의 스케일 유틸이며, Semantic 분리 원칙은
+ *   테마 역할이 있는 컬러 토큰에 우선 적용합니다.
+ */
+
+@theme inline {
+  --font-sans: var(--font-family-pretendard);
+  --font-mono: var(--font-family-mono);
+}

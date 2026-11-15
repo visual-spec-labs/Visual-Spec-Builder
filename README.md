@@ -1,3 +1,154 @@
 # Visual Spec Builder
 
-(https://app.clickup.com/90182912883/v/o/s/901812110763)
+전체 문서의 역할과 점검 범위는 [문서 안내](docs/README.md)에 정리했다.
+
+체크아웃에서 localhost로 실행하는 화면 설계 GUI 도구다.
+사용자는 자연어 또는 직접 조작으로 화면을 구성하고, 도구는 이를 JSON Visual Spec으로 저장한다.
+Claude Code 또는 Codex는 해당 JSON을 읽어 실제 React 코드를 구현한다.
+
+처음 실행한다면 [로그인 예제로 시작하기](docs/14-getting-started.md)를 따른다.
+공유 위젯을 두 화면에 배치한 프로젝트 JSON은 [예제](examples/shared-widget-project.json)에서 볼 수 있다.
+패키지는 `private: true`라 레지스트리에 공개하지 않는다. `pnpm pack`으로 만든 로컬 tarball은 별도 폴더에 설치해 CLI와 GUI 런타임을 검증할 수 있다.
+
+## 문서
+
+처음 사용한다면 [14. 처음부터 따라 하기](docs/14-getting-started.md), 현재 제공 범위와 남은 검증은
+[07. 구현 현황](docs/07-implementation-status.md)을 먼저 읽는다. 설계·동결·QA 문서에는
+작성 당시의 제안과 단계별 기록도 있으므로, 날짜·기준 커밋·현재 상태 안내를 함께 확인한다.
+
+| 문서 | 내용 |
+|---|---|
+| [01-overview.md](docs/01-overview.md) | 제품 정의, 전체 흐름, 핵심 원칙 |
+| [02-mvp-scope.md](docs/02-mvp-scope.md) | 무엇을 만들고 무엇을 만들지 않는가 — **범위 판단의 기준** |
+| [03-user-flow.md](docs/03-user-flow.md) | 사용자 경로, Command Engine 구조, 대표 플로우 3가지 |
+| [04-gui-spec.md](docs/04-gui-spec.md) | 홈 화면과 에디터 화면 명세 |
+| [05-schema.md](docs/05-schema.md) | JSON 스키마 (현재 0.4) |
+| [06-schema-freeze.md](docs/06-schema-freeze.md) | IR 스키마 동결 계약과 변경 절차 (v0.1에서 시작, 현재 0.4) — **스키마 수정 전 필독** |
+| [07-implementation-status.md](docs/07-implementation-status.md) | 지금 무엇이 구현됐고 무엇이 남았는가 — **다음 할 일 판단의 근거** |
+| [08-natural-language.md](docs/08-natural-language.md) | 자연어 → Command 변환 설계 |
+| [09-command-schema-freeze.md](docs/09-command-schema-freeze.md) | Command 동결 계약과 변경 절차 (v0.1에서 시작, 현재 0.3) |
+| [10-shortcuts.md](docs/10-shortcuts.md) | 편집기 단축키와 캔버스 조작 (실제 동작하는 것만) |
+| [11-ticket-schema-freeze.md](docs/11-ticket-schema-freeze.md) | Ticket 스키마 v0.1 동결 계약과 변경 절차 |
+| [12-responsive-ir-design.md](docs/12-responsive-ir-design.md) | 이슈 #181 반응형 IR 설계 결정과 후속 범위 |
+| [13-background-fill-design.md](docs/13-background-fill-design.md) | 이슈 #127 배경 그라디언트·다중 채우기 설계 결정과 후속 범위 |
+| [14-getting-started.md](docs/14-getting-started.md) | 설치 → GUI 편집·저장 → 외부 에이전트 → 코드 Export·앱 통합 |
+| [15-workflow-qa.md](docs/15-workflow-qa.md) | 전체 흐름의 실제 검증 기록과 한계 |
+| [16-responsive-codegen-qa.md](docs/16-responsive-codegen-qa.md) | 이슈 #224 반응형 React 코드 매핑 fixture 검증 기록과 한계 |
+| [17-codegen-layout-qa.md](docs/17-codegen-layout-qa.md) | 이슈 #269 크기·줄바꿈 DOM 실측과 수동 fixture 검증 기록 |
+| [18-export-asset-bundler-qa.md](docs/18-export-asset-bundler-qa.md) | 이슈 #270 이미지 정적 import의 개발·production 브라우저 로딩 검증 |
+| [19-grid-codegen-qa.md](docs/19-grid-codegen-qa.md) | 이슈 #268 Grid 열·auto/fill·교차축 정렬의 Tailwind/브라우저 비교 |
+| [20-screen-layout-contract-qa.md](docs/20-screen-layout-contract-qa.md) | 이슈 #280 viewport·폰트·reset·모든 노드 좌표 비교 계약 |
+| [21-app-scope-a11y-design.md](docs/21-app-scope-a11y-design.md) | 이슈 #285 Export 제공 범위(컴포넌트 묶음)와 입력·접근성 최소 지원 범위 후속 제안 |
+| [22-performance-baseline.md](docs/22-performance-baseline.md) | 이슈 #293 프로젝트·노드·이미지 규모별 성능 실측과 후속 우선순위 |
+| [PROJECT_GENERATION_GUI.md](docs/PROJECT_GENERATION_GUI.md) | 단일 화면·프로젝트 티켓 전달, 공유 위젯과 Export 경계 |
+| [PROJECT_OUTPUT_ACCEPTANCE.md](docs/PROJECT_OUTPUT_ACCEPTANCE.md) | 임시 생성 출력의 검증·수락·명시적 복구 계약 |
+| [S2_WIDGET_CONTRACT.md](docs/S2_WIDGET_CONTRACT.md) | IR 0.4의 공유 위젯·인스턴스 구조와 검증 계약 |
+| [24-screen-relations-design.md](docs/24-screen-relations-design.md) | 이슈 #265 화면 종류·연결·재사용 위젯의 승인 계약과 단계별 수용 조건 |
+| [265-acceptance-status.md](docs/265-acceptance-status.md) | #265 코드·fixture 검증과 실제 AI 미검증 조건의 현황 |
+| [27-user-design-system-scope.md](docs/27-user-design-system-scope.md) | 이슈 #290 사용자 화면의 공용 스타일·폰트·아이콘/이미지·상태 지원 범위와 앱 토큰 경계 — Q1~Q7·G1~G6 결정 반영(#360) |
+| [28-real-flow-regression.md](docs/28-real-flow-regression.md) | 이슈 #292 fixture 사용자 여정(CI)과 실제 모델 실행(수동)의 구분·절차·실행 기록 |
+| [EDITOR_STORE_CONTRACT.md](docs/EDITOR_STORE_CONTRACT.md) | 캔버스·레이어 트리·세부설정 패널이 공유하는 스토어 계약 |
+| [DESIGN-TOKEN-RULES.md](docs/DESIGN-TOKEN-RULES.md) | 디자인 토큰 네이밍·구조·참조 규칙 |
+| [references.md](docs/references.md) | 오픈소스 조사 (craft.js, openpencil, onlook 등) |
+| [open-questions.md](docs/open-questions.md) | 미확정 항목 |
+| [qa/](docs/qa/) | 개별 기능 QA 기록 ([탭 저장 충돌](docs/qa/tab-save-conflicts.md), [프로젝트 이름·파일명 변경](docs/qa/project-file-rename-qa.md), [Export 이미지 자산 정합성](docs/qa/export-asset-integrity.md), [로컬 tarball GUI 런타임](docs/qa/package-tarball-runtime.md)) |
+| [skills/](docs/skills/) | 배포 스킬 7종(`skills/`)의 사람용 설명 |
+
+팀의 제작 과정과 단계별 근거는 [제작 연대기](docs/history/README.md)에 있다.
+
+설계 논의 기록은 [`docs/superpowers/specs/`](docs/superpowers/specs/)에 있다.
+
+## 현재 구현 상태
+
+문서 스키마 0.4와 검증기, 기본 노드 5종(`frame`·`text`·`image`·`button`·`input`)의
+GUI 편집·그룹화·Undo/Redo, CLI 작업공간 저장·복원이 구현돼 있다. 공유 위젯은 별도의
+`InstanceNode`(`type: "instance"`)로 참조하며 추출·배치·분리·원본 편집을 지원한다.
+solid·linear·image 다중 배경, 반응형(breakpoint·override), 자연어 Command 적용,
+페이지 이동·모달·공유 위젯을 포함한 프로젝트 티켓 생성과 코드 ZIP Export를 제공한다.
+에이전트는 요청별 staging 경로에 코드를 쓰고, GUI가 검증·수락한 출력만 generated로 확정한다.
+티켓 완료나 Export 검사 통과가 생성 앱의 typecheck·build·시각 일치까지 보증하지는 않는다.
+자연어 응답과 React 코드 생성은 별도로 실행한 Claude Code·Codex 등 외부 에이전트가 담당한다.
+GUI가 에이전트 프로세스를 자동 실행하지 않는다. 남은 한계는 구현 현황을 참고한다.
+
+MVP 구현 단위별 상세 현황, 확인된 결함, 다음에 할 만한 것은
+**[`docs/07-implementation-status.md`](docs/07-implementation-status.md)** 에 있다.
+이 절은 요약만 두고 자세한 내용은 그 문서 한 곳에서만 갱신한다.
+
+디렉터리 구조는 아래와 같다.
+
+```
+bin/visual-spec.mjs              init·skills·GUI 실행 CLI
+src/app/App.tsx                  홈/에디터 전환과 자동저장 연결
+src/features/editor/schema/     스키마 정본·생성 타입·검증기·공개 index
+src/features/editor/store/      프로젝트·페이지·선택·history·지속성
+src/features/editor/command/    편집 명령 적용·외부 입력 검증
+src/features/editor/ui/         홈·캔버스·트리·속성·자연어·티켓·Export UI
+src/features/editor/nl/         자연어 요청·응답 파일 프로토콜
+src/features/editor/ticket/     티켓 컴파일·상태·요청·응답
+src/features/editor/export/     생성 코드·참조 검사와 ZIP 구성
+src/features/workspace/         개발 서버 작업공간 파일 API
+skills/                         외부 에이전트용 배포 스킬
+docs/                           사용법·설계·계약·검증 기록
+scripts/generate-types.mjs       스키마 → types.ts 생성
+examples/                       유효/무효 예시
+test/                           스키마·스토어·명령·CLI·렌더 판단기 등 테스트
+```
+
+스키마가 지원하는 범위와 변경 규칙의 전문은 **[`docs/06-schema-freeze.md`](docs/06-schema-freeze.md)** 에 있다.
+스키마를 건드리기 전에 반드시 읽는다.
+
+## 팀원이 알아야 할 것
+
+타입은 아래 한 경로에서만 가져온다.
+
+```ts
+import type {
+  VisualSpec,
+  ScreenSpec,
+  Node,
+  FrameNode,
+  TextNode,
+} from "@/features/editor/schema";
+
+import { validateVisualSpec } from "@/features/editor/schema";
+```
+
+`src/features/editor/schema/` 안의 개별 파일(`types.ts`, `validate.ts`, `visual-spec.schema.json`)을
+직접 import하지 않는다. 항상 디렉터리 index를 거친다.
+
+`types.ts`는 `visual-spec.schema.json`에서 생성한 파일이다. 손으로 고치지 않는다.
+
+## 개발
+
+Node `^20.19.0 || >=22.12.0`, pnpm 10.33.0을 사용한다 (`packageManager: pnpm@10.33.0`). Vite 런타임이 요구하는 Node 범위다.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm dev                 # vite 개발 서버
+pnpm run generate:types  # 스키마 → src/features/editor/schema/types.ts
+pnpm run typecheck       # tsc -b
+pnpm test                # vitest run
+pnpm run lint            # eslint
+pnpm run build           # vite build
+pnpm run preview         # 빌드 결과 미리보기
+```
+
+스키마를 고쳤다면 `generate:types`를 돌려 `types.ts`를 함께 커밋한다.
+`generate:types` 후 `git diff`가 비어 있지 않으면 `types.ts`가 정본과 어긋난 것이다.
+
+## 예제
+
+| 파일 | 내용 |
+|---|---|
+| `examples/empty-title-screen.json` | 노드 2개짜리 최소 화면 |
+| `examples/login-screen.json` | 로그인 버튼·이메일/비밀번호 입력, 중첩 프레임·border·부분 투명 색상 |
+| `examples/dashboard-cards.json` | `Header > Title` + `Content > Card, Card` 2단 트리 |
+| `examples/header-content.json` | 고정 높이 헤더 + `space-between` + `fill` 본문 |
+| `examples/invalid/` | 검증기가 잡아야 하는 잘못된 문서들 |
+
+## 기획 원본
+
+ClickUp 팀 문서가 원본이고 이 저장소 문서는 작업 기준이다.
+각 문서 상단에 대응하는 ClickUp 페이지를 표기했다.
+
+https://app.clickup.com/90182912883/v/o/s/901812110763

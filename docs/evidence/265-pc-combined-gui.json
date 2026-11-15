@@ -1,0 +1,61 @@
+{
+  "pass": true,
+  "input": "public example with four actions and two instances removed",
+  "guiCreated": [
+    "login navigate",
+    "login openModal",
+    "dashboard navigate",
+    "modal close",
+    "login widget instance",
+    "dashboard widget instance"
+  ],
+  "savePutOk": true,
+  "browserContextClosed": true,
+  "before": {
+    "loginNavigate": {
+      "type": "navigate",
+      "target": "dashboard"
+    },
+    "loginModal": {
+      "type": "openModal",
+      "target": "resetPassword"
+    },
+    "dashboardNavigate": {
+      "type": "navigate",
+      "target": "login"
+    },
+    "modalClose": {
+      "type": "close"
+    },
+    "loginWidgetRefs": [
+      "notificationWidget"
+    ],
+    "dashboardWidgetRefs": [
+      "notificationWidget"
+    ]
+  },
+  "after": {
+    "loginNavigate": {
+      "type": "navigate",
+      "target": "dashboard"
+    },
+    "loginModal": {
+      "type": "openModal",
+      "target": "resetPassword"
+    },
+    "dashboardNavigate": {
+      "type": "navigate",
+      "target": "login"
+    },
+    "modalClose": {
+      "type": "close"
+    },
+    "loginWidgetRefs": [
+      "notificationWidget"
+    ],
+    "dashboardWidgetRefs": [
+      "notificationWidget"
+    ]
+  },
+  "pageErrors": []
+}

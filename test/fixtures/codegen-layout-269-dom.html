@@ -1,0 +1,15 @@
+<!doctype html><meta charset="utf-8"><style>
+*{box-sizing:border-box} body{margin:0;font:16px Arial} .row{display:flex;flex-direction:row;width:300px;height:120px}.col{display:flex;flex-direction:column;width:300px;height:120px}.grid{display:grid;grid-template-columns:repeat(2,1fr);width:300px;height:120px}.gap{gap:12px}.fixed{flex:0 0 240px;width:240px;height:40px}.legacy{width:240px;height:40px}.fill{flex:1 1 0;min-width:0;height:40px}.col .fill{min-width:auto;min-height:0}.hug{flex:0 0 auto;width:auto;height:auto}.cross{align-self:stretch}.cell{background:#ddd}.text{white-space:pre-wrap;width:120px;font:16px/20px Arial;margin:0}.long{width:80px}
+</style>
+<div id="fixed" class="row"><div class="fixed cell"></div><div class="fixed cell"></div></div>
+<div id="legacy" class="row"><div class="legacy cell"></div><div class="legacy cell"></div></div>
+<div id="fill" class="row"><div class="fill cell"></div><div class="fill cell"></div></div>
+<div id="hug" class="row"><div class="hug cell">Hug content</div><div class="hug cell">Hug content</div></div>
+<div id="column" class="col"><div class="fill cell"></div><div class="fill cell"></div></div>
+<div id="grid" class="grid"><div class="cell">grid fill</div><div class="cell">grid fill</div></div>
+<p id="wrapped" class="text">first line wraps across available width
+second  line</p><p id="longword" class="text long">supercalifragilisticexpialidocious</p>
+<script>const ids=['fixed','legacy','fill','hug','column','grid','wrapped','longword'];const out={};for(const id of ids){const e=document.getElementById(id),s=getComputedStyle(e);out[id]={display:s.display,direction:s.flexDirection,whiteSpace:s.whiteSpace,overflowWrap:s.overflowWrap,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,children:[...e.children].map(x=>({width:x.getBoundingClientRect().width,height:x.getBoundingClientRect().height,flexGrow:getComputedStyle(x).flexGrow,flexShrink:getComputedStyle(x).flexShrink,flexBasis:getComputedStyle(x).flexBasis,minWidth:getComputedStyle(x).minWidth})),scrollWidth:e.scrollWidth,clientWidth:e.clientWidth,scrollHeight:e.scrollHeight,clientHeight:e.clientHeight,text:e.innerText}}document.body.dataset.qa=JSON.stringify(out);</script>
+
+
+

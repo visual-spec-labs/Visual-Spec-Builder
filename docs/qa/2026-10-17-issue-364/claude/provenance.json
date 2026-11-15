@@ -1,0 +1,53 @@
+{
+  "sourceHead": "b7a6642a71049d365cd3d09d434fa57f0eb00d90",
+  "node": "v24.12.0",
+  "pnpm": "10.33.0",
+  "cliVersion": "2.1.288 (Claude Code)",
+  "model": "claude-opus-5-5 (CLI response)",
+  "draft": {
+    "at": "2026-10-17T15:09:44.955Z",
+    "requestId": "19312b7a-4078-4098-8303-bf058017b65f",
+    "commands": 32,
+    "agentExitCode": 0,
+    "agentSeconds": 40,
+    "specSha256": "53edd9270570229f0678f47f4f5b53bbf232ffbdfd426938a7a7814a924c2d66"
+  },
+  "ticketWaves": [
+    {
+      "requestId": "16f30184-e5d2-4129-838f-decb01849cff",
+      "ticketCount": 5,
+      "agentExitCode": 0,
+      "agentSeconds": 149,
+      "modelsReported": [
+        "claude-opus-5-5"
+      ]
+    },
+    {
+      "requestId": "958366a7-9ba2-4555-ab19-d7edfd893f23",
+      "ticketCount": 1,
+      "agentExitCode": 0,
+      "agentSeconds": 99,
+      "modelsReported": [
+        "claude-opus-5-5"
+      ]
+    },
+    {
+      "requestId": "a25d3397-f20d-4416-80b5-ea80bdd04bd9",
+      "ticketCount": 1,
+      "agentExitCode": 0,
+      "agentSeconds": 108,
+      "modelsReported": [
+        "claude-opus-5-5"
+      ]
+    }
+  ],
+  "export": {
+    "at": "2026-10-17T15:16:36.433Z",
+    "page": "회원가입",
+    "fileCount": 7,
+    "errorCount": 0,
+    "freshness": "current",
+    "zipSha256": "a10ad682226796ae0bc2c9f2caeebe337fe2dd85b1cb8afcec7a1f707d46fa7e",
+    "zipBytes": 11177
+  }
+}

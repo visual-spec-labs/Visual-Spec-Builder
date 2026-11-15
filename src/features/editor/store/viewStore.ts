@@ -1,0 +1,217 @@
+import { create } from "zustand";
+
+import {
+  clampPanelWidth,
+  loadPanelLayout,
+  savePanelLayout,
+  type PanelLayoutState,
+} from "@/features/editor/store/panelLayout";
+
+/**
+ * 캔버스 뷰(줌·그리드·패널 표시) 전용 스토어.
+ * IR/선택 상태를 다루는 editorStore와 분리한다 — docs/EDITOR_STORE_CONTRACT.md의
+ * 계약은 spec/selection 전용이며, 줌·그리드·패널은 IR이 아닌 순수 UI 상태다.
+ */
+export const ZOOM_MIN = 25;
+export const ZOOM_MAX = 400;
+/** 버튼·휠 줌이 움직이는 단위(%). fitToScreen은 이 단위에 묶이지 않는다. */
+export const ZOOM_STEP = 25;
+export const ZOOM_DEFAULT = 100;
+
+export interface Dimensions {
+  width: number;
+  height: number;
+}
+
+export interface ViewState {
+  /**
+   * 캔버스 확대율(%). ZOOM_MIN..ZOOM_MAX.
+   * 버튼/휠 줌은 ZOOM_STEP 눈금 위에 있지만 fitToScreen은 82.63 같은 값도 낸다 —
+   * 표시할 때만 반올림한다.
+   */
+  zoom: number;
+  /** 캔버스 격자 표시 여부. */
+  showGrid: boolean;
+  /** 좌우 패널(레이어 트리·세부설정) 동시 표시 여부. */
+  showPanels: boolean;
+  /**
+   * 개별 패널 접기·폭(#287). `showPanels`와 독립이다 — 전체 토글은 둘 다
+   * 숨기고, 이건 한쪽만 좁은 레일로 접거나 폭을 조절한다. 둘 다 켜져 있으면
+   * `showPanels`가 우선한다(둘 다 안 보인다, `EditorLayout.tsx`).
+   * docs/22-panel-collapse-resize.md "결정" 참고.
+   */
+  treeCollapsed: boolean;
+  treeWidth: number;
+  propsCollapsed: boolean;
+  propsWidth: number;
+  toggleTreeCollapsed: () => void;
+  togglePropsCollapsed: () => void;
+  /**
+   * 드래그 중(mousemove)에 쓴다 — state만 갱신하고 저장하지 않는다(자체
+   * code-review 대응). 드래그 한 번에 수십~수백 번 불릴 수 있어, 매번
+   * localStorage에 쓰면 그 I/O가 드래그 중 버벅임으로 보인다.
+   * `commitPanelLayout`이 드래그가 끝난 뒤 한 번만 저장한다.
+   */
+  setTreeWidth: (width: number) => void;
+  setPropsWidth: (width: number) => void;
+  /** 지금 패널 상태를 localStorage에 한 번 저장한다. 드래그 끝(mouseup)·키보드 조절마다 부른다. */
+  commitPanelLayout: () => void;
+  /** 캔버스 뷰포트의 실측 크기(여백 제외). 캔버스가 올려준다. */
+  viewport: Dimensions | null;
+  /** 화면(아트보드) 크기. 캔버스가 활성 페이지의 size를 올려준다. */
+  content: Dimensions | null;
+  /**
+   * 캔버스가 세로로 끝까지 내려가 있는가. 캔버스가 스크롤할 때마다 올린다.
+   * 채우기 모드에서 하단 도구 모음을 잠깐 치우는 데 쓴다 — 맨 아래에서는
+   * 아트보드의 하단 리사이즈 핸들이 도구 모음에 가린다.
+   */
+  canvasAtBottom: boolean;
+  setCanvasAtBottom: (atBottom: boolean) => void;
+  /**
+   * 도구 모음이 숨으며 포커스가 있던 컨트롤에서 포커스를 뗐다는 1회성 신호(#275
+   * 리뷰 대응). true인 동안 canvasKeys.ts의 형제 이동(#151)은 다음 Tab 한 번을
+   * 비켜서서 브라우저 네이티브 포커스 이동이 일어나게 한다 — #151 §2가 요구하는
+   * "키보드만 쓰는 사용자도 패널·도구 모음에 갈 수 있어야 한다"를 지키기 위함이다.
+   * 캔버스를 클릭해 선택하는 주 사용 경로는 이 신호를 켜지 않으므로 형제 이동은
+   * 그대로 동작한다.
+   */
+  toolbarFocusHandoffPending: boolean;
+  setToolbarFocusHandoffPending: (pending: boolean) => void;
+  /** 신호를 읽고 동시에 끈다 — 한 번 소비하면 그다음 Tab부터는 다시 꺼진 상태다. */
+  consumeToolbarFocusHandoffPending: () => boolean;
+  setViewport: (viewport: Dimensions) => void;
+  setContent: (content: Dimensions) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  /**
+   * 확대율을 직접 지정한다(ZOOM_MIN..ZOOM_MAX로 자른다).
+   *
+   * `zoomIn`/`zoomOut`이 ZOOM_STEP 눈금에 붙는 것과 달리 눈금을 타지 않는다 —
+   * "100%로" 같은 단축키가 57%에서 75%로 가버리면 안 된다.
+   */
+  setZoom: (zoom: number) => void;
+  /**
+   * `content`가 뷰포트에 맞도록 확대율을 다시 계산한다.
+   * 아직 실측값을 못 받았으면 기본 확대율로 리셋한다.
+   *
+   * `content`는 캔버스가 올리는 **페이지 스펙 크기**(= 첫 화면)다. 아트보드는 내용에
+   * 따라 그보다 세로로 길어질 수 있는데(#86), Fit은 그 전체가 아니라 첫 화면을
+   * 맞춘다 — 4000px짜리 문서를 통째로 맞추면 아무것도 안 보일 만큼 축소된다.
+   */
+  fitToScreen: () => void;
+  toggleGrid: () => void;
+  togglePanels: () => void;
+}
+
+function clampZoom(value: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value));
+}
+
+/**
+ * 아트보드가 뷰포트에 맞는 최대 확대율(%).
+ *
+ * ZOOM_STEP 단위로 내리지 않는다 — 1920×1080을 1100px 뷰포트에 넣으면 실제 배율은
+ * 57%인데 50%로 내리면 캔버스에 눈에 띄는 여백이 남는다.
+ *
+ * 정수 %로도 내리지 않는다. 1920px 아트보드에서 1%p는 19px이고, 채우기 모드에서는
+ * 그만큼이 아트보드 옆 캔버스 바탕색 띠로 그대로 보인다. 아트보드가 잘리지 않도록
+ * 소수점 두 자리에서만 버린다(1920px 기준 오차 0.2px 미만).
+ */
+export function fitZoom(
+  viewport: Dimensions | null,
+  content: Dimensions | null,
+): number {
+  if (
+    viewport === null ||
+    content === null ||
+    content.width <= 0 ||
+    content.height <= 0 ||
+    viewport.width <= 0 ||
+    viewport.height <= 0
+  ) {
+    return ZOOM_DEFAULT;
+  }
+
+  const ratio = Math.min(
+    viewport.width / content.width,
+    viewport.height / content.height,
+  );
+
+  // 올림하면 아트보드 가장자리가 잘리므로 내림한다.
+  return clampZoom(Math.floor(ratio * 10_000) / 100);
+}
+
+/** 같은 크기면 새 객체를 만들지 않는다 — ResizeObserver가 자주 부른다. */
+function sameSize(a: Dimensions | null, b: Dimensions): boolean {
+  return a !== null && a.width === b.width && a.height === b.height;
+}
+
+/** ViewState에서 panelLayout.ts의 PanelLayoutState 네 필드만 뽑는다(저장용). */
+function panelLayoutOf(state: ViewState): PanelLayoutState {
+  const { treeCollapsed, treeWidth, propsCollapsed, propsWidth } = state;
+  return { treeCollapsed, treeWidth, propsCollapsed, propsWidth };
+}
+
+export const useViewStore = create<ViewState>((set, get) => ({
+  zoom: ZOOM_DEFAULT,
+  showGrid: true,
+  showPanels: true,
+  ...loadPanelLayout(),
+  viewport: null,
+  content: null,
+  canvasAtBottom: false,
+  setCanvasAtBottom: (atBottom) =>
+    set((state) => (state.canvasAtBottom === atBottom ? state : { canvasAtBottom: atBottom })),
+  toolbarFocusHandoffPending: false,
+  setToolbarFocusHandoffPending: (pending) =>
+    set((state) =>
+      state.toolbarFocusHandoffPending === pending ? state : { toolbarFocusHandoffPending: pending },
+    ),
+  consumeToolbarFocusHandoffPending: () => {
+    const pending = get().toolbarFocusHandoffPending;
+    if (pending) set({ toolbarFocusHandoffPending: false });
+    return pending;
+  },
+  setViewport: (viewport) =>
+    set((state) => (sameSize(state.viewport, viewport) ? state : { viewport })),
+  setContent: (content) =>
+    set((state) => (sameSize(state.content, content) ? state : { content })),
+  // fitToScreen이 57% 같은 값을 만들 수 있으므로 더하고 빼는 대신 다음/이전 눈금으로
+  // 붙인다. 57%에서 Zoom In은 82%가 아니라 75%다.
+  zoomIn: () =>
+    set((state) => ({
+      zoom: clampZoom((Math.floor(state.zoom / ZOOM_STEP) + 1) * ZOOM_STEP),
+    })),
+  zoomOut: () =>
+    set((state) => ({
+      zoom: clampZoom((Math.ceil(state.zoom / ZOOM_STEP) - 1) * ZOOM_STEP),
+    })),
+  setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
+  fitToScreen: () => set((state) => ({ zoom: fitZoom(state.viewport, state.content) })),
+  toggleGrid: () => set((state) => ({ showGrid: !state.showGrid })),
+  togglePanels: () => set((state) => ({ showPanels: !state.showPanels })),
+  toggleTreeCollapsed: () =>
+    set((state) => {
+      const next = { ...panelLayoutOf(state), treeCollapsed: !state.treeCollapsed };
+      savePanelLayout(next);
+      return next;
+    }),
+  togglePropsCollapsed: () =>
+    set((state) => {
+      const next = { ...panelLayoutOf(state), propsCollapsed: !state.propsCollapsed };
+      savePanelLayout(next);
+      return next;
+    }),
+  // 정적 범위(clampPanelWidth)만 자른다 — 창 폭 대비 동적 상한(#287 리뷰
+  // 대응)은 여기서 안 건다. `window`를 읽어야 하는데, 이 스토어는
+  // `tsconfig.node.json`(DOM 타입 없음)으로도 검사되는 테스트에서 가져다
+  // 쓰므로 `store/`에 DOM 전역을 직접 넣을 수 없다(`localStorage`와 달리
+  // `window`는 `@types/node`가 타입을 안 준다) — "window·document를 만지는
+  // 코드는 ui/에만 둔다"는 이 저장소 경계 그대로다. 그래서 동적 상한은
+  // 호출부(`LayerTree.tsx`/`PropertiesPanel.tsx`, 둘 다 `ui/`)가
+  // `panelLayout.ts`의 순수 함수 `maxResizableWidth`로 미리 깎은 값을
+  // 넘겨준다.
+  setTreeWidth: (width) => set({ treeWidth: clampPanelWidth(width) }),
+  setPropsWidth: (width) => set({ propsWidth: clampPanelWidth(width) }),
+  commitPanelLayout: () => savePanelLayout(panelLayoutOf(get())),
+}));

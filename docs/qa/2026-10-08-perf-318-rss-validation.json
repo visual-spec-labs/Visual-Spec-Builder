@@ -1,0 +1,366 @@
+{
+  "purpose": "RSS missingness regression and five-asset export verification; not a replacement for historical Mac performance comparisons",
+  "source_base_commit": "a2f953596d1b35fb5a831d2f626b8736ad1cc0a7",
+  "source_sha256": {
+    "scripts/perf/rss.mjs": "8db8d2c0e84d1fd20b20f892830fae18b8053f91aa65d95bdd6ea0ed52e858d8",
+    "scripts/perf/measure.mjs": "8e22b055bfde6eee3601c3c8371f0d47b7cde2c0d700b67c8a5f04520b6a0b40",
+    "scripts/perf/fixtures.mjs": "a0f75ea5d761ff3ff52b912ec064e8218387b1fe263e1af4496d7f29cb46548f"
+  },
+  "environment": {
+    "os": "Linux 6.18.44 x86_64",
+    "node": "v24.19.0",
+    "browser": "Chromium 151.0.7922.173 built on Debian GNU/Linux 13 (trixie)",
+    "chrome_wrapper": "exec /usr/bin/chromium --no-sandbox --disable-dev-shm-usage \"$@\"",
+    "native_windows_tested": false,
+    "native_macos_tested": false
+  },
+  "commands": {
+    "failed_collector": "PATH=<directory containing executable ps that exits 1>:$PATH node scripts/perf/measure.mjs --chrome <chrome_wrapper> --reps 2 --scenario S1 --json <output>",
+    "valid": "node scripts/perf/measure.mjs --chrome <chrome_wrapper> --reps 1 --scenario S8 --json <output>",
+    "export_probe": "A separate Chromium session loads S8, evaluates the unchanged PAGE_HELPERS from measure.mjs, calls open / prepareExport(true) / exportZip and checks scanGeneratedCode.usedAssets."
+  },
+  "failed_collector_run": {
+    "when": "2026-10-08T13:49:34.427Z",
+    "node": "v24.19.0",
+    "chrome": "/tmp/vsb-chromium",
+    "browser": "Chrome/151.0.7922.173",
+    "results": [
+      {
+        "key": "S1",
+        "label": "프로젝트 10 · 노드 100",
+        "reps": 2,
+        "imageBytes": 0,
+        "nodeEnv": "production",
+        "retries": 0,
+        "home": {
+          "median": 594.7,
+          "max": 594.7
+        },
+        "homeAll": {
+          "median": 604.2,
+          "max": 604.2
+        },
+        "open": {
+          "median": 148.4,
+          "max": 148.4
+        },
+        "edit": {
+          "median": 15.3,
+          "max": 15.3
+        },
+        "undo": {
+          "median": 15.1,
+          "max": 15.1
+        },
+        "editFrame": {
+          "median": 33.4,
+          "max": 33.4
+        },
+        "undoFrame": {
+          "median": 33.3,
+          "max": 33.3
+        },
+        "export": {
+          "median": 25.8,
+          "max": 25.8
+        },
+        "zipKB": 5,
+        "generatedFiles": 7,
+        "rssMB": {
+          "home": {
+            "median": null,
+            "max": null,
+            "valid": 0,
+            "total": 2,
+            "status": "unavailable"
+          },
+          "open": {
+            "median": null,
+            "max": null,
+            "valid": 0,
+            "total": 2,
+            "status": "unavailable"
+          }
+        },
+        "heapMB": {
+          "home": {
+            "median": 13.8,
+            "max": 13.8
+          },
+          "open": {
+            "median": 15.5,
+            "max": 15.5
+          },
+          "end": {
+            "median": 16.9,
+            "max": 16.9
+          }
+        },
+        "domNodes": {
+          "home": {
+            "median": 1926,
+            "max": 1926
+          },
+          "open": {
+            "median": 2818,
+            "max": 2818
+          }
+        },
+        "raw": [
+          {
+            "homeImages": null,
+            "openImages": null,
+            "homeRssMB": null,
+            "openRssMB": null,
+            "homeRssCollection": {
+              "valueMB": null,
+              "status": "unavailable",
+              "reason": "ps_failed"
+            },
+            "openRssCollection": {
+              "valueMB": null,
+              "status": "unavailable",
+              "reason": "ps_failed"
+            },
+            "typing": null,
+            "drag": null,
+            "homeMs": 576.1999999992549,
+            "homeAllMs": 584.5,
+            "openMs": 148.39999999850988,
+            "editMs": 15.299999997019768,
+            "editFrameMs": 33.30000000074506,
+            "undoMs": 14.5,
+            "undoFrameMs": 33.30000000074506,
+            "exportMs": 25.799999997019768,
+            "zipBytes": 5488,
+            "files": 7,
+            "homeRes": {
+              "heapMB": 13.8,
+              "domNodes": 1926
+            },
+            "openRes": {
+              "heapMB": 15.5,
+              "domNodes": 2818
+            },
+            "endRes": {
+              "heapMB": 16.9,
+              "domNodes": 2818
+            }
+          },
+          {
+            "homeImages": null,
+            "openImages": null,
+            "homeRssMB": null,
+            "openRssMB": null,
+            "homeRssCollection": {
+              "valueMB": null,
+              "status": "unavailable",
+              "reason": "ps_failed"
+            },
+            "openRssCollection": {
+              "valueMB": null,
+              "status": "unavailable",
+              "reason": "ps_failed"
+            },
+            "typing": null,
+            "drag": null,
+            "homeMs": 594.6999999992549,
+            "homeAllMs": 604.1999999992549,
+            "openMs": 129.60000000149012,
+            "editMs": 14.100000001490116,
+            "editFrameMs": 33.399999998509884,
+            "undoMs": 15.100000001490116,
+            "undoFrameMs": 33.20000000298023,
+            "exportMs": 21.199999999254942,
+            "zipBytes": 5488,
+            "files": 7,
+            "homeRes": {
+              "heapMB": 13.8,
+              "domNodes": 1926
+            },
+            "openRes": {
+              "heapMB": 15.5,
+              "domNodes": 2818
+            },
+            "endRes": {
+              "heapMB": 16.9,
+              "domNodes": 2818
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "valid_s8_run": {
+    "when": "2026-10-08T13:49:43.927Z",
+    "node": "v24.19.0",
+    "chrome": "/tmp/vsb-chromium",
+    "browser": "Chrome/151.0.7922.173",
+    "results": [
+      {
+        "key": "S8",
+        "label": "프로젝트 1 · 노드 100 · 한 페이지에 다른 큰 이미지 5장",
+        "reps": 1,
+        "imageBytes": 57625915,
+        "nodeEnv": "production",
+        "retries": 0,
+        "home": {
+          "median": 629.3,
+          "max": 629.3
+        },
+        "homeAll": {
+          "median": 638.3,
+          "max": 638.3
+        },
+        "open": {
+          "median": 109.7,
+          "max": 109.7
+        },
+        "edit": {
+          "median": 16.6,
+          "max": 16.6
+        },
+        "undo": {
+          "median": 18.1,
+          "max": 18.1
+        },
+        "editFrame": {
+          "median": 33.3,
+          "max": 33.3
+        },
+        "undoFrame": {
+          "median": 33.3,
+          "max": 33.3
+        },
+        "export": {
+          "median": 1005.9,
+          "max": 1005.9
+        },
+        "zipKB": 56283,
+        "generatedFiles": 15,
+        "rssMB": {
+          "home": {
+            "median": 1243,
+            "max": 1243,
+            "valid": 1,
+            "total": 1,
+            "status": "ok"
+          },
+          "open": {
+            "median": 1282,
+            "max": 1282,
+            "valid": 1,
+            "total": 1,
+            "status": "ok"
+          }
+        },
+        "homeImagesMs": {
+          "median": 824,
+          "max": 824
+        },
+        "homeImagesCount": {
+          "median": 3,
+          "max": 3
+        },
+        "openImagesMs": {
+          "median": 147.9,
+          "max": 147.9
+        },
+        "heapMB": {
+          "home": {
+            "median": 12.7,
+            "max": 12.7
+          },
+          "open": {
+            "median": 15.1,
+            "max": 15.1
+          },
+          "end": {
+            "median": 17.1,
+            "max": 17.1
+          }
+        },
+        "domNodes": {
+          "home": {
+            "median": 231,
+            "max": 231
+          },
+          "open": {
+            "median": 2799,
+            "max": 2799
+          }
+        },
+        "raw": [
+          {
+            "homeImages": {
+              "ms": 824,
+              "count": 3
+            },
+            "openImages": {
+              "ms": 147.89999999850988,
+              "count": 5
+            },
+            "homeRssMB": 1243,
+            "openRssMB": 1282,
+            "homeRssCollection": {
+              "valueMB": 1243,
+              "status": "ok",
+              "reason": null
+            },
+            "openRssCollection": {
+              "valueMB": 1282,
+              "status": "ok",
+              "reason": null
+            },
+            "typing": null,
+            "drag": null,
+            "homeMs": 629.3000000007451,
+            "homeAllMs": 638.3000000007451,
+            "openMs": 109.69999999925494,
+            "editMs": 16.600000001490116,
+            "editFrameMs": 33.30000000074506,
+            "undoMs": 18.100000001490116,
+            "undoFrameMs": 33.30000000074506,
+            "exportMs": 1005.8999999985099,
+            "zipBytes": 57634098,
+            "files": 15,
+            "homeRes": {
+              "heapMB": 12.7,
+              "domNodes": 231
+            },
+            "openRes": {
+              "heapMB": 15.1,
+              "domNodes": 2799
+            },
+            "endRes": {
+              "heapMB": 17.1,
+              "domNodes": 2799
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "export_probe": [
+    {
+      "label": "exact-head-S8-export-assets",
+      "ms": 1081.5,
+      "files": 15,
+      "assets": 5,
+      "zipBytes": 57634098,
+      "pass": true
+    },
+    {
+      "label": "exported-asset-names",
+      "names": [
+        "big-000-0.png",
+        "big-000-1.png",
+        "big-000-2.png",
+        "big-000-3.png",
+        "big-000-4.png"
+      ]
+    }
+  ],
+  "failed_collector_console_rss": "  S1 브라우저 RSS: 홈 N/A (unavailable, 0/2 valid) · 열기 뒤 N/A (unavailable, 0/2 valid)",
+  "valid_console_rss": "  S8 브라우저 RSS: 홈 1243MB (ok, 1/1 valid) · 열기 뒤 1282MB (ok, 1/1 valid) · 이미지 그려짐: 홈 824ms(보이는 3장) · 열기 147.9ms"
+}

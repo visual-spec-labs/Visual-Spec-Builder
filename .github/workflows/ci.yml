@@ -1,0 +1,361 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines의 두 하한과 Node 24를 검사한다.
+        node: ['20.19.0', '22.12.0', '24']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # pnpm 버전은 package.json의 packageManager를 따른다.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - name: 전체 테스트 (fresh tarball 설치 smoke 포함)
+        run: pnpm test
+      - name: Production build
+        run: pnpm run build
+      - name: 스키마 드리프트 검사
+        run: |
+          pnpm run generate:types
+          if ! git diff --exit-code; then
+            echo "::error::생성된 types.ts가 커밋된 내용과 다릅니다. 정본 스키마에서 pnpm run generate:types로 재생성하고 함께 커밋하세요."
+            exit 1
+          fi
+
+  windows:
+    name: Windows / Node 24
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # 기존 작업 트리를 재사용하지 않는 hosted runner에서 checkout 전에 설정한다.
+      # core.autocrlf=false로 문제를 숨기지 않고 #262의 .gitattributes를 검증한다.
+      - name: Windows 기본 autocrlf 조건 설정
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fresh checkout의 autocrlf와 LF 확인
+        run: |
+          test "$(git config --get core.autocrlf)" = true
+          git ls-files --eol > "$RUNNER_TEMP/checkout-eol.txt"
+          if grep -E 'w/(crlf|mixed)' "$RUNNER_TEMP/checkout-eol.txt"; then
+            echo "::error::autocrlf=true checkout에 CRLF/mixed 파일이 있습니다. .gitattributes 적용을 확인하세요."
+            exit 1
+          fi
+          git ls-files --eol skills
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - name: 전체 테스트 (fresh tarball 설치 smoke 포함)
+        run: pnpm test
+      - name: Production build
+        run: pnpm run build
+      - name: 스키마 드리프트 검사
+        run: |
+          pnpm run generate:types
+          git diff --exit-code
+
+  browser:
+    name: Chromium / fixture tests and journeys
+    runs-on: ubuntu-24.04
+    # Browser install plus the real-time wait journeys exceed 15 minutes on hosted runners.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - name: 고정 Playwright와 해당 Chromium 설치
+        run: |
+          python -m pip install playwright==1.62.0
+          python -m playwright install --with-deps chromium
+          # 기존 Python fixture 두 개가 요구하는 경로를 같은 고정 브라우저로 연결한다.
+          chromium_path="$(python -c 'from playwright.sync_api import sync_playwright; p = sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
+          test -x "$chromium_path"
+          sudo ln -sf "$chromium_path" /usr/bin/chromium
+          /usr/bin/chromium --version
+      - name: 기존 브라우저 검사 3개 명시 실행 (skip 금지)
+        env:
+          VSB_RESPONSIVE_BROWSER: '1'
+          VSB_PAGE_SHELL_BROWSER: '1'
+          VSB_GRID_BROWSER: '1'
+          CHROME_BIN: /usr/bin/chromium
+          BROWSER_REPORT: ${{ runner.temp }}/browser-results.json
+        run: |
+          pnpm exec vitest run \
+            test/responsive-codegen-browser.test.ts \
+            test/page-shell-browser.test.ts \
+            test/grid-codegen-browser.test.ts \
+            --reporter=default --reporter=json --outputFile="$BROWSER_REPORT"
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const report = JSON.parse(readFileSync(process.env.BROWSER_REPORT, 'utf8'));
+          assert.equal(report.numTotalTests, 3);
+          assert.equal(report.numPassedTests, 3);
+          assert.equal(report.numPendingTests, 0);
+          assert.equal(report.numFailedTests, 0);
+          JS
+
+      - name: Node Playwright 실행기 설치 (제품 의존성 제외)
+        run: |
+          qa_tools="$RUNNER_TEMP/vsb-browser-tools"
+          mkdir -p "$qa_tools"
+          pnpm --dir "$qa_tools" add playwright@1.62.0
+          echo "PLAYWRIGHT_MODULE=file://$qa_tools/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
+      - name: 상태별 색 우선순위와 테두리 고리 (Chromium)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/state-styles.mjs
+      - name: 실제 사용자 여정 11개 (fixture 전용, skip 금지)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+          FORCE_COLOR: '1'
+        run: bash scripts/browser/run-journeys.sh
+
+      - name: 이미지 비우기·Undo·저장 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/image-clear.mjs
+
+      - name: 이미지 경로 입력 중 부분 요청 방지 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/issue448-a7-image-path.mjs
+
+      - name: 속성 패널 이름 입력 및 A-12 계약 확인 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/issue448-a11-a12-panel.mjs
+
+      - name: 자연어 읽기 전용 대상·현재 페이지 편집 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/nl-destinations.mjs
+
+      - name: 자연어 취소 안내·늦은 응답 무시·Undo 선택 유지 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/nl-cancel-undo.mjs
+
+      - name: 낮은 창의 페이지 넘침 안내·콘텐츠 가림 방지 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/canvas-overflow-notice.mjs
+
+      - name: 공유 위젯 자연어 문맥·재정의·Undo (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/nl-widgets.mjs
+
+      - name: Command 0.2 전송과 Undo (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/command-v02.mjs
+
+      - name: 프로젝트 v4 생성·수락·ZIP Export (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/screen-relations-guard.mjs
+
+      - name: 캔버스 연결과 모달 미리보기 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/canvas-relations.mjs
+      - name: 프로젝트 자산 AST 변환 소스 typecheck/build 및 root/nested decode
+        env:
+          VSB_PROJECT_ASSET_BROWSER: '1'
+        run: timeout --signal=TERM --kill-after=10s 120s pnpm exec vitest run test/project-asset-build.test.ts
+
+      - name: 프로젝트 runtime typecheck/build 및 page/modal 동작 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+          VSB_PROJECT_RUNTIME_BROWSER: '1'
+        run: timeout --signal=TERM --kill-after=10s 120s pnpm exec vitest run test/project-runtime-build.test.ts
+
+      - name: 버튼 Interaction 편집·Undo·저장 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/interaction-ui.mjs
+
+      - name: 거부된 편집의 뷰 상태와 접근성 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/rejected-project-edits.mjs
+
+      - name: 화면 종류 선택·Undo·저장 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/screen-kind-ui.mjs
+
+      - name: 위젯 배치·재정의·Undo·재열기 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/widget-instance.mjs
+
+      - name: 위젯 추출·분리·반응형·Undo (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/widget-extract-detach.mjs
+
+      - name: 위젯 추출 크기 모드와 모바일 재배치 (fixture)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/widget-placement-sizing.mjs
+
+      - name: 위젯 삽입·컨텍스트 메뉴 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/widget-menu.mjs
+
+      - name: 화면 관계 삭제·확인·Undo·저장 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/screen-relations-integrity.mjs
+
+      - name: 화면 관계 복원·진단·미검증 복구 사본 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/screen-relations-recovery.mjs
+
+      - name: 복구 provenance (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/recovery-provenance.mjs
+
+      - name: 미커밋 프로젝트 reload·명시 복구 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/project-pending-recovery.mjs
+
+      - name: 실제 경과 대기 — 전체 및 생략 상태 회귀 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: |
+          # 180초 대기 + 준비/연결 복구/늦은 출력/재시도. 기존 120초 묶음과 분리한다.
+          timeout --signal=TERM --kill-after=10s 300s node scripts/browser/request-wait-real-time-check.mjs
+
+      - name: 실제 경과 대기 — 수동 연장 없이 내용 변화만으로 180초를 넘겨 응답을 받는다 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: |
+          # 같은 임시 출력 파일을 다른 내용으로 다시 써서(개수는 그대로) 자동연장되는 성공 경로.
+          # 위 timeout 경로와 반대 결과를 실측한다 — 역시 180초 넘게 걸려 별도 단계로 분리한다.
+          timeout --signal=TERM --kill-after=10s 300s node scripts/browser/request-wait-auto-extend-real-time.mjs
+
+      - name: 첫 출력 전 진행 신호로 180초 초과 (fixture, 실제 모델 없음)
+        env:
+          CHROME_BIN: /usr/bin/chromium
+        run: timeout --signal=TERM --kill-after=10s 300s node scripts/browser/request-wait-auto-extend-real-time.mjs --progress-only
+
+  # 레이아웃 실측(#365). 이 잡만 고정 Pretendard CDN 요청을 허용하고, 받은 CSS·woff2 바이트의 SHA-256을
+  # scripts/browser/layout-parity-fonts.lock.json과 대조한다. 위 browser 잡의 외부 요청 차단(#346)은 그대로다.
+  # 필수 지정은 저장소 설정에서 정하므로 build의 needs에는 넣지 않는다.
+  layout-parity:
+    name: Chromium / layout parity (고정 CDN 폰트)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Node Playwright 1.62.0과 해당 Chromium 설치 (제품 의존성 제외)
+        run: |
+          qa_tools="$RUNNER_TEMP/vsb-browser-tools"
+          mkdir -p "$qa_tools"
+          pnpm --dir "$qa_tools" add playwright@1.62.0
+          pnpm --dir "$qa_tools" exec playwright install --with-deps chromium
+          echo "PLAYWRIGHT_MODULE=file://$qa_tools/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
+      - name: 캡처 회귀 (CDN 없이 중첩 텍스트·실패한 woff2·두 번째 배경 이미지)
+        run: timeout --signal=TERM --kill-after=10s 120s node scripts/browser/layout-parity-regression.mjs
+      - name: fixture 22조건 실측 (해시 불일치·측정 무효는 exit 3으로 실패)
+        run: |
+          timeout --signal=TERM --kill-after=10s 300s node scripts/browser/layout-parity.mjs \
+            --font-lock scripts/browser/layout-parity-fonts.lock.json \
+            --out "$RUNNER_TEMP/layout-parity.json"
+      - name: 판정 개수와 폰트 대조 확인 (의도된 실패는 login-legacy 1개만)
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const report = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/layout-parity.json`, 'utf8'));
+          assert.deepEqual(report.summary, { pass: 21, 'expected-fail': 1, fail: 0, 'unexpected-pass': 0, invalid: 0 });
+          assert.deepEqual(report.results.filter((result) => result.verdict === 'expected-fail').map((result) => result.case), ['login-legacy']);
+          const { fontCssSha256, fontFailures, fontLock, fontFilesServed } = report.environment;
+          assert.deepEqual(fontFailures, []);
+          assert.deepEqual(fontLock.errors, []);
+          // 생성 앱이 받은 폰트 파일은 모두 GUI도 같은 캐시 바이트로 받았다.
+          assert.equal(fontFilesServed.shared, fontFilesServed.generated);
+          console.log(JSON.stringify({ chromium: report.environment.chromium, summary: report.summary, fontCssSha256, fontFilesServed, unusedLockFiles: fontLock.unused }));
+          JS
+      - name: 실측 결과 보관
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-parity
+          path: ${{ runner.temp }}/layout-parity.json
+          if-no-files-found: ignore
+
+  # 브랜치 보호의 기존 required check 이름을 유지한다.
+  # Linux·Windows·브라우저 잡의 실패/취소/skip도 build 실패로 전파한다.
+  build:
+    name: build
+    if: ${{ always() }}
+    needs: [linux, windows, browser]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: 모든 필수 검사 성공 확인
+        env:
+          LINUX_RESULT: ${{ needs.linux.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+        run: test "$LINUX_RESULT" = success && test "$WINDOWS_RESULT" = success && test "$BROWSER_RESULT" = success

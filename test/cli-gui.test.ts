@@ -1,0 +1,231 @@
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+// test/cli-init.test.ts와 같은 이유로 bin/visual-spec.mjs를 정적 import하지 않는다.
+const CLI_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../bin/visual-spec.mjs");
+
+function runCli(
+  args: string[],
+  cwd: string,
+  env?: Record<string, string>,
+  options: { unsetEnv?: string[]; timeoutMs?: number } = {},
+) {
+  const childEnv = { ...process.env, ...env };
+  for (const name of options.unsetEnv ?? []) delete childEnv[name];
+  try {
+    const stdout = execFileSync("node", [CLI_PATH, ...args], {
+      cwd,
+      encoding: "utf8",
+      env: childEnv,
+      timeout: options.timeoutMs ?? 15000,
+    });
+    return { stdout, exitCode: 0 };
+  } catch (error) {
+    const e = error as { stdout?: string; stderr?: string; status?: number };
+    return { stdout: e.stdout ?? "", stderr: e.stderr ?? "", exitCode: e.status ?? 1 };
+  }
+}
+
+describe("visual-spec (인자 없음 — GUI 실행, #105)", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), "visual-spec-cli-gui-"));
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("`help`/`--help`/`-h`는 인자 없이 실행하면 GUI가 뜬다고 안내한다", () => {
+    for (const flag of ["help", "--help", "-h"]) {
+      const result = runCli([flag], projectDir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("GUI");
+    }
+  });
+
+  it("이 패키지의 Vite 개발 서버 바이너리가 없으면 에러로 끝난다 — raw ENOENT가 아니라 안내 메시지로", () => {
+    // vite가 없는 가짜 패키지 루트를 넣어 "설치 안 된 경우"를 강제한다 — 이 프로세스
+    // 환경 변수는 이 CLI의 공개 인터페이스가 아니다(bin/visual-spec.mjs 상단 주석 참고).
+    const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-fake-root-"));
+    try {
+      const result = runCli(
+        [],
+        projectDir,
+        { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot },
+        { unsetEnv: ["NODE_PATH"], timeoutMs: 5000 },
+      );
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("pnpm install");
+    } finally {
+      rmSync(fakeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("작업공간 경로를 환경 변수로 vite에 실어 보낸다 — vite의 cwd는 이 패키지 루트다 (#133)", () => {
+    // 진짜 vite 대신 "받은 환경 변수를 찍고 끝나는" 가짜 진입점을 놓는다. 확인하려는
+    // 건 vite의 동작이 아니라 **CLI가 사용자 cwd 기준 경로를 넘기는가**뿐이고, 그것만
+    // 떼어내면 20초짜리 서버 기동 없이 결정적으로 볼 수 있다. (이 환경 변수는 이
+    // CLI의 공개 인터페이스가 아니다 — bin/visual-spec.mjs 상단 주석 참고.)
+    const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-fake-root-"));
+    try {
+      const binDir = join(fakeRoot, "node_modules", "vite", "bin");
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(
+        join(binDir, "vite.js"),
+        'console.log("WORKSPACE=" + process.env.VISUAL_SPEC_WORKSPACE);\n',
+      );
+
+      const result = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot });
+
+      expect(result.exitCode).toBe(0);
+      // 사용자의 cwd(projectDir) 기준이어야 한다. 이 패키지 루트 기준이면 GUI가
+      // 엉뚱한 폴더를 작업공간으로 쓰게 된다 — 이 이슈의 핵심 함정이다.
+      expect(result.stdout.trim()).toBe(`WORKSPACE=${join(projectDir, ".visual-spec")}`);
+    } finally {
+      rmSync(fakeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("pnpm hoisted 의존성도 Node 모듈 해석으로 찾아 GUI를 실행한다", () => {
+    const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-hoisted-root-"));
+    try {
+      const viteRoot = join(fakeRoot, ".pnpm", "node_modules", "vite");
+      mkdirSync(join(viteRoot, "dist", "node"), { recursive: true });
+      mkdirSync(join(viteRoot, "bin"), { recursive: true });
+      writeFileSync(join(viteRoot, "package.json"), JSON.stringify({ name: "vite", main: "dist/node/index.js" }));
+      writeFileSync(join(viteRoot, "dist", "node", "index.js"), "module.exports = {};\n");
+      writeFileSync(
+        join(viteRoot, "bin", "vite.js"),
+        'console.log("WORKSPACE=" + process.env.VISUAL_SPEC_WORKSPACE);\n',
+      );
+
+      const result = runCli([], projectDir, {
+        VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot,
+        NODE_PATH: join(fakeRoot, ".pnpm", "node_modules"),
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe(`WORKSPACE=${join(projectDir, ".visual-spec")}`);
+    } finally {
+      rmSync(fakeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("GUI 개발 서버는 React production 빌드로 띄우고, VISUAL_SPEC_REACT_DEV=1이면 개발 모드로 띄운다 (#314)", () => {
+    // 사용자 GUI가 React 개발 모드로 돌면 노드 1000개 편집 한 번에 약 175ms가 걸린다
+    // (docs/22-performance-baseline.md). 확인하려는 건 CLI가 넘기는 NODE_ENV뿐이다.
+    const fakeRoot = mkdtempSync(join(tmpdir(), "visual-spec-fake-root-"));
+    try {
+      const binDir = join(fakeRoot, "node_modules", "vite", "bin");
+      mkdirSync(binDir, { recursive: true });
+      writeFileSync(join(binDir, "vite.js"), 'console.log("NODE_ENV=" + process.env.NODE_ENV);\n');
+
+      // 바깥 NODE_ENV(vitest는 test)와 상관없이 production이다.
+      const production = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot, NODE_ENV: "test", VISUAL_SPEC_REACT_DEV: "" });
+      expect(production.exitCode).toBe(0);
+      expect(production.stdout.trim()).toBe("NODE_ENV=production");
+
+      const development = runCli([], projectDir, { VISUAL_SPEC_TEST_PACKAGE_ROOT: fakeRoot, VISUAL_SPEC_REACT_DEV: "1" });
+      expect(development.exitCode).toBe(0);
+      expect(development.stdout.trim()).toBe("NODE_ENV=development");
+    } finally {
+      rmSync(fakeRoot, { recursive: true, force: true });
+    }
+  });
+
+  // vitest 자체의 기본 테스트 타임아웃(5초)보다 넉넉하게 잡는다 — 셋째 인자로
+  // 안 주면 내부 Promise가 끝나기 전에 vitest가 먼저 테스트를 죽인다. CI에서
+  // 실제로 5초 타임아웃에 걸리는 걸 보고 여유를 뒀다(느려서가 아니라 아래
+  // NO_COLOR 버그 때문이었다 — 그래도 CI 변동성 여유는 남겨둔다).
+  const GUI_START_TIMEOUT_MS = 20000;
+
+  it(
+    "실제로 이 패키지의 Vite 개발 서버를 띄운다 — cwd와 무관하게 이 저장소의 에디터가 뜬다",
+    async () => {
+      // GUI는 사용자 프로젝트가 아니라 이 패키지 자신의 소스를 서빙하므로, cwd는
+      // projectDir(빈 임시 폴더)로 둬도 정상적으로 이 저장소의 vite.config.ts를 쓴다 —
+      // 이 격리 자체가 검증 대상이다.
+      //
+      // NO_COLOR: GitHub Actions에서는 vite가 ANSI 색상 코드를 찍는다(로컬 터미널
+      // 밖 파이프인데도) — "VITE"와 " v8.2.1" 사이에 이스케이프 시퀀스가 끼어들어
+      // 아래 정규식이 매치를 놓쳤다. 로컬에서는 재현이 안 돼서 실제 CI 실패 로그를
+      // 보고서야 잡았다 — 색을 아예 꺼서 출력을 결정적으로 만든다.
+      const child = spawn("node", [CLI_PATH], {
+        cwd: projectDir,
+        env: { ...process.env, NO_COLOR: "1" },
+      });
+      let output = "";
+      child.stdout?.on("data", (chunk: Buffer) => {
+        output += chunk.toString();
+      });
+      child.stderr?.on("data", (chunk: Buffer) => {
+        output += chunk.toString();
+      });
+
+      try {
+        await new Promise<void>((resolvePromise, reject) => {
+          const timer = setTimeout(() => {
+            reject(new Error(`${GUI_START_TIMEOUT_MS}ms 안에 뜨지 않음 — 지금까지 출력:\n${output}`));
+          }, GUI_START_TIMEOUT_MS);
+          const poll = setInterval(() => {
+            // 아래 단언과 **같은** 패턴을 기다린다. 배너("VITE v8...")가 먼저 찍히고
+            // "Local: http://..." 줄은 조금 뒤에 오기 때문에, 배너만 보고 빠져나가면
+            // 단언이 아직 안 온 줄을 보고 실패한다 — #115 수정 전에는 서버가 아예 안
+            // 떠서 이 경합이 드러나지 않았다.
+            if (/Local:\s*http/.test(output)) {
+              clearTimeout(timer);
+              clearInterval(poll);
+              resolvePromise();
+            }
+          }, 50);
+          child.on("error", (err) => {
+            clearTimeout(timer);
+            clearInterval(poll);
+            reject(err);
+          });
+        });
+
+        expect(output).toMatch(/Local:\s*http/);
+
+        // vite.config.ts와 그 Node 쪽 의존 그래프(workspaceServer.ts 등)의 확장자 없는
+        // 상대 import·import attributes 없는 JSON import 때문에, `configLoader: 'native'`가
+        // "Local:" 줄보다 먼저 약 30줄짜리 경고를 찍어 설치 실패로 오해하기 쉬웠다(#448).
+        // 이 기동을 다시 하느니 같은 output으로 함께 확인한다.
+        expect(output).not.toContain("configLoader: 'native'");
+
+        // **작업공간 연결까지 여기서 함께 본다**(#133). 서버가 실제로 뜬 상태에서만
+        // 확인할 수 있는 것이고, 이 20초짜리 기동을 한 번 더 하느니 같이 본다:
+        // 개발 서버 플러그인이 환경 변수로 받은 경로 — 즉 **사용자 cwd** 아래 —
+        // 에 폴더를 만들었는지. 패키지 루트에 만들었다면 여기서 걸린다.
+        const workspaceDir = join(projectDir, ".visual-spec");
+        expect(existsSync(join(workspaceDir, "specs"))).toBe(true);
+        expect(existsSync(join(workspaceDir, "assets"))).toBe(true);
+        expect(existsSync(join(workspaceDir, "generated"))).toBe(true);
+        expect(output).toContain(workspaceDir);
+      } finally {
+        // kill()만 하고 빠져나가면 afterEach의 rmSync가 CLI 프로세스보다 먼저 돈다.
+        // 이 CLI는 cwd가 projectDir이고, Windows는 어떤 프로세스의 cwd인 폴더를 지우지
+        // 못한다(EPERM) — kill()은 종료를 예약만 할 뿐 기다려주지 않아서 경합이 난다.
+        // 실제로 죽는 걸 보고 나가야 정리가 안전하다. (#115 수정 전에는 CLI가 spawn
+        // EINVAL로 진작 죽어 있어서 이 경합이 드러나지 않았다.)
+        child.kill();
+        await new Promise<void>((resolveExit) => {
+          if (child.exitCode !== null || child.signalCode !== null) {
+            resolveExit();
+            return;
+          }
+          child.once("exit", () => resolveExit());
+        });
+      }
+    },
+    GUI_START_TIMEOUT_MS + 5000,
+  );
+});

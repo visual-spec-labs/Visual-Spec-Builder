@@ -1,0 +1,818 @@
+{
+  "date": "2026-10-10",
+  "timezone": "Asia/Seoul",
+  "issue": 292,
+  "kind": "실제 모델 실행(수동, 비용 있음). CI fixture 결과가 아니다",
+  "integration": {
+    "localBranch": "qa/292-integration (push하지 않음)",
+    "head": "6c993672d82ea158b3d545fed4f6a42528f5c708",
+    "merged": {
+      "develop": "2b0099c90ac82bacb5738d18239a9ddab913ebb5",
+      "281-generation-ownership": "24743d9a2739109aa49549d7a25bb6b67b7780fd"
+    },
+    "includesMergedIntoDevelop": [
+      "#280 PR #350",
+      "#284 PR #349",
+      "#282 PR #353",
+      "#290 PR #354"
+    ],
+    "qaScriptsFromPrBranch": [
+      "scripts/browser/real-model-journey.mjs",
+      "scripts/browser/layout-parity.mjs (--spec)"
+    ]
+  },
+  "environment": {
+    "os": "Windows 11 Home 10.0.26200 (ko-KR)",
+    "node": "v24.12.0",
+    "pnpm": "10.33.0",
+    "playwright": "1.62.0",
+    "chromium": "151.0.7922.34 (Playwright headless shell)"
+  },
+  "agent": {
+    "cli": "2.1.288 (Claude Code)",
+    "model": "claude-opus-5-5 (CLI 기본값)",
+    "realModelCall": true,
+    "syntheticResponses": false,
+    "command": "claude -p --output-format json --setting-sources project --permission-mode acceptEdits --allowedTools \"Bash(node:*)\" --no-session-persistence (지시문은 stdin, GUI가 보여 주는 문구 그대로)",
+    "authentication": "이 기기의 기존 Claude 구독 로그인. 부모 세션의 ANTHROPIC_*·CLAUDE_CODE_* 환경 변수는 자식에게 넘기지 않았다. 인증 값은 기록하지 않는다",
+    "instructions": {
+      "nl": "visual-spec-nl-response 스킬을 읽고 현재 .visual-spec/runtime/nl-request.json에 응답해 줘. 요청의 ID·범위를 지키고, 문서 파일을 직접 수정하지 말고 그 스킬의 Command 응답 형식으로 작성해 줘.",
+      "ticket": "visual-spec-ticket-response 스킬과 그 스킬이 참조하는 visual-spec-to-react 지침을 읽고, 현재 .visual-spec/runtime/ticket-request.json의 한 웨이브를 처리해 줘. 요청된 파일을 실제로 생성·확인한 뒤 결과 응답을 써 줘. 수행한 검증과 미실행 검증을 구분해 줘."
+    }
+  },
+  "workspace": {
+    "setup": "visual-spec init → visual-spec skills(7종, .claude·.agents) → assets/hero.png(1200×600) 배치 → 인자 없는 visual-spec로 GUI",
+    "heroSha256": "6dea6db360fb6749f0ca5ceccc05b71689d6808a22b835fc4ed1b35c6ef68fa7"
+  },
+  "steps": {
+    "1-nl-draft-login": {
+      "userInstruction": "모바일 로그인 화면 — 390×844, 페이지 이름 Login, 맨 위 assets/hero.png 이미지(폭 가득·높이 200), 여백 24 안에 제목·이메일/비밀번호 입력·로그인 버튼",
+      "via": "홈 → 자연어로 초안 만들기 → 초안 만들기 → 요청",
+      "requestId": "f548adff-dd11-4bd4-a5a5-28f8682803dc",
+      "responseRequestId": "f548adff-dd11-4bd4-a5a5-28f8682803dc",
+      "scope": "screen",
+      "pageId": "page1",
+      "commands": 8,
+      "guiResult": "노드 6개를 추가했습니다, 화면 설정 2개를 바꿨습니다.",
+      "agent": {
+        "exitCode": 0,
+        "seconds": 43,
+        "waitExtensions": 1,
+        "models": [
+          "claude-opus-5-5"
+        ],
+        "turns": 12,
+        "isError": false,
+        "permissionDenials": 2
+      },
+      "specSha256AfterSave": "d462a4c16b8a8bcd54c2db19c7225391760380563535ef62a03eba84ab6101db",
+      "savedAs": "real-flow.json"
+    },
+    "2-add-page": {
+      "via": "레이어 트리 + 새 페이지 → File → Save",
+      "pages": [
+        "page1",
+        "page-1"
+      ]
+    },
+    "3-nl-landing": {
+      "userInstruction": "반응형 랜딩 — 이름 Landing, 기준 1440×900, assets/hero.png 배경의 높이 320 히어로와 흰 제목, 기능 카드 3개, tablet ≥768 가로 배치, desktop ≥1024 바깥 여백 64",
+      "requestId": "5e45e70f-7cc5-4d69-a9ef-23118eb53575",
+      "responseRequestId": "5e45e70f-7cc5-4d69-a9ef-23118eb53575",
+      "scope": "screen",
+      "pageId": "page-1",
+      "commands": 15,
+      "guiResult": "노드 12개를 추가했습니다, 화면 설정 3개를 바꿨습니다.",
+      "agent": {
+        "exitCode": 0,
+        "seconds": 85,
+        "waitExtensions": 3,
+        "models": [
+          "claude-opus-5-5"
+        ],
+        "turns": 14,
+        "isError": false,
+        "permissionDenials": 0
+      },
+      "specSha256AfterSave": "f68cce6e9418c5dd8df9ec89e1ca7a432582590351b9e065c5dfe7a5b4e7bb95"
+    },
+    "4-gui-edit-before-codegen": {
+      "page": "Login",
+      "node": "LoginButton",
+      "field": "텍스트",
+      "value": "계속하기",
+      "via": "레이어 선택 → 속성 패널 → File → Save"
+    },
+    "5-codegen-login": {
+      "page": "Login",
+      "waves": [
+        {
+          "wave": 1,
+          "requestId": "48d3009c-c380-4ad4-a1af-f0a3b2fc7ac4",
+          "tickets": [
+            "Hero",
+            "EmailInput"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 79,
+            "waitExtensions": 3,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 22,
+            "isError": false,
+            "permissionDenials": 5
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "EmailInput:done",
+            "Content:in-progress",
+            "Login:pending"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        },
+        {
+          "wave": 2,
+          "requestId": "ee6d328d-8e39-4a38-862a-ade950c8b026",
+          "tickets": [
+            "Content"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 165,
+            "waitExtensions": 8,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 38,
+            "isError": false,
+            "permissionDenials": 12
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "EmailInput:done",
+            "Content:done",
+            "Login:in-progress"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        },
+        {
+          "wave": 3,
+          "requestId": "063cf048-45b7-4c0e-9b13-3d43f80de4bc",
+          "tickets": [
+            "Login"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 87,
+            "waitExtensions": 3,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 23,
+            "isError": false,
+            "permissionDenials": 4
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "EmailInput:done",
+            "Content:done",
+            "Login:done"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        }
+      ],
+      "changedFiles": [
+        {
+          "file": "real-flow/page1/pages/Login.tsx",
+          "sha256": "887e319f96f6b305b339d65ac917252e1abd5cc82b40bed3f5ea0c706be3f041"
+        },
+        {
+          "file": "real-flow/page1/components/Content.tsx",
+          "sha256": "bd75040e3c88550d23a67f0b4b4d0205d33506b5d3f58574d1dc9ce5a6f66cc7"
+        },
+        {
+          "file": "real-flow/page1/components/EmailInput.tsx",
+          "sha256": "789514662c64e51b1b1f5f446bf23b70ac4e8c422ac2a1a560c58def8536dfb4"
+        },
+        {
+          "file": "real-flow/page1/components/Hero.tsx",
+          "sha256": "37b0393c2e1be373dbd68339f560ab11ebaaf91de949cd4efff962cfcf4197be"
+        }
+      ]
+    },
+    "6-codegen-landing": {
+      "page": "Landing",
+      "waves": [
+        {
+          "wave": 1,
+          "requestId": "5939aead-d59e-4f3c-ab7d-ab28dd4c36c8",
+          "tickets": [
+            "Hero",
+            "FeatureCard1"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 145,
+            "waitExtensions": 7,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 41,
+            "isError": false,
+            "permissionDenials": 17
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "FeatureCard1:done",
+            "Features:in-progress",
+            "Landing:pending"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        },
+        {
+          "wave": 2,
+          "requestId": "e27040ff-025c-4808-a397-cc7002e4b58e",
+          "tickets": [
+            "Features"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 103,
+            "waitExtensions": 5,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 31,
+            "isError": false,
+            "permissionDenials": 10
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "FeatureCard1:done",
+            "Features:done",
+            "Landing:in-progress"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        },
+        {
+          "wave": 3,
+          "requestId": "383c7dfe-4fce-4570-b6d8-728fc47f1887",
+          "tickets": [
+            "Landing"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 116,
+            "waitExtensions": 5,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 42,
+            "isError": false,
+            "permissionDenials": 13
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "FeatureCard1:done",
+            "Features:done",
+            "Landing:done"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        }
+      ],
+      "changedFiles": [
+        {
+          "file": "real-flow/page-1/pages/Landing.tsx",
+          "sha256": "eb9c629b8788a2c5f6151c948c84bb8ba9818bdc67ff16a813ded820a259168a"
+        },
+        {
+          "file": "real-flow/page-1/components/FeatureCard1.tsx",
+          "sha256": "036ec27dfc9e9d7c7f93ba5aabd40916bf9773049dc67119638ce54add839237"
+        },
+        {
+          "file": "real-flow/page-1/components/Features.tsx",
+          "sha256": "466156b13fe56b81db2260cd25e7780c4b1a2a061129863591ed1068ef4d3bb8"
+        },
+        {
+          "file": "real-flow/page-1/components/Hero.tsx",
+          "sha256": "1c17cbaa0962dd195706fa47d57ecec61a39f0d8052be3fafd3555e3027ddf99"
+        }
+      ]
+    },
+    "7-gui-edit-after-codegen": [
+      {
+        "page": "Login",
+        "node": "Title",
+        "value": "팀 공간에 로그인"
+      },
+      {
+        "page": "Landing",
+        "node": "HeroTitle",
+        "value": "화면 설계를 코드까지 한 번에",
+        "note": "반응형 편집 기준을 기본값(base)으로 바꾼 뒤 편집"
+      }
+    ],
+    "8-manual-change-to-generated": {
+      "file": "real-flow/page1/pages/Login.tsx",
+      "before": "887e319f96f6b305b339d65ac917252e1abd5cc82b40bed3f5ea0c706be3f041",
+      "after": "c8d712ebc943ad8fabf8ff29e8e17e2a03d2069c2eb046bfe38ac530e2f19e80"
+    },
+    "9-regenerate-login": {
+      "page": "Login",
+      "waves": [
+        {
+          "wave": 1,
+          "requestId": "cbc96925-739f-4c32-a75b-7682d9fe1233",
+          "tickets": [
+            "Hero",
+            "EmailInput"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 178,
+            "waitExtensions": 8,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 33,
+            "isError": false,
+            "permissionDenials": 11
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "EmailInput:done",
+            "Content:in-progress",
+            "Login:pending"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        },
+        {
+          "wave": 2,
+          "requestId": "08f481ce-2103-49a9-81eb-fec59ea642e3",
+          "tickets": [
+            "Content"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 149,
+            "waitExtensions": 7,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 21,
+            "isError": false,
+            "permissionDenials": 6
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "EmailInput:done",
+            "Content:done",
+            "Login:in-progress"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        },
+        {
+          "wave": 3,
+          "requestId": "9488fcb7-a185-43c3-ab76-43cbb92c4690",
+          "tickets": [
+            "Login"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 105,
+            "waitExtensions": 4,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 30,
+            "isError": false,
+            "permissionDenials": 9
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "EmailInput:done",
+            "Content:done",
+            "Login:done"
+          ],
+          "runError": null,
+          "overwriteReview": {
+            "flagged": [
+              {
+                "file": "real-flow/page1/pages/Login.tsx",
+                "reason": "수동 변경됨"
+              }
+            ],
+            "decision": "backup"
+          }
+        }
+      ],
+      "changedFiles": [
+        {
+          "file": "real-flow/page1/pages/Login.tsx",
+          "sha256": "887e319f96f6b305b339d65ac917252e1abd5cc82b40bed3f5ea0c706be3f041"
+        },
+        {
+          "file": "real-flow/page1/components/Content.tsx",
+          "sha256": "ae9e7810b59cac77414cd60d62917bae471b9947fdf1d53d179094e44ca86823"
+        }
+      ],
+      "backup": {
+        "path": ".visual-spec/backups/a8a04878-b884-493b-a98d-e3d395e527b8/files/real-flow/page1/pages/Login.tsx",
+        "sha256": "c8d712ebc943ad8fabf8ff29e8e17e2a03d2069c2eb046bfe38ac530e2f19e80",
+        "note": "백업은 수동 수정본(8단계 after)과 같다. 덮어쓴 Login.tsx는 1차 생성본(887e319f…)과 바이트가 같다 — 제목 변경은 Content.tsx에 반영됐다"
+      }
+    },
+    "10-regenerate-landing": {
+      "page": "Landing",
+      "waves": [
+        {
+          "wave": 1,
+          "requestId": "2bf1cebc-82ce-4a07-921e-1b4558dd026d",
+          "tickets": [
+            "Hero",
+            "FeatureCard1"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 104,
+            "waitExtensions": 5,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 27,
+            "isError": false,
+            "permissionDenials": 5
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "FeatureCard1:done",
+            "Features:in-progress",
+            "Landing:pending"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        },
+        {
+          "wave": 2,
+          "requestId": "9dd864d3-9d8f-4d98-afab-7a156b41b36a",
+          "tickets": [
+            "Features"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 72,
+            "waitExtensions": 3,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 23,
+            "isError": false,
+            "permissionDenials": 4
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "FeatureCard1:done",
+            "Features:done",
+            "Landing:in-progress"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        },
+        {
+          "wave": 3,
+          "requestId": "30dfad56-96d2-4be1-93ee-81545b3238f3",
+          "tickets": [
+            "Landing"
+          ],
+          "agent": {
+            "exitCode": 0,
+            "seconds": 79,
+            "waitExtensions": 3,
+            "models": [
+              "claude-opus-5-5"
+            ],
+            "turns": 25,
+            "isError": false,
+            "permissionDenials": 5
+          },
+          "statusesAfter": [
+            "Hero:done",
+            "FeatureCard1:done",
+            "Features:done",
+            "Landing:done"
+          ],
+          "runError": null,
+          "overwriteReview": null
+        }
+      ],
+      "changedFiles": [
+        {
+          "file": "real-flow/page-1/components/Hero.tsx",
+          "sha256": "400da0f48297be911148d7a974bace984d2ea67e557aab368f2a8d9374cff0b6"
+        }
+      ]
+    },
+    "11-export": [
+      {
+        "page": "Login",
+        "pageId": "page1",
+        "projectFolder": "real-flow.json",
+        "files": 4,
+        "ticketCoverage": "4/4",
+        "errors": 0,
+        "freshness": "current",
+        "ticketFreshness": [
+          "Hero:current",
+          "EmailInput:current",
+          "Content:current",
+          "Login:current"
+        ],
+        "zipSha256": "c92a84a9b967dd924cd184194f50c42bf6c05589f43f79a8bf022d664adc7fb7",
+        "zipBytes": 16294,
+        "zipEntries": [
+          "untitled/components/Content.tsx",
+          "untitled/components/EmailInput.tsx",
+          "untitled/components/Hero.tsx",
+          "untitled/pages/Login.tsx",
+          "untitled/assets/hero.png",
+          "untitled/package.json",
+          "untitled/README.md"
+        ],
+        "exportPackageJson": {
+          "dependencies": {
+            "react": "*"
+          }
+        }
+      },
+      {
+        "page": "Landing",
+        "pageId": "page-1",
+        "projectFolder": "real-flow.json",
+        "files": 4,
+        "ticketCoverage": "4/4",
+        "errors": 0,
+        "freshness": "current",
+        "ticketFreshness": [
+          "Hero:current",
+          "FeatureCard1:current",
+          "Features:current",
+          "Landing:current"
+        ],
+        "zipSha256": "bc93a9a452659a4f15a99bc9c4cfec3d4688f1c7a9fb25c76d3e5b215c9ad12d",
+        "zipBytes": 18416,
+        "zipEntries": [
+          "untitled/components/FeatureCard1.tsx",
+          "untitled/components/Features.tsx",
+          "untitled/components/Hero.tsx",
+          "untitled/pages/Landing.tsx",
+          "untitled/assets/hero.png",
+          "untitled/package.json",
+          "untitled/README.md"
+        ],
+        "exportPackageJson": {
+          "dependencies": {
+            "react": "*"
+          }
+        }
+      }
+    ]
+  },
+  "standaloneApp": {
+    "stack": "Vite 8.2.1 + React 19.2.8 + TypeScript 5.9.3 + Tailwind 4.3.3(@tailwindcss/vite), 저장소와 별도 설치",
+    "integration": "두 ZIP을 src/visual-spec/login·landing에 원본 그대로 복사(같은 untitled/ 폴더명과 components/Hero.tsx 충돌을 피하려 페이지별 폴더). ZIP과 대상 파일 SHA-256 일치",
+    "checks": [
+      {
+        "check": "tsc -b --noEmit (생성 TSX 8개 포함)",
+        "exitCode": 0
+      },
+      {
+        "check": "tsc -b && vite build",
+        "exitCode": 0
+      },
+      {
+        "check": "vite preview + Chromium 표시",
+        "exitCode": 0
+      }
+    ],
+    "browser": [
+      {
+        "page": "Login",
+        "viewport": "390x844",
+        "root": "390x844",
+        "images": [
+          [
+            1200,
+            600,
+            true
+          ]
+        ],
+        "backgroundImages": 0,
+        "nodeIds": 7,
+        "featureCards": [],
+        "runtimeErrors": 0,
+        "failedRequests": 0
+      },
+      {
+        "page": "Landing",
+        "viewport": "360x900",
+        "root": "360x900",
+        "images": [],
+        "backgroundImages": 1,
+        "nodeIds": 13,
+        "featureCards": [
+          [
+            24,
+            352,
+            312
+          ],
+          [
+            24,
+            488,
+            312
+          ],
+          [
+            24,
+            624,
+            312
+          ]
+        ],
+        "runtimeErrors": 0,
+        "failedRequests": 0
+      },
+      {
+        "page": "Landing",
+        "viewport": "768x900",
+        "root": "768x900",
+        "images": [],
+        "backgroundImages": 1,
+        "nodeIds": 13,
+        "featureCards": [
+          [
+            24,
+            352,
+            229
+          ],
+          [
+            269,
+            352,
+            229
+          ],
+          [
+            515,
+            352,
+            229
+          ]
+        ],
+        "runtimeErrors": 0,
+        "failedRequests": 0
+      },
+      {
+        "page": "Landing",
+        "viewport": "1440x900",
+        "root": "1440x900",
+        "images": [],
+        "backgroundImages": 1,
+        "nodeIds": 13,
+        "featureCards": [
+          [
+            64,
+            352,
+            427
+          ],
+          [
+            507,
+            352,
+            427
+          ],
+          [
+            949,
+            352,
+            427
+          ]
+        ],
+        "runtimeErrors": 0,
+        "failedRequests": 0
+      }
+    ]
+  },
+  "layoutParity": {
+    "command": "node scripts/browser/layout-parity.mjs --spec <저장 스펙> --generated-dir <ZIP을 푼 untitled/> --case <page.name>",
+    "login": {
+      "summary": {
+        "pass": 1,
+        "expected-fail": 0,
+        "fail": 0,
+        "unexpected-pass": 0,
+        "invalid": 0
+      },
+      "chromium": "151.0.7922.34",
+      "fontCssSha256": "a9d3417e168d008424337e8ee2df7b54ff082a57ed61e28421db681437cd67a2",
+      "fontFilesFetched": 25,
+      "fontFailures": 0,
+      "results": [
+        {
+          "viewport": "390x844",
+          "verdict": "pass",
+          "nodes": 7,
+          "maxDelta": 0,
+          "rootGui": "390x844",
+          "rootGenerated": "390x844"
+        }
+      ]
+    },
+    "landing": {
+      "summary": {
+        "pass": 8,
+        "expected-fail": 0,
+        "fail": 0,
+        "unexpected-pass": 0,
+        "invalid": 0
+      },
+      "chromium": "151.0.7922.34",
+      "fontCssSha256": "a9d3417e168d008424337e8ee2df7b54ff082a57ed61e28421db681437cd67a2",
+      "fontFilesFetched": 30,
+      "fontFailures": 0,
+      "results": [
+        {
+          "viewport": "360x900",
+          "verdict": "pass",
+          "nodes": 13,
+          "maxDelta": 0,
+          "rootGui": "360x900",
+          "rootGenerated": "360x900"
+        },
+        {
+          "viewport": "767x900",
+          "verdict": "pass",
+          "nodes": 13,
+          "maxDelta": 0,
+          "rootGui": "767x900",
+          "rootGenerated": "767x900"
+        },
+        {
+          "viewport": "768x900",
+          "verdict": "pass",
+          "nodes": 13,
+          "maxDelta": 0,
+          "rootGui": "768x900",
+          "rootGenerated": "768x900"
+        },
+        {
+          "viewport": "769x900",
+          "verdict": "pass",
+          "nodes": 13,
+          "maxDelta": 0,
+          "rootGui": "769x900",
+          "rootGenerated": "769x900"
+        },
+        {
+          "viewport": "1023x900",
+          "verdict": "pass",
+          "nodes": 13,
+          "maxDelta": 0,
+          "rootGui": "1023x900",
+          "rootGenerated": "1023x900"
+        },
+        {
+          "viewport": "1024x900",
+          "verdict": "pass",
+          "nodes": 13,
+          "maxDelta": 0,
+          "rootGui": "1024x900",
+          "rootGenerated": "1024x900"
+        },
+        {
+          "viewport": "1025x900",
+          "verdict": "pass",
+          "nodes": 13,
+          "maxDelta": 0,
+          "rootGui": "1025x900",
+          "rootGenerated": "1025x900"
+        },
+        {
+          "viewport": "1440x900",
+          "verdict": "pass",
+          "nodes": 13,
+          "maxDelta": 0,
+          "rootGui": "1440x900",
+          "rootGenerated": "1440x900"
+        }
+      ]
+    }
+  },
+  "preservedOutput": {
+    "dir": "docs/qa/2026-10-10-real-model-output/{login,landing}/",
+    "note": "ZIP의 pages·components·README.md 원본. hero.png는 test/fixtures/layout-parity/assets/hero.png와 같은 바이트(SHA-256 6dea6db360fb…)라 다시 넣지 않았다",
+    "finalSpec": "docs/qa/2026-10-10-real-model-spec.json"
+  }
+}

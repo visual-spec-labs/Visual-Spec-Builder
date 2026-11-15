@@ -1,0 +1,215 @@
+/**
+ * 내보낼 결과 폴더의 내용물을 만든다 — 순수 함수 (이슈 #157).
+ *
+ * ## 폴더 모양
+ *
+ * ```
+ * <프로젝트명>/
+ * ├── pages/<PageName>.tsx
+ * ├── components/<ComponentName>.tsx
+ * ├── assets/<참조된 이미지>
+ * ├── package.json
+ * └── README.md
+ * ```
+ *
+ * 02-mvp-scope.md의 "Export 결과 예시"도 이 배치다(#285에서 맞췄다 — 그 전엔 페이지를
+ * 폴더 맨 위에 둔 그림이었다). **`generated/`의 배치를 그대로 옮긴다.** 생성된 코드가 이미
+ * `../components/Card`처럼 `pages/`에서 한 단계 올라가는 상대 경로로 서로를
+ * 가리키고 있어서(`skills/visual-spec-to-react/SKILL.md` 3절), 배치를 바꾸면
+ * 그 import가 전부 깨진다.
+ *
+ * `assets/`를 `pages/`·`components/` 옆에 두는 것도 같은 이유다 — 정적 번들러 import
+ * `../assets/hero.png`가 **내보낸 폴더 안에서 그대로 맞는 경로**가 된다.
+ */
+
+import type { VerifyReport } from "./verifyGenerated";
+import type { GeneratedFile } from "./verifyGenerated";
+import { utf8Bytes, type ZipEntry } from "./zip";
+
+/** 작업공간 `assets/`에서 가져온 이미지 한 장. */
+export interface BundleAsset {
+  name: string;
+  bytes: Uint8Array;
+}
+
+/**
+ * ZIP 안 최상위 폴더 이름. 프로젝트 이름을 파일 시스템이 받아들이는 형태로 줄인다.
+ *
+ * 압축을 풀면 이 이름의 폴더 하나만 생긴다 — 파일이 현재 폴더에 흩어지지 않게
+ * (tar bomb 방지) 모든 항목을 이 아래에 담는다.
+ */
+export function bundleFolderName(projectName: string): string {
+  const cleaned = projectName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "");
+  return cleaned === "" ? "visual-spec-export" : cleaned;
+}
+
+/** 내려받을 파일 이름. */
+export function bundleFileName(projectName: string): string {
+  return `${bundleFolderName(projectName)}.zip`;
+}
+
+/**
+ * 내보낸 폴더가 혼자 설치될 수 있도록 package.json을 만든다.
+ *
+ * 버전을 고정하지 않고 `*`로 둔다 — 여기서 고른 버전 범위가 사용자 프로젝트에 이미
+ * 설치된 것과 충돌하면 통합이 오히려 어려워진다. 02-mvp-scope.md가 요구한 것은
+ * "필요한 패키지 **목록** 제공"이고, 어느 버전을 쓸지는 통합하는 쪽이 정한다.
+ *
+ * TSX는 `react` 없이 성립하지 않으므로 코드에 import가 없어도 항상 넣는다
+ * (JSX 자동 런타임을 쓰면 소스에 `import React`가 없다).
+ *
+ * **`*`가 실제 설치에서 문제가 되는지 수동으로 확인했다**(이슈 #188) — `examples/
+ * dashboard-cards.json`을 내보내 받은 `package.json` 하나만 떼어 `pnpm install`을
+ * 돌려도 `react`가 최신으로 정상 해석된다. 실제 통합 시나리오(이미 `react`가 설치된
+ * 프로젝트에 이 폴더를 얹는 것)에서는 이 파일을 그대로 설치하지 않고 README가 안내한
+ * 대로 "이미 있는지 확인하는 목록"으로만 쓰이므로 더더욱 문제가 안 된다.
+ */
+export function buildPackageJson(projectName: string, packages: string[]): string {
+  const dependencies: Record<string, string> = {};
+  for (const name of [...new Set(["react", ...packages])].sort((a, b) => a.localeCompare(b))) {
+    dependencies[name] = "*";
+  }
+
+  return `${JSON.stringify(
+    {
+      name: bundleFolderName(projectName),
+      version: "0.1.0",
+      private: true,
+      description: `Visual Spec Builder가 내보낸 ${projectName} 화면 코드`,
+      dependencies,
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function issueTable(report: VerifyReport): string {
+  if (report.issues.length === 0) return "검증에서 발견된 문제가 없습니다.\n";
+
+  const rows = report.issues
+    .map((issue) => {
+      const where = issue.line === undefined ? issue.file : `${issue.file}:${issue.line}`;
+      const level = issue.severity === "error" ? "오류" : "참고";
+      return `| ${level} | \`${where}\` | ${issue.message} |`;
+    })
+    .join("\n");
+
+  return `| 심각도 | 위치 | 내용 |\n|---|---|---|\n${rows}\n`;
+}
+
+/**
+ * 실행 방법·통합 방법·검증 결과를 담은 README (02-mvp-scope.md "결과물 원칙").
+ *
+ * **검증에서 못 본 것을 같이 적는다.** 검증을 통과했다는 문장만 남기면 읽는 쪽이
+ * "타입까지 맞다"로 읽는다. 무엇을 확인했고 무엇은 확인하지 않았는지가 같은 자리에
+ * 있어야 한다.
+ */
+export function buildReadme(projectName: string, report: VerifyReport): string {
+  const fileList = report.coverage
+    .map((entry) => `| \`${entry.expectedPath}\` | ${entry.componentName} | ${entry.found ? "포함됨" : "**없음**"} |`)
+    .join("\n");
+
+  return `# ${projectName}
+
+Visual Spec Builder가 내보낸 React 화면 코드입니다. 이 폴더는 그대로 복사해 쓸 수 있도록
+프로젝트 전용 경로 별칭 없이 상대 경로 import만 씁니다.
+
+## 실행 방법
+
+이 폴더 자체는 앱이 아니라 컴포넌트 묶음입니다. React가 있는
+프로젝트에 넣어 씁니다.
+
+**들어 있지 않은 것** — 앱 셸(\`index.html\`·\`main.tsx\`)·라우터 설정, 폼 상태·입력 검증·제출,
+데이터 불러오기, 인증·백엔드, disabled 상태 스타일, 배포 설정. 입력·버튼은 모양만 있는 정적 마크업이고,
+표·카드의 값은 스펙에 적힌 정적 텍스트입니다. 스펙에 이미지 대체 텍스트가 없어 보통 비워 둡니다
+(\`alt=""\`, 장식용) — 의미 있는 이미지라면 통합할 때 채워 주세요.
+
+\`\`\`bash
+npm install react
+\`\`\`
+
+## 통합 방법
+
+1. 이 폴더를 대상 프로젝트의 소스 디렉터리 안에 통째로 복사합니다(예: src/visual-spec/).
+   \`pages/\`·\`components/\`·\`assets/\`의 상대 위치는 **바꾸지 않습니다** — 서로를
+   \`../components/…\`·\`../assets/…\`로 가리키고 있습니다.
+2. \`package.json\`의 의존성이 대상 프로젝트에 있는지 확인합니다.
+3. 페이지 컴포넌트를 라우터에 연결합니다.
+   이미지 파일은 TSX의 정적 import로 참조합니다. Vite 같은 번들러가 개발 중 파일을 제공하고,
+   production build에서 출력 URL로 바꾸며, 앱의 base 설정(하위 경로 배포 포함)도 적용합니다.
+4. 스타일은 생성 결과에 따라 정적 CSS(\`<style>\`·media query 포함) 또는 Tailwind CSS 유틸리티입니다. 정적 CSS는 함께 유지합니다. Tailwind 클래스를 쓴 경우 해당 환경이 필요합니다. **Tailwind v4**(\`@tailwindcss/vite\` 등
+   Vite 플러그인 방식)는 모듈 그래프를 자동으로 훑어 별도 설정 없이도 이 폴더의
+   클래스를 찾아냅니다. **v3 이하**를 쓴다면 \`tailwind.config\`의 \`content\` 배열에 이
+   폴더를 직접 추가해야 클래스가 적용됩니다.
+
+스펙에 지정한 button/input의 hover·pressed·focus 색은 생성 지침에 따라 포함될 수 있습니다.
+\`hover:\`·\`active:\`·\`focus-visible:\` 또는 대응 CSS와 실제 브라우저 동작을 확인하세요.
+
+자동 병합은 하지 않습니다 — 통합은 사용자가 직접 합니다(\`docs/02-mvp-scope.md\` MVP 제외 범위).
+
+## 검증 결과
+
+파일 ${report.fileCount}개 · 티켓 ${report.coverage.length}개 중 ${report.coveredCount}개 포함 · 오류 ${report.errorCount}건
+
+| 파일 | 컴포넌트 | 상태 |
+|---|---|---|
+${fileList === "" ? "| — | — | 티켓 없음 |" : fileList}
+
+${issueTable(report)}
+### 확인한 것
+
+- 구현 티켓마다 대응하는 파일이 있는지
+- \`@/\` 같은 경로 별칭·절대 경로 import가 없는지
+- 상대 경로 import가 실제로 있는 파일을 가리키는지
+- 상대 경로가 이 폴더 밖으로 나가지 않는지
+- 정적 \`../assets/…\` 이미지 import가 실제로 있는지 — 이미지 배경도 같은 import를 사용합니다
+
+### 확인하지 않은 것
+
+- **타입 검사(\`tsc\`)** — 대상 프로젝트의 tsconfig와 React 타입 버전을 알아야 합니다.
+  **project references를 쓰는 프로젝트**(\`tsconfig.json\`이 \`files: []\` + \`references\`만
+  갖고 실제 설정은 \`tsconfig.app.json\` 등에 있는 Vite 템플릿이 대표적입니다)에서는
+  \`tsc --noEmit\`만으로는 아무것도 검사되지 않습니다 — \`tsc -b --noEmit\`(또는 \`tsc -b\`)를
+  써야 실제로 돕니다
+- **lint·포매팅** — 대상 프로젝트의 규칙을 따릅니다
+- **화면이 스펙과 같게 그려지는지** — 렌더 비교는 MVP 제외 범위입니다
+- import 구문은 정규식으로 훑습니다. 주석 안 문자열을 잘못 잡거나 동적 경로를 놓칠 수 있습니다
+`;
+}
+
+export interface BundleInput {
+  projectName: string;
+  files: GeneratedFile[];
+  assets: BundleAsset[];
+  report: VerifyReport;
+}
+
+/** ZIP에 그대로 넘길 항목 목록을 만든다. 경로는 모두 최상위 폴더 아래로 들어간다. */
+export function buildBundleEntries({
+  projectName,
+  files,
+  assets,
+  report,
+}: BundleInput): ZipEntry[] {
+  const root = bundleFolderName(projectName);
+
+  return [
+    ...files.map((file) => ({
+      path: `${root}/${file.path}`,
+      bytes: utf8Bytes(file.content),
+    })),
+    ...assets.map((asset) => ({
+      path: `${root}/assets/${asset.name}`,
+      bytes: asset.bytes,
+    })),
+    {
+      path: `${root}/package.json`,
+      bytes: utf8Bytes(buildPackageJson(projectName, report.packages)),
+    },
+    { path: `${root}/README.md`, bytes: utf8Bytes(buildReadme(projectName, report)) },
+  ];
+}

@@ -1,0 +1,14 @@
+/**
+ * primitives/radius.css — Primitive 라디우스 토큰
+ * 규칙: docs/DESIGN-TOKEN-RULES.md — Primitive = 실제 값(px).
+ */
+
+@theme inline {
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-pill: 9999px;
+}

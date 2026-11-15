@@ -1,0 +1,792 @@
+{
+  "version": "0.4",
+  "name": "Untitled",
+  "pages": {
+    "page1": {
+      "name": "회원가입",
+      "size": {
+        "width": 390,
+        "height": 844
+      },
+      "root": "root",
+      "nodes": {
+        "root": {
+          "type": "frame",
+          "name": "Screen",
+          "box": {
+            "width": "fill",
+            "height": "fill"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 32,
+            "padding": {
+              "top": 56,
+              "right": 20,
+              "bottom": 56,
+              "left": 20
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#FFFFFF"
+            }
+          ],
+          "children": [
+            {
+              "node": "title"
+            },
+            {
+              "node": "intro"
+            },
+            {
+              "node": "form"
+            },
+            {
+              "node": "privacyNotice"
+            },
+            {
+              "node": "signupButton"
+            }
+          ]
+        },
+        "title": {
+          "type": "text",
+          "name": "Title",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "회원가입",
+          "color": "#111111",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 28,
+            "fontWeight": 700,
+            "lineHeight": 36,
+            "letterSpacing": -0.5,
+            "textAlign": "left"
+          }
+        },
+        "intro": {
+          "type": "text",
+          "name": "Intro",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "서비스 이용을 위해 아래 정보를 입력해 주세요.\n모든 항목은 필수입니다.",
+          "color": "#666666",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 22,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "form": {
+          "type": "frame",
+          "name": "Form",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 28,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "nameField"
+            },
+            {
+              "node": "emailField"
+            },
+            {
+              "node": "phoneField"
+            },
+            {
+              "node": "passwordField"
+            },
+            {
+              "node": "passwordConfirmField"
+            },
+            {
+              "node": "addressField"
+            },
+            {
+              "node": "addressDetailField"
+            },
+            {
+              "node": "birthDateField"
+            }
+          ]
+        },
+        "nameField": {
+          "type": "frame",
+          "name": "NameField",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "nameLabel"
+            },
+            {
+              "node": "nameInput"
+            }
+          ]
+        },
+        "nameLabel": {
+          "type": "text",
+          "name": "NameLabel",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "이름",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "nameInput": {
+          "type": "input",
+          "name": "NameInput",
+          "box": {
+            "width": "fill",
+            "height": 52
+          },
+          "placeholder": "이름을 입력하세요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "emailField": {
+          "type": "frame",
+          "name": "EmailField",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "emailLabel"
+            },
+            {
+              "node": "emailInput"
+            }
+          ]
+        },
+        "emailLabel": {
+          "type": "text",
+          "name": "EmailLabel",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "이메일",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "emailInput": {
+          "type": "input",
+          "name": "EmailInput",
+          "box": {
+            "width": "fill",
+            "height": 52
+          },
+          "placeholder": "example@email.com",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "phoneField": {
+          "type": "frame",
+          "name": "PhoneField",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "phoneLabel"
+            },
+            {
+              "node": "phoneInput"
+            }
+          ]
+        },
+        "phoneLabel": {
+          "type": "text",
+          "name": "PhoneLabel",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "전화번호",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "phoneInput": {
+          "type": "input",
+          "name": "PhoneInput",
+          "box": {
+            "width": "fill",
+            "height": 52
+          },
+          "placeholder": "010-0000-0000",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "passwordField": {
+          "type": "frame",
+          "name": "PasswordField",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "passwordLabel"
+            },
+            {
+              "node": "passwordInput"
+            }
+          ]
+        },
+        "passwordLabel": {
+          "type": "text",
+          "name": "PasswordLabel",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "비밀번호",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "passwordInput": {
+          "type": "input",
+          "name": "PasswordInput",
+          "box": {
+            "width": "fill",
+            "height": 52
+          },
+          "placeholder": "8자 이상 입력하세요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "passwordConfirmField": {
+          "type": "frame",
+          "name": "PasswordConfirmField",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "passwordConfirmLabel"
+            },
+            {
+              "node": "passwordConfirmInput"
+            }
+          ]
+        },
+        "passwordConfirmLabel": {
+          "type": "text",
+          "name": "PasswordConfirmLabel",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "비밀번호 확인",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "passwordConfirmInput": {
+          "type": "input",
+          "name": "PasswordConfirmInput",
+          "box": {
+            "width": "fill",
+            "height": 52
+          },
+          "placeholder": "비밀번호를 다시 입력하세요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "addressField": {
+          "type": "frame",
+          "name": "AddressField",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "addressLabel"
+            },
+            {
+              "node": "addressInput"
+            }
+          ]
+        },
+        "addressLabel": {
+          "type": "text",
+          "name": "AddressLabel",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "주소",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "addressInput": {
+          "type": "input",
+          "name": "AddressInput",
+          "box": {
+            "width": "fill",
+            "height": 52
+          },
+          "placeholder": "주소를 입력하세요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "addressDetailField": {
+          "type": "frame",
+          "name": "AddressDetailField",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "addressDetailLabel"
+            },
+            {
+              "node": "addressDetailInput"
+            }
+          ]
+        },
+        "addressDetailLabel": {
+          "type": "text",
+          "name": "AddressDetailLabel",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "상세 주소",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "addressDetailInput": {
+          "type": "input",
+          "name": "AddressDetailInput",
+          "box": {
+            "width": "fill",
+            "height": 52
+          },
+          "placeholder": "동·호수 등 상세 주소를 입력하세요",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "birthDateField": {
+          "type": "frame",
+          "name": "BirthDateField",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "layout": {
+            "direction": "column",
+            "gap": 8,
+            "padding": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "mainAxis": "start",
+            "crossAxis": "stretch"
+          },
+          "children": [
+            {
+              "node": "birthDateLabel"
+            },
+            {
+              "node": "birthDateInput"
+            }
+          ]
+        },
+        "birthDateLabel": {
+          "type": "text",
+          "name": "BirthDateLabel",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "생년월일",
+          "color": "#374151",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 600,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "birthDateInput": {
+          "type": "input",
+          "name": "BirthDateInput",
+          "box": {
+            "width": "fill",
+            "height": 52
+          },
+          "placeholder": "YYYY-MM-DD",
+          "color": "#111827",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 14,
+            "fontWeight": 400,
+            "lineHeight": 20,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#F9FAFB"
+            }
+          ],
+          "border": {
+            "width": 1,
+            "color": "#D1D5DB",
+            "radius": 8
+          }
+        },
+        "privacyNotice": {
+          "type": "text",
+          "name": "PrivacyNotice",
+          "box": {
+            "width": "fill",
+            "height": "auto"
+          },
+          "content": "가입하기를 누르면 개인정보 수집 및 이용에 동의하는 것으로 간주됩니다. 수집된 정보는 회원 관리 목적으로만 사용되며 관련 법령에 따라 안전하게 보관됩니다.",
+          "color": "#6B7280",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 12,
+            "fontWeight": 400,
+            "lineHeight": 18,
+            "letterSpacing": 0,
+            "textAlign": "left"
+          }
+        },
+        "signupButton": {
+          "type": "button",
+          "name": "SignupButton",
+          "box": {
+            "width": "fill",
+            "height": 52
+          },
+          "content": "가입하기",
+          "color": "#FFFFFF",
+          "typography": {
+            "fontFamily": "Pretendard",
+            "fontSize": 16,
+            "fontWeight": 600,
+            "lineHeight": 24,
+            "letterSpacing": 0,
+            "textAlign": "center"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "#4F46E5"
+            }
+          ],
+          "border": {
+            "width": 0,
+            "color": "#4F46E5",
+            "radius": 8
+          }
+        }
+      }
+    }
+  },
+  "pageOrder": [
+    "page1"
+  ],
+  "projectId": "6f39ceff-521e-4e5e-a175-1b27b34455bf"
+}

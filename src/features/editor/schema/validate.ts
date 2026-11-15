@@ -1,0 +1,620 @@
+import { validateResponsive } from "./validateResponsive.ts";
+import { validateScreenRelations } from "./validateScreenRelations.ts";
+import { validateInstances } from "./validateInstances.ts";
+
+import Ajv2020 from "ajv/dist/2020";
+import type { ErrorObject } from "ajv/dist/2020";
+
+import visualSpecJsonSchema from "./visual-spec.schema.json" with { type: "json" };
+import type { ProjectSpec, ScreenSpec, VisualSpec } from "./types.ts";
+
+export type IssueCode =
+  | "schema"
+  | "root-missing"
+  | "root-not-frame"
+  | "child-missing"
+  | "cycle"
+  | "multiple-parents"
+  | "orphan-node"
+  | "page-order-mismatch"
+  | "gradient-stop-order"
+  | "responsive-breakpoint-missing"
+  | "responsive-node-missing"
+  | "responsive-duplicate-width"
+  | "responsive-node-property"
+  | "responsive-effective-node"
+  | "action-target-missing"
+  | "action-target-kind"
+  | "navigate-to-non-page"
+  | "action-source-invalid"
+  | "first-page-kind"
+  | "instance-ref-missing"
+  | "instance-ref-kind"
+  | "instance-cycle"
+  | "instance-override-invalid"
+  | "style-reference-invalid"
+  | "style-value-mismatch"
+  | "style-name-duplicate";
+
+export interface ValidationIssue {
+  code: IssueCode;
+  path: string;
+  message: string;
+}
+
+/**
+ * 화면 관계(kind·action) 참조 무결성 코드(#265 S1-2). 프로젝트 문서에서만 나온다.
+ *
+ * 구조(스키마·그래프)는 멀쩡하고 관계만 어긋난 문서를 가려낼 때 쓴다. 페이지 삭제가
+ * 아직 유입 action을 정리하지 못해(S1-4 전) 이런 문서가 자동 저장에 남을 수 있으므로,
+ * 자동 저장 복원은 이 코드만 남은 문서를 버리지 않는다(store/specStorage.ts). Open·Save·
+ * Command 관문은 이 코드도 그대로 무효로 다룬다.
+ */
+const SCREEN_RELATION_ISSUE_CODES: ReadonlySet<IssueCode> = new Set<IssueCode>([
+  "action-target-missing",
+  "action-target-kind",
+  "navigate-to-non-page",
+  "action-source-invalid",
+  "first-page-kind",
+]);
+
+export function isScreenRelationIssue(issue: ValidationIssue): boolean {
+  return SCREEN_RELATION_ISSUE_CODES.has(issue.code);
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  issues: ValidationIssue[];
+}
+
+type VisualSpecNode = ScreenSpec["nodes"][string];
+type FrameNode = Extract<VisualSpecNode, { type: "frame" }>;
+
+type CompiledValidator = ReturnType<InstanceType<typeof Ajv2020>["compile"]>;
+
+let schemaValidator: CompiledValidator | undefined;
+let projectSchemaValidator: CompiledValidator | undefined;
+let projectEnvelopeValidator: CompiledValidator | undefined;
+
+function getProjectEnvelopeValidator(): CompiledValidator {
+  if (!projectEnvelopeValidator) {
+    const schema = structuredClone(visualSpecJsonSchema);
+    // Keep every project constraint from the canonical schema. Screen schemas are
+    // checked separately; failures fall back to the original validator for exact errors.
+    Object.assign(schema.$defs.ProjectSpec.properties.pages, { additionalProperties: true });
+    const ajv = new Ajv2020({ allErrors: true });
+    ajv.addSchema(schema, "project-envelope");
+    projectEnvelopeValidator = ajv.compile({ $ref: "project-envelope#/$defs/ProjectSpec" });
+  }
+  return projectEnvelopeValidator;
+}
+
+function sameSnapshot(value: unknown, snapshot: unknown): boolean {
+  if (Object.is(value, snapshot)) return true;
+  if (!value || !snapshot || typeof value !== "object" || typeof snapshot !== "object") return false;
+  if (Object.getPrototypeOf(value) !== Object.getPrototypeOf(snapshot)) return false;
+  const keys = Object.getOwnPropertyNames(value);
+  const savedKeys = Object.getOwnPropertyNames(snapshot);
+  if (keys.length !== savedKeys.length) return false;
+  for (let index = 0; index < keys.length; index++) {
+    const key = keys[index];
+    // Diagnostic traversal uses property order: equal key sets are not equivalent.
+    if (key !== savedKeys[index]) return false;
+    const field = Object.getOwnPropertyDescriptor(value, key)!;
+    // structuredClone snapshots have data properties, so inspecting their descriptors
+    // again is unnecessary. A newly installed getter on the live input is never a hit.
+    if (!("value" in field) || field.enumerable !== Object.prototype.propertyIsEnumerable.call(snapshot, key) || !sameSnapshot(field.value, (snapshot as Record<string, unknown>)[key])) return false;
+  }
+  return true;
+}
+
+function getSchemaValidator(): CompiledValidator {
+  if (schemaValidator === undefined) {
+    const ajv = new Ajv2020({ allErrors: true });
+    schemaValidator = ajv.compile(visualSpecJsonSchema);
+  }
+
+  return schemaValidator;
+}
+
+/**
+ * ProjectSpec은 정본 스키마의 루트가 아니라 `$defs` 항목이다. 루트는 단일 화면
+ * VisualSpec으로 그대로 두기 위해서다. 그래서 스키마를 통째로 등록한 뒤
+ * 해당 `$def`를 가리키는 얇은 스키마를 컴파일한다.
+ */
+function getProjectSchemaValidator(): CompiledValidator {
+  if (projectSchemaValidator === undefined) {
+    const ajv = new Ajv2020({ allErrors: true });
+    ajv.addSchema(visualSpecJsonSchema, "visual-spec");
+    projectSchemaValidator = ajv.compile({
+      $ref: "visual-spec#/$defs/ProjectSpec",
+    });
+  }
+
+  return projectSchemaValidator;
+}
+
+function escapeJsonPointer(value: string): string {
+  return value.replace(/~/g, "~0").replace(/\//g, "~1");
+}
+
+function nodePath(basePath: string, nodeId: string): string {
+  return `${basePath}/nodes/${escapeJsonPointer(nodeId)}`;
+}
+
+function isFrameNode(node: VisualSpecNode): node is FrameNode {
+  return node.type === "frame";
+}
+
+function describeSchemaError(error: ErrorObject): string {
+  const params = error.params as Record<string, unknown>;
+
+  switch (error.keyword) {
+    case "required":
+      return `필수 필드 "${params.missingProperty}"가 없습니다.`;
+    case "additionalProperties":
+      return `허용되지 않는 필드 "${params.additionalProperty}"가 있습니다.`;
+    case "const":
+      return `값이 ${JSON.stringify(params.allowedValue)}이어야 합니다.`;
+    case "enum":
+      return `값이 ${JSON.stringify(params.allowedValues)} 중 하나여야 합니다.`;
+    case "type":
+      return `값의 타입이 "${params.type}"이어야 합니다.`;
+    case "pattern":
+      return `값이 패턴 ${JSON.stringify(params.pattern)}과 일치하지 않습니다.`;
+    case "propertyNames":
+      return `속성 이름 "${params.propertyName}"이 허용되지 않는 형식입니다.`;
+    case "minimum":
+    case "exclusiveMinimum":
+    case "maximum":
+    case "exclusiveMaximum":
+      return `값이 허용 범위를 벗어났습니다 (${error.keyword}: ${params.limit}).`;
+    case "minLength":
+      return `문자열이 너무 짧습니다 (최소 길이: ${params.limit}).`;
+    case "minProperties":
+      return `속성 개수가 너무 적습니다 (최소: ${params.limit}).`;
+    case "multipleOf":
+      return `값이 ${params.multipleOf}의 배수여야 합니다.`;
+    case "oneOf":
+      return "정의된 대안 스키마 중 어느 것과도 일치하지 않습니다. 같은 위치에 있는 다른 이슈가 실제 원인인 경우가 많습니다.";
+    default:
+      return `JSON 스키마 규칙(${error.keyword})을 위반했습니다.`;
+  }
+}
+
+function validateScreenReferences(
+  screen: ScreenSpec,
+  basePath: string,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const { nodes, root } = screen;
+  const hasNode = (nodeId: string): boolean =>
+    Object.prototype.hasOwnProperty.call(nodes, nodeId);
+  const rootNode = hasNode(root) ? nodes[root] : undefined;
+
+  if (rootNode === undefined) {
+    issues.push({
+      code: "root-missing",
+      path: `${basePath}/root`,
+      message: `루트 노드 "${root}"가 nodes에 없습니다.`,
+    });
+  } else if (!isFrameNode(rootNode)) {
+    issues.push({
+      code: "root-not-frame",
+      path: `${basePath}/root`,
+      message: `루트 노드 "${root}"의 type은 "frame"이어야 합니다.`,
+    });
+  }
+
+  const referencedAt = new Map<string, string>();
+
+  for (const [parentId, node] of Object.entries(nodes)) {
+    if (!isFrameNode(node)) {
+      continue;
+    }
+
+    for (let index = 0; index < node.children.length; index += 1) {
+      const child = node.children[index];
+      const path = `${nodePath(basePath, parentId)}/children/${index}/node`;
+      const childId = child.node;
+
+      if (!hasNode(childId)) {
+        issues.push({
+          code: "child-missing",
+          path,
+          message: `자식 노드 "${childId}"가 nodes에 없습니다.`,
+        });
+      }
+
+      if (hasNode(childId)) {
+        const firstReferencePath = referencedAt.get(childId);
+        if (firstReferencePath === undefined) {
+          referencedAt.set(childId, path);
+        } else if (firstReferencePath !== path) {
+          issues.push({
+            code: "multiple-parents",
+            path,
+            message: `노드 "${childId}"가 두 곳 이상에서 참조되었습니다.`,
+          });
+        }
+      }
+    }
+  }
+
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  let hasCycle = false;
+
+  const visit = (nodeId: string): void => {
+    if (visited.has(nodeId)) {
+      return;
+    }
+
+    visiting.add(nodeId);
+    const node = hasNode(nodeId) ? nodes[nodeId] : undefined;
+
+    if (node !== undefined && isFrameNode(node)) {
+      for (let index = 0; index < node.children.length; index += 1) {
+        const child = node.children[index];
+        const childId = child.node;
+        if (!hasNode(childId)) {
+          continue;
+        }
+
+        if (visiting.has(childId)) {
+          hasCycle = true;
+          issues.push({
+            code: "cycle",
+            path: `${nodePath(basePath, nodeId)}/children/${index}/node`,
+            message: `노드 "${childId}"로 향하는 자식 참조에서 순환이 발견되었습니다.`,
+          });
+          continue;
+        }
+
+        visit(childId);
+      }
+    }
+
+    visiting.delete(nodeId);
+    visited.add(nodeId);
+  };
+
+  for (const nodeId of Object.keys(nodes)) {
+    visit(nodeId);
+  }
+
+  // 도달성 계산은 출발점이 성립할 때만 의미가 있다. root가 없으면 모든 노드가
+  // 자동으로 도달 불가가 되어 실제 원인 하나가 orphan-node 잡음에 묻힌다.
+  const rootMissing = rootNode === undefined;
+
+  if (!hasCycle && !rootMissing) {
+    const reachable = new Set<string>();
+    const pending = [root];
+
+    while (pending.length > 0) {
+      const nodeId = pending.pop();
+      if (nodeId === undefined || reachable.has(nodeId)) {
+        continue;
+      }
+
+      reachable.add(nodeId);
+      const node = hasNode(nodeId) ? nodes[nodeId] : undefined;
+      if (node !== undefined && isFrameNode(node)) {
+        for (const child of node.children) {
+          if (hasNode(child.node) && !reachable.has(child.node)) {
+            pending.push(child.node);
+          }
+        }
+      }
+    }
+
+    for (const nodeId of Object.keys(nodes)) {
+      if (!reachable.has(nodeId)) {
+        issues.push({
+          code: "orphan-node",
+          path: nodePath(basePath, nodeId),
+          message: `노드 "${nodeId}"는 루트에서 도달할 수 없습니다.`,
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * 그라디언트 stop의 `at`이 오름차순인지 본다(같은 값은 허용 — 딱 끊기는 경계).
+ *
+ * JSON Schema 2020-12에는 배열 원소끼리 비교하는 문법이 없어 여기서 따로 본다.
+ * 렌더에서 정렬해 주지 않고 무효로 두는 이유는 CSS가 앞보다 작은 stop을 정렬하지
+ * 않고 앞 값으로 끌어올리기 때문이다 — 순서가 틀린 JSON의 뜻이 번역기마다
+ * 달라진다(docs/13-background-fill-design.md "표현 규칙").
+ *
+ * 스키마를 통과한 뒤에만 부르므로 `background`의 모양은 이미 맞다.
+ */
+function validateGradientStops(
+  screen: ScreenSpec,
+  basePath: string,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const [nodeId, node] of Object.entries(screen.nodes)) {
+    const background = "background" in node ? node.background : undefined;
+    if (background === undefined) continue;
+
+    background.forEach((fill, fillIndex) => {
+      if (fill.type !== "linear") return;
+
+      for (let index = 1; index < fill.stops.length; index += 1) {
+        const previous = fill.stops[index - 1].at;
+        const current = fill.stops[index].at;
+        if (current < previous) {
+          issues.push({
+            code: "gradient-stop-order",
+            path: `${nodePath(basePath, nodeId)}/background/${fillIndex}/stops/${index}/at`,
+            message: `그라디언트 stop의 위치(at)는 오름차순이어야 합니다 — ${current}가 앞 stop의 ${previous}보다 작습니다.`,
+          });
+        }
+      }
+    });
+  }
+
+  return issues;
+}
+
+export function validateVisualSpec(input: unknown): ValidationResult {
+  try {
+    const validateSchema = getSchemaValidator();
+
+    if (!validateSchema(input)) {
+      const issues: ValidationIssue[] = (validateSchema.errors ?? []).map(
+        (error) => ({
+          code: "schema",
+          path: error.instancePath || "/",
+          message: describeSchemaError(error),
+        }),
+      );
+
+      if (issues.length === 0) {
+        issues.push({
+          code: "schema",
+          path: "/",
+          message: "스키마 검증에 실패했습니다.",
+        });
+      }
+
+      return { valid: false, issues };
+    }
+
+    const { screen } = input as VisualSpec;
+    const issues = [
+      ...validateScreenReferences(screen, "/screen"),
+      ...validateGradientStops(screen, "/screen"),
+      ...validateResponsive(screen, "/screen"),
+      ...Object.entries(screen.nodes).flatMap(([nodeId, node]) => !("styleRefs" in node) || node.styleRefs === undefined ? [] : [{
+        code: "style-reference-invalid" as const,
+        path: `/screen/nodes/${escapeJsonPointer(nodeId)}/styleRefs`,
+        message: "독립 화면 문서에는 프로젝트 카탈로그가 없으므로 스타일 연결을 저장할 수 없습니다.",
+      }]),
+    ];
+    return { valid: issues.length === 0, issues };
+  } catch {
+    return {
+      valid: false,
+      issues: [
+        {
+          code: "schema",
+          path: "/",
+          message: "입력을 검증하는 중 오류가 발생했습니다.",
+        },
+      ],
+    };
+  }
+}
+
+/**
+ * `pageOrder`가 `pages`의 키와 정확히 일치하는지 본다.
+ *
+ * 이 불변조건은 JSON Schema 2020-12로 표현할 수 없다 — 배열 항목이 객체 키를
+ * 참조하는 문법이 없기 때문이다. `nodes` ↔ `children.node`를 그래프 검사로
+ * 처리하는 것과 같은 이유로 여기서 따로 확인한다.
+ * (`pageOrder` 자체의 중복은 스키마의 `uniqueItems`가 잡는다.)
+ */
+function validatePageOrder(project: ProjectSpec): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const ordered = new Set(project.pageOrder);
+
+  for (let index = 0; index < project.pageOrder.length; index += 1) {
+    const pageId = project.pageOrder[index];
+    if (!Object.prototype.hasOwnProperty.call(project.pages, pageId)) {
+      issues.push({
+        code: "page-order-mismatch",
+        path: `/pageOrder/${index}`,
+        message: `pageOrder의 "${pageId}"가 pages에 없습니다.`,
+      });
+    }
+  }
+
+  for (const pageId of Object.keys(project.pages)) {
+    if (!ordered.has(pageId)) {
+      issues.push({
+        code: "page-order-mismatch",
+        path: `/pages/${escapeJsonPointer(pageId)}`,
+        message: `페이지 "${pageId}"가 pageOrder에 없습니다.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function colorValueAtTarget(node: Record<string, unknown>, target: string): unknown {
+  if (target === "color") return node.color;
+  if (target === "border.color") return (node.border as Record<string, unknown> | undefined)?.color;
+  if (target === "shadow.color") return (node.shadow as Record<string, unknown> | undefined)?.color;
+  const match = /^background\.(\d+)\.(?:color|stops\.(\d+)\.color)$/.exec(target);
+  if (!match || !Array.isArray(node.background)) return undefined;
+  const fill = node.background[Number(match[1])] as Record<string, unknown> | undefined;
+  if (!fill) return undefined;
+  if (match[2] === undefined) return fill.color;
+  const stops = fill.stops;
+  return Array.isArray(stops) ? (stops[Number(match[2])] as Record<string, unknown> | undefined)?.color : undefined;
+}
+
+function validateProjectStyles(project: ProjectSpec): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const colors = project.styles?.colors ?? {};
+  const typography = project.styles?.typography ?? {};
+  for (const [kind, entries] of [["colors", colors], ["typography", typography]] as const) {
+    const names = new Set<string>();
+    for (const [id, style] of Object.entries(entries)) {
+      const normalized = style.name.trim().toLocaleLowerCase();
+      if (names.has(normalized)) issues.push({ code: "style-name-duplicate", path: `/styles/${kind}/${escapeJsonPointer(id)}/name`, message: "같은 종류의 스타일 표시 이름은 중복할 수 없습니다." });
+      names.add(normalized);
+    }
+  }
+
+  for (const [pageId, page] of Object.entries(project.pages)) {
+    for (const [nodeId, rawNode] of Object.entries(page.nodes)) {
+      const node = rawNode as unknown as Record<string, unknown>;
+      const refs = node.styleRefs as { colors?: Record<string, string>; typography?: string } | undefined;
+      if (!refs) continue;
+      for (const [target, id] of Object.entries(refs.colors ?? {})) {
+        const path = `/pages/${escapeJsonPointer(pageId)}/nodes/${escapeJsonPointer(nodeId)}/styleRefs/colors/${escapeJsonPointer(target)}`;
+        const style = colors[id];
+        if (!style || typeof colorValueAtTarget(node, target) !== "string") {
+          issues.push({ code: "style-reference-invalid", path, message: "색 스타일 연결의 카탈로그 항목 또는 대상 색 속성이 없습니다." });
+        } else if (colorValueAtTarget(node, target) !== style.value) {
+          issues.push({ code: "style-value-mismatch", path, message: "연결된 색 스타일 값과 노드 리터럴이 다릅니다." });
+        }
+      }
+      if (refs.typography !== undefined) {
+        const path = `/pages/${escapeJsonPointer(pageId)}/nodes/${escapeJsonPointer(nodeId)}/styleRefs/typography`;
+        const style = typography[refs.typography];
+        if (!style || typeof node.typography !== "object" || node.typography === null) {
+          issues.push({ code: "style-reference-invalid", path, message: "글자 스타일 연결의 카탈로그 항목 또는 타이포그래피 대상이 없습니다." });
+        } else if (JSON.stringify(node.typography) !== JSON.stringify(style.value)) {
+          issues.push({ code: "style-value-mismatch", path, message: "연결된 글자 스타일 값과 노드 리터럴이 다릅니다." });
+        }
+      }
+    }
+  }
+  return issues;
+}
+
+/**
+ * 프로젝트 문서를 검증한다. 절대 던지지 않는다.
+ * 페이지마다 화면 문서와 같은 그래프·stop 정렬 검사를 돌리고, 에러 경로는
+ * `/pages/<id>/...`가 된다. 이어서 페이지 사이의 화면 관계(action 대상·첫 화면 kind)를
+ * 본다(validateScreenRelations.ts).
+ *
+ * 0.1·0.2·0.3 문서는 여기서 무효다 — 옛 문서를 받는 입구는 `migrateToV04`로 먼저
+ * 바꾼 뒤 검증한다(store/loadSpec.ts·store/specStorage.ts).
+ */
+type ScreenValidationCache = WeakMap<ScreenSpec, { snapshot: ScreenSpec; path: string; issues: ValidationIssue[] }>;
+
+/** Store-local cache: project constraints and cross-page relations are always checked in full.
+ * Compare a detached content snapshot too, so even an in-place mutation cannot reuse stale results.
+ * Weak keys do not retain closed documents or discarded Undo snapshots.
+ */
+export function createCachedProjectValidator(): (input: unknown) => ValidationResult {
+  const cache: ScreenValidationCache = new WeakMap();
+  return input => {
+    try {
+      if (!getProjectEnvelopeValidator()(input)) return validateProjectSpec(input);
+      const project = input as ProjectSpec;
+      const unchanged = new Set<ScreenSpec>();
+      for (const page of Object.values(project.pages)) {
+        const saved = cache.get(page);
+        const hit = saved !== undefined && sameSnapshot(page, saved.snapshot);
+        if (hit) unchanged.add(page);
+        if (!hit && !getSchemaValidator()({ version: "0.4", screen: page })) return validateProjectSpec(input);
+      }
+      return validateProject(input, cache, true, unchanged);
+    } catch { return validateProjectSpec(input); }
+  };
+}
+
+export function validateProjectSpec(input: unknown): ValidationResult {
+  return validateProject(input);
+}
+
+function validateProject(input: unknown, cache?: ScreenValidationCache, schemaChecked = false, unchanged?: Set<ScreenSpec>): ValidationResult {
+  try {
+    const validateSchema = getProjectSchemaValidator();
+
+    if (!schemaChecked && !validateSchema(input)) {
+      const issues: ValidationIssue[] = (validateSchema.errors ?? []).map(
+        (error) => ({
+          code: "schema",
+          path: error.instancePath || "/",
+          message: describeSchemaError(error),
+        }),
+      );
+
+      if (issues.length === 0) {
+        issues.push({
+          code: "schema",
+          path: "/",
+          message: "스키마 검증에 실패했습니다.",
+        });
+      }
+
+      return { valid: false, issues };
+    }
+
+    const project = input as ProjectSpec;
+    const issues = [...validatePageOrder(project), ...validateProjectStyles(project)];
+
+    for (const [pageId, page] of Object.entries(project.pages)) {
+      const pagePath = `/pages/${escapeJsonPointer(pageId)}`;
+      const cached = cache?.get(page);
+      const hit = unchanged?.has(page) && cached?.path === pagePath;
+      const pageIssues = hit
+        ? cached.issues
+        : [
+          ...validateScreenReferences(page, pagePath),
+          ...validateGradientStops(page, pagePath),
+          ...validateResponsive(page, pagePath),
+        ];
+      if (cache && !hit) {
+        try { cache.set(page, { snapshot: structuredClone(page), path: pagePath, issues: pageIssues }); }
+        catch { cache.delete(page); }
+      }
+      // Callers may annotate returned issues; never expose the cached objects.
+      issues.push(...pageIssues.map(issue => ({ ...issue })));
+    }
+    issues.push(...validateScreenRelations(project));
+    issues.push(...validateInstances(project));
+
+    return { valid: issues.length === 0, issues };
+  } catch {
+    return {
+      valid: false,
+      issues: [
+        {
+          code: "schema",
+          path: "/",
+          message: "입력을 검증하는 중 오류가 발생했습니다.",
+        },
+      ],
+    };
+  }
+}
+
+export function assertVisualSpec(input: unknown): asserts input is VisualSpec {
+  const result = validateVisualSpec(input);
+  if (!result.valid) {
+    throw new VisualSpecValidationError(result.issues);
+  }
+}
+
+export class VisualSpecValidationError extends Error {
+  readonly issues: ValidationIssue[];
+
+  constructor(issues: ValidationIssue[]) {
+    super("Visual Spec 검증에 실패했습니다.");
+    this.name = "VisualSpecValidationError";
+    this.issues = issues;
+  }
+}

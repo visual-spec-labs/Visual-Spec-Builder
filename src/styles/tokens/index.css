@@ -1,0 +1,28 @@
+/**
+ * tokens/index.css — 디자인 토큰 진입점
+ * 규칙: docs/DESIGN-TOKEN-RULES.md
+ *
+ * 로드 순서: Primitive → Semantic → Component
+ *   Primitive = 실제 값
+ *   Semantic  = UI 역할 (Primitive 참조, 컬러는 테마 스위칭)
+ *   Component = Semantic 사용
+ */
+
+/* ── Primitive ────────────────────────────────────────────── */
+@import "./primitives/colors.css";
+@import "./primitives/typography.css";
+@import "./primitives/spacing.css";
+@import "./primitives/radius.css";
+@import "./primitives/shadow.css";
+@import "./primitives/layout.css";
+
+/* ── Semantic ─────────────────────────────────────────────── */
+@import "./semantic/colors.css";
+@import "./semantic/typography.css";
+@import "./semantic/spacing.css";
+@import "./semantic/radius.css";
+@import "./semantic/shadow.css";
+@import "./semantic/layout.css";
+
+/* ── Component + State ────────────────────────────────────── */
+@import "./component-state.css";

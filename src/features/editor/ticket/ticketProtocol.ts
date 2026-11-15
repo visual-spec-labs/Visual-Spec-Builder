@@ -1,0 +1,251 @@
+/**
+ * GUI ↔ 외부 에이전트가 주고받는 **티켓 실행** 요청/응답의 형식 계약 (이슈 #184).
+ *
+ * #156의 A안(계획·상태 표시만)을 B안으로 넓히는 작업이다. #155(PR #177)가 이미
+ * `.visual-spec/runtime/`에 요청을 쓰고 에이전트가 응답을 쓰는 파일 교환 통로를
+ * 만들어 뒀다 — `editor/nl/nlProtocol.ts`가 그 통로의 자연어 편집 쪽 형식이고, 이
+ * 파일은 같은 통로를 티켓 실행에 재사용한 **티켓 실행 쪽 형식**이다. 새 라우트도
+ * 새 폴더도 만들지 않는다. `runtime` 디렉터리는 이미 `.json`만 받는 화이트리스트
+ * 항목이다(`workspace/protocol.ts`).
+ *
+ * ## 자연어 경로와 다른 점
+ *
+ * `nlProtocol.ts`의 응답은 Command 배열이라 G1(`validateTransaction`)을 통과시켜야
+ * `editorStore.applyGuardedTransaction`에 넘길 수 있다. 티켓 실행은 Command를 만들지
+ * 않는다 — 에이전트가 코드 파일을 쓴다. 그래서 응답은 "이 티켓들이 각각 끝났는지
+ * 실패했는지"라는 상태 보고일 뿐이고, 그 결과로 실제 파일이 맞게 생겼는지는 이 파일이
+ * 아니라 `export/verifyGenerated.ts`(#157)가 검증한다 — 여기서 다시 훑지 않는다.
+ *
+ * ## 임시 출력과 확정 (규약 v2, 이슈 #284)
+ *
+ * v1은 에이전트가 `generated/`에 바로 썼다. 그러면 취소·만료된 요청이 늦게 쓴 파일도
+ * 현재 결과와 같은 경로에 떨어져 Export가 성공으로 보였다. v2부터 에이전트는 요청마다
+ * 다른 임시 출력 `staging/<requestId>/<filePath>`(`outputPath`)에 쓰고, GUI가 현재 요청의
+ * 출력만 읽어 `generated/<filePath>`로 확정한다(`ui/ticketOutputAcceptance.ts`). `filePath`는
+ * 그대로 "확정될 자리"이자 출력 신원이다. 근거와 경계는 docs/26.
+ *
+ * ## 페이지 생성 자리 (규약 v3, #281)
+ *
+ * `filePath`는 `<프로젝트 폴더>/<PageId>/pages|components/<이름>.tsx`(`generated/` 기준)다. 앞의 두 단계
+ * (`generatedRoot`)가 프로젝트·페이지마다 달라 다른 프로젝트·페이지의 같은 이름이 같은 파일을 쓰지
+ * 않는다. 그 아래 배치와 상대 import 규칙은 v2 그대로다.
+ *
+ * **그래도 규약 버전을 v3으로 올린다(#281 리뷰).** 이미 설치된 v2 스킬은 `filePath`가 정확히
+ * `pages/<이름>.tsx`·`components/<이름>.tsx`여야 한다고 검증하므로, v2 번호로 새 경로를 보내면 구 스킬은
+ * 모든 티켓을 경로 오류로 실패시키거나(조용한 실패) 경로 규칙을 임의로 풀 수 있다. 번호를 올리면 구 스킬은
+ * 자기 규칙("protocol이 2가 아니면 파일을 쓰지 말고 버전을 맞추라고 보고")대로 쓰기 전에 멈추고, GUI는
+ * v2 응답이 오면 스킬 갱신(`visual-spec skills`)을 안내한다(`parseTicketResponse`). 새 스킬은 v3 요청을
+ * 처리하고, 구 GUI가 보낸 v2 요청(`generatedRoot` 없음)도 v2 규칙·v2 응답으로 처리한다(스킬 2번).
+ *
+ * ## 핸드셰이크
+ *
+ * ```
+ * GUI                                     에이전트
+ *  │ PUT runtime/ticket-request.json ──▶   (읽는다)
+ *  │                                        각 티켓의 outputPath(staging)에 쓴다
+ *  │ GET runtime/ticket-response.json ◀──  PUT runtime/ticket-response.json
+ *  │   requestId가 같아질 때까지 폴링
+ *  ▼
+ * 수용 검사·확정(staging → generated, #284) → ticketStore.tickets 갱신 → (전체 실행이면) 다음 웨이브
+ * ```
+ *
+ * 요청은 한 번에 여러 티켓을 실어 보낼 수 있다 — `dependsOn`이 전부 `"done"`인
+ * "준비된 티켓들"(`ticketStatus.readyTickets`) 한 웨이브가 단위다. 응답도 그 웨이브
+ * 전체에 대한 결과 배열 하나다 — `skills/visual-spec-to-react/SKILL.md`의 "여러
+ * 화면을 한 번에 처리한다"(배치 원칙, 하나가 실패해도 나머지는 계속)와 같은 단위다.
+ *
+ * ## 이 파일이 신뢰하지 않는 것
+ *
+ * 응답 JSON은 바깥에서 온 값이다. `parseTicketResponse`는 어떤 모양이 와도 예외를
+ * 던지지 않고 판정만 돌려준다(`nlProtocol.parseNlResponse`와 같은 원칙).
+ */
+
+import type { NodeId, PageId, ScreenSpec } from "@/features/editor/schema";
+import { generatedTicketPath } from "@/features/editor/export/generationIdentity";
+import type { Ticket, TicketStatus } from "@/features/editor/ticket/types";
+import { RUNTIME_DIR, STAGING_DIR } from "@/features/workspace/protocol";
+
+/**
+ * 요청/응답 JSON에 함께 실리는 형식 버전. `nlProtocol.NL_PROTOCOL_VERSION`과 같은
+ * 이유로 둔다 — 에이전트 쪽 구현이 GUI보다 오래된 규약을 들고 있을 수 있다.
+ * v1 `generated/` 직접 쓰기 → v2 임시 출력 확정(#284) → v3 생성 자리 `generatedRoot`(#281).
+ */
+export const TICKET_PROTOCOL_VERSION = 3;
+
+/** 스킬을 갱신하는 명령. 구버전 스킬이 응답했을 때 안내에 쓴다(docs/14). */
+const SKILL_UPDATE_HINT = "`visual-spec skills`로 에이전트의 스킬 사본을 갱신한 뒤";
+
+/** GUI가 쓰는 요청 파일(작업공간 루트 기준 상대 경로). */
+export const TICKET_REQUEST_PATH = `${RUNTIME_DIR}/ticket-request.json`;
+
+/** 응답 파일 이름. 목록 라우트가 돌려주는 값과 맞춰 보는 데 쓴다(`ticketAgentClient.ts`). */
+export const TICKET_RESPONSE_FILE = "ticket-response.json";
+
+/** 에이전트가 쓰는 응답 파일. GUI가 이 파일을 폴링한다. */
+export const TICKET_RESPONSE_PATH = `${RUNTIME_DIR}/${TICKET_RESPONSE_FILE}`;
+
+/** 요청에 실리는 티켓 하나. 에이전트가 이 정보만으로 파일을 어디에 써야 하는지 안다. */
+export interface TicketRequestItem {
+  id: string;
+  componentName: string;
+  kind: "page" | "component";
+  instances: NodeId[];
+  /**
+   * 확정될 자리 — `.visual-spec/generated/` 기준 상대 경로. `export/generationIdentity.generatedTicketPath`가
+   * 정한다(`<generatedRoot>/pages|components/<이름>.tsx`, 규약 v3·#281). 에이전트는 여기에 직접 쓰지 않는다(v2부터).
+   */
+  filePath: string;
+  /** 에이전트가 실제로 쓰는 임시 출력 — `.visual-spec/` 기준 상대 경로(#284). */
+  outputPath: string;
+}
+
+/** 요청 하나의 임시 출력 폴더(`.visual-spec/` 기준). 요청 ID마다 다르다. */
+export function ticketOutputRoot(requestId: string): string {
+  return `${STAGING_DIR}/${requestId}`;
+}
+
+/** 확정될 자리(`generated/` 기준)에 대응하는 이 요청의 임시 출력 경로(`.visual-spec/` 기준). */
+export function ticketOutputPath(requestId: string, filePath: string): string {
+  return `${ticketOutputRoot(requestId)}/${filePath}`;
+}
+
+export interface TicketRequest {
+  protocol: number;
+  /** 이 요청(웨이브)의 식별자. 응답의 `requestId`와 같아야 짝으로 인정한다. */
+  id: string;
+  /** 대상 페이지. 1차는 활성 페이지 한 장뿐이다(nlProtocol과 같은 제약). */
+  pageId: PageId;
+  /** 대상 페이지의 현재 스펙 전체. 에이전트가 노드 구조를 여기서 읽는다. */
+  page: ScreenSpec;
+  /** 이번 웨이브에 포함된 티켓들 — 의존성이 이미 끝난 것들만 온다. */
+  tickets: TicketRequestItem[];
+  /** 에이전트가 답을 써야 하는 자리. 규약을 문서 밖에서도 알 수 있게 실어 보낸다. */
+  responsePath: string;
+  /** 이 요청의 임시 출력 폴더(`.visual-spec/` 기준, #284). 각 티켓의 `outputPath`는 이 아래다. */
+  outputRoot: string;
+  /**
+   * 이 페이지의 생성 자리(`.visual-spec/generated/` 기준, #281). 각 티켓의 `filePath`는 이 아래이고,
+   * 이전 웨이브가 확정한 의존 컴포넌트도 `generated/<generatedRoot>/components/`에 있다.
+   */
+  generatedRoot: string;
+}
+
+export interface BuildTicketRequestInput {
+  id: string;
+  pageId: PageId;
+  page: ScreenSpec;
+  tickets: Ticket[];
+  /** 이 페이지의 생성 자리(`ui/generationTarget.ts`가 정한다, #281). */
+  generatedRoot: string;
+}
+
+/** 요청 파일에 쓸 객체를 만든다. 순수 함수 — 파일을 쓰지 않는다. */
+export function buildTicketRequest(input: BuildTicketRequestInput): TicketRequest {
+  return {
+    protocol: TICKET_PROTOCOL_VERSION,
+    id: input.id,
+    pageId: input.pageId,
+    page: input.page,
+    tickets: input.tickets.map((ticket) => ({
+      id: ticket.id,
+      componentName: ticket.componentName,
+      kind: ticket.kind,
+      instances: ticket.instances,
+      filePath: generatedTicketPath(input.generatedRoot, ticket),
+      outputPath: ticketOutputPath(input.id, generatedTicketPath(input.generatedRoot, ticket)),
+    })),
+    responsePath: TICKET_RESPONSE_PATH,
+    outputRoot: ticketOutputRoot(input.id),
+    generatedRoot: input.generatedRoot,
+  };
+}
+
+/** 티켓 하나에 대한 실행 결과. `done`이면 `message`는 없어도 된다. */
+export interface TicketResultItem {
+  ticketId: string;
+  status: Extract<TicketStatus, "done" | "failed">;
+  /** `status`가 `"failed"`일 때 사람이 읽을 실패 사유. */
+  message?: string;
+}
+
+/**
+ * 응답 판정.
+ *
+ * - `stale` — 아직 이번 요청(웨이브)의 답이 아니다. 호출부는 계속 기다린다.
+ * - `malformed` — JSON이 아니거나 모양이 규약과 다르다.
+ * - `results` — 통과. `ticketStatus.applyTicketResults`로 넘긴다.
+ */
+export type TicketResponseResult =
+  | { kind: "stale" }
+  | { kind: "malformed"; message: string }
+  | { kind: "results"; results: TicketResultItem[] };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isTicketResultItem(value: unknown): value is TicketResultItem {
+  if (!isRecord(value)) return false;
+  if (typeof value.ticketId !== "string" || value.ticketId === "") return false;
+  if (value.status !== "done" && value.status !== "failed") return false;
+  if (value.message !== undefined && typeof value.message !== "string") return false;
+  return true;
+}
+
+/**
+ * 응답 파일 본문을 판정한다. **절대 예외를 던지지 않는다** — `nlProtocol.parseNlResponse`와
+ * 같은 이유다.
+ *
+ * `text`가 null이면(파일이 아직 없다) `stale`이다.
+ */
+export function parseTicketResponse(
+  text: string | null,
+  requestId: string,
+): TicketResponseResult {
+  if (text === null) return { kind: "stale" };
+
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return { kind: "malformed", message: "응답 파일이 올바른 JSON이 아닙니다." };
+  }
+
+  if (!isRecord(body)) {
+    return { kind: "malformed", message: "응답이 객체가 아닙니다." };
+  }
+
+  // requestId를 가장 먼저 본다 — 낡은 응답에 담긴 실패를 이번 요청의 실패로 보여주지 않는다.
+  if (body.requestId !== requestId) return { kind: "stale" };
+
+  if (body.protocol !== TICKET_PROTOCOL_VERSION) {
+    // 구버전 스킬이 응답했다 — 그 응답의 경로·결과는 이 요청의 생성 자리 규칙(v3)을 모르고 만든 것이라 받지
+    // 않고, 무엇을 하면 되는지 알린다(#281 리뷰). 더 새 응답이면 GUI 쪽이 낡았다.
+    const received = JSON.stringify(body.protocol);
+    const older = typeof body.protocol === "number" && body.protocol < TICKET_PROTOCOL_VERSION;
+    const newer = typeof body.protocol === "number" && body.protocol > TICKET_PROTOCOL_VERSION;
+    return {
+      kind: "malformed",
+      message: older
+        ? `에이전트의 티켓 응답 스킬이 구버전입니다(티켓 요청 규약 v${received} 응답, 이 GUI는 v${TICKET_PROTOCOL_VERSION}). ` +
+          `이 응답과 그 출력은 받지 않았습니다. ${SKILL_UPDATE_HINT} 티켓을 다시 전달하세요.`
+        : newer
+          ? `에이전트의 스킬이 이 GUI보다 새 티켓 요청 규약(v${received})으로 응답했습니다(이 GUI는 v${TICKET_PROTOCOL_VERSION}). ` +
+            "Visual Spec Builder를 업데이트한 뒤 다시 전달하세요."
+          : `응답 형식 버전이 다릅니다(기대: ${TICKET_PROTOCOL_VERSION}, 받음: ${received}).`,
+    };
+  }
+
+  if (!Array.isArray(body.results)) {
+    return { kind: "malformed", message: "응답에 results 배열이 없습니다." };
+  }
+
+  if (!body.results.every(isTicketResultItem)) {
+    return { kind: "malformed", message: "results 항목 모양이 규약과 다릅니다." };
+  }
+
+  if (new Set(body.results.map((item) => item.ticketId)).size !== body.results.length) {
+    return { kind: "malformed", message: "응답 티켓 ID가 중복됩니다." };
+  }
+  return { kind: "results", results: body.results };
+}

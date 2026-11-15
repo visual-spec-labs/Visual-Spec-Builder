@@ -1,0 +1,11 @@
+/**
+ * primitives/shadow.css — Primitive 그림자 토큰
+ * 규칙: docs/DESIGN-TOKEN-RULES.md — Primitive = 실제 값.
+ */
+
+@theme inline {
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.55);
+  --shadow-focus-ring: 0 0 0 3px rgba(255, 122, 51, 0.55);
+}
