@@ -85,13 +85,27 @@ describe("resolveScope — 사용자가 직접 고른 범위", () => {
   it("node 를 골랐고 선택도 있으면 선택 요소다", () => {
     expect(resolveScope(page, "card", "node").nodeId).toBe("card");
   });
+
+  it("새 페이지는 선택이 있어도 선택을 가리키지 않는다 — 프로젝트 단위 작업이다 (#497)", () => {
+    expect(resolveScope(page, "card", "newPage")).toEqual({
+      kind: "newPage",
+      nodeId: null,
+      label: "새 프로젝트 페이지",
+    });
+  });
+
+  it("새 페이지는 기본값으로는 나오지 않는다 — 사용자가 고를 때만이다", () => {
+    expect(resolveScope(page, null).kind).toBe("screen");
+    expect(resolveScope(page, "card").kind).toBe("node");
+  });
 });
 
-describe("scopeOptions — 입력창 위 라디오 두 칸", () => {
-  it("선택이 있으면 두 칸 다 고를 수 있다", () => {
+describe("scopeOptions — 입력창 위 라디오 칸", () => {
+  it("선택이 있으면 선택 요소·현재 화면 칸을 다 고를 수 있다", () => {
     expect(scopeOptions(page, "card")).toEqual([
       { kind: "node", label: "현재 선택 요소: ProductCard", disabled: false },
       { kind: "screen", label: "현재 화면: Product List", disabled: false },
+      { kind: "newPage", label: "새 프로젝트 페이지", disabled: false },
     ]);
   });
 
@@ -101,12 +115,22 @@ describe("scopeOptions — 입력창 위 라디오 두 칸", () => {
     expect(nodeOption).toEqual({ kind: "node", label: "현재 선택 요소: 없음", disabled: true });
   });
 
-  it("1차에는 '전체 프로젝트' 칸이 없다 — docs/08 7.2", () => {
-    expect(scopeOptions(page, "card")).toHaveLength(2);
+  it("새 페이지 칸은 선택이 없어도 고를 수 있다 — 지금 화면과 무관한 작업이다 (#497)", () => {
+    expect(scopeOptions(page, null).at(-1)).toEqual({ kind: "newPage", label: "새 프로젝트 페이지", disabled: false });
+  });
+
+  it("'전체 프로젝트' 칸은 여전히 없다 — docs/08 7.2", () => {
+    expect(scopeOptions(page, "card").map((option) => option.kind)).toEqual(["node", "screen", "newPage"]);
   });
 });
 
 describe("scopeHint — 범위로 바꿀 수 있는 것 (#440)", () => {
+  it("새 페이지 범위는 지금 화면이 바뀌지 않는다고 먼저 알린다 (#497)", () => {
+    expect(scopeHint(page, resolveScope(page, "card", "newPage"))).toBe(
+      "새 페이지를 만들어 프로젝트에 더하고 그 안을 구성합니다. 지금 화면은 바뀌지 않습니다.",
+    );
+  });
+
   it("화면 범위는 새 요소를 넣을 수 있다고 알린다", () => {
     expect(scopeHint(page, resolveScope(page, null))).toBe("이 화면의 모든 요소를 바꾸거나 새 요소를 넣을 수 있습니다.");
   });

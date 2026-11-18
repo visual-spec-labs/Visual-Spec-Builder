@@ -24,7 +24,7 @@ import {
   createAgentRequestWait,
   type AgentRequestWait,
 } from "@/features/editor/ui/agentRequestWait";
-import { RUNTIME_DIR } from "@/features/workspace/protocol";
+import { ASSET_DIR, RUNTIME_DIR } from "@/features/workspace/protocol";
 
 import {
   buildNlRequest,
@@ -113,12 +113,23 @@ export async function requestNlEdit(
   }
 }
 
+/**
+ * 요청에 실을 asset 경로 목록(#497). 작업공간이 없거나 폴더가 비면 빈 배열이다 —
+ * 목록을 못 받은 것과 가져온 이미지가 없는 것을 요청에서 가를 이유가 없다(둘 다 "쓸 파일이 없다").
+ *
+ * 이름만 돌려주는 목록 라우트에 폴더 이름을 붙여 `ImageNode.src`에 그대로 쓸 수 있는 모양으로 준다.
+ */
+async function listAssetPaths(): Promise<string[]> {
+  const names = await listWorkspaceFiles(ASSET_DIR);
+  return names === null ? [] : names.map((name) => `${ASSET_DIR}/${name}`);
+}
+
 async function sendNlRequest(
   input: BuildNlRequestInput,
   cancel: NlCancelToken,
   wait: AgentRequestWait,
 ): Promise<NlRequestOutcome> {
-  const request = buildNlRequest(input);
+  const request = buildNlRequest({ ...input, assets: input.assets ?? await listAssetPaths() });
 
   // 같은 작업공간의 다른 탭 요청을 덮어쓰지 않도록 요청 파일 잠금부터 잡는다(#273).
   const lock = await holdRequestLock("nl", request.id, () => cancel.cancelled);

@@ -20,6 +20,9 @@ import type { NodeId, ScreenSpec } from "@/features/editor/schema";
 
 import type { NlScope, NlScopeKind } from "./nlProtocol";
 
+/** 새 페이지 칸의 라벨. 라디오와 범위 판정이 같은 말을 쓰도록 한 곳에 둔다. */
+const NEW_PAGE_LABEL = "새 프로젝트 페이지";
+
 /**
  * 적용 범위를 정한다.
  *
@@ -34,6 +37,10 @@ export function resolveScope(
   selectedId: NodeId | null,
   override: NlScopeKind | null = null,
 ): NlScope {
+  // 새 페이지는 선택·활성 화면과 무관한 **프로젝트 단위** 작업이라(#497) 선택 상태를 보지 않는다 —
+  // 고를 것이 없어 비활성이 되는 경우도 없다. 기본값으로는 절대 나오지 않는다(사용자가 고를 때만).
+  if (override === "newPage") return { kind: "newPage", nodeId: null, label: NEW_PAGE_LABEL };
+
   const node = selectedId === null ? undefined : page.nodes[selectedId];
   const canUseNode = selectedId !== null && node !== undefined;
   const kind: NlScopeKind = canUseNode && override !== "screen" ? "node" : "screen";
@@ -44,7 +51,7 @@ export function resolveScope(
   return { kind: "screen", nodeId: null, label: `현재 화면: ${page.name}` };
 }
 
-/** 라디오 두 칸에 쓸 라벨. 선택 노드가 없으면 `node` 칸은 고를 수 없다. */
+/** 라디오 칸에 쓸 라벨. 선택 노드가 없으면 `node` 칸은 고를 수 없다. */
 export interface ScopeOption {
   kind: NlScopeKind;
   label: string;
@@ -60,6 +67,9 @@ export function scopeOptions(page: ScreenSpec, selectedId: NodeId | null): Scope
       disabled: node === undefined,
     },
     { kind: "screen", label: `현재 화면: ${page.name}`, disabled: false },
+    // 세 번째 칸은 지금 화면이 아니라 프로젝트를 겨냥한다(#497). 선택 상태와 무관하므로
+    // 비활성이 되는 조건이 없다. "전체 프로젝트"는 여전히 없다(docs/08 7.2).
+    { kind: "newPage", label: NEW_PAGE_LABEL, disabled: false },
   ];
 }
 
@@ -71,6 +81,10 @@ export function scopeOptions(page: ScreenSpec, selectedId: NodeId | null): Scope
  * 알 수 있게 라디오 아래에 적고, 옆·바깥에 넣으려면 무엇을 고르면 되는지(부모 요소 이름)까지 쓴다.
  */
 export function scopeHint(page: ScreenSpec, scope: NlScope): string {
+  // 이 범위만 "지금 화면이 안 바뀐다"를 먼저 말한다 — 적용 대상이 보고 있는 화면이 아니기 때문이다.
+  if (scope.kind === "newPage") {
+    return "새 페이지를 만들어 프로젝트에 더하고 그 안을 구성합니다. 지금 화면은 바뀌지 않습니다.";
+  }
   const node = scope.nodeId === null ? undefined : page.nodes[scope.nodeId];
   if (scope.kind === "screen" || scope.nodeId === null || node === undefined) {
     return "이 화면의 모든 요소를 바꾸거나 새 요소를 넣을 수 있습니다.";

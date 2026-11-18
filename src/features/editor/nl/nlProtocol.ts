@@ -56,6 +56,7 @@ import type { CommandValidationIssue } from "@/features/editor/command/validate"
 import { validateTransaction } from "@/features/editor/command/validate";
 import { COMMAND_VERSION, type Command } from "@/features/editor/command/types";
 import type { WidgetProjectCommand } from "@/features/editor/command/widgetProjectCommand";
+import type { CreatePageCommand } from "@/features/editor/command/createPageCommand";
 import type { NodeId, PageId, ScreenSpec, ProjectSpec, ScreenKind } from "@/features/editor/schema";
 import { RUNTIME_DIR } from "@/features/workspace/protocol";
 
@@ -77,12 +78,19 @@ export const NL_RESPONSE_FILE = "nl-response.json";
 /** 에이전트가 쓰는 응답 파일. GUI가 이 파일을 폴링한다. */
 export const NL_RESPONSE_PATH = `${RUNTIME_DIR}/${NL_RESPONSE_FILE}`;
 
-/** 적용 범위 — 03-user-flow.md의 "적용 대상". 1차는 둘뿐이다("전체 프로젝트" 제외). */
-export type NlScopeKind = "node" | "screen";
+/**
+ * 적용 범위 — 03-user-flow.md의 "적용 대상".
+ *
+ * `"newPage"`는 현재 화면을 고치는 둘과 **다른 단위**다(#497) — 활성 `ScreenSpec` 한 장이 아니라
+ * 프로젝트에 페이지를 더한다. 그래서 응답도 `commands`가 아니라 `projectCommand`의 `createPage`로
+ * 온다. "전체 프로젝트"는 여전히 없다(docs/08 7.2) — 있는 화면들을 한꺼번에 바꾸는 범위는
+ * 위험하다는 03의 판단이 그대로다. 새 페이지는 **아무것도 덮어쓰지 않아** 그 위험이 없다.
+ */
+export type NlScopeKind = "node" | "screen" | "newPage";
 
 export interface NlScope {
   kind: NlScopeKind;
-  /** `kind`가 `"node"`일 때 대상 노드. 화면 범위면 null. */
+  /** `kind`가 `"node"`일 때 대상 노드. 화면·새 페이지 범위면 null. */
   nodeId: NodeId | null;
   /** 입력창 위에 그대로 보여 줄 한국어 라벨. */
   label: string;
@@ -138,6 +146,21 @@ export interface NlRequest {
   destinations?: readonly NlDestination[];
   /** Only widget sources transitively referenced by the active page; read-only context. */
   widgets?: readonly NlWidgetSource[];
+  /**
+   * 새 페이지 범위에서 **GUI가 발급한** 충돌 없는 새 PageId (#497).
+   *
+   * 에이전트가 id를 짓지 않는 이유는 `command/createPageCommand.ts` 상단에 적었다 —
+   * 이미 있는 키가 오면 기존 화면을 덮어쓴다. 응답의 `createPage.pageId`는 이 값과 같아야 한다.
+   */
+  newPageId?: PageId;
+  /**
+   * 작업공간에 이미 가져온 이미지의 상대 경로(`assets/...`). **읽기 전용 문맥**이다 — 이 목록에
+   * 있는 파일만 `src`로 쓸 수 있다는 뜻이고, 이미지 데이터를 응답에 넣으라는 뜻이 아니다.
+   *
+   * 실어 보내는 이유: 없으면 에이전트가 로컬 파일 경로를 짐작해 적고, 그 경로가 없는 파일이라
+   * 미리보기·캔버스에 빈 상자만 남는다. 목록이 비면 필드 자체를 생략한다.
+   */
+  assets?: readonly string[];
 }
 
 export interface BuildNlRequestInput {
@@ -148,11 +171,19 @@ export interface BuildNlRequestInput {
   scope: NlScope;
   pageId: PageId;
   page: ScreenSpec;
+  /** 새 페이지 범위에서만 넘긴다. 다른 범위에서 넘어오면 요청에 싣지 않는다. */
+  newPageId?: PageId;
+  /** 작업공간 asset 경로. 파일을 읽는 호출부(`nlAgentClient.ts`)가 채운다. */
+  assets?: readonly string[];
 }
 
 /** 요청 파일에 쓸 객체를 만든다. 순수 함수 — 파일을 쓰지 않는다. */
 export function buildNlRequest(input: BuildNlRequestInput): NlRequest {
   const widgets = input.project ? buildWidgetSourceCatalog(input.project, input.page) : [];
+  // newPageId는 범위가 새 페이지일 때만 싣는다 — 다른 범위에 실어 보내면 "이 응답으로 페이지를
+  // 만들어도 된다"는 신호로 읽힐 수 있고, GUI는 그 범위에서 createPage를 받지 않는다.
+  const newPageId = input.scope.kind === "newPage" ? input.newPageId : undefined;
+  const assets = input.assets ?? [];
   return {
     protocol: NL_PROTOCOL_VERSION,
     commandVersion: COMMAND_VERSION,
@@ -164,6 +195,8 @@ export function buildNlRequest(input: BuildNlRequestInput): NlRequest {
     responsePath: NL_RESPONSE_PATH,
     ...(input.project ? { destinations: buildDestinationCatalog(input.project) } : {}),
     ...(widgets.length ? { widgets } : {}),
+    ...(newPageId === undefined ? {} : { newPageId }),
+    ...(assets.length ? { assets } : {}),
   };
 }
 
@@ -177,6 +210,8 @@ export function buildNlRequest(input: BuildNlRequestInput): NlRequest {
  * - `invalid` — Command 배열이 G1(Command 스키마)을 통과하지 못했다.
  * - `commands` — 화면 Command가 통과했다. G2·G3로 넘긴다.
  * - `projectCommand` — 닫힌 위젯 추출·다른 페이지 배치 명령. 프로젝트 검증으로 넘긴다.
+ * - `createPage` — 새 프로젝트 페이지 한 장(#497). 같은 `projectCommand` 자리로 오지만 적용
+ *   경로가 달라(`command/createPageCommand.ts`) 판정부터 갈라 둔다.
  */
 export type NlResponseResult =
   | { kind: "stale" }
@@ -184,10 +219,31 @@ export type NlResponseResult =
   | { kind: "agentError"; message: string }
   | { kind: "invalid"; issues: CommandValidationIssue[] }
   | { kind: "commands"; commands: Command[] }
-  | { kind: "projectCommand"; command: Extract<WidgetProjectCommand, { type: "extractAndPlaceWidget" }> };
+  | { kind: "projectCommand"; command: Extract<WidgetProjectCommand, { type: "extractAndPlaceWidget" }> }
+  | { kind: "createPage"; command: CreatePageCommand };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * `createPage` 명령의 **형식**만 본다 — 새 페이지 스펙의 내용은 `applyCreatePageCommand`가
+ * 후보 프로젝트로 검증한다. 여기서 보는 것은 "필드가 정확히 넷인가"다. 모르는 필드가 섞인
+ * 명령을 통과시키면 다음 규약에서 그 필드에 뜻이 생겼을 때 조용히 다른 일을 하게 된다.
+ *
+ * `commandVersion`은 현재 값만 받는다 — 위젯 명령이 호환용 `"0.2"`를 함께 받는 것과 다르다.
+ * 이 명령은 `"0.3"` 이후에 생겼으니 옛 생산자가 보낼 수 있는 값이 아니다.
+ */
+function parseCreatePage(body: Record<string, unknown>, command: Record<string, unknown>): NlResponseResult {
+  const fields = ["version", "type", "pageId", "page"];
+  if (body.commandVersion !== COMMAND_VERSION
+    || Object.keys(command).length !== fields.length || fields.some((key) => !Object.hasOwn(command, key))
+    || command.version !== "0.1"
+    || typeof command.pageId !== "string" || command.pageId.trim() === ""
+    || !isRecord(command.page)) {
+    return { kind: "malformed", message: "새 페이지 생성 명령 형식이 올바르지 않습니다." };
+  }
+  return { kind: "createPage", command: command as unknown as CreatePageCommand };
 }
 
 /**
@@ -231,6 +287,11 @@ export function parseNlResponse(
 
   if (Object.hasOwn(body, "projectCommand")) {
     const command = body.projectCommand;
+    // 프로젝트 명령은 종류마다 적용 경로가 다르다. 먼저 종류로 갈라야 한쪽의 필드 검사가
+    // 다른 쪽을 "모양이 틀렸다"로 거절하지 않는다.
+    if (isRecord(command) && !Object.hasOwn(body, "commands") && command.type === "createPage") {
+      return parseCreatePage(body, command);
+    }
     const fields = ["version", "type", "pageId", "nodeId", "widgetId", "name", "targetPageId"];
     if ((body.commandVersion !== "0.2" && body.commandVersion !== COMMAND_VERSION) || Object.hasOwn(body, "commands") || !isRecord(command)
       || Object.keys(command).length !== fields.length || fields.some((key) => !Object.hasOwn(command, key))
