@@ -558,9 +558,27 @@ export function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
   // 캔버스가 기본으로 보여주는 폭(responsive/resolveResponsive.ts의 기본 미리보기 폭 규칙과 같음)과
   // 같은 조건으로 해석해야, 데스크톱 재정의가 있는 화면도 썸네일과 캔버스가 같은 배치로 나온다.
   const resolved = useMemo(() => resolveResponsiveScreen(page, width), [page, width]);
-  const scale = previewScale(width, height, PREVIEW_WIDTH, PREVIEW_HEIGHT);
   const [ref, seen] = useSeenOnce<HTMLDivElement>(scrollRoot, drawn);
   useEffect(() => { if (seen) onDrawn(); }, [seen, onDrawn]);
+  // 미리보기 상자의 **실측 크기**. 상자는 카드보다 넓어질 수 없으므로(아래 maxWidth) 칸이
+  // 208보다 좁으면 상자도 좁아진다. 그 폭으로 배율을 다시 내지 않으면 안쪽이 상자 밖으로
+  // 넘쳐 `overflow-hidden`에 오른쪽이 잘린다. 측정 전에는 상자 기본 크기를 쓴다.
+  const [box, setBox] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (element === null) return;
+    // 크기가 그대로면 같은 객체를 돌려준다 — 새 객체를 매번 넣으면 관측 시작 알림만으로도
+    // 카드가 한 번씩 더 그려진다(목록이 50장이면 50번이다, #315).
+    const report = () => setBox((current) =>
+      current !== null && current.width === element.clientWidth && current.height === element.clientHeight
+        ? current
+        : { width: element.clientWidth, height: element.clientHeight });
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+  const scale = previewScale(width, height, box?.width ?? PREVIEW_WIDTH, box?.height ?? PREVIEW_HEIGHT);
   // 이미지는 원본이 아니라 카드 크기로 줄인 것을 쓴다(#322). 줄이는 동안은 그 이미지만 비워 둔다.
   const imageSrcs = useMemo(() => collectImageSrcs(resolved.nodes, resolved.root), [resolved]);
   const imageSrc = usePreviewThumbnails(imageSrcs, seen, THUMBNAIL_SHORT_SIDE);
@@ -573,7 +591,12 @@ export function ProjectPreview({ page, scrollRoot, drawn, onDrawn }: {
       aria-hidden="true"
       data-preview={seen ? "ready" : "pending"}
       className="relative overflow-hidden rounded-control bg-surface-canvas"
-      style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT }}
+      // `maxWidth`가 없으면 미리보기가 **카드 밖으로 넘친다.** 칸의 최소 폭은
+      // `minmax(208px, 1fr)`로 미리보기와 같은 208이지만, 카드는 그 안에서 테두리(1+1)와
+      // 여백(p-2 = 8+8)을 쓰므로 안쪽 폭이 늘 20px 좁다 — 고정 208 상자가 그만큼 삐져나와
+      // 카드 테두리와 옆 카드를 덮었다. 폭이 상자보다 넓어지지는 않게 둔다: 더 키우면
+      // 축소본(THUMBNAIL_SHORT_SIDE)보다 큰 자리에 그려져 이미지가 흐려진다(#322).
+      style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT, maxWidth: "100%" }}
     >
       {seen && (
         <div

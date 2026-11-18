@@ -139,6 +139,12 @@ describe("ProjectPreview — 썸네일의 반응형 해석 (#439)", () => {
     expect(markup).toContain('data-preview-image="1"');
   });
 
+  // 카드 칸의 최소 폭(208)과 미리보기 상자의 폭이 같아서, 카드 테두리·여백(합 20px)만큼
+  // 상자가 카드 밖으로 삐져나와 테두리와 옆 카드를 덮었다. 상자가 칸보다 넓어지지 않게 고정한다.
+  it("미리보기 상자는 카드 안쪽 폭을 넘지 않는다", () => {
+    expect(render(page())).toContain("max-width:100%");
+  });
+
   it("폭이 desktop 분기점보다 좁은 페이지는 base(column)를 그대로 쓴다", () => {
     const spec = page();
     spec.size = { width: 600, height: 900 };
