@@ -5,7 +5,7 @@ description: Visual Spec Builder GUI가 `.visual-spec/runtime/nl-request.json`�
 
 # 자연어 요청에 Command로 응답하기
 
-현재 범위 구분: 화면 로컬 명령과 달리 공용 색·글자 스타일 수정/삭제는 프로젝트 전체의 연결된 노드에 영향을 준다. 일반 Command gate는 선택 노드 scope를 인자로 받지 않으므로 선택 범위 준수는 요청·스킬 계약이며 별도 서버 권한 검증으로 주장하지 않는다. 명시적 위젯 추출·배치는 별도 projectCommand 경로다.
+현재 범위 구분: 화면 로컬 명령과 달리 공용 색·글자 스타일 수정/삭제는 프로젝트 전체의 연결된 노드에 영향을 준다. 일반 Command gate는 선택 노드 scope를 인자로 받지 않으므로 선택 범위 준수는 요청·스킬 계약이며 별도 서버 권한 검증으로 주장하지 않는다. 명시적 위젯 추출·배치와 새 프로젝트 페이지 생성은 별도 projectCommand 경로다.
 
 이 스킬이 지금 상황에 맞지 않으면 [../visual-spec/SKILL.md](../visual-spec/SKILL.md)를 대신 연다.
 
@@ -54,11 +54,13 @@ G1(Command 스키마) → G2·G3(dry-run·결과 검증, 전부-또는-전무) �
 | `protocol` | 형식 버전. 지금은 `2`. 응답에도 **그대로** 돌려줘야 한다 |
 | `id` | 이 요청의 식별자. 응답에는 이 값을 `requestId`라는 **다른 이름**으로 돌려준다(아래 참고) |
 | `instruction` | 사용자가 입력창에 적은 자연어 원문 |
-| `scope` | 적용 대상. `{ kind: "node" \| "screen", nodeId: string \| null, label: string }` — `kind`가 `"node"`면 `nodeId`가 그 노드, `"screen"`이면 `nodeId`는 `null`이고 화면 전체가 대상이다 |
+| `scope` | 적용 대상. `{ kind: "node" \| "screen" \| "newPage", nodeId: string \| null, label: string }` — `kind`가 `"node"`면 `nodeId`가 그 노드, `"screen"`이면 `nodeId`는 `null`이고 화면 전체가 대상이다. `"newPage"`는 **현재 화면을 고치지 않는다** — 아래 "새 프로젝트 페이지 만들기" 절만 따른다 |
 | `pageId` | 대상 페이지 id (참고용 — Command 자체에는 페이지 개념이 없다) |
 | `page` | 대상 페이지의 **현재 스펙 전체**(`ScreenSpec` — `name`·`size`·`root`·`nodes`). 노드 id와 현재 값은 전부 여기서 읽는다. **추측하지 않는다** |
 | `destinations` | 선택 읽기 전용 목록: `{pageId, name, kind}`. kind는 생략 해석을 끝낸 page/modal/widget. 다른 화면 nodes나 편집 권한이 아니다 |
 | `widgets` | 선택 읽기 전용 목록: 현재 화면의 instance에서 전이적으로 참조하는 `{pageId,screen}` widget 원본. 다른 화면으로 Command 대상을 넓히지 않는다 |
+| `newPageId` | `scope.kind`가 `"newPage"`일 때만 온다. GUI가 발급한 **새 페이지의 PageId**다. `createPage`의 `pageId`에 이 값을 그대로 쓴다 — 다른 값을 쓰면 거부된다 |
+| `assets` | 선택 읽기 전용 목록: 작업공간에 이미 가져온 이미지의 상대 경로(`assets/hero.png`). `ImageNode.src`에는 **이 목록의 경로만** 쓴다. 로컬 파일 경로를 짐작하거나 이미지 데이터를 응답에 담지 않는다 |
 | `responsePath` | 응답을 써야 할 경로. **`.visual-spec/` 기준 상대 경로다** — 값은 `runtime/nl-response.json`이고 실제 파일은 `.visual-spec/runtime/nl-response.json`이다. 프로젝트 루트 기준으로 해석해 `runtime/`을 새로 만들지 않는다. 다른 값이 오면 쓰지 말고 사용자에게 알린다 |
 
 `scope.kind === "node"`면 요청은 그 노드(와 필요하면 그 자손)만 겨냥한다. `page.nodes`에서
@@ -95,6 +97,32 @@ commands를 만들지 않는다. 그 밖의 버전 불일치는 요청 protocol�
 - 위젯 원본 자체를 바꾸려면 현재 `pageId`가 그 widget인 요청에서 해당 화면의 로컬 노드 Command로 편집한다. 다른 화면의 instance 요청에서 원본을 직접 수정하지 않는다.
 - **선택한 프레임을 위젯으로 만들고 다른 페이지에도 넣기**는 아래의 단일 `projectCommand`만 쓴다. `scope.kind`는 `node`, `scope.nodeId`는 현재 `page.nodes`의 루트 아닌 frame이어야 한다. `destinations`에서 요청 대상 이름과 유일하게 일치하는 kind=page의 `pageId`를 `targetPageId`로 쓴다. 중복 이름·없는 대상·프레임 선택 없음은 error로 답한다. `widgetId`는 `destinations`의 모든 PageId와 달라야 하며 새 ID를 명시한다. 다른 페이지의 노드 구조는 추측하지 않는다. GUI가 대상 페이지 root 아래에 인스턴스를 배치한다. 이 응답에 `commands`를 섞지 않는다. 분리는 GUI 명시 동작으로 남는다.
 - GUI가 응답 Command를 현재 프로젝트 전체에 다시 적용해 참조·순환·override 무결성을 검증한다. 검증 실패를 우회해 스펙 파일을 직접 변경하지 않는다.
+
+## 새 프로젝트 페이지 만들기 (#497)
+
+`scope.kind`가 `"newPage"`면 사용자는 **지금 화면이 아니라 프로젝트에 페이지를 한 장 더하라**고
+요청한 것이다(예: *"새 페이지를 추가해 패션 타이포그래피 화면을 만들고 가져온 이미지 세 장을
+배치해줘"*). 이 범위에는 `commands`로 답하지 않는다 — 화면 Command는 활성 페이지를 고치므로
+사용자가 고른 대상과 다른 곳을 바꾼다. GUI가 그런 응답을 적용하지 않고 오류로 돌려보낸다.
+
+- 응답은 **`projectCommand`의 `createPage` 하나**다. `commands`와 섞지 않는다.
+- `pageId`는 요청의 `newPageId`를 **그대로** 쓴다. 새 ID를 짓지 않는다 — 이미 있는 페이지 키를
+  쓰면 그 화면이 통째로 사라지므로 GUI가 발급한 값만 받는다.
+- `page`는 **완전한 `ScreenSpec`**이다(`name`·`size`·`root`·`nodes`). 빈 페이지를 먼저 만들고
+  채우는 경로가 아니라 한 번에 완성된 화면을 보낸다. 노드 기본값은 아래 "새 노드의 기본값" 표를
+  그대로 쓰고, `kind`는 생략한다(`"page"`가 기본값이고 modal·widget은 이 경로로 만들지 않는다).
+- `nodes`는 `root`에서 `children`으로 전부 닿아야 한다. 화면 하나를 통째로 보내므로
+  `createNode`의 "부모 먼저" 규칙 대신 `visual-spec-authoring`의 문서 규칙(orphan-node·
+  child-missing·cycle)이 그대로 적용된다.
+- 이미지는 요청 `assets`에 **있는 경로만** 쓴다. 목록이 없거나 비면 이미지 노드를 만들지 말고
+  그 사실을 `error`로 알린다 — 없는 경로를 적으면 캔버스에 빈 상자만 남는다.
+- 버튼의 `action`으로 다른 화면을 가리킬 때는 `destinations`의 PageId만 쓴다. 새 페이지 자신을
+  가리키려면 `newPageId`를 쓴다.
+- GUI는 후보 프로젝트 전체를 검증해 **성공했을 때만** 페이지 추가와 활성화를 한 Undo 단계로
+  커밋한다. 실패하면 빈 페이지도 남지 않으므로, 실패한 요청을 "페이지는 생겼다"고 설명하지 않는다.
+
+기존 페이지를 고치라는 요청에는 이 명령을 쓰지 않는다 — `scope.kind`가 `"node"`·`"screen"`이면
+`newPageId`가 아예 오지 않고, 그 범위의 `createPage`는 GUI가 거부한다.
 
 ## 모호한 요청 — 고치기 전에 되묻는다 (#443)
 
@@ -321,8 +349,13 @@ Command 15종(`createNode`·`updateNode`·`deleteNode`·`moveNode`·`setLayout`�
 ```
 GUI는 응답 대기 중 프로젝트 변경을 거부하고, 원본·대상·새 widget을 한 후보 프로젝트에서 검증한 뒤 한 Undo 단계로 커밋한다. 다른 프로젝트 명령 종류나 임의 필드는 거부한다.
 
-**못 하겠을 때** — 표현할 수 없는 요구(예: `onClick` 동작, `component` 타입, 새 페이지
-생성)이거나 요청이 모호하면(위 "모호한 요청" 절) `commands` 대신 `error`를 쓴다. `commands: []`는 쓰지 않는다 —
+**새 프로젝트 페이지 만들기**(`scope.kind`가 `"newPage"`일 때) — 역시 프로젝트 명령 하나이며 `commands`는 생략한다. `pageId`는 요청의 `newPageId`와 같아야 하고 `page`는 완전한 `ScreenSpec`이다.
+```json
+{ "protocol": 2, "commandVersion": "0.3", "requestId": "<요청의 id 값>", "projectCommand": { "version": "0.1", "type": "createPage", "pageId": "<요청의 newPageId 값>", "page": { "name": "Fashion", "size": { "width": 1440, "height": 900 }, "root": "root", "nodes": { "root": { "type": "frame", "name": "Root", "box": { "width": "fill", "height": "fill" }, "layout": { "direction": "column", "gap": 24, "padding": { "top": 48, "right": 48, "bottom": 48, "left": 48 }, "mainAxis": "start", "crossAxis": "stretch" }, "background": [{ "type": "solid", "color": "#FFFFFF" }], "children": [{ "node": "title" }] }, "title": { "type": "text", "name": "Title", "box": { "width": "fill", "height": "auto" }, "content": "FASHION", "color": "#111111", "typography": { "fontFamily": "Pretendard", "fontSize": 64, "fontWeight": 700, "lineHeight": 72, "letterSpacing": -2, "textAlign": "left" } } } } } }
+```
+
+**못 하겠을 때** — 표현할 수 없는 요구(예: `onClick` 동작, `component` 타입, 페이지 삭제·순서
+변경)이거나 요청이 모호하면(위 "모호한 요청" 절) `commands` 대신 `error`를 쓴다. `commands: []`는 쓰지 않는다 —
 Transaction은 Command가 최소 1개 필요하다(스키마가 거부한다).
 ```json
 { "protocol": 2, "commandVersion": "0.3", "requestId": "<요청의 id 값>", "error": "프로젝트에 없는 관계 대상을 추측할 수 없습니다 — 대상 PageId를 확인해 주세요" }
@@ -395,8 +428,8 @@ Undo가 어긋난다. 대신 같은 Command를 GUI에 보내 GUI가 검증·적�
 button의 action은 `updateNode(path: "action")`으로 전체 객체를 교체한다. 삭제는
 `removeNodeAction`만 쓰고 null/빈 객체/action.type/action.target 부분 쓰기는 금지한다.
 화면 kind는 `updateScreen(path: "kind")`으로 page/modal/widget를 쓴다. 최소/첫 page 및
-참조 source/target 규칙은 프로젝트 검증에서 확인한다. 요청에는 아직 다른 페이지 카탈로그가
-없으므로 이름으로 PageId를 추측하지 않는다. S1-10의 대상 카탈로그 지원은 별도 작업이다.
+참조 source/target 규칙은 프로젝트 검증에서 확인한다. 대상 PageId는 요청 `destinations`에서
+확인한 값만 쓰고 이름으로 추측하지 않는다.
 
 ## 자주 틀리는 지점
 
@@ -528,7 +561,9 @@ Command 9개, 3종(`updateScreen`·`setLayout`·`createNode`)으로 만든다.
 `onClick`/`value`/`onChange` 없음)에 더해 이 경로만의 제약이다(`docs/08-natural-language.md`
 7.2):
 
-- 새 **페이지** 생성 — `applyCommand`는 페이지 한 장(`ScreenSpec`) 단위만 안다
+- 페이지 **삭제·순서 변경·이름만 바꾸기** 같은 나머지 페이지 조작 — `applyCommand`는 페이지 한 장
+  (`ScreenSpec`) 단위만 알고, 프로젝트 명령으로 받는 것은 `extractAndPlaceWidget`과 `createPage`
+  둘뿐이다. **새 페이지 만들기는 된다**(위 "새 프로젝트 페이지 만들기", #497)
 - 비활성 페이지의 임의 노드 편집·"전체 프로젝트" 범위 — 위의 `extractAndPlaceWidget`만
   선택한 활성 프레임을 원본으로 삼아 다른 페이지 root에 배치할 수 있다
 - 계획 미리보기·승인 — 받은 Command는 바로 적용된다(Undo로 대응)

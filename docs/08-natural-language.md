@@ -646,7 +646,7 @@ grid-rows-[var(--layout-menubar-height)_1fr]
 
 | 뺀 것 | 왜 |
 |---|---|
-| **페이지 단위 조작**(새 페이지 · 삭제 · 순서 변경) | Command 가 없다(3.4-(2)). 넣으려면 `applyCommand` 의 단위를 넘어서는 결정이 먼저 필요하다 — 8절 |
+| **페이지 단위 조작**(~~새 페이지~~ · 삭제 · 순서 변경) | Command 가 없다(3.4-(2)). 넣으려면 `applyCommand` 의 단위를 넘어서는 결정이 먼저 필요하다 — 8절. **새 페이지 만들기는 #497에서 풀었다**(아래 S3) — Command 배열이 아니라 `projectCommand` 의 `createPage` 로 받는다. 삭제·순서 변경은 그대로 GUI 에 남는다 |
 | **비활성 페이지 대상 요청** | Command 가 대상 페이지를 들고 있지 않다(3.4-(3)). **활성 페이지 한 장으로 한정한다** |
 | **"전체 프로젝트" 적용 범위** | 03이 *"전체 프로젝트 변경은 위험하므로 자연어로 자동 판단하게 두지 않는다"* 고 적었다. 1차는 선택 요소 / 현재 화면 둘만 |
 | **큰 변경의 계획 미리보기·승인** | 03이 명시적으로 허용했다 — *"MVP에서는 모든 요청을 계획 단계 없이 바로 적용하고 Undo로 대응해도 된다"* |
@@ -673,7 +673,7 @@ grid-rows-[var(--layout-menubar-height)_1fr]
 | # | 정해야 하는 것 | 이 문서의 입장 | 딸려오는 것 |
 |---|---|---|---|
 | 1 | **실행 주체 (a)/(b)/(c)** | **#155에서 (b)로 결정·구현** | 전달 매체는 **파일 교환**이다 — GUI가 `.visual-spec/runtime/nl-request.json`을 쓰고 에이전트가 `nl-response.json`에 Command 배열을 쓴다. #133(PR #145)이 연 `/__vs/file/<폴더>/<경로>`를 그대로 쓰고 화이트리스트에 `runtime: [".json"]` 한 줄을 더했다. 규약과 선택 근거는 `src/features/editor/nl/nlProtocol.ts` 상단 |
-| 2 | **"자연어 화면 생성"의 해석** | **#183에서 "빈 페이지 채우기"로 결정·구현** | 지금 Command 6종만으로 된다(3.3 login-screen 재현이 근거) — 새 메커니즘이 필요 없었다(`test/nl-screen-generation.test.ts`). **새 페이지 만들기**는 여전히 안 된다 — `applyCommand` 의 단위(`ScreenSpec`)를 넘어서고, 이 결정은 바뀌지 않았다(3.4-(2)) |
+| 2 | **"자연어 화면 생성"의 해석** | **#183에서 "빈 페이지 채우기"로 결정·구현** | 지금 Command 6종만으로 된다(3.3 login-screen 재현이 근거) — 새 메커니즘이 필요 없었다(`test/nl-screen-generation.test.ts`). **새 페이지 만들기**는 #497에서 더했다 — Command 배열의 단위(`ScreenSpec`)를 넘어서는 것은 그대로여서(3.4-(2)) Command 를 늘리지 않고 `projectCommand` 의 `createPage` 로 받는다(아래 S3) |
 | 3 | **`CreateNodeCommand.index` 추가 여부** | **#193에서 추가로 결정·구현**([PR #195](https://github.com/visual-spec-labs/Visual-Spec-Builder/pull/195), 머지됨) | 선택 필드라 breaking change 아님, 09 문서(변경 절차)에 기록됨. 생략하면 지금까지처럼 끝에 붙는다 |
 | 4 | **Command 스키마를 JSON Schema 정본으로 고정할지** | **#153에서 결정·완료** | `command.schema.json` + `validateTransaction` + [09-command-schema-freeze.md](09-command-schema-freeze.md) |
 | 5 | **no-op 이유 문자열을 누가 내는가** | 정하지 않았다(4.2 G2) | `applyCommand` 옆에 이유를 함께 내는 함수를 두는 안 / 호출부가 같은 조건을 다시 재는 안. 전자는 Command Engine 의 공개 표면이 넓어진다 |
@@ -779,6 +779,44 @@ navigate는 effective kind=page, openModal은 modal만 대상으로 삼는다. �
 예: 현재 login의 loginButton에 `{type:"updateNode", id:"loginButton", path:"action", value:{type:"navigate", target:"dashboard"}}`.
 모달은 value를 `{type:"openModal", target:"resetPassword"}`로 전체 교체하며 제거는
 `{type:"removeNodeAction", id:"loginButton"}`다. 두 target은 요청 카탈로그에서 확인한 ID일 때만 사용한다.
+
+## S3 새 프로젝트 페이지 (#497)
+
+적용 대상(`scope.kind`)에 `"newPage"` 를 더한다. 이 범위는 현재 화면 범위와 **단위가 다르다** —
+활성 `ScreenSpec` 한 장을 고치는 것이 아니라 프로젝트에 페이지를 한 장 더한다. 그래서 응답도
+`commands` 가 아니라 S2 와 같은 자리인 선택 `projectCommand` 로 받고, 종류는
+`createPage` 하나다. `commands` 와 섞은 응답은 거부한다.
+
+**"전체 프로젝트" 범위는 여전히 없다.** 03 이 그 범위를 뺀 근거는 *"전체 프로젝트 변경은
+위험하다"* 였고, 그 위험은 **이미 있는 화면들을 한꺼번에 바꾸는 것**이다. 새 페이지는 기존
+페이지를 한 글자도 바꾸지 않으므로 그 근거가 닿지 않는다.
+
+### 요청 — GUI 가 PageId 를 발급한다
+
+`scope.kind` 가 `"newPage"` 일 때만 요청에 `newPageId` 가 실린다. GUI 가 요청 시점의
+`spec.pages` 와 충돌하지 않는 id 를 발급한 값이고(`store/nodeId.ts` 의 `generateNodeId`),
+응답의 `createPage.pageId` 는 **이 값과 같아야 한다.** 에이전트가 id 를 지으면 이미 있는 페이지
+키를 덮어써 그 화면이 통째로 사라질 수 있다 — 그 사고를 `command/createPageCommand.ts` 가 막는다.
+
+읽기 전용 문맥은 S1-10 · S2 와 같은 것을 쓴다. `destinations` 가 페이지 카탈로그이고, `page` 는
+여전히 **활성 페이지**다(새 페이지를 디자인할 때 참조하는 화면이다 — 편집 대상이 아니다).
+여기에 선택 `assets` 를 더한다: 작업공간에 이미 가져온 이미지의 상대 경로 목록
+(`assets/hero.png`)이다. 목록에 있는 경로만 `ImageNode.src` 에 쓸 수 있고, 모델이 로컬 파일
+경로를 짐작하거나 이미지 데이터를 응답에 담지 않는다. 목록이 비면 필드 자체를 생략한다.
+
+### 적용 — 후보 프로젝트를 검증한 뒤 한 Undo 단계
+
+`page` 는 **완전한 `ScreenSpec`** 이다. GUI 는 그 페이지를 더한 후보 프로젝트를 만들어
+`validateProjectSpec` 을 통과했을 때만 페이지 추가와 활성화를 **한 Undo 단계**로 커밋한다
+(`editorStore.applyNlCreatePageCommand`). 형식 오류·검증 실패면 프로젝트도 활성 페이지도
+history 도 그대로다 — **빈 페이지가 남지 않는 것**이 GUI 에서 페이지를 먼저 만드는 경로와
+다른 점이고, 이 명령이 있는 이유의 절반이다.
+
+`kind` 는 `"page"` 만 받는다. modal · widget 은 어느 화면에서 열리는지를 사용자가 정해야 하므로
+이 경로로 만들지 않는다. 페이지 삭제 · 순서 변경은 자연어 경로에 없다(7.2 그대로).
+
+`commandVersion` 은 현재 값(`"0.3"`)만 받는다 — S2 의 위젯 명령이 호환용 `"0.2"` 를 함께 받는 것과
+다르다. 이 명령은 `"0.3"` 이후에 생겼으니 옛 생산자가 보낼 수 있는 값이 아니다.
 
 ## S2 공유 위젯 읽기 문맥
 
