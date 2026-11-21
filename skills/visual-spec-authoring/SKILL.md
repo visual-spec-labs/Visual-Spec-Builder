@@ -196,6 +196,42 @@ description: Visual Spec JSON 문서를 새로 쓰거나 기존 스펙 파일을
   (absolute)도 없다. 사진과 오버레이를 한 자리에 포갤 수 없다. frame 배경의 단색·그라디언트
   위에 얹는 오버레이는 된다(위 관용구).
 
+## 반응형 — 분기점은 **누적**이다 (#510)
+
+`responsive`는 요청이 여러 화면 크기를 말할 때만 쓴다. **말하지 않으면 아예 만들지 않는다** —
+`breakpoints`가 비어 있는 화면이 정상이고, 쓸데없이 만든 분기점은 아래 함정으로 이어진다.
+
+규칙은 하나다. **기본 `nodes` 값이 가장 좁은 화면이고, 넓은 화면 값을 분기점에 적는다.**
+(설치된 계약은 [08-natural-language.md](../visual-spec/contract/docs/08-natural-language.md)의 S4,
+저장소 안은 그 문서와 `docs/12-responsive-ir-design.md` "표현 방식"이 정본이다.)
+
+- override는 `minWidthPx` **이상 모든 폭**에 적용되고, 더 큰 분기점에서 **다시 적지 않으면 되돌아가지 않는다.**
+- CSS 미디어쿼리의 `@media (min-width: …)`와 같다. "mobile = 320~767"처럼 **구간으로 끊기지 않는다.**
+- 같은 속성이 여러 분기점에 있으면 적용되는 것 중 **가장 큰 분기점**의 값이 이긴다.
+
+**가장 흔한 실수** — 데스크톱 값을 기본에 쓰고 `mobile(320)` 분기점에 모바일 값을 적는 것이다.
+그러면 320 이상 **모든 폭**에서 모바일 값이 이겨서, 1440 화면이 모바일 치수로 그려진다. 기본에 쓴
+데스크톱 값은 320 미만에서만 쓰이는 죽은 값이 된다.
+
+```jsonc
+// ✗ 이렇게 쓰면 1440에서도 fontSize가 32다
+{ "nodes": { "title": { "typography": { "fontSize": 42 } } },
+  "responsive": { "breakpoints": { "mobile": { "minWidthPx": 320 } },
+    "overrides": { "mobile": { "title": { "typography": { "fontSize": 32 } } } } } }
+
+// ✓ 기본이 가장 좁은 화면, 넓은 쪽을 분기점에
+{ "nodes": { "title": { "typography": { "fontSize": 32 } } },
+  "responsive": { "breakpoints": { "desktop": { "minWidthPx": 1024 } },
+    "overrides": { "desktop": { "title": { "typography": { "fontSize": 42 } } } } } }
+```
+
+- 분기점 ID는 이름일 뿐이고 **신원은 `minWidthPx`다.** `mobile`이라는 이름이 "작은 화면 전용"을
+  뜻하지 않는다.
+- `size.width`보다 작은 분기점만 만들어 두고 기본에 그 페이지용 값을 쓰지 않는다 — 그 기본값은
+  화면에 절대 나오지 않는다.
+- 객체 칸(`box`·`layout`·`typography` 등)은 적은 칸만 덮어쓰고 나머지는 상속한다. **배열(`background`)은
+  통째로 교체된다** — 위 "그라디언트 배경" 절과 같은 규칙이다.
+
 ## 이미 코드로 만든 화면에 피드백이 왔을 때
 
 `visual-spec-to-react` 로 코드까지 만든 화면에 "버튼 색 바꿔줘", "제목 좀 크게" 같은 후속
