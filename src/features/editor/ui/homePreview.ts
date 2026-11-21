@@ -47,15 +47,18 @@ const CROSS_AXIS: Record<string, CSSProperties["alignItems"]> = {
 };
 
 /**
- * grid는 최소 구현이다 — Canvas.tsx의 displayStyle()과 같은 규칙(균등 N열
- * 자동 배치만, 셀 지정 없음, mainAxis/crossAxis 무시). 카드 미리보기는
- * Canvas.tsx와 별개 구현이라(위 주석 참고) 여기도 같이 맞춘다.
+ * grid는 최소 구현이다 — `nodeStyles.ts`의 `displayStyle()`과 같은 규칙(균등 N열
+ * 자동 배치만, 셀 지정 없음). 카드 미리보기는 캔버스와 별개 구현이라(위 주석 참고)
+ * 여기도 같이 맞춘다 — **같은 화면이 홈 카드와 캔버스에서 다르게 보이면 안 된다.**
+ * `alignContent`를 빠뜨리면 남는 세로 공간이 행 간격으로 새어 나온다(#509, 근거는
+ * `nodeStyles.ts`의 같은 함수 주석).
  */
 function previewDisplayStyle(layout: FrameNode["layout"]): CSSProperties {
   if (layout.direction === "grid") {
     return {
       display: "grid",
       gridTemplateColumns: `repeat(${layout.columns ?? 1}, 1fr)`,
+      alignContent: "start",
     };
   }
   return { display: "flex", flexDirection: layout.direction };

@@ -62,6 +62,18 @@ export function stateStyleVariables(states: NodeStates | undefined): CSSProperti
  * 행 트랙을 채울지(`stretch`) 붙을지를 정한다. `frameStyle`이 아래에서 조건 없이
  * 얹는 것이 맞고, 그래서 상세 패널도 교차축 칸을 감추지 않는다(이슈 #160).
  *
+ * **`align-content`를 직접 적는다(#509).** 안 적으면 CSS 기본값 `normal`이 grid에서
+ * stretch로 동작해, 남는 세로 공간을 auto 행 트랙에 **균등 분배**한다. 자식이 고정
+ * 높이면 늘어난 트랙 위쪽에 붙으므로 그 차이가 행 사이 빈칸으로 보인다 — 스펙에
+ * `gap: 12`라고 적혀 있어도 화면에는 62px로 그려졌다(Chrome 실측, 740×560 컨테이너에
+ * 높이 210 자식 6개). 열 간격은 트랙이 `1fr`이라 늘 gap 그대로였고, 그래서 세로만
+ * 어긋나 보였다.
+ *
+ * `start`로 고정하는 이유는 **스펙이 남는 공간의 몫을 정하지 않기 때문**이다. `gap`은
+ * "형제 사이 간격"이라는 뜻 하나뿐이라, 컨테이너가 커졌다고 그 값이 달라지면 스펙을
+ * 읽고 예측할 수 없다. 남는 공간은 트랙 사이가 아니라 컨테이너 끝에 남는다 —
+ * 디자인 도구의 auto-layout과 같고, row/column(flex)에서 이미 그렇게 동작한다.
+ *
  * 정식 grid 배치(셀 지정·여러 칸 차지)는 후속 작업이다 — `Canvas.tsx`가 정식
  * 캔버스로 교체될 때 함께 본다(그쪽 파일 머리 주석 참고).
  */
@@ -71,6 +83,7 @@ function displayStyle(layout: FrameNode["layout"]): CSSProperties {
     return {
       display: "grid",
       gridTemplateColumns: `repeat(${layout.columns ?? 1}, 1fr)`,
+      alignContent: "start",
     };
   }
   return { display: "flex", flexDirection: layout.direction };
