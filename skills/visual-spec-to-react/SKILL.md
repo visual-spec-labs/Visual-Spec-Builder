@@ -619,6 +619,11 @@ import heroImageUrl from "../assets/hero.png";
 | 2 | `grid-cols-[repeat(2,1fr)]` | `repeat(2, 1fr)` |
 | 3 | `grid-cols-[repeat(3,1fr)]` | `repeat(3, 1fr)` |
 
+grid 컨테이너에는 **`content-start`를 항상 붙인다**(#509). 빠뜨리면 CSS 기본값(`normal` =
+stretch)이 남는 세로 공간을 행 트랙에 균등 분배해, `gap`에 적힌 값보다 행 사이가 넓게 그려진다
+(Chrome 실측: `gap: 12`인 3열 그리드의 행 간격이 62px였다). 캔버스(`ui/nodeStyles.ts`)가 같은
+값을 쓰므로 이 클래스가 없으면 생성 코드와 캔버스가 어긋난다.
+
 `mainAxis`는 Grid 트랙 정렬 규칙이 아니므로 생략한다. `crossAxis`는 캔버스의 `alignItems`와
 같이 `start`→`items-start`, `center`→`items-center`, `end`→`items-end`, `stretch`→
 `items-stretch`로 적용한다. `start`일 때 콘텐츠 높이가 다른 auto 자식은 각자 높이를 유지하고,
@@ -626,7 +631,7 @@ import heroImageUrl from "../assets/hero.png";
 정렬한다.
 
 ```tsx
-<div className="grid grid-cols-[repeat(2,1fr)] items-stretch gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
+<div className="grid grid-cols-[repeat(2,1fr)] content-start items-stretch gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
 ```
 
 grid 컨테이너의 직계 자식은 `flex-*`/`self-stretch` 같은 flex 전용 클래스를 붙이지 않는다 —
@@ -778,7 +783,7 @@ export default function ImageHeroPage() {
 ```tsx
 export default function FormGridPage() {
   return (
-    <div className="grid grid-cols-[repeat(2,1fr)] items-stretch gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
+    <div className="grid grid-cols-[repeat(2,1fr)] content-start items-stretch gap-[12px] pt-[24px] pr-[16px] pb-[24px] pl-[16px] bg-[#FFFFFF] w-full flex-[1_0_auto]">
       <p data-node-id="nameLabel" className="w-full h-auto whitespace-pre-wrap m-0 text-[#374151] [font-family:'Pretendard'] text-[14px] font-normal leading-[20px] tracking-[0px] text-left">이름</p>
       <input
         data-node-id="nameInput"

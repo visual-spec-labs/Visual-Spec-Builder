@@ -66,7 +66,9 @@ function rootStyle(columns: number, axis: Axis, gap = 12): CSSProperties {
 }
 
 function classFor(columns: number, axis: Axis): string {
-  return `grid grid-cols-[repeat(${columns},1fr)] items-${axis} gap-[12px] p-[12px]`;
+  // `content-start`는 캔버스의 `alignContent: "start"`와 짝이다(#509) — 빼면 남는 세로 공간이
+  // 행 트랙에 분배돼 생성 코드 쪽만 행 간격이 벌어지고, 이 파리티 비교가 깨진다.
+  return `grid grid-cols-[repeat(${columns},1fr)] content-start items-${axis} gap-[12px] p-[12px]`;
 }
 
 const harnessStyle: CSSProperties = {
@@ -85,7 +87,7 @@ it.runIf(process.env.VSB_GRID_BROWSER === "1")(
         "grid-cols-[repeat(1,1fr)]", "items-start",
         "min-[700px]:grid-cols-[repeat(2,1fr)]", "min-[700px]:items-center",
         "min-[900px]:grid-cols-[repeat(3,1fr)]", "min-[900px]:items-stretch",
-        "grid", "gap-[8px]", "min-[700px]:gap-[12px]", "min-[900px]:gap-[20px]", "p-[12px]",
+        "grid", "content-start", "gap-[8px]", "min-[700px]:gap-[12px]", "min-[900px]:gap-[20px]", "p-[12px]",
         "w-full", "h-full", "h-auto", "p-[4px]",
       ];
       const classes = [
