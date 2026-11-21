@@ -2,6 +2,7 @@ import { useResponsiveViewStore } from "@/features/editor/responsive/responsiveV
 import { create } from "zustand";
 import { buildGroupCommands, buildUngroupCommands } from "@/features/editor/command/groupCommands";
 import { applyWidgetProjectCommand, type WidgetProjectCommand, type WidgetProjectResult } from "@/features/editor/command/widgetProjectCommand";
+import { applyCreatePageCommand, type CreatePageCommand, type CreatePageResult } from "@/features/editor/command/createPageCommand";
 
 import {
   applyTransaction,
@@ -228,6 +229,14 @@ export interface EditorState {
   detachInstance: (id: NodeId) => void;
   /** Apply an external cross-page widget request only after full project validation. */
   applyNlWidgetProjectCommand: (command: Extract<WidgetProjectCommand, { type: "extractAndPlaceWidget" }>) => WidgetProjectResult;
+  /**
+   * 자연어 응답이 보낸 **새 페이지 한 장**을 프로젝트에 더하고 그 페이지를 활성화한다(#497).
+   *
+   * `allocatedPageId`는 그 요청에 실어 보낸 id다 — 응답이 다른 id를 들고 오면 아무것도 바꾸지 않는다.
+   * 성공하면 **Undo 한 단계**이고, 되돌리면 페이지가 사라지므로 활성 페이지도 함께 돌아간다
+   * (`addPage`와 같은 이유, #131). 실패하면 프로젝트·활성 페이지·history가 전부 그대로다.
+   */
+  applyNlCreatePageCommand: (command: CreatePageCommand, allocatedPageId: PageId) => CreatePageResult;
   /**
    * 스펙 전체를 교체하고 선택을 해제한다(New/Open).
    * 화면 문서를 받으면 페이지 1개짜리 프로젝트로 넓힌다. 그래서 화면 문서 파일도
@@ -534,6 +543,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!result.ok) return state;
       return { spec: result.spec, selectedId: result.selectedId, focusRootId: null,
         history: pushHistory(state.history, makeSnapshot(result.spec, state.activePageId)) };
+    });
+    return result;
+  },
+  applyNlCreatePageCommand: (command, allocatedPageId) => {
+    let result: CreatePageResult = { ok: false, message: "새 페이지를 만들지 못했습니다." };
+    set((state) => {
+      result = applyCreatePageCommand(state.spec, command, allocatedPageId);
+      if (!result.ok) return state;
+      // 페이지 목록까지 바꾸는 편집이라 스냅숏을 직접 만든다 — `addPage`와 같은 자리다.
+      // 선택과 선택 문맥은 비운다: 새 페이지의 노드 id는 지금 페이지의 것과 겹칠 수 있다(#151).
+      return { spec: result.spec, activePageId: command.pageId, selectedId: null, focusRootId: null,
+        history: pushHistory(state.history, makeSnapshot(result.spec, command.pageId)) };
     });
     return result;
   },

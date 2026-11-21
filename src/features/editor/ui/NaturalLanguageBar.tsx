@@ -19,6 +19,7 @@ import { NL_REQUEST_PATH, NL_RESPONSE_PATH, type NlScopeKind } from "@/features/
 import type { Command } from "@/features/editor/command/types";
 import { runTransactionGates } from "@/features/editor/command/transactionGate";
 import { applyWidgetProjectCommand } from "@/features/editor/command/widgetProjectCommand";
+import { generateNodeId } from "@/features/editor/store/nodeId";
 import { changedBackgroundNodes, type BackgroundChange } from "@/features/editor/nl/backgroundChange";
 import { resolveScope, scopeHint, scopeOptions } from "@/features/editor/nl/nlScope";
 import { undoNlEdit } from "@/features/editor/nl/nlUndo";
@@ -177,6 +178,10 @@ export function NaturalLanguageBar() {
     if (text === "" || pending) return;
 
     const requestRevision = revisionRef.current;
+    // 새 페이지 범위면 GUI가 **먼저** 충돌 없는 PageId를 발급한다(#497) — 에이전트가 id를 지으면
+    // 이미 있는 페이지를 덮어쓸 수 있다(`command/createPageCommand.ts`). 응답은 이 값만 쓸 수 있고,
+    // 요청 사이에 문서가 바뀌면 아래 커밋 직전 검사가 요청 자체를 버린다.
+    const newPageId = scope.kind === "newPage" ? generateNodeId("page", spec.pages) : undefined;
     const token: NlCancelToken = { cancelled: false };
     cancelRef.current = token;
     // 진행 보고는 이 요청이 아직 현재일 때만 화면에 쓴다 — 취소 뒤 끝나지 않은 마지막 회차가
@@ -189,7 +194,7 @@ export function NaturalLanguageBar() {
     setFeedback({ kind: "pending" });
 
     const outcome = await requestNlEdit(
-      { id: createNlRequestId(), instruction: text, scope, pageId, page, project: spec },
+      { id: createNlRequestId(), instruction: text, scope, pageId, page, project: spec, newPageId },
       token,
       wait,
     );
@@ -239,6 +244,35 @@ export function NaturalLanguageBar() {
       current.activePageId !== pageId
     ) {
       setFeedback({ kind: "error", message: "문서나 화면이 바뀌었습니다. 변경된 상태에서 다시 요청하세요." });
+      return;
+    }
+    if (result.kind === "createPage") {
+      if (scope.kind !== "newPage" || newPageId === undefined) {
+        setFeedback({ kind: "error", message: "새 페이지 생성 명령은 적용 대상이 “새 프로젝트 페이지”일 때만 받습니다." });
+        return;
+      }
+      // 위젯 경로처럼 미리 검증해 두지 않는다 — 이 명령은 활성 화면과 무관해서 커밋 직전에
+      // 달라질 것이 없고, 스토어 액션이 같은 검증 결과를 그대로 돌려준다(전체 프로젝트 검증 두 번을 아낀다).
+      const committed = current.applyNlCreatePageCommand(result.command, newPageId);
+      if (!committed.ok) {
+        setFeedback({ kind: "error", message: committed.message });
+        return;
+      }
+      setInstruction("");
+      setFeedback({
+        kind: "success",
+        message: `새 페이지 “${result.command.page.name}”을 만들고 화면을 구성했습니다.`,
+        spec: committed.spec,
+      });
+      return;
+    }
+    if (scope.kind === "newPage") {
+      // 새 페이지 범위에 화면 Command나 위젯 명령으로 답한 경우다. 그대로 적용하면 **지금 보고 있는
+      // 화면**이 바뀐다 — 사용자가 고른 적용 대상과 다른 곳이라 적용하지 않는다.
+      setFeedback({
+        kind: "error",
+        message: "적용 대상이 “새 프로젝트 페이지”인 요청에는 새 페이지 생성 명령으로 답해야 합니다. 지금 화면은 바꾸지 않았습니다.",
+      });
       return;
     }
     if (result.kind === "projectCommand") {
@@ -329,7 +363,8 @@ export function NaturalLanguageBar() {
         <span className="text-xs font-semibold tracking-wide text-content-muted uppercase">
           적용 대상
         </span>
-        {/* 03-user-flow.md 의 라디오 두 칸. "전체 프로젝트"는 1차에서 뺐다(docs/08 7.2). */}
+        {/* 03-user-flow.md 의 라디오 칸. 세 번째 "새 프로젝트 페이지"는 #497에서 더했다.
+            "전체 프로젝트"는 여전히 없다(docs/08 7.2) — 있는 화면들을 한꺼번에 바꾸는 범위다. */}
         {options.map((option) => (
           <label
             key={option.kind}
@@ -360,7 +395,9 @@ export function NaturalLanguageBar() {
           onChange={(event) => setInstruction(event.target.value)}
           disabled={pending}
           aria-label="자연어 편집 요청"
-          placeholder={`${scope.label} — 어떻게 변경할까요? (예: 간격을 24로 해줘)`}
+          placeholder={scope.kind === "newPage"
+            ? `${scope.label} — 무엇을 만들까요? (예: 패션 타이포그래피 화면 만들어줘)`
+            : `${scope.label} — 어떻게 변경할까요? (예: 간격을 24로 해줘)`}
           className="min-w-0 flex-1 rounded-control border border-line bg-surface-raised px-3 py-2 text-sm text-content placeholder:text-content-muted disabled:opacity-60"
         />
         <button
